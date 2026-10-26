@@ -1,0 +1,45 @@
+{
+  "date": "2026-10-24",
+  "environment": { "os": "Windows", "node": "24.13.0", "pnpm": "10.26.1" },
+  "scope": "Requirement-ledger tooling only; not product acceptance",
+  "commands": [
+    {
+      "command": "node scripts/ledger.mjs generate",
+      "exitCode": 0,
+      "result": "657 requirement units extracted; 0 Done"
+    },
+    {
+      "command": "node scripts/ledger.mjs check",
+      "exitCode": 0,
+      "result": "Source coverage, fingerprints and evidence structure valid; 0 Done"
+    },
+    {
+      "command": "node scripts/ledger.mjs --self-test",
+      "exitCode": 0,
+      "result": "Extraction, pending release rejection, missing evidence, missing requirements, traversal, failed command, source drift, runtime stub, skipped/focused test detection passed"
+    },
+    {
+      "command": "node scripts/ledger.mjs release",
+      "exitCode": 1,
+      "expected": true,
+      "result": "Release rejected: all 657 requirement units are still Pending"
+    }
+  ],
+  "followup": {
+    "date": "2026-10-25",
+    "scope": "Expanded source tracking and partial MVC evidence",
+    "requirementCount": 925,
+    "states": { "Pending": 868, "InProgress": 57, "Done": 0 },
+    "commands": [
+      { "command": "node scripts/ledger.mjs generate", "exitCode": 0 },
+      { "command": "node scripts/ledger.mjs check", "exitCode": 0 },
+      { "command": "node scripts/ledger.mjs --self-test", "exitCode": 0 }
+    ]
+  },
+  "limitations": [
+    "Textual stub/skip checks are conservative patterns, not a substitute for executing tests or reviewing implementations.",
+    "Evidence existence cannot certify factual accuracy of human-entered reports.",
+    "Compound specification bullets are preserved as single units and must satisfy every clause before Done.",
+    "This report is not a product coverage, security audit, browser compatibility or package-consumption report."
+  ]
+}

@@ -1,0 +1,9 @@
+node_modules
+dist
+artifacts
+pnpm-lock.yaml
+NESTVEXA_MASTER_IMPLEMENTATION_PROMPT.md
+.vscode
+docs/implementation/feature-ledger.md
+docs/implementation/requirements.json
+docs/implementation/feature-ledger.json

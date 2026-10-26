@@ -1,0 +1,31 @@
+{
+  "name": "@nestvexa/client",
+  "version": "0.1.0-alpha.0",
+  "description": "Browser-only Nestvexa Live protocol client",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run ../../tests/client.test.ts",
+    "lint": "eslint src"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,8 @@
+packages:
+  - packages/*
+  - examples/*
+minimumReleaseAge: 1440
+onlyBuiltDependencies:
+  - esbuild
+overrides:
+  multer: 2.5.0

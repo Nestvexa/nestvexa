@@ -1,0 +1,31 @@
+{
+  "name": "@nestvexa/views",
+  "version": "0.1.0-alpha.0",
+  "description": "Typed template engine contracts and trusted HTML composition for Nestvexa",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run ../../tests/views.test.ts",
+    "lint": "eslint src"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

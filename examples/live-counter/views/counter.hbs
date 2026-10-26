@@ -1,0 +1,53 @@
+<section aria-label="Counter">
+  <output id="count" aria-live="polite">{{count}}</output>
+  <p>Double: <span id="double">{{doubled}}</span></p>
+  <button type="button" nv:click="decrement">Decrease</button>
+  <button type="button" nv:click="increment">Increase</button>
+  <button type="button" nv:click="slow">Slow increase</button>
+  <form nv:submit="save">
+    <label for="name">Display name</label
+    ><input id="name" nv:model="name" value="{{name}}" maxlength="80" />
+    <button type="submit">Save name</button>
+  </form>
+  <p id="saved" nv:text="saved">{{saved}}</p>
+  <p id="name-preview" nv:text="name" nv:bind="title:name" nv:cloak="">
+    {{name}}
+  </p>
+  <p id="dirty-name" nv:dirty="name" hidden role="status">
+    Unsaved display name
+  </p>
+  <a id="health-link" nv:bind="href:healthLink" href="/api/health"
+    >Native health endpoint</a
+  >
+  <div id="visibility-area" nv:show="visible">
+    <button type="button" nv:click="toggleVisible" nv:ref="toggle">
+      Hide detail
+    </button>
+  </div>
+  <button type="button" nv:click="toggleVisible">Toggle detail</button>
+  <span nv:loading="" hidden role="status">Updating…</span>
+  <div id="local-widget" nv:ignore="">
+    <label for="local-note">Independent local note</label
+    ><input id="local-note" value="" />
+  </div>
+  <section
+    id="alpine-widget"
+    nv:ignore=""
+    x-data="localCounter"
+    aria-label="Alpine local widget"
+  >
+    <h2>Alpine local widget</h2>
+    <button type="button" x-on:click="incrementLocal">
+      Local Alpine click
+    </button>
+    <output id="alpine-local" x-text="clicks">0</output>
+    <button type="button" x-on:click="incrementServer">
+      Alpine server increment
+    </button>
+    <button type="button" x-on:click="renameServer">Alpine save name</button>
+    <p>
+      Server count from Alpine:
+      <span id="alpine-server" x-text="$live.get('count')">0</span>
+    </p>
+  </section>
+</section>

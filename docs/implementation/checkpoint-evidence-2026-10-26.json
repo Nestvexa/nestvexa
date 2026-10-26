@@ -1,0 +1,242 @@
+{
+  "schemaVersion": 1,
+  "checkpointDate": "2026-10-26",
+  "verificationTimestamp": "2026-10-26T11:21:25.645Z",
+  "environment": {
+    "node": "v24.13.0",
+    "platform": "win32"
+  },
+  "scope": "Current implemented checkpoint; incomplete master release gates remain blocking",
+  "implementedCheckpointPassed": true,
+  "releaseReady": false,
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exitCode": 0,
+      "milliseconds": 765,
+      "log": "artifacts/reports/commands/install.log"
+    },
+    {
+      "command": "pnpm format:check",
+      "exitCode": 0,
+      "milliseconds": 1960,
+      "log": "artifacts/reports/commands/format-check.log"
+    },
+    {
+      "command": "pnpm lint",
+      "exitCode": 0,
+      "milliseconds": 2628,
+      "log": "artifacts/reports/commands/lint.log"
+    },
+    {
+      "command": "pnpm typecheck",
+      "exitCode": 0,
+      "milliseconds": 19120,
+      "log": "artifacts/reports/commands/typecheck.log"
+    },
+    {
+      "command": "pnpm test",
+      "exitCode": 0,
+      "milliseconds": 5748,
+      "log": "artifacts/reports/commands/test.log"
+    },
+    {
+      "command": "pnpm test:coverage",
+      "exitCode": 0,
+      "milliseconds": 2550,
+      "log": "artifacts/reports/commands/test-coverage.log"
+    },
+    {
+      "command": "pnpm test:e2e",
+      "exitCode": 0,
+      "milliseconds": 30241,
+      "log": "artifacts/reports/commands/test-e2e.log"
+    },
+    {
+      "command": "pnpm test:pack",
+      "exitCode": 0,
+      "milliseconds": 39068,
+      "log": "artifacts/reports/commands/test-pack.log"
+    },
+    {
+      "command": "pnpm docs:build",
+      "exitCode": 0,
+      "milliseconds": 759,
+      "log": "artifacts/reports/commands/docs-build.log"
+    },
+    {
+      "command": "pnpm ledger:check",
+      "exitCode": 0,
+      "milliseconds": 664,
+      "log": "artifacts/reports/commands/ledger-check.log"
+    },
+    {
+      "command": "pnpm bench",
+      "exitCode": 0,
+      "milliseconds": 796,
+      "log": "artifacts/reports/commands/bench.log"
+    },
+    {
+      "command": "pnpm audit --audit-level high",
+      "exitCode": 0,
+      "milliseconds": 1000,
+      "log": "artifacts/reports/commands/audit.log"
+    },
+    {
+      "command": "pnpm release:check",
+      "exitCode": 1,
+      "milliseconds": 610,
+      "log": "artifacts/reports/commands/release-check.log"
+    }
+  ],
+  "tests": {
+    "aggregate": {
+      "passed": 195,
+      "total": 195,
+      "failed": 0,
+      "report": "artifacts/reports/vitest.json"
+    },
+    "highRiskCoverage": {
+      "passed": 74,
+      "total": 74,
+      "files": [
+        "packages/core/src/config.ts",
+        "packages/live/src/protocol.ts",
+        "packages/live/src/store.ts"
+      ],
+      "statementsPercent": 98.2,
+      "branchesPercent": 97.18,
+      "functionsPercent": 100,
+      "linesPercent": 99.51,
+      "report": "artifacts/reports/high-risk-tests.json",
+      "limitations": "Three selected configuration/protocol/store files only; not project-wide coverage or action/browser coverage."
+    }
+  },
+  "browser": {
+    "projects": ["chromium", "firefox", "webkit"],
+    "expected": 24,
+    "unexpected": 0,
+    "skipped": 0,
+    "flaky": 0,
+    "report": "artifacts/reports/playwright.json",
+    "scope": "Eight scenario tests on each engine, including cookie-bound Live/CSRF/replay, Alpine CSP, bindings, keyboard/no-JavaScript MVC and axe checks on fixtures."
+  },
+  "pack": {
+    "timestamp": "2026-10-26T11:22:29.085Z",
+    "passed": true,
+    "packages": [
+      {
+        "name": "@nestvexa/alpine",
+        "version": "0.1.0-alpha.0",
+        "sha256": "7ba92d6bc260b335e9b6c998e1017a438f402c3479bcf216d58aca1281f5a8df"
+      },
+      {
+        "name": "@nestvexa/client",
+        "version": "0.1.0-alpha.0",
+        "sha256": "dbdb98056297cd7423163ee6395d05d532d5b9465ace9a0ec5f6d4bf9965f2dd"
+      },
+      {
+        "name": "@nestvexa/core",
+        "version": "0.1.0-alpha.0",
+        "sha256": "83f9309a51abac8bf144fc22811ab1089fa1f362c09ee58066fedad2dc06c0ad"
+      },
+      {
+        "name": "@nestvexa/engine-hbs",
+        "version": "0.1.0-alpha.0",
+        "sha256": "957754f47aaa63fe82bae6ce2c5fb80969a3fab8e18352ae21dc9c11451a7196"
+      },
+      {
+        "name": "@nestvexa/live",
+        "version": "0.1.0-alpha.0",
+        "sha256": "41b8f319082df6ec51fbba51033e2c82e9b71bc32a1395c805bc1482d4f86a9b"
+      },
+      {
+        "name": "nestvexa",
+        "version": "0.1.0-alpha.0",
+        "sha256": "ce61c097cc71429df58f43836cd6f9f4d3efb2531f00abacc914b2e418a40330"
+      },
+      {
+        "name": "@nestvexa/views",
+        "version": "0.1.0-alpha.0",
+        "sha256": "183c558960631607a77770f790f9fd0df128c72d58fa930fb91724f1fb732ce9"
+      }
+    ],
+    "consumers": [
+      {
+        "manager": "pnpm",
+        "passed": true,
+        "commands": [
+          {
+            "command": "pnpm install --ignore-scripts",
+            "exitCode": 0
+          },
+          {
+            "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+            "exitCode": 0
+          },
+          {
+            "command": "node dist/consumer.js",
+            "exitCode": 0
+          },
+          {
+            "command": "node imports.mjs",
+            "exitCode": 0
+          }
+        ]
+      },
+      {
+        "manager": "npm",
+        "passed": true,
+        "commands": [
+          {
+            "command": "pnpm exec npm install --ignore-scripts --no-fund --no-audit",
+            "exitCode": 0
+          },
+          {
+            "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+            "exitCode": 0
+          },
+          {
+            "command": "node dist/consumer.js",
+            "exitCode": 0
+          },
+          {
+            "command": "node imports.mjs",
+            "exitCode": 0
+          }
+        ]
+      }
+    ],
+    "report": "artifacts/reports/pack.json"
+  },
+  "benchmark": {
+    "timestamp": "2026-10-26T11:23:09.914Z",
+    "node": "v24.13.0",
+    "platform": "win32 10.0.26200",
+    "cpu": "11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz",
+    "iterations": 1000,
+    "scope": "cached HBS adapter only; not end-to-end or a plain-Nest comparison",
+    "milliseconds": {
+      "p50": 0.19259999999999877,
+      "p95": 0.24459999999999127,
+      "p99": 0.30049999999999955
+    },
+    "report": "artifacts/reports/benchmark.json"
+  },
+  "release": {
+    "status": "NOT YET READY — BLOCKERS",
+    "ledger": {
+      "total": 925,
+      "inProgress": 76,
+      "pending": 849,
+      "done": 0
+    },
+    "limitations": [
+      "Complete master implementation remains unmet.",
+      "Linux, Node22 and other Nest majors not executed.",
+      "Coverage excludes most runtime/action/client files; mutation, fuzz, long-memory and comparative load tests remain open.",
+      "No independent security certification or universal accessibility conformance is claimed.",
+      "No publication, remote push, namespace reservation, SBOM or provenance attestation occurred."
+    ]
+  }
+}

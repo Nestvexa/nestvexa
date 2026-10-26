@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "checkpointDate": "2026-10-26",
+  "releaseStatus": "NOT YET READY — BLOCKERS",
+  "phases": [
+    {
+      "id": 0,
+      "state": "InProgress",
+      "scope": "Audit, upstream verification, workspace and requirement tracking",
+      "remaining": "Complete platform checks, reviewed ADRs, security/tooling gates; no phase acceptance claim"
+    },
+    {
+      "id": 1,
+      "state": "InProgress",
+      "scope": "Core, views, HBS, umbrella and starter implementation",
+      "remaining": "Complete all phase requirements and record integrated test/browser/pack evidence"
+    },
+    {
+      "id": 2,
+      "state": "InProgress",
+      "scope": "Live protocol, opaque state store and generated Nest routes",
+      "remaining": "Real HTTP and cookie-backed browser subset executed; complete full phase security, protocol, lifecycle and compatibility acceptance"
+    },
+    {
+      "id": 3,
+      "state": "InProgress",
+      "scope": "Initial directives, queued transport, keyed morph and explicit CSP Alpine call/get/set bridge",
+      "remaining": "Current three-browser/axe fixture suite passes; complete full directive modifiers, cleanup/input matrix and runtime acceptance; automatic default bootstrap remains open"
+    },
+    { "id": 4, "state": "Pending" },
+    { "id": 5, "state": "Pending" },
+    { "id": 6, "state": "Pending" },
+    { "id": 7, "state": "Pending" },
+    { "id": 8, "state": "Pending" },
+    { "id": 9, "state": "Pending" },
+    { "id": 10, "state": "Pending" },
+    { "id": 11, "state": "Pending" },
+    { "id": 12, "state": "Pending" },
+    { "id": 13, "state": "Pending" },
+    { "id": 14, "state": "Pending" },
+    { "id": 15, "state": "Pending" },
+    { "id": 16, "state": "Pending" },
+    { "id": 17, "state": "Pending" }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "name": "@nestvexa/alpine",
+  "version": "0.1.0-alpha.0",
+  "description": "Explicit Alpine integration for the Nestvexa Live client",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": "^22.13.0 || ^24.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run ../../tests/alpine.test.ts",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@nestvexa/client": "workspace:*"
+  },
+  "peerDependencies": {
+    "@alpinejs/csp": "~3.17.5",
+    "alpinejs": "~3.17.5"
+  },
+  "peerDependenciesMeta": {
+    "@alpinejs/csp": {
+      "optional": true
+    },
+    "alpinejs": {
+      "optional": true
+    }
+  }
+}
