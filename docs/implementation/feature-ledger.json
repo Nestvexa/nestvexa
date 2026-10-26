@@ -2764,24 +2764,38 @@
         "packages/core/src/config.ts",
         "packages/core/src/core.module.ts",
         "packages/core/src/registry.ts",
-        "packages/nestvexa/src/index.ts"
+        "packages/nestvexa/src/index.ts",
+        "packages/live/src/registration.ts",
+        "packages/live/src/runtime.ts",
+        "packages/live/src/live.module.ts"
       ],
       "testFiles": [
         "tests/core.test.ts",
-        "tests/integration.test.ts"
+        "tests/integration.test.ts",
+        "tests/live-registration.test.ts"
       ],
       "docs": [
         "packages/core/README.md",
-        "docs/architecture/overview.md"
+        "docs/architecture/overview.md",
+        "packages/live/README.md"
       ],
       "examples": [
-        "examples/starter-hbs/src/main.ts"
+        "examples/starter-hbs/src/main.ts",
+        "examples/live-counter/src/main.ts"
       ],
-      "securityNotes": "Evidence applies to implemented configuration/registry/native MVC portions only. Advanced request context, protocol and action execution remain unmet.",
+      "securityNotes": "Application-local DI registration rejects duplicate Live types/names/routes, delegates mounts to the owning policy/store, shares public request context IDs across modules, and rejects late work after shutdown. Renderer lifecycle remains host-owned. Evidence is limited to the implemented Live/MVC slice.",
       "state": "InProgress",
-      "validationEvidence": [],
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check (implemented checks pass; release check remains blocking)",
+          "exitCode": 0,
+          "executedAt": "2026-10-26T14:14:12.280Z",
+          "report": "docs/implementation/registration-checkpoint-evidence-2026-10-26.json"
+        }
+      ],
       "outstandingIssues": [
-        "Complete every clause, required platform/negative/browser/pack checks and recorded validation evidence before Done."
+        "Complete every clause, required platform/negative/browser/pack checks and recorded validation evidence before Done.",
+        "Complete every remaining clause and the full release matrix before Done; arbitrary host-route conflicts, all transient/async/fault variants, logging/tracing and independent review are not certified by this registration suite."
       ]
     },
     {
@@ -2876,24 +2890,38 @@
         "packages/core/src/config.ts",
         "packages/core/src/core.module.ts",
         "packages/core/src/registry.ts",
-        "packages/nestvexa/src/index.ts"
+        "packages/nestvexa/src/index.ts",
+        "packages/live/src/registration.ts",
+        "packages/live/src/runtime.ts",
+        "packages/live/src/live.module.ts"
       ],
       "testFiles": [
         "tests/core.test.ts",
-        "tests/integration.test.ts"
+        "tests/integration.test.ts",
+        "tests/live-registration.test.ts"
       ],
       "docs": [
         "packages/core/README.md",
-        "docs/architecture/overview.md"
+        "docs/architecture/overview.md",
+        "packages/live/README.md"
       ],
       "examples": [
-        "examples/starter-hbs/src/main.ts"
+        "examples/starter-hbs/src/main.ts",
+        "examples/live-counter/src/main.ts"
       ],
-      "securityNotes": "Evidence applies to implemented configuration/registry/native MVC portions only. Advanced request context, protocol and action execution remain unmet.",
+      "securityNotes": "Application-local DI registration rejects duplicate Live types/names/routes, delegates mounts to the owning policy/store, shares public request context IDs across modules, and rejects late work after shutdown. Renderer lifecycle remains host-owned. Evidence is limited to the implemented Live/MVC slice.",
       "state": "InProgress",
-      "validationEvidence": [],
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check (implemented checks pass; release check remains blocking)",
+          "exitCode": 0,
+          "executedAt": "2026-10-26T14:14:12.280Z",
+          "report": "docs/implementation/registration-checkpoint-evidence-2026-10-26.json"
+        }
+      ],
       "outstandingIssues": [
-        "Complete every clause, required platform/negative/browser/pack checks and recorded validation evidence before Done."
+        "Complete every clause, required platform/negative/browser/pack checks and recorded validation evidence before Done.",
+        "Complete every remaining clause and the full release matrix before Done; arbitrary host-route conflicts, all transient/async/fault variants, logging/tracing and independent review are not certified by this registration suite."
       ]
     },
     {
@@ -2912,24 +2940,38 @@
         "packages/core/src/config.ts",
         "packages/core/src/core.module.ts",
         "packages/core/src/registry.ts",
-        "packages/nestvexa/src/index.ts"
+        "packages/nestvexa/src/index.ts",
+        "packages/live/src/registration.ts",
+        "packages/live/src/runtime.ts",
+        "packages/live/src/live.module.ts"
       ],
       "testFiles": [
         "tests/core.test.ts",
-        "tests/integration.test.ts"
+        "tests/integration.test.ts",
+        "tests/live-registration.test.ts"
       ],
       "docs": [
         "packages/core/README.md",
-        "docs/architecture/overview.md"
+        "docs/architecture/overview.md",
+        "packages/live/README.md"
       ],
       "examples": [
-        "examples/starter-hbs/src/main.ts"
+        "examples/starter-hbs/src/main.ts",
+        "examples/live-counter/src/main.ts"
       ],
-      "securityNotes": "Evidence applies to implemented configuration/registry/native MVC portions only. Advanced request context, protocol and action execution remain unmet.",
+      "securityNotes": "Application-local DI registration rejects duplicate Live types/names/routes, delegates mounts to the owning policy/store, shares public request context IDs across modules, and rejects late work after shutdown. Renderer lifecycle remains host-owned. Evidence is limited to the implemented Live/MVC slice.",
       "state": "InProgress",
-      "validationEvidence": [],
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check (implemented checks pass; release check remains blocking)",
+          "exitCode": 0,
+          "executedAt": "2026-10-26T14:14:12.280Z",
+          "report": "docs/implementation/registration-checkpoint-evidence-2026-10-26.json"
+        }
+      ],
       "outstandingIssues": [
-        "Complete every clause, required platform/negative/browser/pack checks and recorded validation evidence before Done."
+        "Complete every clause, required platform/negative/browser/pack checks and recorded validation evidence before Done.",
+        "Complete every remaining clause and the full release matrix before Done; arbitrary host-route conflicts, all transient/async/fault variants, logging/tracing and independent review are not certified by this registration suite."
       ]
     },
     {
@@ -3035,14 +3077,33 @@
       "id": "CORE-032",
       "priority": "P1",
       "package": "@nestvexa/core",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/live/src/registration.ts",
+        "packages/live/src/runtime.ts",
+        "packages/live/src/live.module.ts"
+      ],
+      "testFiles": [
+        "tests/live-registration.test.ts"
+      ],
+      "docs": [
+        "packages/live/README.md"
+      ],
+      "examples": [
+        "examples/live-counter/src/main.ts"
+      ],
+      "securityNotes": "Application-local DI registration rejects duplicate Live types/names/routes, delegates mounts to the owning policy/store, shares public request context IDs across modules, and rejects late work after shutdown. Renderer lifecycle remains host-owned. Evidence is limited to the implemented Live/MVC slice.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check (implemented checks pass; release check remains blocking)",
+          "exitCode": 0,
+          "executedAt": "2026-10-26T14:14:12.280Z",
+          "report": "docs/implementation/registration-checkpoint-evidence-2026-10-26.json"
+        }
+      ],
+      "outstandingIssues": [
+        "Complete every remaining clause and the full release matrix before Done; arbitrary host-route conflicts, all transient/async/fault variants, logging/tracing and independent review are not certified by this registration suite."
+      ]
     },
     {
       "sourceKey": "1942f80179334563b3d6e333a1a8b609a4e2408524ae6d4c8f29083a1f856f68",
@@ -3055,14 +3116,33 @@
       "id": "CORE-033",
       "priority": "P1",
       "package": "@nestvexa/core",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/live/src/registration.ts",
+        "packages/live/src/runtime.ts",
+        "packages/live/src/live.module.ts"
+      ],
+      "testFiles": [
+        "tests/live-registration.test.ts"
+      ],
+      "docs": [
+        "packages/live/README.md"
+      ],
+      "examples": [
+        "examples/live-counter/src/main.ts"
+      ],
+      "securityNotes": "Application-local DI registration rejects duplicate Live types/names/routes, delegates mounts to the owning policy/store, shares public request context IDs across modules, and rejects late work after shutdown. Renderer lifecycle remains host-owned. Evidence is limited to the implemented Live/MVC slice.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check (implemented checks pass; release check remains blocking)",
+          "exitCode": 0,
+          "executedAt": "2026-10-26T14:14:12.280Z",
+          "report": "docs/implementation/registration-checkpoint-evidence-2026-10-26.json"
+        }
+      ],
+      "outstandingIssues": [
+        "Complete every remaining clause and the full release matrix before Done; arbitrary host-route conflicts, all transient/async/fault variants, logging/tracing and independent review are not certified by this registration suite."
+      ]
     },
     {
       "sourceKey": "d53b6e4e399ca54b6667746a5b94319b971b099bde9823b73b8fab9a3492caa5",

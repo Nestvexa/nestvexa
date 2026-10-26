@@ -1,0 +1,368 @@
+{
+  "schemaVersion": 1,
+  "checkpointDate": "2026-10-26",
+  "scope": "Application-local Live registration, request context, mount ownership and safe shutdown checkpoint; not full master acceptance",
+  "verificationTimestamp": "2026-10-26T14:14:12.280Z",
+  "environment": {
+    "node": "v24.13.0",
+    "platform": "win32"
+  },
+  "implementedCheckpointPassed": true,
+  "releaseReady": false,
+  "implementationFiles": [
+    "packages/live/src/registration.ts",
+    "packages/live/src/runtime.ts",
+    "packages/live/src/live.module.ts"
+  ],
+  "testFiles": ["tests/live-registration.test.ts"],
+  "behaviors": [
+    "Reject duplicate Live component types/names/action routes during Nest construction",
+    "Delegate unscoped mounts to the owning registration policy, renderer and state store",
+    "Reuse the public Nest request context ID across initial mounts without bypassing module exports",
+    "Keep separate Nest applications and state stores isolated",
+    "Reject closed runtime work and prevent state creation after paused authorization/render resumes following shutdown"
+  ],
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exitCode": 0,
+      "milliseconds": 926,
+      "log": "artifacts/reports/commands/install.log"
+    },
+    {
+      "command": "pnpm format:check",
+      "exitCode": 0,
+      "milliseconds": 2511,
+      "log": "artifacts/reports/commands/format-check.log"
+    },
+    {
+      "command": "pnpm lint",
+      "exitCode": 0,
+      "milliseconds": 3271,
+      "log": "artifacts/reports/commands/lint.log"
+    },
+    {
+      "command": "pnpm typecheck",
+      "exitCode": 0,
+      "milliseconds": 19433,
+      "log": "artifacts/reports/commands/typecheck.log"
+    },
+    {
+      "command": "pnpm test",
+      "exitCode": 0,
+      "milliseconds": 8230,
+      "log": "artifacts/reports/commands/test.log"
+    },
+    {
+      "command": "pnpm test:coverage",
+      "exitCode": 0,
+      "milliseconds": 2560,
+      "log": "artifacts/reports/commands/test-coverage.log"
+    },
+    {
+      "command": "pnpm size:check",
+      "exitCode": 0,
+      "milliseconds": 490,
+      "log": "artifacts/reports/commands/size-check.log"
+    },
+    {
+      "command": "pnpm test:e2e",
+      "exitCode": 0,
+      "milliseconds": 44929,
+      "log": "artifacts/reports/commands/test-e2e.log"
+    },
+    {
+      "command": "pnpm test:pack",
+      "exitCode": 0,
+      "milliseconds": 42342,
+      "log": "artifacts/reports/commands/test-pack.log"
+    },
+    {
+      "command": "pnpm docs:build",
+      "exitCode": 0,
+      "milliseconds": 633,
+      "log": "artifacts/reports/commands/docs-build.log"
+    },
+    {
+      "command": "pnpm ledger:check",
+      "exitCode": 0,
+      "milliseconds": 537,
+      "log": "artifacts/reports/commands/ledger-check.log"
+    },
+    {
+      "command": "pnpm bench",
+      "exitCode": 0,
+      "milliseconds": 852,
+      "log": "artifacts/reports/commands/bench.log"
+    },
+    {
+      "command": "pnpm audit --audit-level high",
+      "exitCode": 0,
+      "milliseconds": 953,
+      "log": "artifacts/reports/commands/audit.log"
+    },
+    {
+      "command": "pnpm release:check",
+      "exitCode": 1,
+      "milliseconds": 603,
+      "log": "artifacts/reports/commands/release-check.log"
+    }
+  ],
+  "tests": {
+    "aggregate": {
+      "total": 249,
+      "passed": 249,
+      "failed": 0,
+      "pending": 0,
+      "report": "artifacts/reports/vitest.json"
+    },
+    "registration": {
+      "total": 14,
+      "passed": 14,
+      "report": "artifacts/reports/vitest.json"
+    },
+    "highRiskCoverage": {
+      "testCount": 74,
+      "files": [
+        "packages/core/src/config.ts",
+        "packages/live/src/protocol.ts",
+        "packages/live/src/store.ts"
+      ],
+      "statementsPercent": 98.2,
+      "branchesPercent": 97.18,
+      "functionsPercent": 100,
+      "linesPercent": 99.51,
+      "scope": "Only these three configuration/protocol/store files, excluding registration/runtime and most project files",
+      "report": "artifacts/reports/coverage/high-risk/coverage-summary.json"
+    }
+  },
+  "browser": {
+    "projects": ["chromium", "firefox", "webkit"],
+    "expected": 36,
+    "unexpected": 0,
+    "skipped": 0,
+    "flaky": 0,
+    "report": "artifacts/reports/playwright.json",
+    "scope": "Current twelve scenario tests on each engine, including fixture axe checks; no universal accessibility certification"
+  },
+  "pack": {
+    "timestamp": "2026-10-26T14:15:35.236Z",
+    "passed": true,
+    "packages": [
+      {
+        "name": "@nestvexa/alpine",
+        "version": "0.1.0-alpha.0",
+        "artifact": "artifacts/packages/nestvexa-alpine-0.1.0-alpha.0.tgz",
+        "sha256": "7ba92d6bc260b335e9b6c998e1017a438f402c3479bcf216d58aca1281f5a8df"
+      },
+      {
+        "name": "@nestvexa/client",
+        "version": "0.1.0-alpha.0",
+        "artifact": "artifacts/packages/nestvexa-client-0.1.0-alpha.0.tgz",
+        "sha256": "626ebb7a397d1e18b06f9983036a74afcc7f10237694a46c2301096356a8462e"
+      },
+      {
+        "name": "@nestvexa/core",
+        "version": "0.1.0-alpha.0",
+        "artifact": "artifacts/packages/nestvexa-core-0.1.0-alpha.0.tgz",
+        "sha256": "83f9309a51abac8bf144fc22811ab1089fa1f362c09ee58066fedad2dc06c0ad"
+      },
+      {
+        "name": "@nestvexa/engine-hbs",
+        "version": "0.1.0-alpha.0",
+        "artifact": "artifacts/packages/nestvexa-engine-hbs-0.1.0-alpha.0.tgz",
+        "sha256": "957754f47aaa63fe82bae6ce2c5fb80969a3fab8e18352ae21dc9c11451a7196"
+      },
+      {
+        "name": "@nestvexa/live",
+        "version": "0.1.0-alpha.0",
+        "artifact": "artifacts/packages/nestvexa-live-0.1.0-alpha.0.tgz",
+        "sha256": "c8e66e275faebf994aec17b8c04313502dac8147fc983f7debb5ad24f687022c"
+      },
+      {
+        "name": "nestvexa",
+        "version": "0.1.0-alpha.0",
+        "artifact": "artifacts/packages/nestvexa-0.1.0-alpha.0.tgz",
+        "sha256": "2785a31f8e01d0a2c6ce9ed3818cb4fcedaf06852b46a64278587d9840cbe4b7"
+      },
+      {
+        "name": "@nestvexa/views",
+        "version": "0.1.0-alpha.0",
+        "artifact": "artifacts/packages/nestvexa-views-0.1.0-alpha.0.tgz",
+        "sha256": "183c558960631607a77770f790f9fd0df128c72d58fa930fb91724f1fb732ce9"
+      }
+    ],
+    "consumers": [
+      {
+        "manager": "pnpm",
+        "passed": true,
+        "commands": [
+          {
+            "command": "pnpm install --ignore-scripts",
+            "exitCode": 0
+          },
+          {
+            "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+            "exitCode": 0
+          },
+          {
+            "command": "node dist/consumer.js",
+            "exitCode": 0
+          },
+          {
+            "command": "node imports.mjs",
+            "exitCode": 0
+          }
+        ]
+      },
+      {
+        "manager": "npm",
+        "passed": true,
+        "commands": [
+          {
+            "command": "pnpm exec npm install --ignore-scripts --no-fund --no-audit",
+            "exitCode": 0
+          },
+          {
+            "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+            "exitCode": 0
+          },
+          {
+            "command": "node dist/consumer.js",
+            "exitCode": 0
+          },
+          {
+            "command": "node imports.mjs",
+            "exitCode": 0
+          }
+        ]
+      }
+    ],
+    "report": "artifacts/reports/pack.json"
+  },
+  "additionalNode22": {
+    "timestamp": "2026-10-26T14:11:04.517Z",
+    "node": "v22.23.4",
+    "platform": "win32",
+    "passed": true,
+    "scope": "Strict test compilation and current aggregate unit/real HTTP/browser DOM suites; not Linux or a full release matrix",
+    "commands": [
+      {
+        "task": "strict compilation",
+        "exitCode": 0,
+        "milliseconds": 6029,
+        "log": "artifacts/reports/node22-0.log"
+      },
+      {
+        "task": "current aggregate suite",
+        "exitCode": 0,
+        "milliseconds": 12506,
+        "log": "artifacts/reports/node22-1.log"
+      }
+    ],
+    "aggregate": {
+      "total": 249,
+      "passed": 249,
+      "failed": 0,
+      "pending": 0,
+      "report": "artifacts/reports/node22-tests.json"
+    }
+  },
+  "clientSize": {
+    "timestamp": "2026-10-26T14:14:49.669Z",
+    "node": "v24.13.0",
+    "scope": "Emitted custom Live ES modules only, excluding Alpine and sourcemaps. Per-module gzip estimate; example server does not automatically enable HTTP compression.",
+    "files": [
+      {
+        "file": "bindings.js",
+        "bytes": 8632,
+        "gzipBytes": 2450
+      },
+      {
+        "file": "events.js",
+        "bytes": 8325,
+        "gzipBytes": 2273
+      },
+      {
+        "file": "grammar.js",
+        "bytes": 543,
+        "gzipBytes": 344
+      },
+      {
+        "file": "index.js",
+        "bytes": 22581,
+        "gzipBytes": 5178
+      },
+      {
+        "file": "listeners.js",
+        "bytes": 1826,
+        "gzipBytes": 587
+      },
+      {
+        "file": "morph.js",
+        "bytes": 5070,
+        "gzipBytes": 1571
+      },
+      {
+        "file": "protocol.js",
+        "bytes": 2862,
+        "gzipBytes": 985
+      }
+    ],
+    "bytes": 49839,
+    "gzipBytes": 13388,
+    "gzipBudget": 35840,
+    "passed": true
+  },
+  "priorFailure": {
+    "verificationTimestamp": "2026-10-26T14:11:01.978Z",
+    "command": "pnpm test:e2e",
+    "exitCode": 1,
+    "observed": "35 passed and one Chromium trace-file EBUSY teardown failure during parallel Node22/Playwright activity; the complete sequential runner was rerun and passed"
+  },
+  "release": {
+    "status": "NOT YET READY — BLOCKERS",
+    "ledger": {
+      "total": 925,
+      "inProgress": 81,
+      "pending": 844,
+      "done": 0
+    },
+    "limitations": [
+      "No complete phase accepted; full master implementation remains unmet",
+      "Linux remains unverified because local Docker daemon is unavailable",
+      "Node22 evidence covers strict compilation and aggregate HTTP/Chromium DOM tests, not the complete three-browser web-server matrix under Node22",
+      "Selected coverage does not include registration/runtime or imply full project or mutation coverage",
+      "Renderer lifecycle is host-owned and must be initialized/disposed by the host",
+      "No independent security certification, publication, push, SBOM or provenance attestation occurred"
+    ]
+  },
+  "additionalLatestNode24": {
+    "timestamp": "2026-10-26T14:17:51.902Z",
+    "node": "v24.22.1",
+    "platform": "win32",
+    "passed": true,
+    "scope": "Strict test compilation and current aggregate unit/real HTTP/browser DOM suites; not Linux or a full release matrix",
+    "commands": [
+      {
+        "task": "strict compilation",
+        "exitCode": 0,
+        "milliseconds": 5235,
+        "log": "artifacts/reports/node24-0.log"
+      },
+      {
+        "task": "current aggregate suite",
+        "exitCode": 0,
+        "milliseconds": 7101,
+        "log": "artifacts/reports/node24-1.log"
+      }
+    ],
+    "aggregate": {
+      "total": 249,
+      "passed": 249,
+      "failed": 0,
+      "pending": 0,
+      "report": "artifacts/reports/node24-tests.json"
+    }
+  }
+}

@@ -1,6 +1,7 @@
 import { HttpException, Inject, Injectable } from '@nestjs/common';
 import type { OnApplicationShutdown, Type } from '@nestjs/common';
-import { ContextIdFactory, ModuleRef } from '@nestjs/core';
+import { ModuleRef } from '@nestjs/core';
+import { LiveApplicationRegistry } from './registration.js';
 import { SafeHtml } from '@nestvexa/views';
 import type { ViewEngineAdapter } from '@nestvexa/views';
 import { timingSafeEqual } from 'node:crypto';
@@ -72,17 +73,27 @@ function escapeAttribute(value: string): string {
 
 @Injectable()
 export class LiveRuntime implements OnApplicationShutdown {
+  private closed = false;
   readonly store: MemoryLiveStore;
   readonly #admissions = new WeakMap<object, Admission>();
   readonly #rate = new Map<string, { start: number; count: number }>();
   constructor(
     @Inject(LIVE_OPTIONS) private readonly options: RuntimeOptions,
     @Inject(ModuleRef) private readonly moduleRef: ModuleRef,
+    @Inject(LiveApplicationRegistry)
+    private readonly registry: LiveApplicationRegistry,
   ) {
     this.store = options.store ?? new MemoryLiveStore();
+    this.registry.register(
+      this,
+      options.definitions,
+      options.endpoint ?? '/_nestvexa/live',
+    );
   }
   private async identity(request: object): Promise<LiveIdentity> {
+    if (this.closed) fail(503, 'LIVE_SHUTDOWN');
     const identity = await this.options.resolveIdentity(request);
+    if (this.closed) fail(503, 'LIVE_SHUTDOWN');
     if (
       !identity ||
       typeof identity.binding !== 'string' ||
@@ -140,13 +151,14 @@ export class LiveRuntime implements OnApplicationShutdown {
     if (!component.actions.has(action)) fail(404, 'UNKNOWN_ACTION');
     if (!(await this.options.authorize(identity, component.name, action)))
       fail(403, 'ACTION_FORBIDDEN');
+    if (this.closed) fail(503, 'LIVE_SHUTDOWN');
     this.#admissions.set(request, { identity, payload, component, action });
   }
   private async instance(
     component: ComponentDefinition,
     request: object,
   ): Promise<object> {
-    const context = ContextIdFactory.getByRequest(request);
+    const context = this.registry.context(request);
     this.moduleRef.registerRequestByContextId(request, context);
     return this.moduleRef.resolve(component.type, context, { strict: true });
   }
@@ -180,6 +192,7 @@ export class LiveRuntime implements OnApplicationShutdown {
         layout: false,
       },
     );
+    if (this.closed) fail(503, 'LIVE_SHUTDOWN');
     if (Buffer.byteLength(html) > 1_048_576) fail(413, 'PAYLOAD_TOO_LARGE');
     return html;
   }
@@ -189,15 +202,20 @@ export class LiveRuntime implements OnApplicationShutdown {
   }
   /** Mount only from a host route with host-resolved identity; never from a client class name. */
   async mount(type: Type<object>, request: object): Promise<SafeHtml> {
+    if (this.closed) fail(503, 'LIVE_SHUTDOWN');
     const component = this.options.definitions.find(
       (entry) => entry.type === type,
     );
-    if (!component)
-      throw new Error('Component is not registered in this Live module');
+    if (!component) {
+      const owner = this.registry.owner(type);
+      if (owner && owner !== this) return owner.mount(type, request);
+      throw new Error('Component is not registered in this Nest application');
+    }
     const identity = await this.identity(request);
     this.limit(identity);
     if (!(await this.options.authorize(identity, component.name, '$mount')))
       fail(403, 'COMPONENT_FORBIDDEN');
+    if (this.closed) fail(503, 'LIVE_SHUTDOWN');
     const instance = await this.instance(component, request);
     await this.hook(instance, 'mount');
     await this.hook(instance, 'dehydrate');
@@ -213,6 +231,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     );
   }
   async execute(request: object, input: unknown): Promise<unknown> {
+    if (this.closed) fail(503, 'LIVE_SHUTDOWN');
     const admitted = this.#admissions.get(request);
     if (!admitted) fail(403, 'ADMISSION_REQUIRED');
     const { identity, payload, component, action } = admitted;
@@ -292,6 +311,8 @@ export class LiveRuntime implements OnApplicationShutdown {
     }
   }
   onApplicationShutdown(): void {
+    this.closed = true;
+    this.registry.release(this);
     this.store.clear();
     this.#rate.clear();
   }

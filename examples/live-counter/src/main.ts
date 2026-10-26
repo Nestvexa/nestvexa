@@ -157,6 +157,15 @@ document.addEventListener('nestvexa:updated', () => {document.getElementById('st
   }
 }
 
+class LiveRendererLifecycle {
+  onModuleInit(): Promise<void> {
+    return renderer.initialize();
+  }
+  onApplicationShutdown(): Promise<void> {
+    return renderer.dispose();
+  }
+}
+
 @Module({
   imports: [
     NestvexaModule.forRoot({ views: { root } }),
@@ -186,6 +195,7 @@ document.addEventListener('nestvexa:updated', () => {document.getElementById('st
     }),
   ],
   controllers: [PageController],
+  providers: [LiveRendererLifecycle],
 })
 class AppModule {}
 

@@ -18,8 +18,8 @@
     {
       "id": 2,
       "state": "InProgress",
-      "scope": "Live protocol, opaque state store and generated Nest routes",
-      "remaining": "Real HTTP and cookie-backed browser subset executed; complete full phase security, protocol, lifecycle and compatibility acceptance"
+      "scope": "Live protocol, opaque state store, generated routes and application-local registration ownership",
+      "remaining": "Current Windows host checkpoint passes249 aggregate tests including14 registration/context/shutdown regressions and36 browser cases; Node22.23.4/24.22.1 strict+aggregate pass separately. Full phase security, protocol, lifecycle and compatibility acceptance remains open"
     },
     {
       "id": 3,
@@ -27,19 +27,61 @@
       "scope": "Initial directives, queued transport, keyed morph, CSP Alpine bridge and event/keyboard modifier implementation",
       "remaining": "Current Windows/Node24 event/lifecycle checkpoint passes235 tests and36 three-browser checks; complete modifier combinations, cleanup/input matrix and automatic default bootstrap remain open"
     },
-    { "id": 4, "state": "Pending" },
-    { "id": 5, "state": "Pending" },
-    { "id": 6, "state": "Pending" },
-    { "id": 7, "state": "Pending" },
-    { "id": 8, "state": "Pending" },
-    { "id": 9, "state": "Pending" },
-    { "id": 10, "state": "Pending" },
-    { "id": 11, "state": "Pending" },
-    { "id": 12, "state": "Pending" },
-    { "id": 13, "state": "Pending" },
-    { "id": 14, "state": "Pending" },
-    { "id": 15, "state": "Pending" },
-    { "id": 16, "state": "Pending" },
-    { "id": 17, "state": "Pending" }
+    {
+      "id": 4,
+      "state": "Pending"
+    },
+    {
+      "id": 5,
+      "state": "Pending"
+    },
+    {
+      "id": 6,
+      "state": "Pending"
+    },
+    {
+      "id": 7,
+      "state": "Pending"
+    },
+    {
+      "id": 8,
+      "state": "Pending"
+    },
+    {
+      "id": 9,
+      "state": "Pending"
+    },
+    {
+      "id": 10,
+      "state": "Pending"
+    },
+    {
+      "id": 11,
+      "state": "Pending"
+    },
+    {
+      "id": 12,
+      "state": "Pending"
+    },
+    {
+      "id": 13,
+      "state": "Pending"
+    },
+    {
+      "id": 14,
+      "state": "Pending"
+    },
+    {
+      "id": 15,
+      "state": "Pending"
+    },
+    {
+      "id": 16,
+      "state": "Pending"
+    },
+    {
+      "id": 17,
+      "state": "Pending"
+    }
   ]
 }

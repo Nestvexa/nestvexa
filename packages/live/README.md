@@ -23,6 +23,10 @@ Import `LiveModule.register({ components: [Counter], imports: [HostServicesModul
 
 The complete runnable bootstrap is in [live-counter](../../examples/live-counter/README.md). The default `nestvexa` module still configures MVC separately and does not silently enable Live.
 
+Disjoint registrations may live in separate Nest modules. An application-local DI registry rejects duplicate component types, names and action routes during construction, and delegates `LiveRuntime.mount` to the correct registration's policy, renderer and state store. It shares the request context ID across mounted components without bypassing each module's service exports. Closed runtimes reject further mounts.
+
+The host owns the supplied renderer lifecycle: initialize it before requests and dispose it during shutdown, using a Nest lifecycle provider as the counter example does. Live does not automatically initialize/dispose a renderer that may be shared with MVC or another host integration.
+
 ## Contracts and limits
 
 `@State({writable:true})` explicitly allows top-level JSON updates; default state is locked against client writes. `@Locked()` is an equivalent readable state declaration. `@Computed()` supports synchronous getters. `@Action({id?})` exposes only registered methods. A single argument may use `@ActionInput(...pipes)`; normal Nest parameter pipes perform transformation and validation. No arbitrary service or class selection is accepted.

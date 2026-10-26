@@ -19,6 +19,7 @@ import { GUARDS_METADATA, ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 import { definition } from './metadata.js';
 import type { ComponentDefinition } from './metadata.js';
 import { LIVE_OPTIONS, LiveRuntime } from './runtime.js';
+import { LiveInfrastructureModule } from './registration.js';
 import type { LiveHostOptions } from './runtime.js';
 
 const ROUTE = Symbol('nv:route');
@@ -176,7 +177,7 @@ export class LiveModule {
       throw new Error('Duplicate live component name');
     return {
       module: LiveModule,
-      imports: options.imports ?? [],
+      imports: [LiveInfrastructureModule, ...(options.imports ?? [])],
       controllers: definitions.map((component) =>
         generatedController(component, endpoint),
       ),
