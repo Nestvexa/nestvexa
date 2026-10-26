@@ -18,14 +18,14 @@
     {
       "id": 2,
       "state": "InProgress",
-      "scope": "Live protocol, opaque state store, generated routes and application-local registration ownership",
-      "remaining": "Current Windows host checkpoint passes249 aggregate tests including14 registration/context/shutdown regressions and36 browser cases; Node22.23.4/24.22.1 strict+aggregate pass separately. Full phase security, protocol, lifecycle and compatibility acceptance remains open"
+      "scope": "Live protocol, opaque state store, generated routes, registration ownership, authorized model synchronization and pure writable-state validation",
+      "remaining": "Windows/Node24.13 combined model checkpoint passed 379 aggregate tests and 48 three-browser checks with pack/docs/audit. Node22.23.4 and Node24.22.1 each passed strict compilation and all 379 aggregate tests after the fixture-transport correction. Full security, protocol, lifecycle and compatibility acceptance remains open"
     },
     {
       "id": 3,
       "state": "InProgress",
-      "scope": "Initial directives, queued transport, keyed morph, CSP Alpine bridge and event/keyboard modifier implementation",
-      "remaining": "Current Windows/Node24 event/lifecycle checkpoint passes235 tests and36 three-browser checks; complete modifier combinations, cleanup/input matrix and automatic default bootstrap remain open"
+      "scope": "Initial directives, queued transport, keyed morph, CSP Alpine bridge, event/keyboard modifiers and primitive model modes/casts/timers",
+      "remaining": "Combined 379-test aggregate and 48 three-browser checks passed with 2 browser workers and actual server-response gates; corrected fixture also passed isolated Node22/24 aggregates. Full input/modifier/cleanup matrix, nv:replace, broader loading behavior and automatic default bootstrap remain open"
     },
     {
       "id": 4,

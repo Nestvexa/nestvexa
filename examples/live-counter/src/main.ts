@@ -36,7 +36,10 @@ interface SessionRequest {
 }
 const port = Number(process.env['PORT'] ?? 3101);
 const root = fileURLToPath(new URL('../views', import.meta.url));
-const renderer = new HbsEngine({ root });
+const renderer = new HbsEngine({
+  root,
+  helpers: { eq: (left, right) => left === right },
+});
 const clientEntry = new URL(import.meta.resolve('@nestvexa/client'));
 const alpineAdapter = new URL(import.meta.resolve('@nestvexa/alpine'));
 const alpineEntry = new URL(
@@ -48,6 +51,15 @@ const alpineEntry = new URL(
 class Counter {
   @State() count = 0;
   @State({ writable: true }) name = '';
+  @State({
+    writable: true,
+    validate: (value) => typeof value === 'string' && value.length <= 30,
+  })
+  search = '';
+  @State({ writable: true }) nickname = '';
+  @State({ writable: true }) quantity = 1;
+  @State({ writable: true }) enabled = false;
+  @State({ writable: true }) color = 'red';
   @State() saved = '';
   @State() visible = true;
   @State() healthLink = '/api/health';
@@ -131,6 +143,16 @@ class PageController {
   listeners() {
     return readFile(new URL('./listeners.js', clientEntry), 'utf8');
   }
+  @Get('assets/models.js')
+  @Header('Content-Type', 'text/javascript; charset=utf-8')
+  models() {
+    return readFile(new URL('./models.js', clientEntry), 'utf8');
+  }
+  @Get('assets/model-scheduler.js')
+  @Header('Content-Type', 'text/javascript; charset=utf-8')
+  modelScheduler() {
+    return readFile(new URL('./model-scheduler.js', clientEntry), 'utf8');
+  }
   @Get('assets/alpine.js')
   @Header('Content-Type', 'text/javascript; charset=utf-8')
   alpine() {
@@ -186,6 +208,7 @@ class LiveRendererLifecycle {
         component === 'counter' &&
         [
           '$mount',
+          '$sync',
           'increment',
           'decrement',
           'save',

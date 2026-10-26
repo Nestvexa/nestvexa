@@ -5,10 +5,16 @@ import { LiveApplicationRegistry } from './registration.js';
 import { SafeHtml } from '@nestvexa/views';
 import type { ViewEngineAdapter } from '@nestvexa/views';
 import { timingSafeEqual } from 'node:crypto';
-import { cloneState, LiveProtocolError, parseLiveRequest } from './protocol.js';
+import {
+  cloneState,
+  freezeJson,
+  LiveProtocolError,
+  parseLiveRequest,
+} from './protocol.js';
 import type { JsonValue, LiveRequest } from './protocol.js';
 import { MemoryLiveStore } from './store.js';
 import type { ComponentDefinition } from './metadata.js';
+import { INTERNAL_SYNC_ACTION } from './metadata.js';
 
 export const LIVE_OPTIONS = Symbol('nv:live-options');
 export interface LiveIdentity {
@@ -148,7 +154,8 @@ export class LiveRuntime implements OnApplicationShutdown {
     } catch (error) {
       mapped(error);
     }
-    if (!component.actions.has(action)) fail(404, 'UNKNOWN_ACTION');
+    if (action !== INTERNAL_SYNC_ACTION && !component.actions.has(action))
+      fail(404, 'UNKNOWN_ACTION');
     if (!(await this.options.authorize(identity, component.name, action)))
       fail(403, 'ACTION_FORBIDDEN');
     if (this.closed) fail(503, 'LIVE_SHUTDOWN');
@@ -235,23 +242,24 @@ export class LiveRuntime implements OnApplicationShutdown {
     const admitted = this.#admissions.get(request);
     if (!admitted) fail(403, 'ADMISSION_REQUIRED');
     const { identity, payload, component, action } = admitted;
-    const selected = component.actions.get(action);
-    if (!selected) fail(404, 'UNKNOWN_ACTION');
-    if (
-      !selected.input &&
-      payload.input !== undefined &&
-      payload.input !== null
-    )
-      fail(400, 'UNEXPECTED_INPUT');
-    for (const key of Object.keys(payload.updates))
-      if (!component.states.get(key)?.writable) fail(422, 'STATE_LOCKED');
     try {
+      const synchronization = action === INTERNAL_SYNC_ACTION;
+      const selected = component.actions.get(action);
+      if (!synchronization && !selected) fail(404, 'UNKNOWN_ACTION');
+      if (
+        (synchronization || !selected?.input) &&
+        payload.input !== undefined &&
+        payload.input !== null
+      )
+        fail(400, 'UNEXPECTED_INPUT');
+      const updates = await this.validatedUpdates(component, identity, payload);
       const result = await this.store.transaction(
         payload.snapshot,
         identity.binding,
         payload.revision,
         async (snapshot) => {
           const instance = await this.instance(component, request);
+          if (this.closed) fail(503, 'LIVE_SHUTDOWN');
           for (const [key, value] of Object.entries(
             cloneState(snapshot.state),
           )) {
@@ -264,16 +272,7 @@ export class LiveRuntime implements OnApplicationShutdown {
             });
           }
           await this.hook(instance, 'hydrate');
-          for (const [key, value] of Object.entries(
-            cloneState(payload.updates),
-          )) {
-            const previous = snapshot.state[key];
-            if (
-              typeof value !== typeof previous ||
-              Array.isArray(value) !== Array.isArray(previous) ||
-              (value === null) !== (previous === null)
-            )
-              fail(422, 'STATE_TYPE');
+          for (const [key, value] of Object.entries(updates)) {
             Object.defineProperty(instance, key, {
               value,
               writable: true,
@@ -281,12 +280,18 @@ export class LiveRuntime implements OnApplicationShutdown {
               configurable: true,
             });
           }
-          await this.hook(instance, 'beforeAction');
-          const method: unknown = Reflect.get(instance, selected.method);
-          if (typeof method !== 'function')
-            throw new Error('Registered action is not callable');
-          await Reflect.apply(method, instance, selected.input ? [input] : []);
-          await this.hook(instance, 'afterAction');
+          if (!synchronization && selected) {
+            await this.hook(instance, 'beforeAction');
+            const method: unknown = Reflect.get(instance, selected.method);
+            if (typeof method !== 'function')
+              throw new Error('Registered action is not callable');
+            await Reflect.apply(
+              method,
+              instance,
+              selected.input ? [input] : [],
+            );
+            await this.hook(instance, 'afterAction');
+          }
           await this.hook(instance, 'dehydrate');
           const html = await this.render(instance, component);
           return { state: this.state(instance, component), html };
@@ -309,6 +314,33 @@ export class LiveRuntime implements OnApplicationShutdown {
     } finally {
       this.#admissions.delete(request);
     }
+  }
+  private async validatedUpdates(
+    component: ComponentDefinition,
+    identity: LiveIdentity,
+    payload: LiveRequest,
+  ): Promise<Record<string, JsonValue>> {
+    const snapshot = this.store.peek(payload.snapshot, identity.binding);
+    if (snapshot.revision !== payload.revision) fail(409, 'STALE_REVISION');
+    // A validation callback may retain its input; expose detached immutable data only.
+    const updates = freezeJson(cloneState(payload.updates));
+    for (const [key, value] of Object.entries(updates)) {
+      const state = component.states.get(key);
+      if (!state?.writable) fail(422, 'STATE_LOCKED');
+      const previous = snapshot.state[key];
+      if (
+        typeof value !== typeof previous ||
+        Array.isArray(value) !== Array.isArray(previous) ||
+        (value === null) !== (previous === null)
+      )
+        fail(422, 'STATE_TYPE');
+      if (state.validate && (await state.validate(value)) !== true)
+        fail(422, 'STATE_INVALID');
+      if (this.closed) fail(503, 'LIVE_SHUTDOWN');
+    }
+    if (this.closed) fail(503, 'LIVE_SHUTDOWN');
+    // Components receive mutable data, independently of the validator's captured references.
+    return cloneState(updates);
   }
   onApplicationShutdown(): void {
     this.closed = true;

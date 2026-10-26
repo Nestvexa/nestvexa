@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { holdResponse } from './transport.js';
 
 test.use({ baseURL: 'http://127.0.0.1:3101' });
 
@@ -40,9 +41,14 @@ test('model submit preserves focus, escapes text and shows pending status', asyn
   );
   await expect(page.locator('#saved img')).toHaveCount(0);
   await expect(field).toBeFocused();
-  await page.getByRole('button', { name: 'Slow increase' }).click();
-  await expect(page.locator('[nv\\:loading]')).toBeVisible();
-  await field.fill('edit during request');
+  const releaseResponse = await holdResponse(page, '**/counter/slow');
+  try {
+    await page.getByRole('button', { name: 'Slow increase' }).click();
+    await expect(page.locator('[nv\\:loading]')).toBeVisible();
+    await field.fill('edit during request');
+  } finally {
+    releaseResponse();
+  }
   await expect(page.locator('#count')).toHaveText('1');
   await expect(field).toHaveValue('edit during request');
   await expect(page.locator('[nv\\:loading]')).toBeHidden();

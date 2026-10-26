@@ -3,6 +3,7 @@ import type { Type } from '@nestjs/common';
 import { ContextIdFactory } from '@nestjs/core';
 import type { SafeHtml } from '@nestvexa/views';
 import type { ComponentDefinition } from './metadata.js';
+import { INTERNAL_SYNC_PATH } from './metadata.js';
 
 export interface LiveRegistrationOwner {
   mount(type: Type<object>, request: object): Promise<SafeHtml>;
@@ -25,7 +26,7 @@ export class LiveApplicationRegistry {
     endpoint: string,
   ): void {
     const routes = definitions.flatMap((component) =>
-      [...component.actions.keys()].map(
+      [...component.actions.keys(), INTERNAL_SYNC_PATH].map(
         (action) => `${endpoint}/${component.name}/${action}`,
       ),
     );

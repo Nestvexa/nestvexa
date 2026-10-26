@@ -1,4 +1,5 @@
 import { LiveClientError } from './protocol.js';
+import { modelField } from './models.js';
 
 export function boundary(element: Element): boolean {
   return (
@@ -125,10 +126,14 @@ function morphNode(
   const element = current as Element;
   const replacement = next as Element;
   if (boundary(element)) return;
-  const model = element.getAttribute('nv:model');
+  const model = modelField(element);
   const retainValue =
-    (model !== null && dirty.has(model)) ||
+    (model !== undefined && dirty.has(model)) ||
     element.hasAttribute('contenteditable');
+  const selected =
+    element.tagName === 'SELECT'
+      ? (element as HTMLSelectElement).value
+      : undefined;
   for (const attribute of [...element.attributes])
     if (!replacement.hasAttribute(attribute.name))
       element.removeAttribute(attribute.name);
@@ -153,8 +158,9 @@ function morphNode(
   }
   if (element.hasAttribute('contenteditable')) return;
   morphChildren(element, replacement, dirty);
-  if (element.tagName === 'SELECT' && !retainValue)
-    (element as HTMLSelectElement).value = (
-      replacement as HTMLSelectElement
-    ).value;
+  if (element.tagName === 'SELECT')
+    (element as HTMLSelectElement).value =
+      retainValue && selected !== undefined
+        ? selected
+        : (replacement as HTMLSelectElement).value;
 }

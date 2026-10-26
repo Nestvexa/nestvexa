@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests/browser',
+  workers: 2,
   reporter: [
     ['list'],
     ['json', { outputFile: 'artifacts/reports/playwright.json' }],

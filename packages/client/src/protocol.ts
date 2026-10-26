@@ -3,6 +3,7 @@ import { parseBindingDirective } from './bindings.js';
 import type { BindingDirective } from './bindings.js';
 import { parseEventDirective } from './events.js';
 import type { EventDirective } from './events.js';
+import { parseModelDirective } from './models.js';
 export { LiveClientError, parseIdentifier } from './grammar.js';
 export type LiveDirective =
   | { readonly kind: 'click' | 'submit' | 'model'; readonly value: string }
@@ -18,6 +19,8 @@ export function parseDirective(name: string, value: string): LiveDirective {
     return { kind, value: parseIdentifier(value) };
   if (/^nv:(?:click|submit|keydown)(?:\.|$)/.test(name))
     return parseEventDirective(name, value);
+  if (name.startsWith('nv:model.'))
+    return { kind: 'model', value: parseModelDirective(name, value).field };
   if ((kind === 'loading' || kind === 'ignore') && value === '')
     return { kind, value };
   if (['text', 'show', 'bind', 'dirty', 'cloak', 'ref'].includes(kind))

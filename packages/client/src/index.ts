@@ -4,6 +4,10 @@ import { createEventDispatcher, parseEventDirective } from './events.js';
 import type { EventDispatcher, EventDirective } from './events.js';
 import { createDirectEventListeners } from './listeners.js';
 import type { DirectEventBinding } from './listeners.js';
+import { getModelDirective, readModelValue } from './models.js';
+import { createModelScheduler } from './model-scheduler.js';
+export { parseModelDirective } from './models.js';
+export type { ModelDirective } from './models.js';
 export { parseEventDirective } from './events.js';
 export type { EventDirective } from './events.js';
 import {
@@ -45,6 +49,7 @@ interface Component {
   revision: number;
   values: Readonly<Record<string, unknown>>;
   readonly dirty: Map<string, { value: Field; version: number }>;
+  readonly invalid: Map<Element, string>;
   fieldVersion: number;
   queue: Promise<void>;
   pending: number;
@@ -75,6 +80,7 @@ function ignored(element: Element, component: Element): boolean {
 }
 function validateDirectives(component: Element): void {
   for (const element of owned(component)) {
+    getModelDirective(element);
     for (const kind of ['click', 'submit', 'keydown'])
       if (
         [...element.attributes].filter(
@@ -92,29 +98,6 @@ function validateDirectives(component: Element): void {
         const directive = parseDirective(attribute.name, attribute.value);
         if (directive.kind === 'submit' && element.tagName !== 'FORM')
           throw new LiveClientError('DIRECTIVE', 'nv:submit requires a form');
-        if (directive.kind === 'model') {
-          const input = element as HTMLInputElement;
-          if (
-            element.tagName !== 'TEXTAREA' &&
-            !(
-              element.tagName === 'INPUT' &&
-              [
-                'text',
-                'number',
-                'checkbox',
-                'email',
-                'search',
-                'tel',
-                'url',
-                'password',
-              ].includes(input.type)
-            )
-          )
-            throw new LiveClientError(
-              'DIRECTIVE',
-              'nv:model supports text, number, checkbox inputs and textareas',
-            );
-        }
       }
   }
 }
@@ -163,6 +146,20 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   let mounted = false;
   let observer: MutationObserver | null = null;
   let dispatcher: EventDispatcher | undefined;
+  let composing = new WeakSet<Element>();
+  let models = makeModels();
+  function makeModels(): ReturnType<typeof createModelScheduler> {
+    return createModelScheduler({
+      invoke: async (element) => {
+        const state = componentFor(element);
+        if (!contains(element) || ignored(element, state.root)) return;
+        if (!hasChanges(state)) return;
+        // The queue reports transport failures once and never retries a mutation.
+        await schedule(state, '_sync', false).catch(() => undefined);
+      },
+      onError: (error, element) => report(error, element),
+    });
+  }
   const handledEvents = new WeakSet<Event>();
   const direct = createDirectEventListeners((event, element, attribute) => {
     try {
@@ -202,6 +199,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   }
   function discover(): void {
     dispatcher?.prune(root);
+    models.prune(root);
     for (const [element, state] of components)
       if (!contains(element)) {
         state.active = false;
@@ -290,6 +288,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
             values: values as Record<string, unknown>,
             endpoint: endpoint.href.replace(/\/$/, ''),
             dirty: new Map(),
+            invalid: new Map(),
             fieldVersion: 0,
             queue: Promise.resolve(),
             pending: 0,
@@ -314,6 +313,15 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   }
   async function invoke(state: Component, action: string): Promise<void> {
     if (!state.active || !mounted || !contains(state.root)) return;
+    for (const [element] of state.invalid)
+      if (!contains(element) || owner(element) !== state.root)
+        state.invalid.delete(element);
+    if (state.invalid.size)
+      throw new LiveClientError(
+        'DIRECTIVE',
+        'Correct invalid model values before submitting',
+      );
+    if (action === '_sync' && !hasChanges(state)) return;
     const sent = new Map(state.dirty);
     const updates: Record<string, Field> = Object.create(null) as Record<
       string,
@@ -377,6 +385,15 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       for (const [key, field] of state.dirty)
         if (sent.get(key)?.version !== field.version)
           dirty.set(key, field.value);
+      for (const element of owned(state.root))
+        if (composing.has(element)) {
+          const model = getModelDirective(element);
+          if (model)
+            dirty.set(
+              model.field,
+              state.dirty.get(model.field)?.value ?? state.values[model.field],
+            );
+        }
       const differs = (field: string): boolean =>
         dirty.has(field) && !Object.is(dirty.get(field), result.state[field]);
       applyBindings(
@@ -430,6 +447,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     action: string,
     submit: boolean,
   ): Promise<void> {
+    if (action !== '_sync')
+      for (const element of owned(state.root)) models.cancel(element);
     if (state.pending >= 16)
       throw new LiveClientError('DIRECTIVE', 'Live request queue is full');
     if (submit && state.submitting) return Promise.resolve();
@@ -451,27 +470,68 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   function target(event: Event): Element | null {
     return event.target instanceof window.Element ? event.target : null;
   }
-  function input(event: Event): void {
-    const element = target(event);
-    if (!element?.hasAttribute('nv:model')) return;
+  function input(event: Event, control?: Element, type = event.type): void {
+    const element = control ?? target(event);
+    if (
+      !element ||
+      composing.has(element) ||
+      ('isComposing' in event && event.isComposing)
+    )
+      return;
     const component = owner(element);
     const state = component ? components.get(component) : undefined;
     if (!state || ignored(element, state.root)) return;
     try {
-      const name = parseIdentifier(element.getAttribute('nv:model') ?? '');
-      const field = element as HTMLInputElement;
-      const value: Field =
-        field.type === 'checkbox'
-          ? field.checked
-          : field.type === 'number' && field.value !== ''
-            ? field.valueAsNumber
-            : field.value;
-      if (typeof value === 'number' && !Number.isFinite(value))
-        throw new LiveClientError('DIRECTIVE', 'Number input is invalid');
-      state.dirty.set(name, { value, version: ++state.fieldVersion });
+      const directive = getModelDirective(element);
+      if (!directive) return;
+      const name = directive.field;
+      if (!Object.hasOwn(state.values, name))
+        throw new LiveClientError('DIRECTIVE', 'Unknown public state field');
+      let value: Field | undefined;
+      try {
+        value = readModelValue(element, directive);
+      } catch (error) {
+        state.invalid.set(element, name);
+        models.cancel(element);
+        // Preserve an invalid in-progress edit against an older response without sending it.
+        const previous = state.dirty.get(name)?.value ?? state.values[name];
+        if (
+          typeof previous === 'string' ||
+          typeof previous === 'number' ||
+          typeof previous === 'boolean'
+        )
+          state.dirty.set(name, {
+            value: previous,
+            version: ++state.fieldVersion,
+          });
+        refreshBindings(state);
+        throw error;
+      }
+      if (value === undefined) return;
+      state.invalid.delete(element);
+      const previous = state.dirty.get(name)?.value ?? state.values[name];
+      if (!Object.is(previous, value))
+        state.dirty.set(name, { value, version: ++state.fieldVersion });
       refreshBindings(state);
+      if (
+        (directive.mode === 'live' && type === 'input') ||
+        (directive.mode === 'change' && type === 'change') ||
+        (directive.mode === 'blur' && type === 'focusout')
+      )
+        models.schedule(element, name, directive);
     } catch (error) {
       report(error, state.root);
+    }
+  }
+  function composition(event: Event): void {
+    const element = target(event);
+    if (!element) return;
+    if (event.type === 'compositionstart') {
+      composing.add(element);
+      models.cancel(element);
+    } else {
+      composing.delete(element);
+      input(event, element, 'input');
     }
   }
   function resolveEvent(
@@ -550,8 +610,9 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   }
   function refreshBindings(state: Component): void {
     const differs = (field: string): boolean =>
-      state.dirty.has(field) &&
-      !Object.is(state.dirty.get(field)?.value, state.values[field]);
+      [...state.invalid.values()].includes(field) ||
+      (state.dirty.has(field) &&
+        !Object.is(state.dirty.get(field)?.value, state.values[field]));
     applyBindings(
       state.root,
       (field) =>
@@ -562,6 +623,14 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         field === undefined
           ? [...state.dirty.keys()].some(differs)
           : differs(field),
+    );
+  }
+  function hasChanges(state: Component): boolean {
+    return (
+      state.invalid.size > 0 ||
+      [...state.dirty].some(
+        ([field, item]) => !Object.is(item.value, state.values[field]),
+      )
     );
   }
   return {
@@ -602,6 +671,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     },
     mount(): void {
       if (mounted) return;
+      models = makeModels();
       mounted = true;
       dispatcher = createEventDispatcher({
         invoke: (element, action) =>
@@ -614,6 +684,9 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       root.addEventListener('keydown', action);
       root.addEventListener('input', input);
       root.addEventListener('change', input);
+      root.addEventListener('focusout', input);
+      root.addEventListener('compositionstart', composition);
+      root.addEventListener('compositionend', composition);
       observer = new window.MutationObserver((mutations) => {
         if (
           mounted &&
@@ -639,11 +712,16 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       dispatcher?.dispose();
       dispatcher = undefined;
       direct.dispose();
+      models.dispose();
+      composing = new WeakSet<Element>();
       root.removeEventListener('click', action);
       root.removeEventListener('submit', action);
       root.removeEventListener('keydown', action);
       root.removeEventListener('input', input);
       root.removeEventListener('change', input);
+      root.removeEventListener('focusout', input);
+      root.removeEventListener('compositionstart', composition);
+      root.removeEventListener('compositionend', composition);
       for (const state of components.values()) {
         state.active = false;
         state.request?.abort();

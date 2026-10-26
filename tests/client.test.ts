@@ -30,7 +30,10 @@ describe('browser protocol boundary', () => {
       kind: 'ignore',
       value: '',
     });
-    expect(() => parseDirective('nv:model.live', 'name')).toThrow();
+    expect(parseDirective('nv:model.live', 'name')).toEqual({
+      kind: 'model',
+      value: 'name',
+    });
     expect(() => parseDirective('nv:poll', 'refresh')).toThrow();
     expect(() => parseDirective('nv:ignore', 'expression')).toThrow();
   });

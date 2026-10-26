@@ -38,6 +38,16 @@ Byte accounting includes JSON quoting, escaped control characters, object keys a
 
 HTTP method, content type, allowed origin, cookie-bound CSRF token, authentication, authorization, rate limits and input schemas belong to the Nest admission/action integration. Calling the parser or store alone does not enforce them. Guards must resolve identity authoritatively on every request. Never use browser-submitted `userId`, tenant, or session strings as a binding.
 
+## Model synchronization route
+
+Each registered component also has a fixed `POST <endpoint>/<component>/_sync` route. The host must explicitly authorize the policy action `$sync`. It uses the same origin, session, CSRF, rate, snapshot ownership and revision admission checks as action requests. `input` must be absent or null. Global and component-class Nest policies apply; no action method or action-method guard/pipe/interceptor/filter metadata is borrowed. Protect access to component data and lifecycle/render work with the class/global policies and the host authorization callback.
+
+Synchronization hydrates a request-scoped instance, applies validated writable state, dehydrates and renders it, then advances the revision. It never invokes action methods or `beforeAction`/`afterAction`. Lifecycle hooks and rendering are trusted application work and may still have effects; synchronization is not an automatically safe retry operation.
+
+Both action and sync updates check writable fields, current JSON value types and optional pure `@State({ validate })` callbacks before entering the store transaction. Validators receive immutable detached JSON and must return `true` to accept it. A rejected update returns 422 without consuming the token or revision. Validator exceptions occur before the transaction and also leave the state usable. Hosts must keep validators bounded and free of side effects. The store rechecks ownership/revision when entering the transaction, so an asynchronous validator cannot overwrite a concurrent winning request. Failures after transaction entry retain the invalidation semantics below.
+
+The illustrative `count` update above requires `@State({ writable: true })`; the counter example deliberately keeps count read-only to browser updates and changes it only through actions. See the [model directive reference](../reference/directives.md) and [Express/Fastify synchronization tests](../../tests/live-model.test.ts).
+
 ## Store contract
 
 ```ts
@@ -94,6 +104,9 @@ Callbacks must honor host cancellation/timeouts; JavaScript cannot safely forcib
 | `COMPONENT_BUSY`        | 409    | Another callback is in flight for this token               |
 | `STORE_CAPACITY`        | 503    | Stored-entry or in-flight callback capacity reached        |
 | `INVALID_STORE_OPTIONS` | 500    | Invalid trusted configuration, clock or generator          |
+| `STATE_LOCKED`          | 422    | Update targets a locked or unregistered state field        |
+| `STATE_TYPE`            | 422    | Update changes the current JSON value category             |
+| `STATE_INVALID`         | 422    | Application state validator rejects the update             |
 
 Unknown/wrong-owner/expired tokens use the same public error. Callback exceptions propagate to the Nest error boundary, which must redact production errors. Never log raw snapshots, bindings, state, cookie values or action input by default.
 

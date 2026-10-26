@@ -26,6 +26,68 @@
   </div>
   <button type="button" nv:click="toggleVisible">Toggle detail</button>
   <span nv:loading="" hidden role="status">Updating…</span>
+  <section aria-label="Model synchronization">
+    <h2>Model synchronization</h2>
+    <label for="search">Live search</label
+    ><input
+      id="search"
+      nv:model.live.debounce.100ms="search"
+      value="{{search}}"
+    />
+    <output id="search-server">{{search}}</output>
+    <label for="nickname">Blur nickname</label
+    ><input id="nickname" nv:model.blur="nickname" value="{{nickname}}" />
+    <output id="nickname-server">{{nickname}}</output>
+    <label for="quantity">Quantity</label
+    ><input
+      id="quantity"
+      nv:model.change.number="quantity"
+      value="{{quantity}}"
+    />
+    <output id="quantity-server">{{quantity}}</output>
+    <label for="enabled">Enabled</label
+    ><select id="enabled" nv:model.change.boolean="enabled">
+      {{#if enabled}}
+      <option value="false">No</option>
+      <option value="true" selected>Yes</option>
+      {{else}}
+      <option value="false" selected>No</option>
+      <option value="true">Yes</option>
+      {{/if}}
+    </select>
+    <output id="enabled-server">{{enabled}}</output>
+    <fieldset>
+      <legend>Color</legend>
+      <label for="red">Red</label>{{#if (eq color "red")}}<input
+        type="radio"
+        id="red"
+        name="color"
+        value="red"
+        nv:model.change="color"
+        checked
+      />{{else}}<input
+        type="radio"
+        id="red"
+        name="color"
+        value="red"
+        nv:model.change="color"
+      />{{/if}}<label for="blue">Blue</label>{{#if (eq color "blue")}}<input
+        type="radio"
+        id="blue"
+        name="color"
+        value="blue"
+        nv:model.change="color"
+        checked
+      />{{else}}<input
+        type="radio"
+        id="blue"
+        name="color"
+        value="blue"
+        nv:model.change="color"
+      />{{/if}}
+    </fieldset>
+    <output id="color-server">{{color}}</output>
+  </section>
   <div id="local-widget" nv:ignore="">
     <label for="local-note">Independent local note</label
     ><input id="local-note" value="" />

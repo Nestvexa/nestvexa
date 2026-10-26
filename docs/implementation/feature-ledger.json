@@ -4861,17 +4861,27 @@
         "packages/live/src/runtime.ts"
       ],
       "testFiles": [
-        "tests/live.test.ts"
+        "tests/live.test.ts",
+        "tests/live-model.test.ts"
       ],
       "docs": [
-        "packages/live/README.md"
+        "packages/live/README.md",
+        "docs/adr/0002-live-protocol.md"
       ],
       "examples": [
         "examples/live-counter/README.md"
       ],
-      "securityNotes": "State defaults to read-only browser updates; writable fields are explicitly registered.",
+      "securityNotes": "State defaults to read-only browser updates; writable fields are explicitly registered. Pure optional validators receive detached immutable JSON before hooks/effects; rejected updates preserve the snapshot for correction, and the transaction rechecks revision after asynchronous validation.",
       "state": "InProgress",
-      "validationEvidence": [],
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-26T20:22:16.515Z",
+          "report": "docs/implementation/model-checkpoint-evidence-2026-10-26.json",
+          "scope": "Partial model/state implementation:379 aggregate tests and48 three-browser fixture checks; complete compound acceptance remains open and releaseReady is false."
+        }
+      ],
       "outstandingIssues": [
         "Custom serializers and full default-option semantics are not implemented."
       ]
@@ -5719,11 +5729,20 @@
       "priority": "P1",
       "package": "@nestvexa/client",
       "implementationFiles": [
-        "packages/client/src/index.ts"
+        "packages/client/src/models.ts",
+        "packages/client/src/model-scheduler.ts",
+        "packages/client/src/index.ts",
+        "packages/client/src/morph.ts",
+        "packages/live/src/runtime.ts",
+        "packages/live/src/live.module.ts"
       ],
       "testFiles": [
         "tests/client.test.ts",
-        "tests/browser/live.spec.ts"
+        "tests/browser/live.spec.ts",
+        "tests/client-models.test.ts",
+        "tests/client-model-scheduler.test.ts",
+        "tests/live-model.test.ts",
+        "tests/browser/models.spec.ts"
       ],
       "docs": [
         "docs/reference/directives.md",
@@ -5732,11 +5751,20 @@
       "examples": [
         "examples/live-counter/README.md"
       ],
-      "securityNotes": "Data-only registered identifiers and explicit ownership/attribute boundaries; no arbitrary JavaScript expression evaluation.",
+      "securityNotes": "Data-only top-level identifiers and bounded primitive casts/timers; no expression evaluation. Model synchronization requires explicit host $sync authorization plus origin, CSRF, identity, ownership, writable-state validation and revision checks. Component/global policies apply; action-method guards do not authorize the internal synchronization route. Invalid local conversion blocks requests.",
       "state": "InProgress",
-      "validationEvidence": [],
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-26T20:22:16.515Z",
+          "report": "docs/implementation/model-checkpoint-evidence-2026-10-26.json",
+          "scope": "Partial model/state implementation:379 aggregate tests and48 three-browser fixture checks; complete compound acceptance remains open and releaseReady is false."
+        }
+      ],
       "outstandingIssues": [
-        "Only deferred primitive model binding exists; all requested model modifiers and full input matrix remain open."
+        "Default deferred, live, blur/change/lazy, decimal/boolean casts and bounded debounce/leading throttle have scoped evidence; the complete input/modifier/cleanup acceptance matrix remains pending.",
+        "Nested paths, multiple selects, file/array models and the wider forms subsystem are not implemented."
       ]
     },
     {
@@ -6235,11 +6263,17 @@
       "implementationFiles": [
         "packages/client/src/index.ts",
         "packages/client/src/events.ts",
-        "packages/client/src/listeners.ts"
+        "packages/client/src/listeners.ts",
+        "packages/client/src/models.ts",
+        "packages/client/src/model-scheduler.ts"
       ],
       "testFiles": [
         "tests/client-events.test.ts",
-        "tests/browser/events.spec.ts"
+        "tests/browser/events.spec.ts",
+        "tests/client-models.test.ts",
+        "tests/client-model-scheduler.test.ts",
+        "tests/client-model-lifecycle.test.ts",
+        "tests/browser/models.spec.ts"
       ],
       "docs": [
         "docs/reference/directives.md",
@@ -6260,7 +6294,7 @@
         }
       ],
       "outstandingIssues": [
-        "Event modifiers and keyboard subset implemented; window/document scopes, model modifiers, confirmation and full modifier/browser matrix remain unmet."
+        "Event, keyboard and primitive model modifiers are implemented; window/document scopes, confirmation and the complete modifier/browser matrix remain unmet."
       ]
     },
     {
@@ -14367,14 +14401,47 @@
       "id": "PHASE-039",
       "priority": "P1",
       "package": "cross-package",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/client/src/index.ts",
+        "packages/client/src/models.ts",
+        "packages/client/src/model-scheduler.ts",
+        "packages/client/src/morph.ts",
+        "packages/client/src/bindings.ts",
+        "packages/client/src/events.ts",
+        "packages/live/src/runtime.ts"
+      ],
+      "testFiles": [
+        "tests/client-models.test.ts",
+        "tests/client-model-scheduler.test.ts",
+        "tests/live-model.test.ts",
+        "tests/browser/models.spec.ts",
+        "tests/client-bindings.test.ts",
+        "tests/client-bindings-dom.test.ts",
+        "tests/client-events.test.ts",
+        "tests/browser/live.spec.ts",
+        "tests/browser/events.spec.ts"
+      ],
+      "docs": [
+        "docs/reference/directives.md",
+        "packages/client/README.md"
+      ],
+      "examples": [
+        "examples/live-counter/README.md"
+      ],
+      "securityNotes": "Owned data directives use a closed grammar with explicit HTML/attribute boundaries. Model writes use a separately authorized synchronization route; no arbitrary directive JavaScript or action-method guard inheritance is assumed.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-26T20:22:16.515Z",
+          "report": "docs/implementation/model-checkpoint-evidence-2026-10-26.json",
+          "scope": "Partial model/state implementation:379 aggregate tests and48 three-browser fixture checks; complete compound acceptance remains open and releaseReady is false."
+        }
+      ],
+      "outstandingIssues": [
+        "nv:replace is not implemented; advanced loading behavior and the complete directive/modifier/input/cleanup acceptance matrix remain pending."
+      ]
     },
     {
       "sourceKey": "0b163d9858524b986d5bac9077b2b97de3dbd0fbae31d4f87ce905f00a6d2140",

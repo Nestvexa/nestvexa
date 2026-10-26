@@ -1,0 +1,524 @@
+{
+  "schemaVersion": 1,
+  "scope": "Primitive model synchronization, recoverable validation and ownership-aware browser scheduling; not full master acceptance",
+  "verificationTimestamp": "2026-10-26T20:22:16.515Z",
+  "environment": {
+    "node": "v24.13.0",
+    "platform": "win32"
+  },
+  "implementedCheckpointPassed": true,
+  "releaseReady": false,
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exitCode": 0,
+      "milliseconds": 701,
+      "log": "artifacts/reports/commands/install.log"
+    },
+    {
+      "command": "pnpm format:check",
+      "exitCode": 0,
+      "milliseconds": 2436,
+      "log": "artifacts/reports/commands/format-check.log"
+    },
+    {
+      "command": "pnpm lint",
+      "exitCode": 0,
+      "milliseconds": 3077,
+      "log": "artifacts/reports/commands/lint.log"
+    },
+    {
+      "command": "pnpm typecheck",
+      "exitCode": 0,
+      "milliseconds": 18133,
+      "log": "artifacts/reports/commands/typecheck.log"
+    },
+    {
+      "command": "pnpm test",
+      "exitCode": 0,
+      "milliseconds": 10082,
+      "log": "artifacts/reports/commands/test.log"
+    },
+    {
+      "command": "pnpm test:coverage",
+      "exitCode": 0,
+      "milliseconds": 3116,
+      "log": "artifacts/reports/commands/test-coverage.log"
+    },
+    {
+      "command": "pnpm size:check",
+      "exitCode": 0,
+      "milliseconds": 612,
+      "log": "artifacts/reports/commands/size-check.log"
+    },
+    {
+      "command": "pnpm test:e2e",
+      "exitCode": 0,
+      "milliseconds": 46891,
+      "log": "artifacts/reports/commands/test-e2e.log"
+    },
+    {
+      "command": "pnpm test:pack",
+      "exitCode": 0,
+      "milliseconds": 135934,
+      "log": "artifacts/reports/commands/test-pack.log"
+    },
+    {
+      "command": "pnpm docs:build",
+      "exitCode": 0,
+      "milliseconds": 763,
+      "log": "artifacts/reports/commands/docs-build.log"
+    },
+    {
+      "command": "pnpm ledger:check",
+      "exitCode": 0,
+      "milliseconds": 763,
+      "log": "artifacts/reports/commands/ledger-check.log"
+    },
+    {
+      "command": "pnpm bench",
+      "exitCode": 0,
+      "milliseconds": 911,
+      "log": "artifacts/reports/commands/bench.log"
+    },
+    {
+      "command": "pnpm audit --audit-level high",
+      "exitCode": 0,
+      "milliseconds": 3681,
+      "log": "artifacts/reports/commands/audit.log"
+    },
+    {
+      "command": "pnpm release:check",
+      "exitCode": 1,
+      "milliseconds": 2161,
+      "log": "artifacts/reports/commands/release-check.log"
+    }
+  ],
+  "tests": {
+    "total": 379,
+    "passed": 379,
+    "failed": 0,
+    "pending": 0
+  },
+  "browser": {
+    "startTime": "2026-10-26T20:22:55.642Z",
+    "duration": 45880.464,
+    "expected": 48,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "pack": {
+    "timestamp": "2026-10-26T20:23:42.043Z",
+    "node": "v24.13.0",
+    "platform": "win32",
+    "passed": true,
+    "packages": [
+      {
+        "name": "@nestvexa/alpine",
+        "version": "0.1.0-alpha.0",
+        "tarball": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-alpine-0.1.0-alpha.0.tgz",
+        "sha256": "7ba92d6bc260b335e9b6c998e1017a438f402c3479bcf216d58aca1281f5a8df",
+        "contents": [
+          "package/LICENSE",
+          "package/dist/index.js",
+          "package/package.json",
+          "package/dist/index.d.ts.map",
+          "package/dist/index.js.map",
+          "package/README.md",
+          "package/dist/index.d.ts"
+        ]
+      },
+      {
+        "name": "@nestvexa/client",
+        "version": "0.1.0-alpha.0",
+        "tarball": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-client-0.1.0-alpha.0.tgz",
+        "sha256": "c1675f4fdbf5f7e3da5a8d398c806c156514cdb1c1b69ca52792508d6064a9ba",
+        "contents": [
+          "package/LICENSE",
+          "package/dist/bindings.js",
+          "package/dist/events.js",
+          "package/dist/grammar.js",
+          "package/dist/index.js",
+          "package/dist/listeners.js",
+          "package/dist/model-scheduler.js",
+          "package/dist/models.js",
+          "package/dist/morph.js",
+          "package/dist/protocol.js",
+          "package/package.json",
+          "package/dist/bindings.d.ts.map",
+          "package/dist/bindings.js.map",
+          "package/dist/events.d.ts.map",
+          "package/dist/events.js.map",
+          "package/dist/grammar.d.ts.map",
+          "package/dist/grammar.js.map",
+          "package/dist/index.d.ts.map",
+          "package/dist/index.js.map",
+          "package/dist/listeners.d.ts.map",
+          "package/dist/listeners.js.map",
+          "package/dist/model-scheduler.d.ts.map",
+          "package/dist/model-scheduler.js.map",
+          "package/dist/models.d.ts.map",
+          "package/dist/models.js.map",
+          "package/dist/morph.d.ts.map",
+          "package/dist/morph.js.map",
+          "package/dist/protocol.d.ts.map",
+          "package/dist/protocol.js.map",
+          "package/README.md",
+          "package/dist/bindings.d.ts",
+          "package/dist/events.d.ts",
+          "package/dist/grammar.d.ts",
+          "package/dist/index.d.ts",
+          "package/dist/listeners.d.ts",
+          "package/dist/model-scheduler.d.ts",
+          "package/dist/models.d.ts",
+          "package/dist/morph.d.ts",
+          "package/dist/protocol.d.ts"
+        ]
+      },
+      {
+        "name": "@nestvexa/core",
+        "version": "0.1.0-alpha.0",
+        "tarball": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-core-0.1.0-alpha.0.tgz",
+        "sha256": "83f9309a51abac8bf144fc22811ab1089fa1f362c09ee58066fedad2dc06c0ad",
+        "contents": [
+          "package/LICENSE",
+          "package/dist/config.js",
+          "package/dist/core.module.js",
+          "package/dist/errors.js",
+          "package/dist/index.js",
+          "package/dist/registry.js",
+          "package/package.json",
+          "package/dist/config.d.ts.map",
+          "package/dist/config.js.map",
+          "package/dist/core.module.d.ts.map",
+          "package/dist/core.module.js.map",
+          "package/dist/errors.d.ts.map",
+          "package/dist/errors.js.map",
+          "package/dist/index.d.ts.map",
+          "package/dist/index.js.map",
+          "package/dist/registry.d.ts.map",
+          "package/dist/registry.js.map",
+          "package/README.md",
+          "package/dist/config.d.ts",
+          "package/dist/core.module.d.ts",
+          "package/dist/errors.d.ts",
+          "package/dist/index.d.ts",
+          "package/dist/registry.d.ts"
+        ]
+      },
+      {
+        "name": "@nestvexa/engine-hbs",
+        "version": "0.1.0-alpha.0",
+        "tarball": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-engine-hbs-0.1.0-alpha.0.tgz",
+        "sha256": "957754f47aaa63fe82bae6ce2c5fb80969a3fab8e18352ae21dc9c11451a7196",
+        "contents": [
+          "package/LICENSE",
+          "package/dist/index.js",
+          "package/package.json",
+          "package/dist/index.d.ts.map",
+          "package/dist/index.js.map",
+          "package/README.md",
+          "package/dist/index.d.ts"
+        ]
+      },
+      {
+        "name": "@nestvexa/live",
+        "version": "0.1.0-alpha.0",
+        "tarball": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-live-0.1.0-alpha.0.tgz",
+        "sha256": "ba0136a6685e015df8823396a2747a140089f090a89347cba45c51a27030e0b5",
+        "contents": [
+          "package/LICENSE",
+          "package/dist/index.js",
+          "package/dist/live.module.js",
+          "package/dist/metadata.js",
+          "package/dist/protocol.js",
+          "package/dist/registration.js",
+          "package/dist/runtime.js",
+          "package/dist/store.js",
+          "package/package.json",
+          "package/dist/index.d.ts.map",
+          "package/dist/index.js.map",
+          "package/dist/live.module.d.ts.map",
+          "package/dist/live.module.js.map",
+          "package/dist/metadata.d.ts.map",
+          "package/dist/metadata.js.map",
+          "package/dist/protocol.d.ts.map",
+          "package/dist/protocol.js.map",
+          "package/dist/registration.d.ts.map",
+          "package/dist/registration.js.map",
+          "package/dist/runtime.d.ts.map",
+          "package/dist/runtime.js.map",
+          "package/dist/store.d.ts.map",
+          "package/dist/store.js.map",
+          "package/README.md",
+          "package/dist/index.d.ts",
+          "package/dist/live.module.d.ts",
+          "package/dist/metadata.d.ts",
+          "package/dist/protocol.d.ts",
+          "package/dist/registration.d.ts",
+          "package/dist/runtime.d.ts",
+          "package/dist/store.d.ts"
+        ]
+      },
+      {
+        "name": "nestvexa",
+        "version": "0.1.0-alpha.0",
+        "tarball": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-0.1.0-alpha.0.tgz",
+        "sha256": "2785a31f8e01d0a2c6ce9ed3818cb4fcedaf06852b46a64278587d9840cbe4b7",
+        "contents": [
+          "package/LICENSE",
+          "package/dist/index.js",
+          "package/package.json",
+          "package/dist/index.d.ts.map",
+          "package/dist/index.js.map",
+          "package/README.md",
+          "package/dist/index.d.ts"
+        ]
+      },
+      {
+        "name": "@nestvexa/views",
+        "version": "0.1.0-alpha.0",
+        "tarball": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-views-0.1.0-alpha.0.tgz",
+        "sha256": "183c558960631607a77770f790f9fd0df128c72d58fa930fb91724f1fb732ce9",
+        "contents": [
+          "package/LICENSE",
+          "package/dist/index.js",
+          "package/package.json",
+          "package/dist/index.d.ts.map",
+          "package/dist/index.js.map",
+          "package/README.md",
+          "package/dist/index.d.ts"
+        ]
+      }
+    ],
+    "consumers": [
+      {
+        "manager": "pnpm",
+        "directory": "C:\\Users\\eslam\\AppData\\Local\\Temp\\nestvexa-pnpm-consumer-mjmhBS",
+        "passed": true,
+        "commands": [
+          {
+            "command": "pnpm install --ignore-scripts",
+            "exitCode": 0,
+            "milliseconds": 8790
+          },
+          {
+            "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+            "exitCode": 0
+          },
+          {
+            "command": "node dist/consumer.js",
+            "exitCode": 0
+          },
+          {
+            "command": "node imports.mjs",
+            "exitCode": 0
+          }
+        ]
+      },
+      {
+        "manager": "npm",
+        "directory": "C:\\Users\\eslam\\AppData\\Local\\Temp\\nestvexa-npm-consumer-YG1yKl",
+        "passed": true,
+        "commands": [
+          {
+            "command": "pnpm exec npm install --ignore-scripts --no-fund --no-audit",
+            "exitCode": 0,
+            "milliseconds": 111253
+          },
+          {
+            "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+            "exitCode": 0
+          },
+          {
+            "command": "node dist/consumer.js",
+            "exitCode": 0
+          },
+          {
+            "command": "node imports.mjs",
+            "exitCode": 0
+          }
+        ]
+      }
+    ]
+  },
+  "clientSize": {
+    "timestamp": "2026-10-26T20:22:54.640Z",
+    "node": "v24.13.0",
+    "scope": "Emitted custom Live ES modules only, excluding Alpine and sourcemaps. Per-module gzip estimate; example server does not automatically enable HTTP compression.",
+    "files": [
+      {
+        "file": "bindings.js",
+        "bytes": 8632,
+        "gzipBytes": 2450
+      },
+      {
+        "file": "events.js",
+        "bytes": 8325,
+        "gzipBytes": 2273
+      },
+      {
+        "file": "grammar.js",
+        "bytes": 543,
+        "gzipBytes": 344
+      },
+      {
+        "file": "index.js",
+        "bytes": 25900,
+        "gzipBytes": 5781
+      },
+      {
+        "file": "listeners.js",
+        "bytes": 1826,
+        "gzipBytes": 587
+      },
+      {
+        "file": "model-scheduler.js",
+        "bytes": 6416,
+        "gzipBytes": 1697
+      },
+      {
+        "file": "models.js",
+        "bytes": 6402,
+        "gzipBytes": 2053
+      },
+      {
+        "file": "morph.js",
+        "bytes": 5278,
+        "gzipBytes": 1623
+      },
+      {
+        "file": "protocol.js",
+        "bytes": 3032,
+        "gzipBytes": 1020
+      }
+    ],
+    "bytes": 66354,
+    "gzipBytes": 17828,
+    "gzipBudget": 35840,
+    "passed": true
+  },
+  "highRiskCoverage": {
+    "total": {
+      "lines": {
+        "total": 205,
+        "covered": 204,
+        "skipped": 0,
+        "pct": 99.51
+      },
+      "statements": {
+        "total": 223,
+        "covered": 219,
+        "skipped": 0,
+        "pct": 98.2
+      },
+      "functions": {
+        "total": 35,
+        "covered": 35,
+        "skipped": 0,
+        "pct": 100
+      },
+      "branches": {
+        "total": 213,
+        "covered": 207,
+        "skipped": 0,
+        "pct": 97.18
+      },
+      "branchesTrue": {
+        "total": 0,
+        "covered": 0,
+        "skipped": 0,
+        "pct": 100
+      }
+    },
+    "files": [
+      "C:\\Users\\eslam\\Desktop\\Nestvexa\\packages\\core\\src\\config.ts",
+      "C:\\Users\\eslam\\Desktop\\Nestvexa\\packages\\live\\src\\protocol.ts",
+      "C:\\Users\\eslam\\Desktop\\Nestvexa\\packages\\live\\src\\store.ts"
+    ],
+    "scope": "Only selected configuration/protocol/store files; excludes runtime/action/client and most project code"
+  },
+  "additionalRuntimes": [
+    {
+      "timestamp": "2026-10-26T20:25:52.669Z",
+      "node": "v22.23.4",
+      "platform": "win32",
+      "passed": true,
+      "scope": "Strict test compilation and current aggregate unit/real HTTP/browser DOM suites; not Linux or a full release matrix",
+      "commands": [
+        {
+          "task": "strict compilation",
+          "exitCode": 0,
+          "milliseconds": 7502,
+          "log": "artifacts/reports/node22-0.log"
+        },
+        {
+          "task": "current aggregate suite",
+          "exitCode": 0,
+          "milliseconds": 10192,
+          "log": "artifacts/reports/node22-1.log"
+        }
+      ],
+      "aggregate": {
+        "total": 379,
+        "passed": 379,
+        "failed": 0,
+        "pending": 0
+      }
+    },
+    {
+      "timestamp": "2026-10-26T20:29:29.470Z",
+      "node": "v24.22.1",
+      "platform": "win32",
+      "passed": true,
+      "scope": "Strict test compilation and current aggregate unit/real HTTP/browser DOM suites; not Linux or a full release matrix",
+      "commands": [
+        {
+          "task": "strict compilation",
+          "exitCode": 0,
+          "milliseconds": 4762,
+          "log": "artifacts/reports/node24-0.log"
+        },
+        {
+          "task": "current aggregate suite",
+          "exitCode": 0,
+          "milliseconds": 8375,
+          "log": "artifacts/reports/node24-1.log"
+        }
+      ],
+      "aggregate": {
+        "total": 379,
+        "passed": 379,
+        "failed": 0,
+        "pending": 0
+      }
+    }
+  ],
+  "ledger": {
+    "total": 925,
+    "states": {
+      "Pending": 843,
+      "InProgress": 82
+    }
+  },
+  "reportSha256": {
+    "artifacts/reports/verification.json": "de183202bac59b6a9e9cee168585fb146c27bb192bede14b6b3e8c98cd473f2a",
+    "artifacts/reports/vitest.json": "3ec1f1b0fbb17ff07dbe8a070111096763e07152ba86754bbdb304e45c0e1a8d",
+    "artifacts/reports/playwright.json": "b6e86d6f7f9c28b25fffe89e629520275f83070064dc295cb05226438d8d6c73",
+    "artifacts/reports/pack.json": "e239cca95229288c0c02eb194c4733e7f5bc172d86b4ebca0e7a00d41abc1758",
+    "artifacts/reports/client-size.json": "1f1002a4c76d7940d4e65df4d7e59783048040584a8e26776df0f0870ac6312c",
+    "artifacts/reports/coverage/high-risk/coverage-summary.json": "90108330b80c8496df4800d9bf545ca3a9c55057858d7592f56b6df68f419b6e",
+    "docs/implementation/feature-ledger.json": "336c4a19a39e105acd65396d3db143d0d7995e79c91345101cdcfec9060bd63b",
+    "artifacts/reports/node22-compatibility.json": "5a575c97874d8648722ac3167c28270f06c9318465ecc563508181d8b9b5505f",
+    "artifacts/reports/node22-tests.json": "97201e557f90b0136741ce71accc6397dc7d1253d8a0cccabc415e7d01294f68",
+    "artifacts/reports/node24-compatibility.json": "ee4c1592113ee60c78f3f5ff744b64900e5f6ea1443971bce978c5ee6b93f4bd",
+    "artifacts/reports/node24-tests.json": "18795e4cd3af496146422b08ab29b5d3b4481fa7c7a388a4c49bea8be9947261"
+  },
+  "limitations": [
+    "No complete master phase accepted; release gates remain open",
+    "Windows execution only; Linux and full release matrix remain unverified",
+    "Controlled browser transport fixtures are not server conformance evidence",
+    "No independent security certification, publication, remote push, SBOM or provenance attestation"
+  ]
+}

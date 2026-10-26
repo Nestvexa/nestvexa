@@ -1,5 +1,9 @@
 import { Body } from '@nestjs/common';
 import type { Type, PipeTransform } from '@nestjs/common';
+import type { JsonValue } from './protocol.js';
+
+export const INTERNAL_SYNC_ACTION = '$sync';
+export const INTERNAL_SYNC_PATH = '_sync';
 
 export interface ComponentOptions {
   readonly name: string;
@@ -7,6 +11,8 @@ export interface ComponentOptions {
 }
 export interface StateOptions {
   readonly writable?: boolean;
+  /** Pure validation before any component hook/action runs. False rejects without consuming state. */
+  readonly validate?: (value: JsonValue) => boolean | Promise<boolean>;
 }
 export interface ActionOptions {
   readonly id?: string;
@@ -92,6 +98,10 @@ export function LiveComponent(options: ComponentOptions): ClassDecorator {
 }
 /** Public JSON state. Client writes require writable:true. Injected fields are never serialized. */
 export function State(options: StateOptions = {}): PropertyDecorator {
+  if (options.validate !== undefined && typeof options.validate !== 'function')
+    throw new Error('State validate must be a function');
+  if (options.validate !== undefined && options.writable !== true)
+    throw new Error('State validation requires writable:true');
   return (target, key) => {
     const name = property(key);
     const prior: Map<string, StateOptions> | undefined = Reflect.getMetadata(
@@ -99,7 +109,15 @@ export function State(options: StateOptions = {}): PropertyDecorator {
       target,
     );
     const states = new Map(prior);
-    states.set(name, Object.freeze({ writable: options.writable === true }));
+    states.set(
+      name,
+      Object.freeze({
+        writable: options.writable === true,
+        ...(options.validate === undefined
+          ? {}
+          : { validate: options.validate }),
+      }),
+    );
     Reflect.defineMetadata(STATES, states, target);
   };
 }

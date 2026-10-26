@@ -37,19 +37,39 @@ class CounterService {
 @Injectable()
 class ActionGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
+    actionGuardCalls++;
     return (
       context.switchToHttp().getRequest<{ headers: Record<string, string> }>()
         .headers['x-pack-allow'] === 'yes'
     );
   }
 }
+let actionGuardCalls = 0;
+let componentGuardCalls = 0;
+let syncAllowed = true;
+@Injectable()
+class ComponentGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    componentGuardCalls++;
+    return (
+      context.switchToHttp().getRequest<{ headers: Record<string, string> }>()
+        .headers['x-pack-block'] !== 'yes'
+    );
+  }
+}
 @Module({ providers: [CounterService], exports: [CounterService] })
 class ServicesModule {}
 @LiveComponent({ name: 'packed-counter', view: 'counter' })
+@UseGuards(ComponentGuard)
 class Counter {
   // No explicit @Inject: external tsc must emit usable Nest constructor metadata.
   constructor(private readonly service: CounterService) {}
   @State() count = 0;
+  @State({
+    writable: true,
+    validate: (value) => typeof value === 'string' && value.length <= 16,
+  })
+  label = '';
   @Action()
   @UseGuards(ActionGuard)
   increment(): void {
@@ -90,7 +110,8 @@ class Home {
       }),
       authorize: (_identity, component, action) =>
         component === 'packed-counter' &&
-        ['$mount', 'increment', 'set'].includes(action),
+        ['$mount', '$sync', 'increment', 'set'].includes(action) &&
+        (action !== '$sync' || syncAllowed),
     }),
   ],
   controllers: [Home],
@@ -158,6 +179,56 @@ try {
   });
   assert.ok(updated.ok);
   assert.equal(record(record(await updated.json())['state'])['count'], 7);
+  const syncBody = {
+    ...body,
+    requestId: randomUUID(),
+    revision: 2,
+    updates: { label: 'too long for the declared validator' },
+  };
+  const syncUrl = `${base}/_nestvexa/live/packed-counter/_sync`;
+  const beforePolicyDenial = componentGuardCalls;
+  syncAllowed = false;
+  const policyDenied = await fetch(syncUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(syncBody),
+  });
+  assert.equal(policyDenied.status, 403);
+  assert.equal(componentGuardCalls, beforePolicyDenial);
+  syncAllowed = true;
+  const classDenied = await fetch(syncUrl, {
+    method: 'POST',
+    headers: { ...headers, 'x-pack-block': 'yes' },
+    body: JSON.stringify(syncBody),
+  });
+  assert.equal(classDenied.status, 403);
+  assert.equal(componentGuardCalls, beforePolicyDenial + 1);
+  const invalid = await fetch(syncUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(syncBody),
+  });
+  assert.equal(invalid.status, 422);
+  assert.equal(record(await invalid.json())['code'], 'STATE_INVALID');
+  const actionGuardsBeforeSync = actionGuardCalls;
+  const synchronized = await fetch(syncUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      ...syncBody,
+      requestId: randomUUID(),
+      updates: { label: '<safe>' },
+    }),
+  });
+  assert.equal(synchronized.status, 201);
+  assert.equal(synchronized.headers.get('cache-control'), 'no-store');
+  const synchronizedResult = record(await synchronized.json());
+  assert.equal(record(synchronizedResult['state'])['label'], '<safe>');
+  assert.equal(record(synchronizedResult['state'])['count'], 7);
+  assert.equal(record(synchronizedResult['component'])['revision'], 3);
+  assert.equal(synchronizedResult['snapshot'], snapshot);
+  assert.equal(componentGuardCalls, beforePolicyDenial + 3);
+  assert.equal(actionGuardCalls, actionGuardsBeforeSync);
   const replay = await fetch(
     `${base}/_nestvexa/live/packed-counter/increment`,
     {
@@ -168,7 +239,7 @@ try {
   );
   assert.equal(replay.status, 409);
   console.log(
-    'Packed strict-TS consumer passed: MVC, Live, DI metadata, guard, pipe, replay and Node-safe client import.',
+    'Packed strict-TS consumer passed: MVC, Live, DI metadata, guards, pipe, recoverable sync validation, policy, replay and Node-safe client import.',
   );
 } finally {
   await app.close();

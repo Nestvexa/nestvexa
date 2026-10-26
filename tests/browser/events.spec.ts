@@ -41,7 +41,13 @@ test('debounce coalesces and throttle invokes only its leading event', async ({
   await page.goto('/');
   await page.getByRole('button', { name: 'Debounced increase' }).dblclick();
   await expect(page.locator('#count')).toHaveText('1');
-  await page.getByRole('button', { name: 'Throttled increase' }).dblclick();
+  await page
+    .getByRole('button', { name: 'Throttled increase' })
+    .evaluate((element) => {
+      // Keep both events inside one throttle window despite automation/IPC delays.
+      (element as HTMLButtonElement).click();
+      (element as HTMLButtonElement).click();
+    });
   await expect(page.locator('#count')).toHaveText('2');
   await page.waitForTimeout(550);
   await expect(page.locator('#count')).toHaveText('2');

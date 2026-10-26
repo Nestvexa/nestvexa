@@ -8,6 +8,8 @@ Normal Nest guards, pipes and interceptors remain application responsibilities. 
 
 Bind Live state to session, principal and tenant, and revoke that binding on logout or permission revocation. Private pages carrying mount tokens must use `Cache-Control: no-store`. In-memory stores require a single process and are lost at restart. Use host business idempotency and database transactions for irreversible effects; Live revision rejection is not an exactly-once transaction guarantee.
 
+Model modifiers use the separate `_sync` route and require explicit `$sync` authorization. Protect component read access and hydrate/dehydrate/render hooks with global/class guards and the host callback: action-method guards do not execute during synchronization. Apply writable-state validators for domain limits even when HTML input constraints exist. Validators run before the transaction, receive immutable detached JSON, and must be pure and bounded; validation failures leave the snapshot usable. Synchronization can run lifecycle hooks, so do not retry it blindly after an unknown network result.
+
 The lockfile overrides Multer to2.5.0 for GHSA-q7qp-rjg7-q26m. Nest12.2.0's Express platform pins2.4.0, so downstream apps must apply the patched resolution too until upstream updates. Repository overrides do not automatically transfer into a consumer app.
 
 No raw cookies, tokens or private DTOs should be logged. The current packages do not include telemetry. Do not expose development errors publicly. Report security issues privately through an owner-provided channel once configured; see [policy](../../SECURITY.md).

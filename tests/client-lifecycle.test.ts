@@ -36,6 +36,8 @@ beforeAll(async () => {
       'bindings',
       'events',
       'listeners',
+      'models',
+      'model-scheduler',
     ].map((name) => [
       `/${name}.js`,
       new URL(`../packages/client/dist/${name}.js`, import.meta.url),

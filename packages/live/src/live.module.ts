@@ -16,7 +16,11 @@ import type {
   Type,
 } from '@nestjs/common';
 import { GUARDS_METADATA, ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
-import { definition } from './metadata.js';
+import {
+  definition,
+  INTERNAL_SYNC_ACTION,
+  INTERNAL_SYNC_PATH,
+} from './metadata.js';
 import type { ComponentDefinition } from './metadata.js';
 import { LIVE_OPTIONS, LiveRuntime } from './runtime.js';
 import { LiveInfrastructureModule } from './registration.js';
@@ -135,6 +139,33 @@ function generatedController(
     );
     Reflect.defineMetadata(ROUTE, { component, action }, handler);
   }
+  const syncMethod = '__nestvexaSync';
+  const sync = function (this: LiveController, request: object) {
+    return this.runtime.execute(request, undefined);
+  };
+  Object.defineProperty(LiveController.prototype, syncMethod, { value: sync });
+  const syncDescriptor = Object.getOwnPropertyDescriptor(
+    LiveController.prototype,
+    syncMethod,
+  );
+  if (!syncDescriptor)
+    throw new Error('Failed to define live synchronization handler');
+  Req()(LiveController.prototype, syncMethod, 0);
+  Post(INTERNAL_SYNC_PATH)(
+    LiveController.prototype,
+    syncMethod,
+    syncDescriptor,
+  );
+  Header('Cache-Control', 'no-store')(
+    LiveController.prototype,
+    syncMethod,
+    syncDescriptor,
+  );
+  Reflect.defineMetadata(
+    ROUTE,
+    { component, action: INTERNAL_SYNC_ACTION },
+    sync,
+  );
   return LiveController;
 }
 
