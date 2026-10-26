@@ -14,7 +14,9 @@ client.mount();
 
 Install local packed artifacts while unpublished. Future npm/pnpm/yarn package name is `@nestvexa/client`. ESM output requires modern browsers with fetch, AbortController, crypto.randomUUID and MutationObserver. The local matrix includes Chromium, Firefox and WebKit; consult the latest report for pass/fail outcomes.
 
-Implemented directives: click, submit, deferred model, loading, ignore, text, show, bind, dirty, cloak and ref. See the [exact grammar](../../docs/reference/directives.md). Modifiers and other directives are rejected explicitly. Expressions are not evaluated. The optional [Alpine adapter](../alpine/README.md) supplies `$live.call/get/set` inside an ignored ownership boundary. The full master directive matrix remains unmet.
+Implemented directives: click, submit, keydown, deferred model, loading, ignore, text, show, bind, dirty, cloak and ref. Event modifiers support prevent/stop/self/once, keyboard/system filters, debounce and leading throttle; see the [exact grammar](../../docs/reference/directives.md). Unsupported modifiers/directives are rejected explicitly. Expressions are not evaluated. The optional [Alpine adapter](../alpine/README.md) supplies `$live.call/get/set` inside an ignored ownership boundary. The full master directive matrix remains unmet.
+
+A component root has one active client owner. A second client cannot attach competing listeners; dispose the owner before transferring it. Removed component roots abort pending requests, discard queued actions and cancel event timers. Failed mount markers are reported once and require disposing/remounting the client after correction.
 
 `client.call(element, action)` returns the queued request promise. `get(element, field)` returns detached state or local edits. `set(element, field, primitive)` updates local state until submitted. `refs(element)` resolves owned references from the current DOM. Server authorization and writable-state checks always apply.
 

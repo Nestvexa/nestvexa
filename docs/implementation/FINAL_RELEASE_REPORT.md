@@ -1,5 +1,7 @@
 # Release checkpoint report — 2026-10-26
 
+Continuation checkpoint: the event-modifier implementation passed **235 aggregate tests**, **36 browser cases across three engines**, and seven-package external npm/pnpm strict-TypeScript MVC/Live consumers. Windows/Node22.23.4 additionally passed strict compilation and the aggregate suite. The custom emitted client measures **13,388 gzip bytes** excluding Alpine (per-module compression estimate, not actual server transfer). The original foundation results below remain a historical snapshot; the new event-checkpoint evidence and current reports describe later changes. The release gate still rejects the incomplete master requirements.
+
 **A. Status: NOT YET READY — BLOCKERS.** This is an interim implementation report, not the Phase 17 handoff. No complete phase is accepted. The [925-unit ledger](feature-ledger.md) records 76 InProgress, 849 Pending and 0 Done.
 
 ## B. What exists

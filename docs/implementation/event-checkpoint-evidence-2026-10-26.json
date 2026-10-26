@@ -1,0 +1,339 @@
+{
+  "schemaVersion": 1,
+  "checkpointDate": "2026-10-26",
+  "scope": "Integrated event modifiers, keyboard routes, direct listener cleanup and client lifecycle checkpoint; full master requirements remain unmet",
+  "verificationTimestamp": "2026-10-26T13:55:35.610Z",
+  "environment": {
+    "node": "v24.13.0",
+    "platform": "win32"
+  },
+  "implementedCheckpointPassed": true,
+  "releaseReady": false,
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exitCode": 0,
+      "milliseconds": 971,
+      "log": "artifacts/reports/commands/install.log"
+    },
+    {
+      "command": "pnpm format:check",
+      "exitCode": 0,
+      "milliseconds": 2577,
+      "log": "artifacts/reports/commands/format-check.log"
+    },
+    {
+      "command": "pnpm lint",
+      "exitCode": 0,
+      "milliseconds": 3240,
+      "log": "artifacts/reports/commands/lint.log"
+    },
+    {
+      "command": "pnpm typecheck",
+      "exitCode": 0,
+      "milliseconds": 20797,
+      "log": "artifacts/reports/commands/typecheck.log"
+    },
+    {
+      "command": "pnpm test",
+      "exitCode": 0,
+      "milliseconds": 7024,
+      "log": "artifacts/reports/commands/test.log"
+    },
+    {
+      "command": "pnpm test:coverage",
+      "exitCode": 0,
+      "milliseconds": 3149,
+      "log": "artifacts/reports/commands/test-coverage.log"
+    },
+    {
+      "command": "pnpm test:e2e",
+      "exitCode": 0,
+      "milliseconds": 67295,
+      "log": "artifacts/reports/commands/test-e2e.log"
+    },
+    {
+      "command": "pnpm test:pack",
+      "exitCode": 0,
+      "milliseconds": 56056,
+      "log": "artifacts/reports/commands/test-pack.log"
+    },
+    {
+      "command": "pnpm docs:build",
+      "exitCode": 0,
+      "milliseconds": 874,
+      "log": "artifacts/reports/commands/docs-build.log"
+    },
+    {
+      "command": "pnpm ledger:check",
+      "exitCode": 0,
+      "milliseconds": 989,
+      "log": "artifacts/reports/commands/ledger-check.log"
+    },
+    {
+      "command": "pnpm bench",
+      "exitCode": 0,
+      "milliseconds": 1194,
+      "log": "artifacts/reports/commands/bench.log"
+    },
+    {
+      "command": "pnpm audit --audit-level high",
+      "exitCode": 0,
+      "milliseconds": 1281,
+      "log": "artifacts/reports/commands/audit.log"
+    },
+    {
+      "command": "pnpm release:check",
+      "exitCode": 1,
+      "milliseconds": 700,
+      "log": "artifacts/reports/commands/release-check.log"
+    }
+  ],
+  "tests": {
+    "aggregate": {
+      "total": 235,
+      "passed": 235,
+      "failed": 0,
+      "pending": 0,
+      "success": true
+    },
+    "highRiskCoverage": {
+      "tests": {
+        "total": 74,
+        "passed": 74,
+        "failed": 0,
+        "pending": 0,
+        "success": true
+      },
+      "scope": "Only configuration, Live protocol and memory state store source files",
+      "files": [
+        "packages/core/src/config.ts",
+        "packages/live/src/protocol.ts",
+        "packages/live/src/store.ts"
+      ],
+      "totals": {
+        "lines": {
+          "total": 205,
+          "covered": 204,
+          "skipped": 0,
+          "pct": 99.51
+        },
+        "statements": {
+          "total": 223,
+          "covered": 219,
+          "skipped": 0,
+          "pct": 98.2
+        },
+        "functions": {
+          "total": 35,
+          "covered": 35,
+          "skipped": 0,
+          "pct": 100
+        },
+        "branches": {
+          "total": 213,
+          "covered": 207,
+          "skipped": 0,
+          "pct": 97.18
+        },
+        "branchesTrue": {
+          "total": 0,
+          "covered": 0,
+          "skipped": 0,
+          "pct": 100
+        }
+      },
+      "report": "artifacts/reports/coverage/high-risk/coverage-summary.json"
+    }
+  },
+  "browser": {
+    "projects": ["chromium", "firefox", "webkit"],
+    "stats": {
+      "startTime": "2026-10-26T13:56:14.699Z",
+      "duration": 65905.225,
+      "expected": 36,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "scope": "Twelve fixture scenarios per engine including four event modifier scenarios; axe checks cover shipped fixtures only",
+    "report": "artifacts/reports/playwright.json"
+  },
+  "pack": {
+    "timestamp": "2026-10-26T13:57:21.124Z",
+    "passed": true,
+    "packages": [
+      {
+        "name": "@nestvexa/alpine",
+        "version": "0.1.0-alpha.0",
+        "sha256": "7ba92d6bc260b335e9b6c998e1017a438f402c3479bcf216d58aca1281f5a8df"
+      },
+      {
+        "name": "@nestvexa/client",
+        "version": "0.1.0-alpha.0",
+        "sha256": "626ebb7a397d1e18b06f9983036a74afcc7f10237694a46c2301096356a8462e"
+      },
+      {
+        "name": "@nestvexa/core",
+        "version": "0.1.0-alpha.0",
+        "sha256": "83f9309a51abac8bf144fc22811ab1089fa1f362c09ee58066fedad2dc06c0ad"
+      },
+      {
+        "name": "@nestvexa/engine-hbs",
+        "version": "0.1.0-alpha.0",
+        "sha256": "957754f47aaa63fe82bae6ce2c5fb80969a3fab8e18352ae21dc9c11451a7196"
+      },
+      {
+        "name": "@nestvexa/live",
+        "version": "0.1.0-alpha.0",
+        "sha256": "41b8f319082df6ec51fbba51033e2c82e9b71bc32a1395c805bc1482d4f86a9b"
+      },
+      {
+        "name": "nestvexa",
+        "version": "0.1.0-alpha.0",
+        "sha256": "ce61c097cc71429df58f43836cd6f9f4d3efb2531f00abacc914b2e418a40330"
+      },
+      {
+        "name": "@nestvexa/views",
+        "version": "0.1.0-alpha.0",
+        "sha256": "183c558960631607a77770f790f9fd0df128c72d58fa930fb91724f1fb732ce9"
+      }
+    ],
+    "consumers": [
+      {
+        "manager": "pnpm",
+        "passed": true,
+        "commands": [
+          {
+            "command": "pnpm install --ignore-scripts",
+            "exitCode": 0,
+            "milliseconds": 12336
+          },
+          {
+            "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+            "exitCode": 0
+          },
+          {
+            "command": "node dist/consumer.js",
+            "exitCode": 0
+          },
+          {
+            "command": "node imports.mjs",
+            "exitCode": 0
+          }
+        ]
+      },
+      {
+        "manager": "npm",
+        "passed": true,
+        "commands": [
+          {
+            "command": "pnpm exec npm install --ignore-scripts --no-fund --no-audit",
+            "exitCode": 0,
+            "milliseconds": 24728
+          },
+          {
+            "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+            "exitCode": 0
+          },
+          {
+            "command": "node dist/consumer.js",
+            "exitCode": 0
+          },
+          {
+            "command": "node imports.mjs",
+            "exitCode": 0
+          }
+        ]
+      }
+    ],
+    "report": "artifacts/reports/pack.json"
+  },
+  "node22": {
+    "timestamp": "2026-10-26T13:59:53.886Z",
+    "node": "v22.23.4",
+    "platform": "win32",
+    "passed": true,
+    "scope": "Strict test compilation and current aggregate unit/real HTTP/browser DOM suites; not Linux or a full release matrix",
+    "commands": [
+      {
+        "task": "strict compilation",
+        "exitCode": 0,
+        "milliseconds": 12821,
+        "log": "artifacts/reports/node22-0.log"
+      },
+      {
+        "task": "current aggregate suite",
+        "exitCode": 0,
+        "milliseconds": 8823,
+        "log": "artifacts/reports/node22-1.log"
+      }
+    ],
+    "tests": {
+      "total": 235,
+      "passed": 235,
+      "failed": 0,
+      "pending": 0,
+      "success": true
+    },
+    "limitations": "Current aggregate and strict compilation on Windows; not the full Playwright web-server matrix on Node22 or a Linux result"
+  },
+  "clientSize": {
+    "timestamp": "2026-10-26T13:59:44.673Z",
+    "node": "v24.13.0",
+    "scope": "Emitted custom Live ES modules only, excluding Alpine and sourcemaps. Per-module gzip estimate; example server does not automatically enable HTTP compression.",
+    "files": [
+      {
+        "file": "bindings.js",
+        "bytes": 8632,
+        "gzipBytes": 2450
+      },
+      {
+        "file": "events.js",
+        "bytes": 8325,
+        "gzipBytes": 2273
+      },
+      {
+        "file": "grammar.js",
+        "bytes": 543,
+        "gzipBytes": 344
+      },
+      {
+        "file": "index.js",
+        "bytes": 22581,
+        "gzipBytes": 5178
+      },
+      {
+        "file": "listeners.js",
+        "bytes": 1826,
+        "gzipBytes": 587
+      },
+      {
+        "file": "morph.js",
+        "bytes": 5070,
+        "gzipBytes": 1571
+      },
+      {
+        "file": "protocol.js",
+        "bytes": 2862,
+        "gzipBytes": 985
+      }
+    ],
+    "bytes": 49839,
+    "gzipBytes": 13388,
+    "gzipBudget": 35840,
+    "passed": true,
+    "report": "artifacts/reports/client-size.json"
+  },
+  "ledger": {
+    "total": 925,
+    "inProgress": 79,
+    "pending": 846,
+    "done": 0
+  },
+  "limitations": [
+    "Full phase acceptance and the complete master project remain unmet.",
+    "Linux and complete compatibility, fuzz, mutation, performance and independent security review gates remain open.",
+    "No package publication or remote push occurred."
+  ]
+}

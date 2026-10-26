@@ -26,6 +26,8 @@
     "docs:build": "node scripts/docs.mjs",
     "ledger:check": "node scripts/ledger.mjs check",
     "bench": "node scripts/bench.mjs",
+    "size:check": "node scripts/size.mjs",
+    "test:node22": "pnpm dlx node@22.23.4 scripts/runtime-check.mjs",
     "release:check": "node scripts/release-check.mjs",
     "test:all": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:e2e && pnpm test:pack && pnpm docs:build && pnpm ledger:check && pnpm audit --audit-level high && pnpm release:check",
     "dev": "pnpm --filter @nestvexa/example-starter-hbs dev"

@@ -1,18 +1,23 @@
 import { LiveClientError, parseIdentifier } from './grammar.js';
 import { parseBindingDirective } from './bindings.js';
 import type { BindingDirective } from './bindings.js';
+import { parseEventDirective } from './events.js';
+import type { EventDirective } from './events.js';
 export { LiveClientError, parseIdentifier } from './grammar.js';
 export type LiveDirective =
   | { readonly kind: 'click' | 'submit' | 'model'; readonly value: string }
   | { readonly kind: 'loading' | 'ignore'; readonly value: '' }
-  | BindingDirective;
-/** This initial grammar intentionally rejects every modifier and executable expression. */
+  | BindingDirective
+  | EventDirective;
+/** Closed directive grammar: only the implemented data bindings and event modifiers are accepted. */
 export function parseDirective(name: string, value: string): LiveDirective {
   const kind = name.slice(3);
   if (!name.startsWith('nv:'))
     throw new LiveClientError('DIRECTIVE', 'Expected an nv: directive');
   if (kind === 'click' || kind === 'submit' || kind === 'model')
     return { kind, value: parseIdentifier(value) };
+  if (/^nv:(?:click|submit|keydown)(?:\.|$)/.test(name))
+    return parseEventDirective(name, value);
   if ((kind === 'loading' || kind === 'ignore') && value === '')
     return { kind, value };
   if (['text', 'show', 'bind', 'dirty', 'cloak', 'ref'].includes(kind))

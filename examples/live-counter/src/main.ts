@@ -121,6 +121,16 @@ class PageController {
   bindings() {
     return readFile(new URL('./bindings.js', clientEntry), 'utf8');
   }
+  @Get('assets/events.js')
+  @Header('Content-Type', 'text/javascript; charset=utf-8')
+  events() {
+    return readFile(new URL('./events.js', clientEntry), 'utf8');
+  }
+  @Get('assets/listeners.js')
+  @Header('Content-Type', 'text/javascript; charset=utf-8')
+  listeners() {
+    return readFile(new URL('./listeners.js', clientEntry), 'utf8');
+  }
   @Get('assets/alpine.js')
   @Header('Content-Type', 'text/javascript; charset=utf-8')
   alpine() {

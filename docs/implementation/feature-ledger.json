@@ -5298,14 +5298,33 @@
       "id": "BROW-004",
       "priority": "P1",
       "package": "@nestvexa/client",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/client/src/index.ts"
+      ],
+      "testFiles": [
+        "tests/client-lifecycle.test.ts"
+      ],
+      "docs": [
+        "docs/reference/directives.md",
+        "packages/client/README.md"
+      ],
+      "examples": [
+        "examples/live-counter/README.md"
+      ],
+      "securityNotes": "Exclusive client ownership, disposed/detached roots abort requests and cancel queued work; no user identity is trusted from DOM state.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-26T13:55:35.610Z",
+          "report": "docs/implementation/event-checkpoint-evidence-2026-10-26.json",
+          "scope": "Partial event/lifecycle implementation:235 aggregate tests,36 Chromium/Firefox/WebKit fixture checks; full compound acceptance remains open and releaseReady is false."
+        }
+      ],
+      "outstandingIssues": [
+        "Minimal footprint and code splitting remain unmeasured; complete application lifecycle matrix remains open."
+      ]
     },
     {
       "sourceKey": "4db5b448849d2775f8c75ecd499104a8ec1e2d7b3f072849f9537e8871549f94",
@@ -5349,14 +5368,36 @@
       "id": "BROW-006",
       "priority": "P1",
       "package": "@nestvexa/client",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/client/src/index.ts",
+        "packages/client/src/events.ts",
+        "packages/client/src/listeners.ts"
+      ],
+      "testFiles": [
+        "tests/client-events.test.ts",
+        "tests/browser/events.spec.ts"
+      ],
+      "docs": [
+        "docs/reference/directives.md",
+        "packages/client/README.md"
+      ],
+      "examples": [
+        "examples/live-counter/README.md"
+      ],
+      "securityNotes": "Closed action/modifier grammar; key and ownership filters precede effects, retained configurations are bounded, and browser event objects are never sent to the server.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-26T13:55:35.610Z",
+          "report": "docs/implementation/event-checkpoint-evidence-2026-10-26.json",
+          "scope": "Partial event/lifecycle implementation:235 aggregate tests,36 Chromium/Firefox/WebKit fixture checks; full compound acceptance remains open and releaseReady is false."
+        }
+      ],
+      "outstandingIssues": [
+        "Only event scheduling and current transport/binding subset implemented; bundling, navigation, complete ownership registry, diagnostics and remaining compound clauses are open."
+      ]
     },
     {
       "sourceKey": "ca7743fb2024d8abb788b2adf51c2660651ebcbd3a403debfb4824a55191721b",
@@ -5510,11 +5551,15 @@
       "priority": "P1",
       "package": "@nestvexa/client",
       "implementationFiles": [
-        "packages/client/src/index.ts"
+        "packages/client/src/index.ts",
+        "packages/client/src/events.ts",
+        "packages/client/src/listeners.ts"
       ],
       "testFiles": [
         "tests/client.test.ts",
-        "tests/browser/live.spec.ts"
+        "tests/browser/live.spec.ts",
+        "tests/client-events.test.ts",
+        "tests/browser/events.spec.ts"
       ],
       "docs": [
         "docs/reference/directives.md",
@@ -5523,11 +5568,19 @@
       "examples": [
         "examples/live-counter/README.md"
       ],
-      "securityNotes": "Data-only registered identifiers and explicit ownership/attribute boundaries; no arbitrary JavaScript expression evaluation.",
+      "securityNotes": "Closed action/modifier grammar; key and ownership filters precede effects, retained configurations are bounded, and browser event objects are never sent to the server.",
       "state": "InProgress",
-      "validationEvidence": [],
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-26T13:55:35.610Z",
+          "report": "docs/implementation/event-checkpoint-evidence-2026-10-26.json",
+          "scope": "Partial event/lifecycle implementation:235 aggregate tests,36 Chromium/Firefox/WebKit fixture checks; full compound acceptance remains open and releaseReady is false."
+        }
+      ],
       "outstandingIssues": [
-        "Full modifier grammar and click event combinations remain unimplemented/unverified."
+        "Current event fixture covers key modifiers and native ancestor propagation; the complete modifier combination matrix remains open."
       ]
     },
     {
@@ -5542,11 +5595,15 @@
       "priority": "P1",
       "package": "@nestvexa/client",
       "implementationFiles": [
-        "packages/client/src/index.ts"
+        "packages/client/src/index.ts",
+        "packages/client/src/events.ts",
+        "packages/client/src/listeners.ts"
       ],
       "testFiles": [
         "tests/client.test.ts",
-        "tests/browser/live.spec.ts"
+        "tests/browser/live.spec.ts",
+        "tests/client-events.test.ts",
+        "tests/browser/events.spec.ts"
       ],
       "docs": [
         "docs/reference/directives.md",
@@ -5555,11 +5612,19 @@
       "examples": [
         "examples/live-counter/README.md"
       ],
-      "securityNotes": "Data-only registered identifiers and explicit ownership/attribute boundaries; no arbitrary JavaScript expression evaluation.",
+      "securityNotes": "Closed action/modifier grammar; key and ownership filters precede effects, retained configurations are bounded, and browser event objects are never sent to the server.",
       "state": "InProgress",
-      "validationEvidence": [],
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-26T13:55:35.610Z",
+          "report": "docs/implementation/event-checkpoint-evidence-2026-10-26.json",
+          "scope": "Partial event/lifecycle implementation:235 aggregate tests,36 Chromium/Firefox/WebKit fixture checks; full compound acceptance remains open and releaseReady is false."
+        }
+      ],
       "outstandingIssues": [
-        "Full accessible forms/validation package and complete nested-submit/disable acceptance remain open."
+        "Owned native form submission stays prevented under suppression; complete form validation, nested submits and pending disabled behavior remain open."
       ]
     },
     {
@@ -6087,14 +6152,36 @@
       "id": "DIR-026",
       "priority": "P1",
       "package": "@nestvexa/client",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/client/src/index.ts",
+        "packages/client/src/events.ts",
+        "packages/client/src/listeners.ts"
+      ],
+      "testFiles": [
+        "tests/client-events.test.ts",
+        "tests/browser/events.spec.ts"
+      ],
+      "docs": [
+        "docs/reference/directives.md",
+        "packages/client/README.md"
+      ],
+      "examples": [
+        "examples/live-counter/README.md"
+      ],
+      "securityNotes": "Closed action/modifier grammar; key and ownership filters precede effects, retained configurations are bounded, and browser event objects are never sent to the server.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-26T13:55:35.610Z",
+          "report": "docs/implementation/event-checkpoint-evidence-2026-10-26.json",
+          "scope": "Partial event/lifecycle implementation:235 aggregate tests,36 Chromium/Firefox/WebKit fixture checks; full compound acceptance remains open and releaseReady is false."
+        }
+      ],
+      "outstandingIssues": [
+        "Event modifiers and keyboard subset implemented; window/document scopes, model modifiers, confirmation and full modifier/browser matrix remain unmet."
+      ]
     },
     {
       "sourceKey": "73680c6c0fc8bbb63c574d506fb716f0038ba9bf43b031d1861678ab03294864",

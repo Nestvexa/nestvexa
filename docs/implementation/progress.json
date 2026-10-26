@@ -24,8 +24,8 @@
     {
       "id": 3,
       "state": "InProgress",
-      "scope": "Initial directives, queued transport, keyed morph and explicit CSP Alpine call/get/set bridge",
-      "remaining": "Current three-browser/axe fixture suite passes; complete full directive modifiers, cleanup/input matrix and runtime acceptance; automatic default bootstrap remains open"
+      "scope": "Initial directives, queued transport, keyed morph, CSP Alpine bridge and event/keyboard modifier implementation",
+      "remaining": "Current Windows/Node24 event/lifecycle checkpoint passes235 tests and36 three-browser checks; complete modifier combinations, cleanup/input matrix and automatic default bootstrap remain open"
     },
     { "id": 4, "state": "Pending" },
     { "id": 5, "state": "Pending" },

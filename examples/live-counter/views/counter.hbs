@@ -50,4 +50,23 @@
       <span id="alpine-server" x-text="$live.get('count')">0</span>
     </p>
   </section>
+  <section aria-label="Event modifiers" id="event-parent">
+    <h2>Event modifiers</h2>
+    <button type="button" nv:click.once="increment">Once increase</button>
+    <button type="button" nv:click.debounce.100ms="increment">
+      Debounced increase
+    </button>
+    <button type="button" nv:click.throttle.500ms="increment">
+      Throttled increase
+    </button>
+    <button type="button" nv:click.self="increment">
+      <span id="self-child">Self increase</span>
+    </button>
+    <button type="button" nv:click.stop="increment">Stopped increase</button>
+    <a href="/api/health" nv:click.prevent="increment">Prevented navigation</a>
+    <label for="keyboard">Keyboard action</label
+    ><input id="keyboard" nv:keydown.enter.prevent="increment" />
+    <label for="shortcut">Control shortcut</label
+    ><input id="shortcut" nv:keydown.ctrl.enter.prevent="increment" />
+  </section>
 </section>

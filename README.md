@@ -64,6 +64,8 @@ pnpm test
 pnpm exec playwright install chromium
 pnpm test:e2e
 pnpm test:pack
+pnpm test:node22
+pnpm size:check
 pnpm docs:build
 pnpm bench
 pnpm release:check

@@ -1,5 +1,11 @@
 import { morphChildren, validateFragment } from './morph.js';
 import { applyBindings, queryRefs } from './bindings.js';
+import { createEventDispatcher, parseEventDirective } from './events.js';
+import type { EventDispatcher, EventDirective } from './events.js';
+import { createDirectEventListeners } from './listeners.js';
+import type { DirectEventBinding } from './listeners.js';
+export { parseEventDirective } from './events.js';
+export type { EventDirective } from './events.js';
 import {
   LiveClientError,
   parseDirective,
@@ -28,6 +34,7 @@ export interface LiveClient {
   refs(element: Element): ReadonlyMap<string, Element>;
 }
 type Field = string | number | boolean;
+const componentOwners = new WeakMap<Element, symbol>();
 interface Component {
   readonly root: Element;
   readonly id: string;
@@ -67,7 +74,19 @@ function ignored(element: Element, component: Element): boolean {
   return false;
 }
 function validateDirectives(component: Element): void {
-  for (const element of owned(component))
+  for (const element of owned(component)) {
+    for (const kind of ['click', 'submit', 'keydown'])
+      if (
+        [...element.attributes].filter(
+          (attribute) =>
+            attribute.name === `nv:${kind}` ||
+            attribute.name.startsWith(`nv:${kind}.`),
+        ).length > 1
+      )
+        throw new LiveClientError(
+          'DIRECTIVE',
+          'Only one binding per event type is allowed on an element',
+        );
     for (const attribute of element.attributes)
       if (attribute.name.startsWith('nv:')) {
         const directive = parseDirective(attribute.name, attribute.value);
@@ -97,6 +116,7 @@ function validateDirectives(component: Element): void {
             );
         }
       }
+  }
 }
 function selection(element: Element | null): {
   start: number;
@@ -115,6 +135,8 @@ function selection(element: Element | null): {
 
 /** Explicit, idempotent browser startup. Importing this module does not touch DOM globals. */
 export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
+  const ownership = Symbol('nestvexa-client');
+  let rejected = new WeakSet<Element>();
   const root = options.root ?? globalThis.document;
   if (!root)
     throw new LiveClientError(
@@ -140,6 +162,17 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   const components = new Map<Element, Component>();
   let mounted = false;
   let observer: MutationObserver | null = null;
+  let dispatcher: EventDispatcher | undefined;
+  const handledEvents = new WeakSet<Event>();
+  const direct = createDirectEventListeners((event, element, attribute) => {
+    try {
+      const binding = resolveEvent(event);
+      if (binding?.element === element && binding.attribute === attribute)
+        dispatchEvent(event, binding);
+    } catch (error) {
+      report(error, element);
+    }
+  });
   function report(error: unknown, component: Element | null): void {
     const safe =
       error instanceof Error
@@ -157,7 +190,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       );
   }
   function contains(element: Element): boolean {
-    return element === root || root.contains(element);
+    return element.isConnected && (element === root || root.contains(element));
   }
   function busy(state: Component): void {
     state.root.setAttribute('aria-busy', state.pending ? 'true' : 'false');
@@ -168,11 +201,14 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       }
   }
   function discover(): void {
+    dispatcher?.prune(root);
     for (const [element, state] of components)
       if (!contains(element)) {
         state.active = false;
         state.request?.abort();
         components.delete(element);
+        if (componentOwners.get(element) === ownership)
+          componentOwners.delete(element);
       }
     const markers = [...root.querySelectorAll('[data-nv-component]')];
     if (
@@ -181,8 +217,18 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     )
       markers.unshift(root as Element);
     for (const element of markers)
-      if (!components.has(element) && !element.closest('[data-nv-island]')) {
+      if (
+        contains(element) &&
+        !components.has(element) &&
+        !rejected.has(element) &&
+        !element.closest('[data-nv-island]')
+      ) {
         try {
+          if (componentOwners.has(element))
+            throw new LiveClientError(
+              'MARKER',
+              'Live component already belongs to another client instance',
+            );
           validateDirectives(element);
           const id = element.getAttribute('data-nv-component');
           const name = element.getAttribute('data-nv-name');
@@ -253,11 +299,18 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           };
           refreshBindings(state);
           components.set(element, state);
+          componentOwners.set(element, ownership);
           busy(state);
         } catch (error) {
+          rejected.add(element);
           report(error, element);
         }
       }
+    try {
+      syncDirectListeners();
+    } catch (error) {
+      report(error, null);
+    }
   }
   async function invoke(state: Component, action: string): Promise<void> {
     if (!state.active || !mounted || !contains(state.root)) return;
@@ -421,27 +474,68 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       report(error, state.root);
     }
   }
-  function action(event: Event): void {
+  function resolveEvent(
+    event: Event,
+  ):
+    | { element: Element; attribute: string; directive: EventDirective }
+    | undefined {
     const origin = target(event);
-    if (!origin) return;
-    const attribute = event.type === 'submit' ? 'nv:submit' : 'nv:click';
-    let element: Element | null = origin;
-    while (element && !element.hasAttribute(attribute) && contains(element))
-      element = element.parentElement;
-    if (!element || !contains(element)) return;
-    const component = owner(element);
-    const state = component ? components.get(component) : undefined;
-    if (!state || ignored(element, state.root) || element.matches(':disabled'))
+    const scope = origin ? owner(origin) : null;
+    if (!origin || !scope || !components.has(scope) || ignored(origin, scope))
       return;
-    event.preventDefault();
+    let element: Element | null = origin;
+    while (element && contains(element)) {
+      const attribute = [...element.attributes].find(
+        (item) =>
+          item.name === `nv:${event.type}` ||
+          item.name.startsWith(`nv:${event.type}.`),
+      );
+      if (attribute)
+        return {
+          element,
+          attribute: attribute.name,
+          directive: parseEventDirective(attribute.name, attribute.value),
+        };
+      if (element === scope) break;
+      element = element.parentElement;
+    }
+  }
+  function dispatchEvent(
+    event: Event,
+    binding: { element: Element; directive: EventDirective },
+  ): void {
+    if (handledEvents.has(event)) return;
+    if (event.type === 'submit') event.preventDefault();
+    if (dispatcher?.handle(event, binding.element, binding.directive))
+      handledEvents.add(event);
+  }
+  function syncDirectListeners(): void {
+    const bindings: DirectEventBinding[] = [];
+    for (const state of components.values())
+      for (const element of owned(state.root))
+        for (const attribute of element.attributes) {
+          if (!/^nv:(?:click|submit|keydown)(?:\.|$)/.test(attribute.name))
+            continue;
+          const directive = parseEventDirective(
+            attribute.name,
+            attribute.value,
+          );
+          if (directive.stop)
+            bindings.push({
+              element,
+              attribute: attribute.name,
+              event: directive.kind,
+            });
+        }
+    direct.sync(bindings);
+  }
+  function action(event: Event): void {
+    if (handledEvents.has(event)) return;
     try {
-      void schedule(
-        state,
-        parseIdentifier(element.getAttribute(attribute) ?? ''),
-        event.type === 'submit',
-      ).catch(() => undefined);
+      const binding = resolveEvent(event);
+      if (binding) dispatchEvent(event, binding);
     } catch (error) {
-      report(error, state.root);
+      report(error, target(event));
     }
   }
   function componentFor(element: Element): Component {
@@ -509,31 +603,56 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     mount(): void {
       if (mounted) return;
       mounted = true;
+      dispatcher = createEventDispatcher({
+        invoke: (element, action) =>
+          schedule(componentFor(element), action, element.tagName === 'FORM'),
+        onError: (error, element) => report(error, element),
+      });
       discover();
       root.addEventListener('click', action);
       root.addEventListener('submit', action);
+      root.addEventListener('keydown', action);
       root.addEventListener('input', input);
       root.addEventListener('change', input);
-      observer = new window.MutationObserver(() => {
-        if (mounted) discover();
+      observer = new window.MutationObserver((mutations) => {
+        if (
+          mounted &&
+          mutations.some(
+            (mutation) =>
+              mutation.type === 'childList' ||
+              mutation.attributeName?.startsWith('nv:'),
+          )
+        )
+          discover();
       });
-      observer.observe(root, { childList: true, subtree: true });
+      observer.observe(doc, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+      });
     },
     dispose(): void {
       if (!mounted) return;
       mounted = false;
       observer?.disconnect();
       observer = null;
+      dispatcher?.dispose();
+      dispatcher = undefined;
+      direct.dispose();
       root.removeEventListener('click', action);
       root.removeEventListener('submit', action);
+      root.removeEventListener('keydown', action);
       root.removeEventListener('input', input);
       root.removeEventListener('change', input);
       for (const state of components.values()) {
         state.active = false;
         state.request?.abort();
         state.root.removeAttribute('aria-busy');
+        if (componentOwners.get(state.root) === ownership)
+          componentOwners.delete(state.root);
       }
       components.clear();
+      rejected = new WeakSet<Element>();
     },
   };
 }

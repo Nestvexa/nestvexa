@@ -22,6 +22,7 @@ const commands = [
   ['typecheck'],
   ['test'],
   ['test:coverage'],
+  ['size:check'],
   ['test:e2e'],
   ['test:pack'],
   ['docs:build'],
