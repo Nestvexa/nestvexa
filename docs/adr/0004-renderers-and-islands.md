@@ -1,6 +1,6 @@
 # ADR 0004: Explicit renderer ownership and document transitions
 
-Date: 2026-10-25; replacement/loading amendment 2026-10-27. Status: **MVC and an initial Live/client ownership slice implemented; complete acceptance, framework islands and Inertia remain unmet**.
+Date: 2026-10-25; replacement/loading and self-ignore amendments 2026-10-27. Status: **MVC and an initial Live/client ownership slice implemented; complete acceptance, framework islands and Inertia remain unmet**.
 
 ## Decision
 
@@ -20,6 +20,10 @@ Future island descriptors resolve only registered components to trusted manifest
 
 ## Rejected alternatives and tradeoffs
 
+`nv:ignore.self` delegates a retained wrapper's attributes to a host widget while Live still owns its children. Same-node `nv:*` configuration is frozen; a changed key or ancestor replacement is required to reconfigure it. Competing attribute/model/loading/replacement effects, native control roots and editable/renderer roots reject setup. Switching between ordinary and self ownership deliberately replaces the wrapper and runs removal cleanup. Existing whole-ignore subtrees remain opaque until explicitly replaced.
+
+A side-effect-free preflight projects retained wrapper attributes into an isolated incoming tree before preview validation or form-owner resolution. This costs an additional bounded clone for components containing self-ignore, but keeps retained IDs and directives consistent with actual DOM behavior. Merely skipping attribute assignment was rejected because raw incoming preview/form associations could disagree with the retained wrapper. The pure sibling matcher is shared by projection and patching to avoid divergent keyed/unkeyed decisions. These client ownership rules do not authorize a server action or roll back effects after abort.
+
 Allowing all frameworks to patch a shared root was rejected because mutation ordering, lifecycle and state ownership cannot be guaranteed. A universal SPA navigation bridge was rejected until independently proven. Automatically evaluating directive strings would simplify examples but creates an unacceptable code-execution surface. Explicit app roots and safe document transitions cost reloads when crossing boundaries, while keeping ownership reviewable.
 
 Always retaining a keyed node was rejected for explicit replacement: applications need an honest reset boundary for native and third-party DOM state. Preserving selected descendants inside a replaced ancestor was also rejected because it would make reset semantics depend on hidden renderer state. The cost is deliberate edit/focus/widget-state loss; ordinary morphing remains the choice when preservation matters. Treating removal notifications as cancelable was rejected because vetoed removal could diverge DOM, server revision and renderer ownership.
@@ -29,5 +33,7 @@ Blindly removing `disabled` or classes after a request was rejected because it c
 Failure modes include detached listeners, leaked framework roots, focus/caret loss, stale responses overwriting input, duplicate Alpine initialization and hydration mismatch. Replacement/removal must call the child owner's teardown exactly once before freeing its root; reinsertion must not reuse stale subscriptions.
 
 ## Evidence and compatibility
+
+The [self-ignore lifecycle cases](../../tests/client-ignore-self.test.ts), [mixed sibling permutation invariant](../../tests/client-replace.test.ts), [closed parser cases](../../tests/client.test.ts) and [real Nest self-ignore scenarios](../../tests/browser/ignore-self.spec.ts) exercise the wrapper contract. The [wrapper guide](../guides/ignore-self.md) documents unsupported native/editor placements, including a non-editable wrapper below an editable ancestor. Scope and executed outcomes belong to the implementation checkpoint; these fixtures do not establish official framework or complete external-widget lifecycle parity.
 
 [MVC browser tests](../../tests/browser/mvc.spec.ts), [Live browser fixtures](../../tests/browser/live.spec.ts), [model lifecycle tests](../../tests/client-model-lifecycle.test.ts), [loading tests](../../tests/client-loading.test.ts), [replacement tests](../../tests/client-replace.test.ts), [rendering lifecycle tests](../../tests/client-rendering-lifecycle.test.ts) and [loading/replacement browser scenarios](../../tests/browser/replacement-loading.spec.ts) define the initial boundaries. Controlled transport fixtures prove client behavior rather than server protocol conformance. Execution results must be recorded in the implementation checkpoint before acceptance; source/test presence is not a passed gate. All-framework coexistence, official island removal/reinsertion, complete nested-server behavior, SSR hydration and heterogeneous enhanced navigation remain unmet. No package README may list those systems as shipped.

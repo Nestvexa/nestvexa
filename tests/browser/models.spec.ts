@@ -101,7 +101,9 @@ test('composition defers live sync and newer edited values survive an in-flight 
   await expect(page.locator('#search-server')).toHaveText('مرحبا');
   const releaseEdit = await holdResponse(page, '**/counter/slow');
   try {
-    await page.getByRole('button', { name: 'Slow increase' }).click();
+    await page
+      .getByRole('button', { name: 'Slow increase', exact: true })
+      .click();
     await search.fill('latest edit');
   } finally {
     releaseEdit();
@@ -111,7 +113,9 @@ test('composition defers live sync and newer edited values survive an in-flight 
   await expect(page.locator('#search-server')).toHaveText('latest edit');
   const releaseComposition = await holdResponse(page, '**/counter/slow');
   try {
-    await page.getByRole('button', { name: 'Slow increase' }).click();
+    await page
+      .getByRole('button', { name: 'Slow increase', exact: true })
+      .click();
     await search.evaluate((element) => {
       element.dispatchEvent(
         new CompositionEvent('compositionstart', { bubbles: true }),

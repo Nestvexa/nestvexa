@@ -32,7 +32,9 @@
     </button>
   </div>
   <button type="button" nv:click="toggleVisible">Toggle detail</button>
-  <span nv:loading="" hidden role="status">Updating…</span>
+  <span nv:loading="" hidden role="status" aria-label="Live action status"
+    >Updating…</span
+  >
   <label for="changing-control">Changing input type</label>
   {{#if numericControl}}
   <input
@@ -278,6 +280,42 @@
       Change server defaults
     </button>
   </section>
+  {{#*inline "self-widget-body"}}
+  <h2>Widget wrapper with live children</h2>
+  <button type="button" nv:click="increment">Wrapper increase</button>
+  <output id="self-count" aria-live="polite">{{count}}</output>
+  <label for="self-name">Widget author</label
+  ><input id="self-name" nv:model="name" value="{{name}}" />
+  <button type="button" nv:click="save">Save wrapper name</button>
+  <span id="self-name-preview" nv:text="name">{{name}}</span>
+  <button type="button" nv:click="slow">Delayed wrapper update</button>
+  <span id="self-loading" nv:loading="" nv:target="slow" role="status"
+    >Updating wrapper children</span
+  >
+  <div nv:ignore="">
+    <label for="self-local">Wrapper local note</label
+    ><input id="self-local" value="" />
+  </div>
+  {{/inline}} {{#if visible}}
+  <section
+    id="self-widget"
+    nv:ignore.self=""
+    class="server-wrapper-{{count}}"
+    data-server-count="{{count}}"
+    aria-label="Widget wrapper with live children"
+  >
+    {{> self-widget-body}}
+  </section>
+  {{else}}
+  <section
+    id="self-widget"
+    class="server-wrapper-{{count}}"
+    data-server-count="{{count}}"
+    aria-label="Widget wrapper with live children"
+  >
+    {{> self-widget-body}}
+  </section>
+  {{/if}}
   <div id="local-widget" nv:ignore="">
     <label for="local-note">Independent local note</label
     ><input id="local-note" value="" />

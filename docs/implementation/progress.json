@@ -19,13 +19,13 @@
       "id": 2,
       "state": "InProgress",
       "scope": "Live protocol, opaque state store, generated routes, registration ownership, authorized model synchronization and pure writable-state validation",
-      "remaining": "October 27 native/ownership host checkpoint passed 511 aggregate/75 browser checks plus seven packages in two external npm/pnpm consumers, docs, audit and size; release check correctly fails. Windows Node 22.23.4 and 24.22.1 each passed strict compilation and all 511 aggregate tests. Historical rendering 447/60 remains distinct. Full security, protocol, lifecycle, Linux and compatibility acceptance remains open"
+      "remaining": "October 27 self-ignore host checkpoint passed 558 aggregate/84 browser checks plus seven packages in two external npm/pnpm strict-TypeScript/real Nest consumers, docs/audit/size. Fresh Windows Node22.23.4 and Node24.22.1 each passed strict compilation and all558 tests; saved self-ignore evidence includes runtime results and package hashes. Historical native511/75 and rendering447/60 remain distinct. Full security, protocol, lifecycle, Linux and compatibility acceptance remains open"
     },
     {
       "id": 3,
       "state": "InProgress",
-      "scope": "Initial directives, queued transport, keyed morph, CSP Alpine bridge, event/model modifiers, targeted loading/replacement, native default/value reconciliation and registration ownership",
-      "remaining": "Full native/ownership host checkpoint passed 511 aggregate/75 browser checks, including 39 native-control and 25 ownership Chromium regressions and 15 new actual Nest browser checks. Seven packages passed in two external npm/pnpm consumers; Windows Node 22.23.4 and 24.22.1 each passed strict compilation and 511 aggregate tests without repeating the full three-browser server/consumer matrix. Historical rendering 447/60 remains distinct. Complete input/modifier/cleanup/concurrency/accessibility matrix, cross-owner native radio isolation, full nested-server/island lifecycle and automatic default bootstrap remain open"
+      "scope": "Initial directives, queued transport, keyed morph, CSP Alpine bridge, event/model modifiers, targeted loading/replacement, native reconciliation, registration ownership and wrapper-only ignore with effective incoming projection",
+      "remaining": "Self-ignore full host checkpoint passed 558/558 aggregate and 84/84 browser checks including 41 Chromium fixtures, 5 parser cases, one24-permutation matcher case and9 new Nest browser checks. Seven packages passed in two npm/pnpm strict-TypeScript/real Nest consumers with docs37/audit/size; Windows Node22.23.4 and Node24.22.1 each passed strict compilation and all558 tests, without repeating the full three-browser server/consumer matrix under both binaries. Saved self-ignore snapshot preserves evidence and initial browser72/84 failure history remains documented. Historical native511/75 and rendering447/60 stay distinct. Full input/modifier/lifecycle/accessibility matrix, cross-owner radio isolation, nested-server/island lifecycle and automatic default bootstrap remain open"
     },
     {
       "id": 4,

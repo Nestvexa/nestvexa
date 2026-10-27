@@ -10,6 +10,7 @@ export { LiveClientError, parseIdentifier } from './grammar.js';
 export type LiveDirective =
   | { readonly kind: 'click' | 'submit' | 'model'; readonly value: string }
   | { readonly kind: 'loading' | 'ignore'; readonly value: '' }
+  | { readonly kind: 'ignore'; readonly self: true; readonly value: '' }
   | BindingDirective
   | EventDirective
   | LoadingDirective
@@ -33,6 +34,8 @@ export function parseDirective(name: string, value: string): LiveDirective {
     return { kind: 'model', value: parseModelDirective(name, value).field };
   if ((kind === 'loading' || kind === 'ignore') && value === '')
     return { kind, value };
+  if (name === 'nv:ignore.self' && value === '')
+    return { kind: 'ignore', self: true, value };
   if (name === 'nv:target')
     return { kind: 'target', actions: parseLoadingTarget(value) };
   if (name.startsWith('nv:loading.')) return parseLoadingDirective(name, value);

@@ -30,6 +30,11 @@ describe('browser protocol boundary', () => {
       kind: 'ignore',
       value: '',
     });
+    expect(parseDirective('nv:ignore.self', '')).toEqual({
+      kind: 'ignore',
+      self: true,
+      value: '',
+    });
     expect(parseDirective('nv:model.live', 'name')).toEqual({
       kind: 'model',
       value: 'name',
@@ -50,6 +55,15 @@ describe('browser protocol boundary', () => {
     });
     expect(() => parseDirective('nv:replace', 'code()')).toThrow();
     expect(() => parseDirective('nv:replace.unknown', '')).toThrow();
+  });
+  it.each([
+    ['nv:ignore.self', 'run()'],
+    ['nv:ignore.self', ' '],
+    ['nv:ignore.unknown', ''],
+    ['nv:ignore.self.self', ''],
+    ['nv:ignore.self.once', ''],
+  ])('rejects unsupported ignore configuration %s=%s', (name, value) => {
+    expect(() => parseDirective(name, value)).toThrow();
   });
   it('validates revision, envelope and state keys before accepting responses', () => {
     const result = {

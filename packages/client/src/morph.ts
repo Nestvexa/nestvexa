@@ -37,6 +37,64 @@ export interface MorphLifecycle {
   readonly afterInsert?: (node: Node) => void;
 }
 
+function insideEditor(element: Element): boolean {
+  for (
+    let current: Element | null = element;
+    current;
+    current = current.parentElement
+  )
+    if (
+      current.hasAttribute('contenteditable') &&
+      current.getAttribute('contenteditable')?.toLowerCase() !== 'false'
+    )
+      return true;
+  return false;
+}
+/** Wrapper-only ownership is deliberately separate from subtree ownership. */
+export function validateIgnore(element: Element, root = false): void {
+  const declarations = [...element.attributes].filter(
+    (attribute) =>
+      attribute.name === 'nv:ignore' || attribute.name.startsWith('nv:ignore.'),
+  );
+  if (!declarations.length) return;
+  if (
+    root ||
+    declarations.length !== 1 ||
+    declarations.some(
+      (attribute) =>
+        !['nv:ignore', 'nv:ignore.self'].includes(attribute.name) ||
+        attribute.value !== '',
+    )
+  )
+    throw new LiveClientError(
+      'DIRECTIVE',
+      'Use one empty nv:ignore or nv:ignore.self on an inner element',
+    );
+  if (!element.hasAttribute('nv:ignore.self')) return;
+  if (
+    element.hasAttribute('data-nv-component') ||
+    element.hasAttribute('data-nv-island') ||
+    ['INPUT', 'TEXTAREA', 'SELECT', 'OPTION', 'OPTGROUP'].includes(
+      element.tagName,
+    ) ||
+    insideEditor(element)
+  )
+    throw new LiveClientError(
+      'DIRECTIVE',
+      'nv:ignore.self requires a non-editable wrapper outside renderer roots; use nv:ignore for native controls or editors',
+    );
+  for (const attribute of element.attributes)
+    if (
+      /^nv:(?:bind|show|dirty|cloak|model|loading|target|replace)(?:\.|$)/.test(
+        attribute.name,
+      )
+    )
+      throw new LiveClientError(
+        'DIRECTIVE',
+        'nv:ignore.self cannot share a wrapper with attribute, model or replacement effects',
+      );
+}
+
 function replacement(element: Element): 'children' | 'self' | undefined {
   const children = element.getAttribute('nv:replace');
   const self = element.getAttribute('nv:replace.self');
@@ -89,12 +147,111 @@ function validateKeys(parent: Element | DocumentFragment, label: string): void {
     }
     if (node.nodeType === 1) {
       const element = node as Element;
+      validateIgnore(element);
       if (!boundary(element)) {
         replacement(element);
         validateKeys(element, label);
       }
     }
   }
+}
+
+interface Pair {
+  readonly next: Node;
+  readonly candidate: Node | undefined;
+}
+/** The cursor is the first original node not yet consumed, including after keyed moves. */
+function pairChildren(
+  parent: Element | DocumentFragment,
+  incoming: Element | DocumentFragment,
+): Pair[] {
+  const originals = [...parent.childNodes];
+  const keyed = new Map<string, Node>();
+  for (const node of originals) {
+    const id = key(node);
+    if (id) keyed.set(id, node);
+  }
+  const consumed = new Set<Node>();
+  const pairs: Pair[] = [];
+  let cursor = 0;
+  for (const next of incoming.childNodes) {
+    while (cursor < originals.length) {
+      const node = originals[cursor];
+      if (!node || !consumed.has(node)) break;
+      cursor++;
+    }
+    const first = originals[cursor];
+    const id = key(next);
+    const found = id ? keyed.get(id) : first && !key(first) ? first : undefined;
+    const candidate = found && !consumed.has(found) ? found : undefined;
+    if (candidate) consumed.add(candidate);
+    pairs.push({ next, candidate });
+  }
+  return pairs;
+}
+function changesOwner(current: Element, incoming: Element): boolean {
+  return (
+    !boundary(current) &&
+    (boundary(incoming) ||
+      replacement(incoming) === 'self' ||
+      current.hasAttribute('nv:ignore.self') !==
+        incoming.hasAttribute('nv:ignore.self'))
+  );
+}
+function directiveConfiguration(element: Element): string {
+  return JSON.stringify(
+    [...element.attributes]
+      .filter((attribute) => attribute.name.startsWith('nv:'))
+      .map((attribute) => [attribute.name, attribute.value])
+      .sort(([left], [right]) => String(left).localeCompare(String(right))),
+  );
+}
+function projectWrappers(
+  parent: Element | DocumentFragment,
+  incoming: Element | DocumentFragment,
+): void {
+  for (const { candidate, next } of pairChildren(parent, incoming)) {
+    if (
+      !candidate ||
+      !compatible(candidate, next) ||
+      candidate.nodeType !== 1 ||
+      next.nodeType !== 1
+    )
+      continue;
+    const current = candidate as Element;
+    const target = next as Element;
+    if (boundary(current) || changesOwner(current, target)) continue;
+    if (current.hasAttribute('nv:ignore.self')) {
+      if (directiveConfiguration(current) !== directiveConfiguration(target))
+        throw new LiveClientError(
+          'DIRECTIVE',
+          'Retained nv:ignore.self directive configuration cannot change; replace its key or an ancestor',
+        );
+      for (const attribute of [...target.attributes])
+        target.removeAttribute(attribute.name);
+      for (const attribute of current.attributes)
+        target.setAttribute(attribute.name, attribute.value);
+    }
+    if (!target.hasAttribute('nv:replace')) projectWrappers(current, target);
+  }
+}
+/** Validate first, then project browser-owned wrapper attributes into an isolated incoming tree. */
+export function prepareMorph(
+  parent: Element | DocumentFragment,
+  incoming: Element | DocumentFragment,
+): Element | DocumentFragment {
+  validateKeys(parent, 'existing');
+  validateKeys(incoming, 'incoming');
+  if (
+    !parent.querySelector('[nv\\:ignore\\.self]') &&
+    !incoming.querySelector('[nv\\:ignore\\.self]')
+  )
+    return incoming;
+  // The clone has the same root kind as the validated incoming DOM tree.
+  const projected = incoming.cloneNode(true) as Element | DocumentFragment;
+  projectWrappers(parent, projected);
+  validateKeys(projected, 'projected');
+  return projected;
 }
 export function validateFragment(fragment: DocumentFragment): void {
   for (const element of fragment.querySelectorAll('*')) {
@@ -141,10 +298,9 @@ export function morphChildren(
   dirty: ReadonlyMap<string, unknown>,
   lifecycle: MorphLifecycle = {},
 ): void {
-  validateKeys(parent, 'existing');
-  validateKeys(incoming, 'incoming');
-  const controls = createControlMorph(parent, incoming, dirty);
-  patchChildren(parent, incoming, dirty, lifecycle, controls);
+  const projected = prepareMorph(parent, incoming);
+  const controls = createControlMorph(parent, projected, dirty);
+  patchChildren(parent, projected, dirty, lifecycle, controls);
   controls.restore();
 }
 function remove(node: Node, lifecycle: MorphLifecycle): void {
@@ -178,20 +334,9 @@ function patchChildren(
   controls: ControlMorph,
 ): void {
   const originals = [...parent.childNodes];
-  const keyed = new Map<string, Node>();
-  for (const node of originals) {
-    const id = key(node);
-    if (id) keyed.set(id, node);
-  }
   const retained = new Set<Node>();
   let cursor = parent.firstChild;
-  for (const next of [...incoming.childNodes]) {
-    const id = key(next);
-    const candidate = id
-      ? keyed.get(id)
-      : cursor && !key(cursor)
-        ? cursor
-        : undefined;
+  for (const { next, candidate } of pairChildren(parent, incoming)) {
     let current: Node;
     if (candidate && !retained.has(candidate) && compatible(candidate, next)) {
       const element =
@@ -201,8 +346,7 @@ function patchChildren(
       if (
         element &&
         incomingElement &&
-        !boundary(element) &&
-        (boundary(incomingElement) || replacement(incomingElement) === 'self')
+        changesOwner(element, incomingElement)
       ) {
         current = next.cloneNode(true);
         lifecycle.beforeRemove?.(candidate);
@@ -246,12 +390,14 @@ function morphNode(
   const replacement = next as Element;
   if (boundary(element)) return;
   controls.prepare(element, replacement);
-  for (const attribute of [...element.attributes])
-    if (!replacement.hasAttribute(attribute.name))
-      element.removeAttribute(attribute.name);
-  for (const attribute of replacement.attributes)
-    if (element.getAttribute(attribute.name) !== attribute.value)
-      element.setAttribute(attribute.name, attribute.value);
+  if (!element.hasAttribute('nv:ignore.self')) {
+    for (const attribute of [...element.attributes])
+      if (!replacement.hasAttribute(attribute.name))
+        element.removeAttribute(attribute.name);
+    for (const attribute of replacement.attributes)
+      if (element.getAttribute(attribute.name) !== attribute.value)
+        element.setAttribute(attribute.name, attribute.value);
+  }
   if (replacement.hasAttribute('nv:replace')) {
     replaceChildren(element, replacement, lifecycle);
     return;

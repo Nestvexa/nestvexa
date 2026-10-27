@@ -12,6 +12,7 @@ This alpha implements the following configuration grammar. Names identify regist
 | `nv:target="save,$sync"`  | Selects 1–16 action/synchronization identifiers for loading directives on the same element     |
 | `nv:replace=""`           | Replaces children of an owned inner wrapper; `.self` replaces the wrapper too                  |
 | `nv:ignore=""`            | Preserves the subtree; put independently owned Alpine widgets here                             |
+| `nv:ignore.self=""`       | Retains an inner wrapper's attributes while descendants remain Live-owned                      |
 | `nv:text="name"`          | Sets primitive `textContent`; rejects targets containing elements or form controls             |
 | `nv:show="visible"`       | Requires a boolean; toggles visibility/ARIA and moves focus before hiding focused content      |
 | `nv:bind="title:name"`    | Binds one allowed attribute to public state                                                    |
@@ -20,6 +21,14 @@ This alpha implements the following configuration grammar. Names identify regist
 | `nv:ref="name"`           | Declares a unique owned reference returned by `client.refs(element)`                           |
 
 Attribute bindings allow `title`, `aria-label`, `aria-expanded`, `aria-disabled`, `href`, `src`, `disabled` and `readonly`. Boolean attributes require booleans. URLs accept HTTP(S) or relative URLs, rejecting credentials, whitespace/control characters and executable schemes. No style, event-handler, `srcdoc` or HTML binding exists.
+
+## Whole subtree and wrapper-only ignore
+
+`nv:ignore=""` retains a whole subtree. `nv:ignore.self=""` instead retains an inner wrapper's current attributes, including class/style/ARIA and IDs, while Live updates its children normally. Child actions, models, text, loading and refs remain active. Use a stable `data-nv-key` when the widget may change its wrapper ID. Same-node event/text/ref declarations retain their existing contracts, but all retained wrapper `nv:*` declarations must remain identical between responses. Reconfiguration requires a new key or explicit ancestor replacement and is rejected before patching owned HTML otherwise.
+
+Self-ignore cannot share a node with `nv:bind`, `nv:show`, `nv:dirty`, `nv:cloak`, model, loading/target or replacement effects, including their modifiers. Put those effects on children. Input/textarea/select/option/optgroup elements, editable wrappers, Live roots and island roots reject self-ignore explicitly; use whole ignore for an independently owned native control or editor. Both ignore forms require one empty declaration, and unknown modifiers or simultaneous whole/self declarations are rejected.
+
+Ordinary↔self transitions replace the element and clean up removed descendants. A self wrapper changing to a whole-ignore or renderer boundary also replaces it. An already whole-ignored node stays opaque during ordinary reconciliation until key/ancestor replacement. Retained self wrapper attributes are projected into effective incoming markup before preview validation and native form-owner capture. `.self` does not provide Alpine `$live` isolation, which still requires whole ignore, or change server authorization. See the [full wrapper ownership guide](../guides/ignore-self.md) and [real Nest browser scenarios](../../tests/browser/ignore-self.spec.ts).
 
 ## Loading and targets
 

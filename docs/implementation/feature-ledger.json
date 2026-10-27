@@ -5603,23 +5603,31 @@
       "implementationFiles": [
         "packages/client/src/index.ts",
         "packages/client/src/morph.ts",
-        "packages/client/src/control-state.ts"
+        "packages/client/src/control-state.ts",
+        "packages/client/src/protocol.ts"
       ],
       "testFiles": [
         "tests/client-ownership-transitions.test.ts",
         "tests/client-rendering-lifecycle.test.ts",
         "tests/client-native-controls.test.ts",
-        "tests/browser/native-controls.spec.ts"
+        "tests/browser/native-controls.spec.ts",
+        "tests/client.test.ts",
+        "tests/client-ignore-self.test.ts",
+        "tests/browser/ignore-self.spec.ts",
+        "tests/client-replace.test.ts"
       ],
       "docs": [
         "docs/guides/native-controls.md",
         "docs/reference/directives.md",
-        "packages/client/README.md"
+        "packages/client/README.md",
+        "docs/guides/ignore-self.md",
+        "docs/adr/0004-renderers-and-islands.md"
       ],
       "examples": [
-        "examples/live-counter/README.md"
+        "examples/live-counter/README.md",
+        "examples/live-counter/views/counter.hbs"
       ],
-      "securityNotes": "One active client owns each registered root. Seven raw marker attributes are checked for browser consistency; external changes invalidate work and require explicit reconciliation. This is not cryptography or authorization. Island handoff releases ownership without inventing DOM-removal events; server security remains independent.",
+      "securityNotes": "One active client owns each registered root. Seven raw marker attributes are checked for browser consistency; external changes invalidate work and require explicit reconciliation. This is not cryptography or authorization. Island handoff releases ownership without inventing DOM-removal events; server security remains independent. Effective wrapper attributes are projected before preview, protocol directive validation and form-owner control reconciliation. Attribute ownership is not server authorization; native/editor/root combinations and competing same-node effects are explicitly rejected.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -5628,6 +5636,13 @@
           "executedAt": "2026-10-27T04:31:22.595Z",
           "report": "docs/implementation/native-checkpoint-evidence-2026-10-27.json",
           "scope": "Partial native-control and ownership implementation:511 aggregate tests,75 Chromium/Firefox/WebKit checks, seven packed npm/pnpm consumer installs; Node22.23.4/24.22.1 each passed strict compilation and503 aggregate tests. Full compound acceptance remains open; releaseReady is false."
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-27T12:39:50.278Z",
+          "report": "docs/implementation/ignore-self-checkpoint-evidence-2026-10-27.json",
+          "scope": "Partial wrapper-only ignore and effective incoming projection:558 aggregate tests,84 Chromium/Firefox/WebKit checks; seven tarballs passed two npm/pnpm external strict-TypeScript and real Nest consumers. Isolated Windows Node22.23.4 and24.22.1 each passed strict compilation and558 tests. Full compound acceptance remains open; releaseReady is false."
         }
       ],
       "outstandingIssues": [
@@ -6139,24 +6154,41 @@
       "priority": "P1",
       "package": "@nestvexa/client",
       "implementationFiles": [
-        "packages/client/src/morph.ts"
+        "packages/client/src/morph.ts",
+        "packages/client/src/index.ts",
+        "packages/client/src/protocol.ts"
       ],
       "testFiles": [
         "tests/client.test.ts",
-        "tests/browser/live.spec.ts"
+        "tests/browser/live.spec.ts",
+        "tests/client-ignore-self.test.ts",
+        "tests/browser/ignore-self.spec.ts",
+        "tests/client-replace.test.ts"
       ],
       "docs": [
         "docs/reference/directives.md",
-        "packages/client/README.md"
+        "packages/client/README.md",
+        "docs/guides/ignore-self.md",
+        "docs/adr/0004-renderers-and-islands.md"
       ],
       "examples": [
-        "examples/live-counter/README.md"
+        "examples/live-counter/README.md",
+        "examples/live-counter/views/counter.hbs"
       ],
-      "securityNotes": "Data-only registered identifiers and explicit ownership/attribute boundaries; no arbitrary JavaScript expression evaluation.",
+      "securityNotes": "Data-only registered identifiers and explicit ownership/attribute boundaries; no arbitrary JavaScript expression evaluation. Effective wrapper attributes are projected before preview, protocol directive validation and form-owner control reconciliation. Attribute ownership is not server authorization; native/editor/root combinations and competing same-node effects are explicitly rejected.",
       "state": "InProgress",
-      "validationEvidence": [],
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-27T12:39:50.278Z",
+          "report": "docs/implementation/ignore-self-checkpoint-evidence-2026-10-27.json",
+          "scope": "Partial wrapper-only ignore and effective incoming projection:558 aggregate tests,84 Chromium/Firefox/WebKit checks; seven tarballs passed two npm/pnpm external strict-TypeScript and real Nest consumers. Isolated Windows Node22.23.4 and24.22.1 each passed strict compilation and558 tests. Full compound acceptance remains open; releaseReady is false."
+        }
+      ],
       "outstandingIssues": [
-        "Whole-subtree ownership boundary exists; ignore-self semantics and complete nested renderer teardown remain open."
+        "Wrapper/self and whole-subtree modes have current scoped implementation; complete external widget, nested-server, official framework-island and teleport lifecycle acceptance remains open.",
+        "Self-ignore is limited to non-editable wrappers; native control roots and competing same-node attribute/model/replacement writers are unsupported."
       ]
     },
     {
@@ -14522,25 +14554,31 @@
       "implementationFiles": [
         "packages/client/src/control-state.ts",
         "packages/client/src/morph.ts",
-        "packages/client/src/index.ts"
+        "packages/client/src/index.ts",
+        "packages/client/src/protocol.ts"
       ],
       "testFiles": [
         "tests/client-native-controls.test.ts",
         "tests/client-ownership-transitions.test.ts",
         "tests/client-rendering-lifecycle.test.ts",
         "tests/client-replace.test.ts",
-        "tests/browser/native-controls.spec.ts"
+        "tests/browser/native-controls.spec.ts",
+        "tests/client.test.ts",
+        "tests/client-ignore-self.test.ts",
+        "tests/browser/ignore-self.spec.ts"
       ],
       "docs": [
         "docs/guides/native-controls.md",
         "docs/reference/directives.md",
-        "packages/client/README.md"
+        "packages/client/README.md",
+        "docs/guides/ignore-self.md",
+        "docs/adr/0004-renderers-and-islands.md"
       ],
       "examples": [
         "examples/live-counter/README.md",
         "examples/live-counter/views/counter.hbs"
       ],
-      "securityNotes": "Native values and owned subtree boundaries are snapshotted before mutation. Browser-only state is not added to server payloads, incompatible dirty controls are reconciled, and external marker changes abort work without treating the browser check as server authorization.",
+      "securityNotes": "Native values and owned subtree boundaries are snapshotted before mutation. Browser-only state is not added to server payloads, incompatible dirty controls are reconciled, and external marker changes abort work without treating the browser check as server authorization. Effective wrapper attributes are projected before preview, protocol directive validation and form-owner control reconciliation. Attribute ownership is not server authorization; native/editor/root combinations and competing same-node effects are explicitly rejected.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -14549,6 +14587,13 @@
           "executedAt": "2026-10-27T04:31:22.595Z",
           "report": "docs/implementation/native-checkpoint-evidence-2026-10-27.json",
           "scope": "Partial native-control and ownership implementation:511 aggregate tests,75 Chromium/Firefox/WebKit checks, seven packed npm/pnpm consumer installs; Node22.23.4/24.22.1 each passed strict compilation and503 aggregate tests. Full compound acceptance remains open; releaseReady is false."
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-27T12:39:50.278Z",
+          "report": "docs/implementation/ignore-self-checkpoint-evidence-2026-10-27.json",
+          "scope": "Partial wrapper-only ignore and effective incoming projection:558 aggregate tests,84 Chromium/Firefox/WebKit checks; seven tarballs passed two npm/pnpm external strict-TypeScript and real Nest consumers. Isolated Windows Node22.23.4 and24.22.1 each passed strict compilation and558 tests. Full compound acceptance remains open; releaseReady is false."
         }
       ],
       "outstandingIssues": [
@@ -14592,16 +14637,22 @@
         "tests/client-rendering-lifecycle.test.ts",
         "tests/browser/replacement-loading.spec.ts",
         "tests/browser/live.spec.ts",
-        "tests/browser/events.spec.ts"
+        "tests/browser/events.spec.ts",
+        "tests/client.test.ts",
+        "tests/client-ignore-self.test.ts",
+        "tests/browser/ignore-self.spec.ts"
       ],
       "docs": [
         "docs/reference/directives.md",
-        "packages/client/README.md"
+        "packages/client/README.md",
+        "docs/guides/ignore-self.md",
+        "docs/adr/0004-renderers-and-islands.md"
       ],
       "examples": [
-        "examples/live-counter/README.md"
+        "examples/live-counter/README.md",
+        "examples/live-counter/views/counter.hbs"
       ],
-      "securityNotes": "Owned data directives use a closed grammar with explicit HTML/attribute boundaries. Model writes use a separately authorized synchronization route; no arbitrary directive JavaScript or action-method guard inheritance is assumed. Loading restores original attribute/class baselines and tracks queued work. Explicit replacement cancels removed client resources and cannot replace the component root or claim shared renderer ownership.",
+      "securityNotes": "Owned data directives use a closed grammar with explicit HTML/attribute boundaries. Model writes use a separately authorized synchronization route; no arbitrary directive JavaScript or action-method guard inheritance is assumed. Loading restores original attribute/class baselines and tracks queued work. Explicit replacement cancels removed client resources and cannot replace the component root or claim shared renderer ownership. Effective wrapper attributes are projected before preview, protocol directive validation and form-owner control reconciliation. Attribute ownership is not server authorization; native/editor/root combinations and competing same-node effects are explicitly rejected.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -14617,6 +14668,13 @@
           "executedAt": "2026-10-27T03:24:05.203Z",
           "report": "docs/implementation/rendering-checkpoint-evidence-2026-10-27.json",
           "scope": "Partial rendering implementation:447 aggregate tests,60 Chromium/Firefox/WebKit checks and seven packed npm/pnpm consumers. Full compound acceptance remains open and releaseReady is false."
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-27T12:39:50.278Z",
+          "report": "docs/implementation/ignore-self-checkpoint-evidence-2026-10-27.json",
+          "scope": "Partial wrapper-only ignore and effective incoming projection:558 aggregate tests,84 Chromium/Firefox/WebKit checks; seven tarballs passed two npm/pnpm external strict-TypeScript and real Nest consumers. Isolated Windows Node22.23.4 and24.22.1 each passed strict compilation and558 tests. Full compound acceptance remains open; releaseReady is false."
         }
       ],
       "outstandingIssues": [
@@ -14635,14 +14693,41 @@
       "id": "PHASE-040",
       "priority": "P1",
       "package": "cross-package",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/client/src/morph.ts",
+        "packages/client/src/index.ts",
+        "packages/client/src/protocol.ts"
+      ],
+      "testFiles": [
+        "tests/client.test.ts",
+        "tests/client-ignore-self.test.ts",
+        "tests/browser/ignore-self.spec.ts",
+        "tests/client-replace.test.ts"
+      ],
+      "docs": [
+        "docs/guides/ignore-self.md",
+        "docs/reference/directives.md",
+        "packages/client/README.md",
+        "docs/adr/0004-renderers-and-islands.md"
+      ],
+      "examples": [
+        "examples/live-counter/views/counter.hbs",
+        "examples/live-counter/README.md"
+      ],
+      "securityNotes": " Effective wrapper attributes are projected before preview, protocol directive validation and form-owner control reconciliation. Attribute ownership is not server authorization; native/editor/root combinations and competing same-node effects are explicitly rejected.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-27T12:39:50.278Z",
+          "report": "docs/implementation/ignore-self-checkpoint-evidence-2026-10-27.json",
+          "scope": "Partial wrapper-only ignore and effective incoming projection:558 aggregate tests,84 Chromium/Firefox/WebKit checks; seven tarballs passed two npm/pnpm external strict-TypeScript and real Nest consumers. Isolated Windows Node22.23.4 and24.22.1 each passed strict compilation and558 tests. Full compound acceptance remains open; releaseReady is false."
+        }
+      ],
+      "outstandingIssues": [
+        "Closed grammar and targeted event handling have scoped implementations; complete directive/modifier/security and compatibility matrix remains open."
+      ]
     },
     {
       "sourceKey": "4e2d2607ca90e9709db702b9f9fa3431e6812f6ce32d952bdf9c023356be68fe",

@@ -324,6 +324,69 @@ describe('actual Chromium replacement and morph lifecycle', () => {
     });
   });
 
+  it('retains keyed wrapper and input identity across all 24 mixed-sibling permutations', async () => {
+    const result = await page.evaluate(() => {
+      const root = document.getElementById('fixture');
+      if (!root) throw new Error('Missing fixture');
+      const permutations = (keys: string[]): string[][] =>
+        keys.length === 0
+          ? [[]]
+          : keys.flatMap((key, index) =>
+              permutations(keys.filter((_, other) => other !== index)).map(
+                (rest) => [key, ...rest],
+              ),
+            );
+      const keys = ['a', 'b', 'c', 'd'];
+      for (const order of permutations(keys)) {
+        root.innerHTML = keys
+          .map(
+            (key) =>
+              `<em>old separator</em><section id="${key}" nv:ignore.self="" class="local-${key}"><input value="default"><output>old</output></section>`,
+          )
+          .join(' ');
+        const originals = new Map(
+          [...root.querySelectorAll('section')].map((element) => [
+            element.id,
+            element,
+          ]),
+        );
+        for (const [key, element] of originals) {
+          const input = element.querySelector('input');
+          if (!input) throw new Error('Missing input');
+          input.value = `draft-${key}`;
+        }
+        const incoming = document.createElement('template');
+        incoming.innerHTML = order
+          .map(
+            (key, index) =>
+              `<em>separator-${index}</em><section id="${key}" nv:ignore.self="" class="server-${key}"><input value="default"><output>updated-${key}</output></section>`,
+          )
+          .join(' ');
+        window.nvMorphFixture.morphChildren(root, incoming.content, new Map());
+        const wrappers = [...root.querySelectorAll('section')];
+        if (wrappers.map((element) => element.id).join() !== order.join())
+          return false;
+        for (const element of wrappers)
+          if (
+            originals.get(element.id) !== element ||
+            element.className !== `local-${element.id}` ||
+            element.querySelector('input')?.value !== `draft-${element.id}` ||
+            element.querySelector('output')?.textContent !==
+              `updated-${element.id}`
+          )
+            return false;
+        if (
+          [...root.querySelectorAll('em')].some(
+            (element, index) => element.textContent !== `separator-${index}`,
+          )
+        )
+          return false;
+      }
+      return true;
+    });
+    expect(result).toBe(true);
+  });
+
   it.each(['incoming', 'existing'])(
     'rejects late nested duplicate %s keys before earlier markup or callbacks change',
     async (side) => {

@@ -33,7 +33,7 @@ test('model submit preserves focus, escapes text and shows pending status', asyn
   page,
 }) => {
   await page.goto('/');
-  const field = page.getByLabel('Display name');
+  const field = page.getByLabel('Display name', { exact: true });
   await field.fill('<img src=x onerror=alert(1)>');
   await field.press('Enter');
   await expect(page.locator('#saved')).toHaveText(
@@ -43,15 +43,21 @@ test('model submit preserves focus, escapes text and shows pending status', asyn
   await expect(field).toBeFocused();
   const releaseResponse = await holdResponse(page, '**/counter/slow');
   try {
-    await page.getByRole('button', { name: 'Slow increase' }).click();
-    await expect(page.locator('[nv\\:loading]')).toBeVisible();
+    await page
+      .getByRole('button', { name: 'Slow increase', exact: true })
+      .click();
+    await expect(
+      page.getByRole('status', { name: 'Live action status', exact: true }),
+    ).toBeVisible();
     await field.fill('edit during request');
   } finally {
     releaseResponse();
   }
   await expect(page.locator('#count')).toHaveText('1');
   await expect(field).toHaveValue('edit during request');
-  await expect(page.locator('[nv\\:loading]')).toBeHidden();
+  await expect(
+    page.getByRole('status', { name: 'Live action status', exact: true }),
+  ).toBeHidden();
   await field.press('Enter');
   await expect(page.locator('#saved')).toHaveText('edit during request');
 });
@@ -154,7 +160,9 @@ test('CSP Alpine plugin invokes Live and preserves isolated local state across m
   await expect(page.locator('#alpine-local')).toHaveText('1');
   await page.getByRole('button', { name: 'Alpine save name' }).click();
   await expect(page.locator('#saved')).toHaveText('From Alpine');
-  await expect(page.getByLabel('Display name')).toHaveValue('From Alpine');
+  await expect(page.getByLabel('Display name', { exact: true })).toHaveValue(
+    'From Alpine',
+  );
   await expect(page.locator('#alpine-local')).toHaveText('1');
   expect(errors).toEqual([]);
 });
@@ -164,7 +172,7 @@ test('safe data bindings update text, attributes, dirty state, visibility and fo
 }) => {
   await page.goto('/');
   expect(await page.evaluate(() => document.doctype?.name)).toBe('html');
-  const field = page.getByLabel('Display name');
+  const field = page.getByLabel('Display name', { exact: true });
   await expect(page.locator('#name-preview')).not.toHaveAttribute(
     'nv:cloak',
     '',

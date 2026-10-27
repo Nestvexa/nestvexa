@@ -1,4 +1,9 @@
-import { morphChildren, validateFragment } from './morph.js';
+import {
+  morphChildren,
+  prepareMorph,
+  validateFragment,
+  validateIgnore,
+} from './morph.js';
 import { applyBindings, queryRefs } from './bindings.js';
 import { createEventDispatcher, parseEventDirective } from './events.js';
 import type { EventDispatcher, EventDirective } from './events.js';
@@ -127,6 +132,7 @@ function validateDirectives(component: Element): void {
   }
 }
 function validateReplacement(element: Element, component: Element): void {
+  validateIgnore(element, element === component);
   const attributes = [...element.attributes].filter(
     (attribute) =>
       attribute.name === 'nv:replace' ||
@@ -291,7 +297,11 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       releaseSubtree(state.root, true);
       return false;
     }
-    if (state.root.hasAttribute('nv:ignore') || !validMarker(state)) {
+    if (
+      state.root.hasAttribute('nv:ignore') ||
+      state.root.hasAttribute('nv:ignore.self') ||
+      !validMarker(state)
+    ) {
       releaseSubtree(state.root, true);
       report(
         new LiveClientError(
@@ -522,8 +532,9 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       const template = doc.createElement('template');
       template.innerHTML = result.html;
       validateFragment(template.content);
+      const incoming = prepareMorph(state.root, template.content);
       const preview = state.root.cloneNode(false) as Element;
-      preview.append(template.content.cloneNode(true));
+      preview.append(incoming.cloneNode(true));
       validateDirectives(preview);
       const dirty = new Map<string, unknown>();
       for (const [key, field] of state.dirty)
@@ -569,7 +580,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         }
       }
       loading.restore(state.root);
-      morphChildren(state.root, template.content, dirty, {
+      morphChildren(state.root, incoming, dirty, {
         beforeRemove,
         afterInsert,
       });
