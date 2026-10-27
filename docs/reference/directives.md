@@ -136,6 +136,8 @@ The [event parser/dispatcher](../../packages/client/src/events.ts), [direct list
 
 ## Model modifiers
 
+Native reset buttons and `HTMLFormElement.reset()` also reconcile the owned model drafts without adding an `nv:reset` directive. A completed reset records a new field version, cancels affected model timers and leaves synchronization to a later explicit edit/action; a canceled reset changes neither draft state nor timers. Synthetic reset-event dispatch is ignored because it does not run the native reset algorithm. Actual form ownership, renderer boundaries and representable defaults apply; invalid numeric defaults, unselected model-radio defaults, conflicting aliases and cross-owner radio groups reject the reset. See the [native reset guide](../guides/form-reset.md) for synchronous access, pending responses, external associated controls and limits.
+
 Each native control accepts one `nv:model` declaration naming a top-level public state field. The field must also be writable on the server. Without a synchronization modifier, edits remain local until the next action sends the component's pending updates.
 
 | Modifier                | Behavior                                                                                                             |

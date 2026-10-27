@@ -15,6 +15,7 @@
     <label for="name">Display name</label
     ><input id="name" nv:model="name" value="{{name}}" maxlength="80" />
     <button type="submit">Save name</button>
+    <button type="reset">Reset display draft</button>
   </form>
   <p id="saved" nv:text="saved">{{saved}}</p>
   <p id="name-preview" nv:text="name" nv:bind="title:name" nv:cloak="">
@@ -97,82 +98,85 @@
   </section>
   <section aria-label="Model synchronization">
     <h2>Model synchronization</h2>
-    <label for="search">Live search</label
-    ><input
-      id="search"
-      nv:model.live.debounce.100ms="search"
-      value="{{search}}"
-    />
-    <output id="search-server">{{search}}</output>
-    <label for="nickname">Blur nickname</label
-    ><input id="nickname" nv:model.blur="nickname" value="{{nickname}}" />
-    <output id="nickname-server">{{nickname}}</output>
-    <label for="quantity">Quantity</label
-    ><input
-      id="quantity"
-      nv:model.change.number="quantity"
-      value="{{quantity}}"
-    />
-    <output id="quantity-server">{{quantity}}</output>
-    <label for="enabled">Enabled</label
-    ><select id="enabled" nv:model.change.boolean="enabled">
-      {{#if enabled}}
-      <option value="false">No</option>
-      <option value="true" selected>Yes</option>
-      {{else}}
-      <option value="false" selected>No</option>
-      <option value="true">Yes</option>
-      {{/if}}
-    </select>
-    <output id="enabled-server">{{enabled}}</output>
-    <fieldset>
-      <legend>Color</legend>
-      <label for="red">Red</label>{{#if (eq color "red")}}<input
-        type="radio"
-        id="red"
-        name="color"
-        value="red"
-        nv:model.change="color"
-        checked
-      />{{else}}<input
-        type="radio"
-        id="red"
-        name="color"
-        value="red"
-        nv:model.change="color"
-      />{{/if}}<label for="blue">Blue</label>{{#if (eq color "blue")}}<input
-        type="radio"
-        id="blue"
-        name="color"
-        value="blue"
-        nv:model.change="color"
-        checked
-      />{{else}}<input
-        type="radio"
-        id="blue"
-        name="color"
-        value="blue"
-        nv:model.change="color"
-      />{{/if}} {{#if allowGreen}}<label for="green">Green</label>{{#if (eq
-      color "green")}}<input
-        id="green"
-        type="radio"
-        name="color"
-        value="green"
-        nv:model.change="color"
-        checked
-      />{{else}}<input
-        id="green"
-        type="radio"
-        name="color"
-        value="green"
-        nv:model.change="color"
-      />{{/if}}{{/if}}
-    </fieldset>
-    <output id="color-server">{{color}}</output>
-    <button type="button" nv:click="enableColorChoice">
-      Enable green choice
-    </button>
+    <form id="model-reset-form">
+      <label for="search">Live search</label
+      ><input
+        id="search"
+        nv:model.live.debounce.100ms="search"
+        value="{{search}}"
+      />
+      <output id="search-server">{{search}}</output>
+      <label for="nickname">Blur nickname</label
+      ><input id="nickname" nv:model.blur="nickname" value="{{nickname}}" />
+      <output id="nickname-server">{{nickname}}</output>
+      <label for="quantity">Quantity</label
+      ><input
+        id="quantity"
+        nv:model.change.number="quantity"
+        value="{{quantity}}"
+      />
+      <output id="quantity-server">{{quantity}}</output>
+      <label for="enabled">Enabled</label
+      ><select id="enabled" nv:model.change.boolean="enabled">
+        {{#if enabled}}
+        <option value="false">No</option>
+        <option value="true" selected>Yes</option>
+        {{else}}
+        <option value="false" selected>No</option>
+        <option value="true">Yes</option>
+        {{/if}}
+      </select>
+      <output id="enabled-server">{{enabled}}</output>
+      <fieldset>
+        <legend>Color</legend>
+        <label for="red">Red</label>{{#if (eq color "red")}}<input
+          type="radio"
+          id="red"
+          name="color"
+          value="red"
+          nv:model.change="color"
+          checked
+        />{{else}}<input
+          type="radio"
+          id="red"
+          name="color"
+          value="red"
+          nv:model.change="color"
+        />{{/if}}<label for="blue">Blue</label>{{#if (eq color "blue")}}<input
+          type="radio"
+          id="blue"
+          name="color"
+          value="blue"
+          nv:model.change="color"
+          checked
+        />{{else}}<input
+          type="radio"
+          id="blue"
+          name="color"
+          value="blue"
+          nv:model.change="color"
+        />{{/if}} {{#if allowGreen}}<label for="green">Green</label>{{#if (eq
+        color "green")}}<input
+          id="green"
+          type="radio"
+          name="color"
+          value="green"
+          nv:model.change="color"
+          checked
+        />{{else}}<input
+          id="green"
+          type="radio"
+          name="color"
+          value="green"
+          nv:model.change="color"
+        />{{/if}}{{/if}}
+      </fieldset>
+      <output id="color-server">{{color}}</output>
+      <button type="button" nv:click="enableColorChoice">
+        Enable green choice
+      </button>
+      <button type="reset">Reset model drafts</button>
+    </form>
   </section>
   <section aria-label="Native form preservation">
     <h2>Native form preservation</h2>

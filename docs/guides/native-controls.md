@@ -53,6 +53,8 @@ A newer radio draft is not silently replaced with another option when its chosen
 
 Changing a server default is an explicit merge signal. Sending the same default again cannot tell the client whether the host intended to keep a local edit or reset it. Use native `HTMLFormElement.reset()` when a host-owned UI needs to reset local controls to their current defaults, or use explicit `nv:replace`/`.self` when the server intends to discard the relevant local DOM state. Textareas and option defaults are updated so reset sees the latest server defaults.
 
+A native reset also reconciles owned model drafts after the browser operation, avoiding a visible reset followed by transmission of a discarded hidden edit. It records newer field versions and cancels affected model timers without automatically sending `_sync` or invoking an action. `preventDefault()` cancels both native reset and reconciliation; synthetic reset-event dispatch does not run the native operation and is ignored. Actual form ownership includes disabled and explicitly associated controls, with client/renderer boundaries preserved. Invalid or ambiguous model defaults cancel the reset rather than silently invent state. See the [native reset guide](form-reset.md) for exact restrictions, field aliases and in-flight response behavior.
+
 ```html
 <section nv:replace="" aria-label="Resetting editor">
   <label for="temporary-note">Temporary note</label>

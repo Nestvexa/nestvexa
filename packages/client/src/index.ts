@@ -13,6 +13,8 @@ import { getModelDirective, readModelValue } from './models.js';
 import { createModelScheduler } from './model-scheduler.js';
 import { createLoadingController, validateLoading } from './loading.js';
 import { LiveHttpError, requestLive, requestTimeout } from './transport.js';
+import { planFormReset, resetSignature, resetValue } from './form-reset.js';
+import type { ResetField } from './form-reset.js';
 export { LiveHttpError } from './transport.js';
 export { parseLoadingDirective, parseLoadingTarget } from './loading.js';
 export type { LoadingDirective } from './loading.js';
@@ -220,6 +222,117 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   let composing = new WeakSet<Element>();
   let models = makeModels();
   let loading = createLoadingController();
+  let generation = 0;
+  let resetTimer: number | undefined;
+  const resets = new Map<
+    HTMLFormElement,
+    {
+      event: Event;
+      fields: readonly ResetField<Component>[];
+      generation: number;
+    }
+  >();
+  function resetOwner(element: Element): Component | undefined {
+    if (!contains(element)) return undefined;
+    const state = registeredScope(element);
+    return state && !ignored(element, state.root) ? state : undefined;
+  }
+  function flushResets(): void {
+    for (const [form, plan] of resets) {
+      // Getters called inside a reset listener must not preempt a later veto.
+      if (plan.event.eventPhase !== 0) continue;
+      resets.delete(form);
+      if (
+        !mounted ||
+        plan.generation !== generation ||
+        plan.event.defaultPrevented ||
+        !form.isConnected
+      )
+        continue;
+      const changed = new Set<Component>();
+      for (const entry of plan.fields) {
+        const state = entry.owner;
+        if (
+          !usable(state) ||
+          !entry.controls.every(
+            ({ element, signature }) =>
+              resetOwner(element) === state &&
+              'form' in element &&
+              element.form === form &&
+              resetSignature(element) === signature,
+          )
+        )
+          continue;
+        try {
+          const value = resetValue(entry.controls);
+          state.dirty.set(entry.field, {
+            value,
+            version: ++state.fieldVersion,
+          });
+          for (const control of entry.controls) {
+            state.invalid.delete(control.element);
+            composing.delete(control.element);
+          }
+          // Reset acts on a shared public field, even when another form has an alias.
+          for (const element of owned(state.root)) {
+            const model = getModelDirective(element);
+            if (model?.field === entry.field) models.cancel(element);
+          }
+          changed.add(state);
+        } catch (error) {
+          // Defaults changed during the reset event and no longer describe a
+          // representable model. Do not dispatch stale hidden state afterward.
+          suspend(
+            state,
+            error instanceof Error
+              ? error
+              : new LiveClientError(
+                  'DIRECTIVE',
+                  'Native reset could not reconcile model state',
+                ),
+          );
+        }
+      }
+      for (const state of changed) refreshBindings(state);
+    }
+    if (!resets.size && resetTimer !== undefined) {
+      window.clearTimeout(resetTimer);
+      resetTimer = undefined;
+    }
+  }
+  function reset(event: Event): void {
+    const form = event.target;
+    if (
+      !mounted ||
+      event.defaultPrevented ||
+      !event.isTrusted ||
+      !(form instanceof window.HTMLFormElement)
+    )
+      return;
+    try {
+      const fields = planFormReset(form, resetOwner);
+      if (!fields.length) return;
+      if (!resets.has(form) && resets.size >= 1000)
+        throw new LiveClientError(
+          'DIRECTIVE',
+          'Native reset queue capacity reached',
+        );
+      for (const entry of fields)
+        if (!Object.hasOwn(entry.owner.values, entry.field))
+          throw new LiveClientError('DIRECTIVE', 'Unknown public state field');
+      resets.set(form, { event, fields, generation });
+      window.queueMicrotask(flushResets);
+      // Native button dispatch can run microtasks between reset listeners.
+      // One task per client also flushes after dispatch and the default action.
+      resetTimer ??= window.setTimeout(() => {
+        resetTimer = undefined;
+        flushResets();
+      }, 0);
+    } catch (error) {
+      event.preventDefault();
+      report(error, registeredScope(form)?.root ?? null);
+    }
+  }
   function makeModels(): ReturnType<typeof createModelScheduler> {
     return createModelScheduler({
       invoke: async (element) => {
@@ -507,6 +620,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     }
   }
   async function invoke(state: Component, action: string): Promise<void> {
+    flushResets();
     if (!usable(state)) return;
     const failure = failureFor(state);
     if (failure) throw failure;
@@ -762,6 +876,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     return event.target instanceof window.Element ? event.target : null;
   }
   function input(event: Event, control?: Element, type = event.type): void {
+    flushResets();
     const element = control ?? target(event);
     if (
       !element ||
@@ -937,6 +1052,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       }
     },
     get(element: Element, name: string): unknown {
+      flushResets();
       const state = componentFor(element);
       const key = parseIdentifier(name);
       if (!Object.hasOwn(state.values, key))
@@ -946,6 +1062,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       );
     },
     set(element: Element, name: string, value: Field): void {
+      flushResets();
       const state = componentFor(element);
       const key = parseIdentifier(name);
       if (!Object.hasOwn(state.values, key))
@@ -966,6 +1083,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       models = makeModels();
       loading = createLoadingController();
       mounted = true;
+      generation++;
       dispatcher = createEventDispatcher({
         invoke: (element, action) =>
           // The component queue reports transport errors once and suppresses released work.
@@ -985,6 +1103,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       root.addEventListener('focusout', input);
       root.addEventListener('compositionstart', composition);
       root.addEventListener('compositionend', composition);
+      doc.addEventListener('reset', reset, true);
       observer = new window.MutationObserver((mutations) => {
         if (
           mounted &&
@@ -1007,6 +1126,10 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     dispose(): void {
       if (!mounted) return;
       mounted = false;
+      generation++;
+      resets.clear();
+      if (resetTimer !== undefined) window.clearTimeout(resetTimer);
+      resetTimer = undefined;
       observer?.disconnect();
       observer = null;
       dispatcher?.dispose();
@@ -1023,6 +1146,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       root.removeEventListener('focusout', input);
       root.removeEventListener('compositionstart', composition);
       root.removeEventListener('compositionend', composition);
+      doc.removeEventListener('reset', reset, true);
       for (const state of components.values()) {
         state.active = false;
         state.request?.abort();

@@ -54,6 +54,7 @@ beforeAll(async () => {
       'loading',
       'control-state',
       'transport',
+      'form-reset',
     ].map((name) => [
       `/${name}.js`,
       new URL(`../packages/client/dist/${name}.js`, import.meta.url),

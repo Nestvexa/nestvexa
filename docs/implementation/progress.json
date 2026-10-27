@@ -19,13 +19,13 @@
       "id": 2,
       "state": "InProgress",
       "scope": "Live protocol, opaque state store, generated routes, registration ownership, authorized model synchronization and pure writable-state validation",
-      "remaining": "Corrected transport checkpoint passed 597 aggregate tests and 93 browser checks, seven tarballs in two external npm/pnpm strict-TypeScript and real Nest consumers, docs/audit/size and selected coverage. Both isolated Windows Node 22.23.4 and 24.22.1 passed strict compilation and all 597 tests. Saved transport evidence includes package hashes and runtime results; release checking correctly fails. The cached-HBS benchmark was contended and is not a controlled comparison. Historical checkpoints remain distinct. Full security, protocol, lifecycle, Linux and compatibility acceptance remains open."
+      "remaining": "Native reset host checkpoint passed 631 aggregate tests and 102 browser checks, seven tarballs in two external npm/pnpm strict-TypeScript and real Nest consumers, docs/audit/size and selected coverage. Both isolated Windows Node 22.23.4 and 24.22.1 passed strict compilation and all 631 tests. Saved reset evidence includes hashes and runtime results; release checking correctly fails. Historical checkpoints retain their scope. Full security, protocol, lifecycle, Linux and compatibility acceptance remains open."
     },
     {
       "id": 3,
       "state": "InProgress",
-      "scope": "Initial directives, queued transport, keyed morph, CSP Alpine bridge, event/model modifiers, targeted loading/replacement, native reconciliation, registration ownership, wrapper-only ignore and bounded browser transport/deadline/recovery",
-      "remaining": "Bounded fetch/body deadline, byte limits, uncertain-outcome suspension and ancestor continuation exclusion passed the corrected 597-test/93-browser checkpoint and both isolated Node compilation/597-test runs. The 39-case controlled transport corpus and actual Nest fault scenarios are scoped evidence, not complete matrix acceptance. Initial fixture failures and the selected red-before continuation race are preserved in the release report. Full input/modifier/lifecycle/fault/accessibility matrix, cross-owner radio isolation, nested-server/island lifecycle and automatic default bootstrap remain open."
+      "scope": "Initial directives, queued transport, keyed morph, CSP Alpine bridge, event/model modifiers, targeted loading/replacement, native reconciliation, registration ownership, wrapper-only ignore and bounded browser transport/deadline/recovery, and native form reset reconciliation",
+      "remaining": "Native reset has 631 aggregate/102 three-browser host passes, including 34 controlled reset cases, seven tarballs in two external consumers, docs/audit/size and selected coverage. Native-button timing red-before and the stale compiled-example fixture failure are retained in the report. Complete forms, input/modifier/lifecycle/fault/accessibility matrices, cross-owner radio isolation, nested-server/island lifecycle and automatic default bootstrap remain open. Both fresh isolated Windows Node 22.23.4 and 24.22.1 passed strict compilation and all 631 tests; neither repeats the complete three-browser server or packed-consumer matrix."
     },
     {
       "id": 4,

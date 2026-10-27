@@ -2,6 +2,8 @@
 
 ## 0.1.0-alpha.0 — unreleased
 
+Reconciled native form reset with owned primitive model drafts, previews, dirty state and pending model timers. Canceled resets preserve drafts; completed resets use new field versions to survive in-flight responses without automatically dispatching synchronization. Invalid defaults and cross-owner radio reset groups reject explicitly. Reset reconciliation now finishes after native button event dispatch even when no client API is called.
+
 Added bounded request/body deadlines, streaming byte limits, strict response decoding and stable transport errors with numeric HTTP status. Uncertain outcomes now stop queued/nested transport while preserving drafts and enhanced form prevention until explicit reconciliation. Removal/disposal settles canceled client work promptly; cancellation does not acknowledge server success or rollback.
 
 Added `nv:ignore.self` for attribute-owned wrappers with Live-owned children, effective markup preflight, frozen directive configuration, explicit conflict errors and cleanup on ownership transitions. Malformed whole-ignore declarations now reject setup; the bare-ignore parser result is unchanged.

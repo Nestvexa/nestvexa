@@ -16,7 +16,7 @@ pnpm dev
 
 Open `http://127.0.0.1:3100`. The example serves two Handlebars pages and `/api/health` through ordinary Nest controllers. No frontend framework is installed in the default distribution.
 
-For the cookie-backed Live counter, run `pnpm --filter @nestvexa/example-live-counter start` after building, then open `http://127.0.0.1:3101`. It demonstrates actions, deferred/live/blur/change model binding, numeric and boolean validation, loading status, focus preservation and independent local DOM. See its [bootstrap and limitations](examples/live-counter/README.md).
+For the cookie-backed Live counter, run `pnpm --filter @nestvexa/example-live-counter start` after building, then open `http://127.0.0.1:3101`. It demonstrates actions, deferred/live/blur/change model binding, native draft reset, numeric and boolean validation, loading status, focus preservation and independent local DOM. See its [bootstrap and limitations](examples/live-counter/README.md) and [reset behavior](docs/guides/form-reset.md).
 
 ```ts
 import { Module } from '@nestjs/common';

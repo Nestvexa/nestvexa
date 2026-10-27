@@ -196,6 +196,11 @@ class PageController {
   transport() {
     return readFile(new URL('./transport.js', clientEntry), 'utf8');
   }
+  @Get('assets/form-reset.js')
+  @Header('Content-Type', 'text/javascript; charset=utf-8')
+  formReset() {
+    return readFile(new URL('./form-reset.js', clientEntry), 'utf8');
+  }
   @Get('assets/alpine.js')
   @Header('Content-Type', 'text/javascript; charset=utf-8')
   alpine() {

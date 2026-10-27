@@ -5832,7 +5832,8 @@
         "packages/client/src/index.ts",
         "packages/client/src/morph.ts",
         "packages/live/src/runtime.ts",
-        "packages/live/src/live.module.ts"
+        "packages/live/src/live.module.ts",
+        "packages/client/src/form-reset.ts"
       ],
       "testFiles": [
         "tests/client.test.ts",
@@ -5840,16 +5841,20 @@
         "tests/client-models.test.ts",
         "tests/client-model-scheduler.test.ts",
         "tests/live-model.test.ts",
-        "tests/browser/models.spec.ts"
+        "tests/browser/models.spec.ts",
+        "tests/client-form-reset.test.ts",
+        "tests/browser/form-reset.spec.ts"
       ],
       "docs": [
         "docs/reference/directives.md",
-        "packages/client/README.md"
+        "packages/client/README.md",
+        "docs/guides/form-reset.md"
       ],
       "examples": [
-        "examples/live-counter/README.md"
+        "examples/live-counter/README.md",
+        "examples/live-counter/views/counter.hbs"
       ],
-      "securityNotes": "Data-only top-level identifiers and bounded primitive casts/timers; no expression evaluation. Model synchronization requires explicit host $sync authorization plus origin, CSRF, identity, ownership, writable-state validation and revision checks. Component/global policies apply; action-method guards do not authorize the internal synchronization route. Invalid local conversion blocks requests.",
+      "securityNotes": "Data-only top-level identifiers and bounded primitive casts/timers; no expression evaluation. Model synchronization requires explicit host $sync authorization plus origin, CSRF, identity, ownership, writable-state validation and revision checks. Component/global policies apply; action-method guards do not authorize the internal synchronization route. Invalid local conversion blocks requests. Native reset only reconciles active owned primitive fields; canceled resets preserve drafts, defaults are preflighted, and resets do not authorize writes or automatically dispatch synchronization.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -5858,11 +5863,19 @@
           "executedAt": "2026-10-26T20:22:16.515Z",
           "report": "docs/implementation/model-checkpoint-evidence-2026-10-26.json",
           "scope": "Partial model/state implementation:379 aggregate tests and48 three-browser fixture checks; complete compound acceptance remains open and releaseReady is false."
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-27T17:54:42.885Z",
+          "report": "docs/implementation/form-reset-checkpoint-evidence-2026-10-27.json",
+          "scope": "Partial native form reset reconciliation:631 aggregate tests including 34 controlled reset cases,102 Chromium/Firefox/WebKit checks, seven tarballs in two external npm/pnpm strict-TypeScript and real Nest consumers. The selected native-button preview regression failed before the task fallback. Full compound acceptance remains open; releaseReady is false. Fresh isolated Windows Node 22.23.4 and 24.22.1 each passed strict compilation and 631 tests, without repeating the full three-browser server or consumer matrix."
         }
       ],
       "outstandingIssues": [
         "Default deferred, live, blur/change/lazy, decimal/boolean casts and bounded debounce/leading throttle have scoped evidence; the complete input/modifier/cleanup acceptance matrix remains pending.",
-        "Nested paths, multiple selects, file/array models and the wider forms subsystem are not implemented."
+        "Nested paths, multiple selects, file/array models and the wider forms subsystem are not implemented.",
+        "Native reset has scoped primitive model evidence; complete forms, input/default/ownership/accessibility and lifecycle matrices remain open."
       ]
     },
     {
@@ -5924,25 +5937,40 @@
       "priority": "P1",
       "package": "@nestvexa/client",
       "implementationFiles": [
-        "packages/client/src/bindings.ts"
+        "packages/client/src/bindings.ts",
+        "packages/client/src/index.ts",
+        "packages/client/src/form-reset.ts"
       ],
       "testFiles": [
         "tests/client.test.ts",
         "tests/browser/live.spec.ts",
-        "tests/client-bindings.test.ts"
+        "tests/client-bindings.test.ts",
+        "tests/client-form-reset.test.ts",
+        "tests/browser/form-reset.spec.ts"
       ],
       "docs": [
         "docs/reference/directives.md",
-        "packages/client/README.md"
+        "packages/client/README.md",
+        "docs/guides/form-reset.md"
       ],
       "examples": [
-        "examples/live-counter/README.md"
+        "examples/live-counter/README.md",
+        "examples/live-counter/views/counter.hbs"
       ],
-      "securityNotes": "Data-only registered identifiers and explicit ownership/attribute boundaries; no arbitrary JavaScript expression evaluation.",
+      "securityNotes": "Data-only registered identifiers and explicit ownership/attribute boundaries; no arbitrary JavaScript expression evaluation. Native reset only reconciles active owned primitive fields; canceled resets preserve drafts, defaults are preflighted, and resets do not authorize writes or automatically dispatch synchronization.",
       "state": "InProgress",
-      "validationEvidence": [],
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-27T17:54:42.885Z",
+          "report": "docs/implementation/form-reset-checkpoint-evidence-2026-10-27.json",
+          "scope": "Partial native form reset reconciliation:631 aggregate tests including 34 controlled reset cases,102 Chromium/Firefox/WebKit checks, seven tarballs in two external npm/pnpm strict-TypeScript and real Nest consumers. The selected native-button preview regression failed before the task fallback. Full compound acceptance remains open; releaseReady is false. Fresh isolated Windows Node 22.23.4 and 24.22.1 each passed strict compilation and 631 tests, without repeating the full three-browser server or consumer matrix."
+        }
+      ],
       "outstandingIssues": [
-        "Local-versus-server dirty reconciliation is exercised; complete restored snapshot/form lifecycle acceptance remains open."
+        "Local-versus-server dirty reconciliation is exercised; complete restored snapshot/form lifecycle acceptance remains open.",
+        "Native reset has scoped primitive model evidence; complete forms, input/default/ownership/accessibility and lifecycle matrices remain open."
       ]
     },
     {
@@ -14716,7 +14744,8 @@
         "packages/client/src/loading.ts",
         "packages/client/src/listeners.ts",
         "packages/client/src/protocol.ts",
-        "packages/live/src/runtime.ts"
+        "packages/live/src/runtime.ts",
+        "packages/client/src/form-reset.ts"
       ],
       "testFiles": [
         "tests/client-models.test.ts",
@@ -14734,19 +14763,22 @@
         "tests/browser/events.spec.ts",
         "tests/client.test.ts",
         "tests/client-ignore-self.test.ts",
-        "tests/browser/ignore-self.spec.ts"
+        "tests/browser/ignore-self.spec.ts",
+        "tests/client-form-reset.test.ts",
+        "tests/browser/form-reset.spec.ts"
       ],
       "docs": [
         "docs/reference/directives.md",
         "packages/client/README.md",
         "docs/guides/ignore-self.md",
-        "docs/adr/0004-renderers-and-islands.md"
+        "docs/adr/0004-renderers-and-islands.md",
+        "docs/guides/form-reset.md"
       ],
       "examples": [
         "examples/live-counter/README.md",
         "examples/live-counter/views/counter.hbs"
       ],
-      "securityNotes": "Owned data directives use a closed grammar with explicit HTML/attribute boundaries. Model writes use a separately authorized synchronization route; no arbitrary directive JavaScript or action-method guard inheritance is assumed. Loading restores original attribute/class baselines and tracks queued work. Explicit replacement cancels removed client resources and cannot replace the component root or claim shared renderer ownership. Effective wrapper attributes are projected before preview, protocol directive validation and form-owner control reconciliation. Attribute ownership is not server authorization; native/editor/root combinations and competing same-node effects are explicitly rejected.",
+      "securityNotes": "Owned data directives use a closed grammar with explicit HTML/attribute boundaries. Model writes use a separately authorized synchronization route; no arbitrary directive JavaScript or action-method guard inheritance is assumed. Loading restores original attribute/class baselines and tracks queued work. Explicit replacement cancels removed client resources and cannot replace the component root or claim shared renderer ownership. Effective wrapper attributes are projected before preview, protocol directive validation and form-owner control reconciliation. Attribute ownership is not server authorization; native/editor/root combinations and competing same-node effects are explicitly rejected. Native reset only reconciles active owned primitive fields; canceled resets preserve drafts, defaults are preflighted, and resets do not authorize writes or automatically dispatch synchronization.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -14769,11 +14801,19 @@
           "executedAt": "2026-10-27T12:39:50.278Z",
           "report": "docs/implementation/ignore-self-checkpoint-evidence-2026-10-27.json",
           "scope": "Partial wrapper-only ignore and effective incoming projection:558 aggregate tests,84 Chromium/Firefox/WebKit checks; seven tarballs passed two npm/pnpm external strict-TypeScript and real Nest consumers. Isolated Windows Node22.23.4 and24.22.1 each passed strict compilation and558 tests. Full compound acceptance remains open; releaseReady is false."
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-27T17:54:42.885Z",
+          "report": "docs/implementation/form-reset-checkpoint-evidence-2026-10-27.json",
+          "scope": "Partial native form reset reconciliation:631 aggregate tests including 34 controlled reset cases,102 Chromium/Firefox/WebKit checks, seven tarballs in two external npm/pnpm strict-TypeScript and real Nest consumers. The selected native-button preview regression failed before the task fallback. Full compound acceptance remains open; releaseReady is false. Fresh isolated Windows Node 22.23.4 and 24.22.1 each passed strict compilation and 631 tests, without repeating the full three-browser server or consumer matrix."
         }
       ],
       "outstandingIssues": [
         "Initial replacement lifecycle and targeted loading effects have scoped evidence; the complete directive/modifier/input/cleanup/concurrency/accessibility acceptance matrix remains pending.",
-        "Full nested-server and framework-island ownership/hydration support is not implemented; optional loading delays and arbitrary presentation expressions are unsupported."
+        "Full nested-server and framework-island ownership/hydration support is not implemented; optional loading delays and arbitrary presentation expressions are unsupported.",
+        "Native reset has scoped primitive model evidence; complete forms, input/default/ownership/accessibility and lifecycle matrices remain open."
       ]
     },
     {
@@ -14837,24 +14877,29 @@
       "implementationFiles": [
         "packages/client/src/index.ts",
         "packages/client/src/transport.ts",
-        "packages/client/src/grammar.ts"
+        "packages/client/src/grammar.ts",
+        "packages/client/src/form-reset.ts"
       ],
       "testFiles": [
         "tests/client-transport-lifecycle.test.ts",
         "tests/browser/request-lifecycle.spec.ts",
         "tests/client-ownership-transitions.test.ts",
-        "tests/client-model-lifecycle.test.ts"
+        "tests/client-model-lifecycle.test.ts",
+        "tests/client-form-reset.test.ts",
+        "tests/browser/form-reset.spec.ts"
       ],
       "docs": [
         "docs/guides/request-lifecycle.md",
         "packages/client/README.md",
         "docs/reference/directives.md",
-        "docs/adr/0010-observability-and-performance.md"
+        "docs/adr/0010-observability-and-performance.md",
+        "docs/guides/form-reset.md"
       ],
       "examples": [
-        "examples/live-counter/src/main.ts"
+        "examples/live-counter/src/main.ts",
+        "examples/live-counter/views/counter.hbs"
       ],
-      "securityNotes": " Total browser fetch/body deadline and streaming decoded-byte limit precede state application; uncertain outcomes freeze queued/nested transport without replay, retain drafts and prevent native enhanced submits. Server cancellation, auth and durable idempotency remain host-owned.",
+      "securityNotes": " Total browser fetch/body deadline and streaming decoded-byte limit precede state application; uncertain outcomes freeze queued/nested transport without replay, retain drafts and prevent native enhanced submits. Server cancellation, auth and durable idempotency remain host-owned. Native reset only reconciles active owned primitive fields; canceled resets preserve drafts, defaults are preflighted, and resets do not authorize writes or automatically dispatch synchronization.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -14863,10 +14908,18 @@
           "executedAt": "2026-10-27T13:12:08.251Z",
           "report": "docs/implementation/transport-checkpoint-evidence-2026-10-27.json",
           "scope": "Partial bounded transport and uncertain-outcome suspension:597 aggregate tests and93 Chromium/Firefox/WebKit checks; seven tarballs passed two npm/pnpm external strict-TypeScript and real Nest consumers. Isolated Windows Node22.23.4 and24.22.1 each passed strict compilation and597 tests. The continuation race regression failed before the source guard and passed in the complete corpus. Full compound acceptance remains open; releaseReady is false."
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-27T17:54:42.885Z",
+          "report": "docs/implementation/form-reset-checkpoint-evidence-2026-10-27.json",
+          "scope": "Partial native form reset reconciliation:631 aggregate tests including 34 controlled reset cases,102 Chromium/Firefox/WebKit checks, seven tarballs in two external npm/pnpm strict-TypeScript and real Nest consumers. The selected native-button preview regression failed before the task fallback. Full compound acceptance remains open; releaseReady is false. Fresh isolated Windows Node 22.23.4 and 24.22.1 each passed strict compilation and 631 tests, without repeating the full three-browser server or consumer matrix."
         }
       ],
       "outstandingIssues": [
-        "Current bounded transport has scoped implementation; full distributed fault, long-memory, progress/streaming UI, safe idempotent retry, bundling and complete compatibility acceptance remain open."
+        "Current bounded transport has scoped implementation; full distributed fault, long-memory, progress/streaming UI, safe idempotent retry, bundling and complete compatibility acceptance remain open.",
+        "Native reset has scoped primitive model evidence; complete forms, input/default/ownership/accessibility and lifecycle matrices remain open."
       ]
     },
     {
