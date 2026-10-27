@@ -82,6 +82,14 @@ The [morph implementation](../../packages/client/src/morph.ts), [replacement tes
 
 Ordinary morphing checks a retained control's selection capability after applying its new type before restoring a saved caret. A text-to-number/email/file change must still advance the client revision and permit the next action. The lifecycle regressions cover all three changes, and the Nest browser flow covers text/number switching. This does not accept the entire native-input matrix.
 
+## Native values and component ownership
+
+Ordinary morphing preserves an unbound control's live value or selection while its incoming server default stays unchanged. A changed default replaces it. This includes unbound multiple selects; it does not enable array-valued `nv:model`. Textareas receive the new `defaultValue` for native form reset, and keyed options preserve selected identity when values repeat. Bound controls follow the response unless a compatible newer local draft exists. The field, conversion and native control type must still match an original surviving control; otherwise both the visible control and hidden dirty state reset from the server. A dirty radio choice that disappears leaves no matching radio checked rather than silently selecting a different choice.
+
+File selections survive ordinary reconciliation on a retained file input and reset on explicit replacement. The client does not upload them automatically. `contenteditable=true` content remains local; `contenteditable=false` is patched normally. Unbound values are browser-local and never become public component state merely because the controls have a `name`. Valid form structure and distinct radio groups per owner are required: shared same-name native groups across Live/island owners are not a proven isolation boundary.
+
+Registration records the raw `data-nv-component`, `data-nv-name`, `data-nv-endpoint`, `data-nv-csrf`, `data-nv-snapshot`, `data-nv-revision` and `data-nv-state` attributes. An external change invalidates the registration once and cancels/aborts its work until the host disposes and remounts it. Raw initial formatting and the client's own response writes are accepted; this check is not cryptography, authentication or authorization. Root `nv:ignore` is invalid, but an independent Live root under an ignored ancestor is permitted. Moving a root into an island releases it without emitting fake DOM-removal lifecycle events. See [native controls and ownership](../guides/native-controls.md) for examples and boundaries.
+
 ## Event modifiers
 
 The event slice accepts modifiers on `nv:click`, `nv:submit` and `nv:keydown`. Modifiers configure filtering and scheduling; their values never execute as JavaScript. An action value remains a registered identifier such as `save`, without parentheses or arguments.

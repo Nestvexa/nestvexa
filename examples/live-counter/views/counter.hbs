@@ -151,9 +151,132 @@
         name="color"
         value="blue"
         nv:model.change="color"
-      />{{/if}}
+      />{{/if}} {{#if allowGreen}}<label for="green">Green</label>{{#if (eq
+      color "green")}}<input
+        id="green"
+        type="radio"
+        name="color"
+        value="green"
+        nv:model.change="color"
+        checked
+      />{{else}}<input
+        id="green"
+        type="radio"
+        name="color"
+        value="green"
+        nv:model.change="color"
+      />{{/if}}{{/if}}
     </fieldset>
     <output id="color-server">{{color}}</output>
+    <button type="button" nv:click="enableColorChoice">
+      Enable green choice
+    </button>
+  </section>
+  <section aria-label="Native form preservation">
+    <h2>Native form preservation</h2>
+    <form id="native-form" nv:submit="increment">
+      <label for="native-note">Local note</label
+      ><input id="native-note" name="note" value="{{nativeNote}}" />
+      <label for="native-memo">Local memo</label
+      ><textarea id="native-memo" name="memo">{{nativeMemo}}</textarea>
+      <label for="native-priority">Local priority</label
+      ><select id="native-priority" name="priority">
+        {{#if nativeReverse}} {{#if (eq nativeChoice "high")}}
+        <option id="priority-high" value="high" selected>High</option>
+        {{else}}
+        <option id="priority-high" value="high">High</option>
+        {{/if}} {{#if (eq nativeChoice "low")}}
+        <option id="priority-low" value="low" selected>Low</option>
+        {{else}}
+        <option id="priority-low" value="low">Low</option>
+        {{/if}} {{else}} {{#if (eq nativeChoice "low")}}
+        <option id="priority-low" value="low" selected>Low</option>
+        {{else}}
+        <option id="priority-low" value="low">Low</option>
+        {{/if}} {{#if (eq nativeChoice "high")}}
+        <option id="priority-high" value="high" selected>High</option>
+        {{else}}
+        <option id="priority-high" value="high">High</option>
+        {{/if}} {{/if}}
+      </select>
+      <label for="native-labels">Local labels</label
+      ><select id="native-labels" name="labels" multiple>
+        {{#if nativeReset}}
+        <option id="label-a" value="a">Alpha</option>
+        <option id="label-b" value="b" selected>Beta</option>
+        {{else}}
+        <option id="label-a" value="a" selected>Alpha</option>
+        <option id="label-b" value="b">Beta</option>
+        {{/if}}
+        <option id="label-c" value="c">Gamma</option>
+      </select>
+      <label for="native-flag">Local flag</label>{{#if nativeReset}}<input
+        id="native-flag"
+        type="checkbox"
+        name="flag"
+        checked
+      />{{else}}<input id="native-flag" type="checkbox" name="flag" />{{/if}}
+      <fieldset>
+        <legend>Local tone</legend>
+        <label for="tone-a">Tone A</label>{{#if nativeReset}}<input
+          id="tone-a"
+          type="radio"
+          name="tone"
+          value="a"
+        />{{else}}<input
+          id="tone-a"
+          type="radio"
+          name="tone"
+          value="a"
+          checked
+        />{{/if}} <label for="tone-b">Tone B</label>{{#if nativeReset}}<input
+          id="tone-b"
+          type="radio"
+          name="tone"
+          value="b"
+          checked
+        />{{else}}<input
+          id="tone-b"
+          type="radio"
+          name="tone"
+          value="b"
+        />{{/if}}
+      </fieldset>
+      <label for="native-file">Local attachment selection</label
+      ><input id="native-file" type="file" name="attachment" />
+      <button type="reset">Reset local form</button>
+    </form>
+    <fieldset>
+      <legend>Unassociated native choices</legend>
+      <p>These controls have no form owner; they share a native radio group.</p>
+      <label for="ownerless-a">Unassociated A</label>{{#if nativeReset}}<input
+        id="ownerless-a"
+        type="radio"
+        name="ownerless-choice"
+        form="unavailable-form-a"
+        value="a"
+        checked
+      />{{else}}<input
+        id="ownerless-a"
+        type="radio"
+        name="ownerless-choice"
+        form="unavailable-form-a"
+        value="a"
+      />{{/if}} <label for="ownerless-b">Unassociated B</label
+      ><input
+        id="ownerless-b"
+        type="radio"
+        name="ownerless-choice"
+        form="unavailable-form-b"
+        value="b"
+      />
+    </fieldset>
+    <button type="button" nv:click="reorderNativeOptions">
+      Reorder local options
+    </button>
+    <button type="button" nv:click="resetNativeDefaults">
+      Change server defaults
+    </button>
   </section>
   <div id="local-widget" nv:ignore="">
     <label for="local-note">Independent local note</label

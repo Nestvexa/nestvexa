@@ -46,6 +46,15 @@ export interface LiveClient {
 }
 type Field = string | number | boolean;
 const componentOwners = new WeakMap<Element, symbol>();
+const markerAttributes = new Set([
+  'data-nv-component',
+  'data-nv-name',
+  'data-nv-endpoint',
+  'data-nv-csrf',
+  'data-nv-snapshot',
+  'data-nv-revision',
+  'data-nv-state',
+]);
 interface Component {
   readonly root: Element;
   readonly id: string;
@@ -55,6 +64,7 @@ interface Component {
   snapshot: string;
   revision: number;
   values: Readonly<Record<string, unknown>>;
+  readonly markers: Map<string, string | null>;
   readonly dirty: Map<string, { value: Field; version: number }>;
   readonly invalid: Map<Element, string>;
   fieldVersion: number;
@@ -87,6 +97,11 @@ function ignored(element: Element, component: Element): boolean {
   return false;
 }
 function validateDirectives(component: Element): void {
+  if (component.hasAttribute('nv:ignore'))
+    throw new LiveClientError(
+      'DIRECTIVE',
+      'nv:ignore cannot own the Live component root',
+    );
   validateLoading(component);
   validateReplacement(component, component);
   for (const element of owned(component)) {
@@ -147,6 +162,17 @@ function selection(element: Element | null): {
     end: field.selectionEnd,
     direction: field.selectionDirection ?? 'none',
   };
+}
+function controlSignature(element: Element): string {
+  return JSON.stringify([
+    element.tagName,
+    element.tagName === 'INPUT'
+      ? (element as HTMLInputElement).type
+      : element.tagName === 'SELECT'
+        ? (element as HTMLSelectElement).multiple
+        : null,
+    getModelDirective(element)?.cast,
+  ]);
 }
 
 /** Explicit, idempotent browser startup. Importing this module does not touch DOM globals. */
@@ -231,19 +257,79 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     state.active = false;
     state.request?.abort();
     loading.restore(state.root);
+    state.root.removeAttribute('aria-busy');
     components.delete(state.root);
     if (componentOwners.get(state.root) === ownership)
       componentOwners.delete(state.root);
   }
-  function beforeRemove(node: Node): void {
-    if (!(node instanceof window.Element)) return;
+  function cancelSubtree(node: Element): void {
     dispatcher?.cancel(node);
     direct.remove(node);
     for (const element of [node, ...node.querySelectorAll('*')])
       models.cancel(element);
-    for (const state of components.values())
-      if (node === state.root || node.contains(state.root))
+  }
+  function releaseSubtree(node: Element, reject: boolean): void {
+    cancelSubtree(node);
+    for (const state of [...components.values()])
+      if (node === state.root || node.contains(state.root)) {
+        if (reject) rejected.add(state.root);
         releaseComponent(state);
+      }
+  }
+  function validMarker(state: Component): boolean {
+    return [...state.markers].every(
+      ([name, value]) => state.root.getAttribute(name) === value,
+    );
+  }
+  function usable(state: Component): boolean {
+    if (!mounted || !state.active) return false;
+    if (!contains(state.root)) {
+      releaseSubtree(state.root, false);
+      return false;
+    }
+    if (state.root.closest('[data-nv-island]')) {
+      releaseSubtree(state.root, true);
+      return false;
+    }
+    if (state.root.hasAttribute('nv:ignore') || !validMarker(state)) {
+      releaseSubtree(state.root, true);
+      report(
+        new LiveClientError(
+          'MARKER',
+          'Live component marker changed; reload or reconcile authoritative server state before remounting',
+        ),
+        state.root,
+      );
+      return false;
+    }
+    for (
+      let parent = state.root.parentElement;
+      parent;
+      parent = parent.parentElement
+    ) {
+      const ancestor = components.get(parent);
+      if (ancestor && !usable(ancestor)) return false;
+    }
+    return state.active;
+  }
+  function registeredScope(element: Element): Component | undefined {
+    for (
+      let current: Element | null = element;
+      current;
+      current = current.parentElement
+    ) {
+      // A removed marker must not redirect a child's calls to its live ancestor.
+      if (rejected.has(current)) return undefined;
+      const state = components.get(current);
+      if (state) return usable(state) ? state : undefined;
+      if (current.hasAttribute('data-nv-component') || current === root)
+        return undefined;
+    }
+    return undefined;
+  }
+  function beforeRemove(node: Node): void {
+    if (!(node instanceof window.Element)) return;
+    releaseSubtree(node, false);
     node.dispatchEvent(
       new window.CustomEvent('nestvexa:before-remove', { bubbles: true }),
     );
@@ -258,10 +344,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     dispatcher?.prune(root);
     models.prune(root);
     loading.prune();
-    for (const [element, state] of components)
-      if (!contains(element)) {
-        releaseComponent(state);
-      }
+    for (const state of [...components.values()]) usable(state);
     const markers = [...root.querySelectorAll('[data-nv-component]')];
     if (
       root.nodeType === 1 &&
@@ -340,6 +423,12 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
             csrf,
             revision: Number(revision),
             values: values as Record<string, unknown>,
+            markers: new Map(
+              [...markerAttributes].map((name) => [
+                name,
+                element.getAttribute(name),
+              ]),
+            ),
             endpoint: endpoint.href.replace(/\/$/, ''),
             dirty: new Map(),
             invalid: new Map(),
@@ -367,7 +456,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     }
   }
   async function invoke(state: Component, action: string): Promise<void> {
-    if (!state.active || !mounted || !contains(state.root)) return;
+    if (!usable(state)) return;
     for (const [element] of state.invalid)
       if (!contains(element) || owner(element) !== state.root)
         state.invalid.delete(element);
@@ -419,7 +508,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           'Live response exceeds size limit',
         );
       const result = parseLiveResponse(JSON.parse(text) as unknown);
-      if (!state.active || !mounted || !contains(state.root)) return;
+      if (!usable(state)) return;
       if (
         result.requestId !== requestId ||
         result.component.id !== state.id ||
@@ -464,12 +553,18 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         : null;
       const caret = selection(focused);
       const scroll = { top: state.root.scrollTop, left: state.root.scrollLeft };
-      const previousControls = new Map<string, Element[]>();
+      const previousControls = new Map<
+        string,
+        { element: Element; signature: string }[]
+      >();
       for (const element of owned(state.root)) {
         const model = getModelDirective(element);
-        if (model && state.dirty.has(model.field)) {
+        if (
+          model &&
+          (state.dirty.has(model.field) || state.invalid.has(element))
+        ) {
           const controls = previousControls.get(model.field) ?? [];
-          controls.push(element);
+          controls.push({ element, signature: controlSignature(element) });
           previousControls.set(model.field, controls);
         }
       }
@@ -478,16 +573,19 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         beforeRemove,
         afterInsert,
       });
-      for (const [field, controls] of previousControls)
-        if (
-          !controls.some(
-            (element) =>
-              element.isConnected &&
-              owner(element) === state.root &&
-              getModelDirective(element)?.field === field,
-          )
-        )
-          state.dirty.delete(field);
+      for (const [field, controls] of previousControls) {
+        let survives = false;
+        for (const { element, signature } of controls) {
+          const retained =
+            element.isConnected &&
+            owner(element) === state.root &&
+            getModelDirective(element)?.field === field &&
+            controlSignature(element) === signature;
+          if (retained) survives = true;
+          else state.invalid.delete(element);
+        }
+        if (!survives) state.dirty.delete(field);
+      }
       for (const [element] of state.invalid)
         if (!element.isConnected || owner(element) !== state.root)
           state.invalid.delete(element);
@@ -516,12 +614,17 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       for (const [key, field] of sent)
         if (state.dirty.get(key)?.version === field.version)
           state.dirty.delete(key);
+      if (!usable(state)) return;
       state.snapshot = result.snapshot;
       state.revision = result.component.revision;
       state.values = result.state;
       refreshBindings(state);
       busy(state);
-      state.root.setAttribute('data-nv-state', JSON.stringify(result.state));
+      const encodedState = JSON.stringify(result.state);
+      state.markers.set('data-nv-state', encodedState);
+      state.markers.set('data-nv-snapshot', result.snapshot);
+      state.markers.set('data-nv-revision', String(state.revision));
+      state.root.setAttribute('data-nv-state', encodedState);
       state.root.setAttribute('data-nv-snapshot', result.snapshot);
       state.root.setAttribute('data-nv-revision', String(state.revision));
       discover();
@@ -588,8 +691,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       ('isComposing' in event && event.isComposing)
     )
       return;
-    const component = owner(element);
-    const state = component ? components.get(component) : undefined;
+    const state = registeredScope(element);
     if (!state || ignored(element, state.root)) return;
     try {
       const directive = getModelDirective(element);
@@ -650,9 +752,9 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     | { element: Element; attribute: string; directive: EventDirective }
     | undefined {
     const origin = target(event);
-    const scope = origin ? owner(origin) : null;
-    if (!origin || !scope || !components.has(scope) || ignored(origin, scope))
-      return;
+    const state = origin ? registeredScope(origin) : undefined;
+    const scope = state?.root;
+    if (!origin || !scope || ignored(origin, scope)) return;
     let element: Element | null = origin;
     while (element && contains(element)) {
       const attribute = [...element.attributes].find(
@@ -709,9 +811,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     }
   }
   function componentFor(element: Element): Component {
-    const parent = owner(element);
-    const state = parent ? components.get(parent) : undefined;
-    if (!mounted || !state?.active || !contains(state.root))
+    const state = registeredScope(element);
+    if (!state)
       throw new LiveClientError(
         'MARKER',
         'Element is not owned by an active Live client',
@@ -786,7 +887,12 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       mounted = true;
       dispatcher = createEventDispatcher({
         invoke: (element, action) =>
-          schedule(componentFor(element), action, element.tagName === 'FORM'),
+          // The component queue reports transport errors once and suppresses released work.
+          schedule(
+            componentFor(element),
+            action,
+            element.tagName === 'FORM',
+          ).catch(() => undefined),
         onError: (error, element) => report(error, element),
       });
       discover();
@@ -804,7 +910,9 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           mutations.some(
             (mutation) =>
               mutation.type === 'childList' ||
-              mutation.attributeName?.startsWith('nv:'),
+              mutation.attributeName?.startsWith('nv:') ||
+              markerAttributes.has(mutation.attributeName ?? '') ||
+              mutation.attributeName === 'data-nv-island',
           )
         )
           discover();

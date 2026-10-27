@@ -59,7 +59,31 @@ class Counter {
   @State({ writable: true }) nickname = '';
   @State({ writable: true }) quantity = 1;
   @State({ writable: true }) enabled = false;
-  @State({ writable: true }) color = 'red';
+  @State({
+    writable: true,
+    validate: (value) =>
+      typeof value === 'string' && ['red', 'blue', 'green'].includes(value),
+  })
+  color = 'red';
+  @State() allowGreen = false;
+  @State() nativeNote = 'Server default';
+  @State() nativeMemo = 'Server memo';
+  @State() nativeChoice = 'low';
+  @State() nativeReset = false;
+  @State() nativeReverse = false;
+  @Action() reorderNativeOptions(): void {
+    this.nativeReverse = !this.nativeReverse;
+  }
+  @Action() resetNativeDefaults(): void {
+    this.nativeNote = 'New server default';
+    this.nativeMemo = 'New server memo';
+    this.nativeChoice = 'high';
+    this.nativeReset = true;
+  }
+  @Action() enableColorChoice(): void {
+    this.allowGreen = true;
+    this.color = 'green';
+  }
   @State() saved = '';
   @State() visible = true;
   @State() healthLink = '/api/health';
@@ -162,6 +186,11 @@ class PageController {
   loading() {
     return readFile(new URL('./loading.js', clientEntry), 'utf8');
   }
+  @Get('assets/control-state.js')
+  @Header('Content-Type', 'text/javascript; charset=utf-8')
+  controlState() {
+    return readFile(new URL('./control-state.js', clientEntry), 'utf8');
+  }
   @Get('assets/alpine.js')
   @Header('Content-Type', 'text/javascript; charset=utf-8')
   alpine() {
@@ -224,6 +253,9 @@ class LiveRendererLifecycle {
           'slow',
           'toggleVisible',
           'toggleInputType',
+          'reorderNativeOptions',
+          'resetNativeDefaults',
+          'enableColorChoice',
         ].includes(action),
     }),
   ],

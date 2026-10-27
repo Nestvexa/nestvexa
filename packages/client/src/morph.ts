@@ -1,5 +1,6 @@
 import { LiveClientError } from './protocol.js';
-import { modelField } from './models.js';
+import { createControlMorph } from './control-state.js';
+import type { ControlMorph } from './control-state.js';
 
 export function boundary(element: Element): boolean {
   return (
@@ -142,7 +143,9 @@ export function morphChildren(
 ): void {
   validateKeys(parent, 'existing');
   validateKeys(incoming, 'incoming');
-  patchChildren(parent, incoming, dirty, lifecycle);
+  const controls = createControlMorph(parent, incoming, dirty);
+  patchChildren(parent, incoming, dirty, lifecycle, controls);
+  controls.restore();
 }
 function remove(node: Node, lifecycle: MorphLifecycle): void {
   if (!node.parentNode) return;
@@ -172,6 +175,7 @@ function patchChildren(
   incoming: Element | DocumentFragment,
   dirty: ReadonlyMap<string, unknown>,
   lifecycle: MorphLifecycle,
+  controls: ControlMorph,
 ): void {
   const originals = [...parent.childNodes];
   const keyed = new Map<string, Node>();
@@ -208,7 +212,7 @@ function patchChildren(
       } else {
         current = candidate;
         if (current !== cursor) parent.insertBefore(current, cursor);
-        morphNode(current, next, dirty, lifecycle);
+        morphNode(current, next, dirty, lifecycle, controls);
       }
     } else if (candidate && !retained.has(candidate)) {
       const insertionPoint =
@@ -231,6 +235,7 @@ function morphNode(
   next: Node,
   dirty: ReadonlyMap<string, unknown>,
   lifecycle: MorphLifecycle,
+  controls: ControlMorph,
 ): void {
   if (current.nodeType !== 1 || next.nodeType !== 1) {
     if (current.nodeValue !== next.nodeValue)
@@ -240,14 +245,7 @@ function morphNode(
   const element = current as Element;
   const replacement = next as Element;
   if (boundary(element)) return;
-  const model = modelField(element);
-  const retainValue =
-    (model !== undefined && dirty.has(model)) ||
-    element.hasAttribute('contenteditable');
-  const selected =
-    element.tagName === 'SELECT'
-      ? (element as HTMLSelectElement).value
-      : undefined;
+  controls.prepare(element, replacement);
   for (const attribute of [...element.attributes])
     if (!replacement.hasAttribute(attribute.name))
       element.removeAttribute(attribute.name);
@@ -258,27 +256,8 @@ function morphNode(
     replaceChildren(element, replacement, lifecycle);
     return;
   }
-  if (element.tagName === 'INPUT') {
-    const input = element as HTMLInputElement;
-    const nextInput = replacement as HTMLInputElement;
-    if (input.type !== 'file' && !retainValue) {
-      input.value = nextInput.value;
-      input.checked = nextInput.checked;
-    }
+  if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') return;
+  if ('isContentEditable' in element && element.isContentEditable === true)
     return;
-  }
-  if (element.tagName === 'TEXTAREA') {
-    if (!retainValue)
-      (element as HTMLTextAreaElement).value = (
-        replacement as HTMLTextAreaElement
-      ).value;
-    return;
-  }
-  if (element.hasAttribute('contenteditable')) return;
-  patchChildren(element, replacement, dirty, lifecycle);
-  if (element.tagName === 'SELECT')
-    (element as HTMLSelectElement).value =
-      retainValue && selected !== undefined
-        ? selected
-        : (replacement as HTMLSelectElement).value;
+  patchChildren(element, replacement, dirty, lifecycle, controls);
 }

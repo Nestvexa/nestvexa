@@ -19,13 +19,13 @@
       "id": 2,
       "state": "InProgress",
       "scope": "Live protocol, opaque state store, generated routes, registration ownership, authorized model synchronization and pure writable-state validation",
-      "remaining": "October27 rendering host checkpoint passed447 aggregate/60 browser checks plus pack/docs/audit; isolated Node22.23.4 and24.22.1 each passed strict compilation and447 tests. Historical model379/48 results remain distinct. Full security, protocol, lifecycle and compatibility acceptance remains open"
+      "remaining": "October 27 native/ownership host checkpoint passed 511 aggregate/75 browser checks plus seven packages in two external npm/pnpm consumers, docs, audit and size; release check correctly fails. Windows Node 22.23.4 and 24.22.1 each passed strict compilation and all 511 aggregate tests. Historical rendering 447/60 remains distinct. Full security, protocol, lifecycle, Linux and compatibility acceptance remains open"
     },
     {
       "id": 3,
       "state": "InProgress",
-      "scope": "Initial directives, queued transport, keyed morph, CSP Alpine bridge, event/model modifiers, targeted loading and explicit replacement/removal lifecycle",
-      "remaining": "Complete host rendering checkpoint passed447 aggregate/60 browser checks, including38 loading/18 replacement/12 rendering-lifecycle tests and a fixed input-type/caret regression. Isolated Node22/24 strict compilation and447 tests passed. Complete input/modifier/cleanup/concurrency/accessibility matrix, full nested-server/island lifecycle and automatic default bootstrap remain open"
+      "scope": "Initial directives, queued transport, keyed morph, CSP Alpine bridge, event/model modifiers, targeted loading/replacement, native default/value reconciliation and registration ownership",
+      "remaining": "Full native/ownership host checkpoint passed 511 aggregate/75 browser checks, including 39 native-control and 25 ownership Chromium regressions and 15 new actual Nest browser checks. Seven packages passed in two external npm/pnpm consumers; Windows Node 22.23.4 and 24.22.1 each passed strict compilation and 511 aggregate tests without repeating the full three-browser server/consumer matrix. Historical rendering 447/60 remains distinct. Complete input/modifier/cleanup/concurrency/accessibility matrix, cross-owner native radio isolation, full nested-server/island lifecycle and automatic default bootstrap remain open"
     },
     {
       "id": 4,
