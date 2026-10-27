@@ -66,6 +66,11 @@ async function packPackages() {
     // Missing build output is a failure, never an excuse to silently omit a package.
     await access(join(cwd, 'dist/index.js'));
     await copyFile('LICENSE', join(cwd, 'LICENSE'));
+    if (manifest.name === 'nestvexa')
+      await copyFile(
+        'THIRD_PARTY_NOTICES.md',
+        join(cwd, 'THIRD_PARTY_NOTICES.md'),
+      );
     command(['pack', '--pack-destination', directory], cwd);
     const tarball = join(
       directory,
@@ -85,6 +90,9 @@ async function packPackages() {
       'package/LICENSE',
       'package/dist/index.js',
       'package/dist/index.d.ts',
+      ...(manifest.name === 'nestvexa'
+        ? ['package/THIRD_PARTY_NOTICES.md']
+        : []),
     ]) {
       if (!contents.includes(required))
         throw new Error(tarball + ' missing ' + required);
@@ -98,6 +106,9 @@ async function packPackages() {
     report.packages.push({
       name: manifest.name,
       version: manifest.version,
+      entryPoints: Object.keys(manifest.exports).map((key) =>
+        key === '.' ? manifest.name : manifest.name + key.slice(1),
+      ),
       tarball,
       sha256: createHash('sha256')
         .update(await readFile(tarball))
@@ -107,11 +118,17 @@ async function packPackages() {
   }
 }
 
-async function consume(manager) {
+async function consume(manager, profile) {
   const consumer = await mkdtemp(
-    join(tmpdir(), 'nestvexa-' + manager + '-consumer-'),
+    join(tmpdir(), 'nestvexa-' + manager + '-' + profile + '-consumer-'),
   );
-  const entry = { manager, directory: consumer, passed: false, commands: [] };
+  const entry = {
+    manager,
+    profile,
+    directory: consumer,
+    passed: false,
+    commands: [],
+  };
   report.consumers.push(entry);
   const localPackages = Object.fromEntries(
     report.packages.map((p) => [
@@ -120,7 +137,9 @@ async function consume(manager) {
     ]),
   );
   const dependencies = {
-    ...localPackages,
+    ...(profile === 'minimal'
+      ? { nestvexa: localPackages['nestvexa'] }
+      : localPackages),
     '@nestjs/common': '12.2.0',
     '@nestjs/core': '12.2.0',
     '@nestjs/platform-express': '12.2.0',
@@ -128,7 +147,7 @@ async function consume(manager) {
     rxjs: '7.8.2',
   };
   const manifest = {
-    name: 'nestvexa-' + manager + '-pack-consumer',
+    name: 'nestvexa-' + manager + '-' + profile + '-pack-consumer',
     private: true,
     type: 'module',
     dependencies,
@@ -138,7 +157,10 @@ async function consume(manager) {
       : {
           overrides: {
             ...Object.fromEntries(
-              Object.keys(localPackages).map((name) => [name, '$' + name]),
+              Object.entries(localPackages).map(([name, tarball]) => [
+                name,
+                Object.hasOwn(dependencies, name) ? '$' + name : tarball,
+              ]),
             ),
             multer: '2.5.0',
           },
@@ -149,7 +171,11 @@ async function consume(manager) {
     JSON.stringify(manifest, null, 2),
   );
   await copyFile(
-    join(root, 'tests/pack-consumers/consumer.ts'),
+    join(
+      root,
+      'tests/pack-consumers',
+      profile === 'minimal' ? 'assets.ts' : 'consumer.ts',
+    ),
     join(consumer, 'consumer.ts'),
   );
   await copyFile(
@@ -217,8 +243,11 @@ async function consume(manager) {
   // All public package entries, including optional adapters, must be safe to import in Node.
   await writeFile(
     join(consumer, 'imports.mjs'),
-    report.packages
-      .map((p) => 'await import(' + JSON.stringify(p.name) + ');')
+    (profile === 'minimal'
+      ? ['nestvexa', 'nestvexa/assets']
+      : report.packages.flatMap((p) => p.entryPoints)
+    )
+      .map((name) => 'await import(' + JSON.stringify(name) + ');')
       .join('\n'),
   );
   const imports = spawnSync(process.execPath, ['imports.mjs'], {
@@ -240,18 +269,19 @@ async function consume(manager) {
         imports.stderr,
     );
   entry.passed = true;
-  console.log(manager + ': ' + smoke.stdout.trim());
+  console.log(manager + ' ' + profile + ': ' + smoke.stdout.trim());
 }
 
 await mkdir('artifacts/reports', { recursive: true });
 try {
   await packPackages();
-  for (const manager of ['pnpm', 'npm']) await consume(manager);
+  for (const manager of ['pnpm', 'npm'])
+    for (const profile of ['full', 'minimal']) await consume(manager, profile);
   report.passed = true;
   console.log(
     'Inspected ' +
       report.packages.length +
-      ' tarballs; npm and pnpm strict TypeScript + actual Nest MVC/Live consumers passed.',
+      ' tarballs; npm/pnpm full MVC/Live and minimal umbrella-only asset consumers passed.',
   );
 } catch (error) {
   report.error =

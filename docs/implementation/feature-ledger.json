@@ -3470,15 +3470,41 @@
       "requirement": "- `AssetManager` — manifest/entry resolution/SRI when appropriate/hydration scripts/CSP.",
       "id": "CORE-045",
       "priority": "P1",
-      "package": "@nestvexa/core",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "package": "nestvexa/assets (adapter; core remains renderer-independent)",
+      "implementationFiles": [
+        "packages/nestvexa/src/assets.ts",
+        "packages/nestvexa/src/asset-catalog.ts",
+        "packages/nestvexa/package.json"
+      ],
+      "testFiles": [
+        "tests/assets.test.ts",
+        "tests/contracts.test.ts",
+        "tests/browser/assets.spec.ts",
+        "tests/pack-consumers/assets.ts",
+        "scripts/pack.mjs"
+      ],
+      "docs": [
+        "docs/guides/client-assets.md",
+        "packages/nestvexa/README.md",
+        "THIRD_PARTY_NOTICES.md"
+      ],
+      "examples": [
+        "examples/live-counter/src/main.ts"
+      ],
+      "securityNotes": " Explicit app-local allowlisted installed asset snapshots; native Nest version-neutral routes preserve the host pipeline. Hash URLs identify code for caching and never authorize actions. No request-driven filesystem resolution or automatic runtime startup.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-27T19:05:15.493Z",
+          "report": "docs/implementation/asset-hosting-checkpoint-evidence-2026-10-27.json",
+          "scope": "Partial explicit asset hosting:703 aggregate tests including 71 asset cases,105 Chromium/Firefox/WebKit checks, seven tarballs in four external full/minimal npm/pnpm strict-TypeScript and real Nest consumers. Minimal consumers install only nestvexa and Nest peers and fetch all 15 approved assets. Full compound acceptance remains open; releaseReady is false. Fresh isolated Windows Node 22.23.4 and 24.22.1 each passed strict compilation and 703 tests without repeating the complete three-browser server or four-consumer matrix."
+        }
+      ],
+      "outstandingIssues": [
+        "SRI, full asset/Vite/CDN/deployment/HMR/renderer matrix, automatic Live/Alpine bootstrap and full compound phase acceptance remain open."
+      ]
     },
     {
       "sourceKey": "f52c134c92acc48c4efd0deda94d5b1f51e6ade96d697b8cc5e714d0ae48f30f",
@@ -14185,26 +14211,47 @@
       "package": "cross-package",
       "implementationFiles": [
         "packages/nestvexa/src/index.ts",
-        "packages/engine-hbs/src/index.ts"
+        "packages/engine-hbs/src/index.ts",
+        "packages/nestvexa/src/assets.ts",
+        "packages/nestvexa/src/asset-catalog.ts",
+        "packages/nestvexa/package.json"
       ],
       "testFiles": [
         "tests/core.test.ts",
         "tests/views.test.ts",
-        "tests/integration.test.ts"
+        "tests/integration.test.ts",
+        "tests/assets.test.ts",
+        "tests/contracts.test.ts",
+        "tests/browser/assets.spec.ts",
+        "tests/pack-consumers/assets.ts",
+        "scripts/pack.mjs"
       ],
       "docs": [
         "docs/implementation/STATUS.md",
         "docs/architecture/upstream-compatibility.md",
-        "README.md"
+        "README.md",
+        "docs/guides/client-assets.md",
+        "packages/nestvexa/README.md",
+        "THIRD_PARTY_NOTICES.md"
       ],
       "examples": [
-        "examples/starter-hbs/src/main.ts"
+        "examples/starter-hbs/src/main.ts",
+        "examples/live-counter/src/main.ts"
       ],
-      "securityNotes": "Phase work has started. These source links are partial evidence only; no phase exit gate is accepted.",
+      "securityNotes": "Phase work has started. These source links are partial evidence only; no phase exit gate is accepted. Explicit app-local allowlisted installed asset snapshots; native Nest version-neutral routes preserve the host pipeline. Hash URLs identify code for caching and never authorize actions. No request-driven filesystem resolution or automatic runtime startup.",
       "state": "InProgress",
-      "validationEvidence": [],
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-27T19:05:15.493Z",
+          "report": "docs/implementation/asset-hosting-checkpoint-evidence-2026-10-27.json",
+          "scope": "Partial explicit asset hosting:703 aggregate tests including 71 asset cases,105 Chromium/Firefox/WebKit checks, seven tarballs in four external full/minimal npm/pnpm strict-TypeScript and real Nest consumers. Minimal consumers install only nestvexa and Nest peers and fetch all 15 approved assets. Full compound acceptance remains open; releaseReady is false. Fresh isolated Windows Node 22.23.4 and 24.22.1 each passed strict compilation and 703 tests without repeating the complete three-browser server or four-consumer matrix."
+        }
+      ],
       "outstandingIssues": [
-        "Complete every clause, required platform/negative/browser/pack checks and recorded validation evidence before Done."
+        "Complete every clause, required platform/negative/browser/pack checks and recorded validation evidence before Done.",
+        "SRI, full asset/Vite/CDN/deployment/HMR/renderer matrix, automatic Live/Alpine bootstrap and full compound phase acceptance remain open."
       ]
     },
     {
@@ -14325,26 +14372,47 @@
       "package": "cross-package",
       "implementationFiles": [
         "packages/nestvexa/src/index.ts",
-        "packages/engine-hbs/src/index.ts"
+        "packages/engine-hbs/src/index.ts",
+        "packages/nestvexa/src/assets.ts",
+        "packages/nestvexa/src/asset-catalog.ts",
+        "packages/nestvexa/package.json"
       ],
       "testFiles": [
         "tests/core.test.ts",
         "tests/views.test.ts",
-        "tests/integration.test.ts"
+        "tests/integration.test.ts",
+        "tests/assets.test.ts",
+        "tests/contracts.test.ts",
+        "tests/browser/assets.spec.ts",
+        "tests/pack-consumers/assets.ts",
+        "scripts/pack.mjs"
       ],
       "docs": [
         "docs/implementation/STATUS.md",
         "docs/architecture/upstream-compatibility.md",
-        "README.md"
+        "README.md",
+        "docs/guides/client-assets.md",
+        "packages/nestvexa/README.md",
+        "THIRD_PARTY_NOTICES.md"
       ],
       "examples": [
-        "examples/starter-hbs/src/main.ts"
+        "examples/starter-hbs/src/main.ts",
+        "examples/live-counter/src/main.ts"
       ],
-      "securityNotes": "Phase work has started. These source links are partial evidence only; no phase exit gate is accepted.",
+      "securityNotes": "Phase work has started. These source links are partial evidence only; no phase exit gate is accepted. Explicit app-local allowlisted installed asset snapshots; native Nest version-neutral routes preserve the host pipeline. Hash URLs identify code for caching and never authorize actions. No request-driven filesystem resolution or automatic runtime startup.",
       "state": "InProgress",
-      "validationEvidence": [],
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-27T19:05:15.493Z",
+          "report": "docs/implementation/asset-hosting-checkpoint-evidence-2026-10-27.json",
+          "scope": "Partial explicit asset hosting:703 aggregate tests including 71 asset cases,105 Chromium/Firefox/WebKit checks, seven tarballs in four external full/minimal npm/pnpm strict-TypeScript and real Nest consumers. Minimal consumers install only nestvexa and Nest peers and fetch all 15 approved assets. Full compound acceptance remains open; releaseReady is false. Fresh isolated Windows Node 22.23.4 and 24.22.1 each passed strict compilation and 703 tests without repeating the complete three-browser server or four-consumer matrix."
+        }
+      ],
       "outstandingIssues": [
-        "Complete every clause, required platform/negative/browser/pack checks and recorded validation evidence before Done."
+        "Complete every clause, required platform/negative/browser/pack checks and recorded validation evidence before Done.",
+        "SRI, full asset/Vite/CDN/deployment/HMR/renderer matrix, automatic Live/Alpine bootstrap and full compound phase acceptance remain open."
       ]
     },
     {

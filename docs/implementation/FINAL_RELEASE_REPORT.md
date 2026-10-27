@@ -1,6 +1,6 @@
 # Release checkpoint report — 2026-10-27
 
-**A. Status: NOT YET READY — BLOCKERS.** This is an interim report, not Phase 17 acceptance. The [925-unit ledger](feature-ledger.md) records **93 InProgress, 832 Pending and 0 Done**. No complete phase is accepted. The native-reset host checkpoint passed 631 aggregate/102 browser checks and packed consumers. The [saved reset summary](form-reset-checkpoint-evidence-2026-10-27.json) records its evidence. Historical transport 597/93, self-ignore 558/84, native 511/75 and rendering 447/60 remain separate below. Calendar dates follow Africa/Cairo and verification timestamps use UTC.
+**A. Status: NOT YET READY — BLOCKERS.** This is an interim report, not Phase 17 acceptance. The [925-unit ledger](feature-ledger.md) records **94 InProgress, 831 Pending and 0 Done**. No complete phase is accepted. The asset-hosting host checkpoint passed 703 aggregate/105 browser checks and four full/minimal packed consumers. The [saved asset summary](asset-hosting-checkpoint-evidence-2026-10-27.json) records its evidence. Historical reset631/102, transport597/93, self-ignore558/84, native511/75 and rendering447/60 remain separate below. Calendar dates follow Africa/Cairo and verification timestamps use UTC.
 
 ## B. What exists
 
@@ -22,7 +22,30 @@ The transport slice adds `requestTimeoutMs`, a dispatch-to-body browser deadline
 
 Native reset now reconciles actual defaults into owned primitive model drafts, previews and dirty state. It cancels affected model timers, uses new field versions across pending responses and preserves canceled resets. Invalid defaults, conflicting aliases and cross-owner radio reset groups reject before native reset; late unrepresentable values suspend transport. A single task fallback handles native button event timing and clears on disposal. Reset is local, does not automatically dispatch synchronization and does not authorize later server writes. The full forms package remains unimplemented.
 
+The explicit asset host replaces the example's per-file controllers with an application-local immutable catalog and content-hash manifest. `nestvexa/assets` serves approved client, Alpine bridge and Alpine CSP code through ordinary version-neutral Nest handlers. It supports conditional GET/HEAD and excludes source maps, declarations and arbitrary filesystem paths. Successful responses use immutable caching; failed lookups retain a no-store baseline. The umbrella declares its browser dependencies, while the host still owns sessions, Live authorization, startup and CSP. The full automatic bootstrap remains incomplete.
+
 ## C. Evidence
+
+The complete asset-hosting runner started at **2026-10-27T19:05:15.493Z** on Windows/Node 24.13.0 and passed **703/703 aggregate tests**, including **71 asset cases**, with 0 pending, plus **105/105 browser checks** from 35 scenarios across Chromium/Firefox/WebKit. No skipped/flaky/unexpected results or browser runner errors were reported. Frozen install, formatting, lint, strict typecheck/build, selected coverage, size, pack, docs, ledger, benchmark and audit exited 0. `release:check` correctly exited 1 with `releaseReady:false`. The [asset snapshot](asset-hosting-checkpoint-evidence-2026-10-27.json) preserves report timings, tarball inventories and hashes.
+
+| Asset-hosting command/report  | Observed result and scope                                                                                                           |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm test` / `pnpm test:e2e` | 703 aggregate and 105 three-browser passes; no pending/skipped/flaky/unexpected results                                             |
+| `pnpm test:pack`              | Seven tarballs; four full/minimal npm/pnpm external strict-TypeScript and real Nest consumers; **2026-10-27T19:09:09.215Z**         |
+| Minimal consumers             | Direct dependencies contain only `nestvexa` and host Nest peers; all 15 approved modules served without workspace resolution        |
+| `pnpm size:check`             | **125,282 raw / 32,275 summed gzip bytes**, 13 custom Live modules; below 35,840 excluding Alpine/maps; not wire compression        |
+| Coverage                      | **97.18% branches / 98.20% statements** over only three config/protocol/store files; not asset/runtime/client/project-wide coverage |
+| Docs and audit                | 40 linked snapshots; no known audit vulnerabilities, without independent security approval                                          |
+| Cached HBS microbenchmark     | **2026-10-27T19:11:01.892Z**, 1,000 iterations: p50 **0.1735ms**, p95 **0.2456ms**, p99 **0.2922ms**                                |
+| Release gate                  | Exit 1; mandatory master features and full release matrices remain blocking                                                         |
+
+The benchmark ran before isolated runtime checks on Windows/i7-1165G7/Node 24.13.0. It is a cached HBS adapter measurement with no plain-Nest/application baseline or evidence of improvement across checkpoints.
+
+Internal review reproduced a conditional parser defect with **one selected failing test**: punctuation inside a valid quoted opaque ETag could become a wildcard. The initial expanded corpus passed **65/68**: two guard-header assertions misused an undefined value, while real Express HTTP behavior also reinterpreted a malformed list as 304 after the module parser rejected it. Corrected assertions, strict whole-list parsing and Nest's public `StreamableFile` response now pass both adapters without changing the malformed-header expectations. Two further pure cases reject trailing newlines. The final corpus is 71/71. Initial reports remain under `artifacts/reports/assets-etag-before.json` and `assets-initial.json`. A checkpoint attempt stopped at a contract-test syntax typo during formatting; it was corrected before the full pass. No suite or security assertion was disabled. Earlier focused package checks overlapped source/notice changes and are not substituted for the final complete runner.
+
+Fresh isolated Windows Node **22.23.4** at **2026-10-27T19:11:19.922Z** and **24.22.1** at **2026-10-27T19:12:50.709Z** each passed strict compilation and all **703 aggregate tests**, with 0 failures or pending cases. Both are captured in the asset summary. They include HTTP/Chromium DOM fixtures but do not repeat the full three-browser server or four-consumer package matrix under both binaries. Linux and complete release compatibility remain unverified.
+
+Historical reset and transport evidence follows with its original scope.
 
 The native-reset host checkpoint started at **2026-10-27T17:54:42.885Z** and passed **631/631 aggregate tests with 0 pending** and **102/102 browser checks** (34 scenarios across Chromium/Firefox/WebKit), with 0 skipped/flaky/unexpected results or runner errors. The [reset summary](form-reset-checkpoint-evidence-2026-10-27.json) preserves timings, report hashes and package inventories. Frozen install, formatting, lint, strict typecheck/build, selected coverage, size, pack consumers, docs, ledger, benchmark and audit exited 0. Release checking intentionally exited 1: `releaseReady:false`.
 
@@ -164,11 +187,11 @@ Further review after the initial 503/72 checkpoint found a radio-group defect: d
 
 ## D. Documentation
 
-Root [README](../../README.md), every package README, ten ADRs, architecture records, [Live protocol](../guides/live-protocol.md), [native controls/ownership](../guides/native-controls.md), [native reset](../guides/form-reset.md), [wrapper-only ignore](../guides/ignore-self.md), [request lifecycle](../guides/request-lifecycle.md), [hardening](../security/hardening.md), partial [ASVS mapping](../security/asvs-traceability.md), preliminary [security review](../security/security-design-review.md), community policies and [changelog](../../CHANGELOG.md) exist. The production docs website and guides for undelivered systems remain required work.
+Root [README](../../README.md), every package README, ten ADRs, architecture records, [Live protocol](../guides/live-protocol.md), [native controls/ownership](../guides/native-controls.md), [native reset](../guides/form-reset.md), [wrapper-only ignore](../guides/ignore-self.md), [request lifecycle](../guides/request-lifecycle.md), [client asset hosting/migration](../guides/client-assets.md), [third-party notices](../../THIRD_PARTY_NOTICES.md), [hardening](../security/hardening.md), partial [ASVS mapping](../security/asvs-traceability.md), preliminary [security review](../security/security-design-review.md), community policies and [changelog](../../CHANGELOG.md) exist. The production docs website and guides for undelivered systems remain required work.
 
 ## E. Artifacts
 
-Version 0.1.0-alpha.0 tarballs are under artifacts/packages. The [reset summary](form-reset-checkpoint-evidence-2026-10-27.json) preserves seven archives verified in two external npm/pnpm consumers at **2026-10-27T17:58:29.104Z**, including inventories and hashes. The historical [transport summary](transport-checkpoint-evidence-2026-10-27.json), [self-ignore summary](ignore-self-checkpoint-evidence-2026-10-27.json), [native summary](native-checkpoint-evidence-2026-10-27.json) and [rendering summary](rendering-checkpoint-evidence-2026-10-27.json) retain their original package evidence. Mutable reports/logs are under artifacts/reports; the reset host docs build produced 39 readable snapshots. No publication, SBOM, provenance attestation or approved release manifest is claimed.
+Version 0.1.0-alpha.0 tarballs are under artifacts/packages. The [asset summary](asset-hosting-checkpoint-evidence-2026-10-27.json) preserves seven archives verified in four external full/minimal npm/pnpm consumers at **2026-10-27T19:09:09.215Z**, including inventories, hashes and public entry points. The umbrella archive includes its third-party notice. The historical [reset summary](form-reset-checkpoint-evidence-2026-10-27.json), [transport summary](transport-checkpoint-evidence-2026-10-27.json), [self-ignore summary](ignore-self-checkpoint-evidence-2026-10-27.json), [native summary](native-checkpoint-evidence-2026-10-27.json) and [rendering summary](rendering-checkpoint-evidence-2026-10-27.json) retain their original package evidence. Mutable reports/logs are under artifacts/reports; the asset host docs build produced 40 readable snapshots. No publication, SBOM, provenance attestation or approved release manifest is claimed.
 
 ## F. Known issues and unmet gates
 
@@ -181,6 +204,8 @@ Loading effects and marker consistency checks do not authorize requests. Replace
 Self-ignore retains wrapper attributes only; descendants stay Live-owned, and the Alpine adapter still requires whole-ignore isolation. Native input/textarea/select/option/optgroup elements, editable wrappers and renderer roots cannot use `.self`. Retained wrapper directives cannot be reconfigured without replacement. Corrected host and isolated runtime checks pass for this slice; the full renderer, native-input, accessibility and platform matrices remain open.
 
 The browser deadline cannot preempt synchronous JavaScript or stop already-running server business work. A custom transport must release its own external resources. Bounded response bytes do not establish a process-wide memory guarantee. Uncertain failures require authoritative reconciliation rather than replaying queued mutations, even when a cancellation promise resolves. Corrected host and both isolated runtime checks pass; full transport/fault/platform acceptance remains open.
+
+Asset URLs are content-addressed snapshots, not a CDN retention or SRI solution. A restart does not retain earlier versions, so deployments must preserve old assets or reload old pages. Host middleware/interceptors/filters control final responses; public asset responses must remain free of private props/session material. Automatic runtime startup, Live registration and the complete production deployment matrix remain open.
 
 ## G. Owner release steps
 

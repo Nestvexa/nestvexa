@@ -47,6 +47,8 @@ The Node packages are ESM-only and use legacy TypeScript decorators with `experi
 
 The optional [@nestvexa/live](packages/live/README.md) package implements explicit generated Nest action routes and bound server-side state; [@nestvexa/client](packages/client/README.md) implements the corresponding browser transport and a small directive subset. They are separately registered rather than implicitly activated by the MVC distribution.
 
+The umbrella includes the client, Alpine adapter and CSP distribution dependencies. Explicit `NestvexaAssetsModule.register()` from `nestvexa/assets` serves their approved modules through content-addressed URLs; the [asset guide](docs/guides/client-assets.md) replaces per-module route boilerplate. Hosts still own browser startup, sessions and Live registration. The core kernel remains independent of browser renderers.
+
 The [@nestvexa/alpine](packages/alpine/README.md) adapter supplies `$live.call/get/set` to Alpine widgets inside an ignored Live subtree. The counter runs the actual Alpine CSP build with a restrictive script policy. See the [directive reference](docs/reference/directives.md) for the implemented grammar and remaining gaps.
 
 ## Safety and limitations

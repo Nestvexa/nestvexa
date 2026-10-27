@@ -12,20 +12,20 @@
     {
       "id": 1,
       "state": "InProgress",
-      "scope": "Core, views, HBS, umbrella and starter implementation",
-      "remaining": "Complete all phase requirements and record integrated test/browser/pack evidence"
+      "scope": "Core, views, HBS, umbrella, explicit installed browser asset hosting and starter implementation",
+      "remaining": "Explicit asset host passed 703 aggregate/105 three-browser host checks and seven tarballs in four full/minimal npm/pnpm external consumers. Minimal apps directly install only nestvexa and host peers and serve all 15 approved client/Alpine modules. Both isolated Windows Node 22.23.4 and 24.22.1 passed strict compilation and 703 tests. Complete phase requirements, automatic full Live/Alpine bootstrap, Linux/full matrix and independent review remain open."
     },
     {
       "id": 2,
       "state": "InProgress",
       "scope": "Live protocol, opaque state store, generated routes, registration ownership, authorized model synchronization and pure writable-state validation",
-      "remaining": "Native reset host checkpoint passed 631 aggregate tests and 102 browser checks, seven tarballs in two external npm/pnpm strict-TypeScript and real Nest consumers, docs/audit/size and selected coverage. Both isolated Windows Node 22.23.4 and 24.22.1 passed strict compilation and all 631 tests. Saved reset evidence includes hashes and runtime results; release checking correctly fails. Historical checkpoints retain their scope. Full security, protocol, lifecycle, Linux and compatibility acceptance remains open."
+      "remaining": "Current asset-hosting host checkpoint passed 703 aggregate tests and 105 browser checks, seven tarballs in four external full/minimal npm/pnpm strict-TypeScript and real Nest consumers, docs/audit/size and selected coverage. Both isolated Windows Node 22.23.4 and 24.22.1 passed strict compilation and all 703 tests. Saved asset evidence includes hashes and runtime results; release checking correctly fails. Historical checkpoints retain their scope. Full security, protocol, lifecycle, Linux and compatibility acceptance remains open."
     },
     {
       "id": 3,
       "state": "InProgress",
       "scope": "Initial directives, queued transport, keyed morph, CSP Alpine bridge, event/model modifiers, targeted loading/replacement, native reconciliation, registration ownership, wrapper-only ignore and bounded browser transport/deadline/recovery, and native form reset reconciliation",
-      "remaining": "Native reset has 631 aggregate/102 three-browser host passes, including 34 controlled reset cases, seven tarballs in two external consumers, docs/audit/size and selected coverage. Native-button timing red-before and the stale compiled-example fixture failure are retained in the report. Complete forms, input/modifier/lifecycle/fault/accessibility matrices, cross-owner radio isolation, nested-server/island lifecycle and automatic default bootstrap remain open. Both fresh isolated Windows Node 22.23.4 and 24.22.1 passed strict compilation and all 631 tests; neither repeats the complete three-browser server or packed-consumer matrix."
+      "remaining": "Explicit asset hosting and the existing client slices have 703 aggregate/105 three-browser host passes, including 71 asset and 34 reset cases, seven tarballs in four external consumers, docs/audit/size and selected coverage. Both fresh isolated Windows Node versions passed strict compilation and 703 tests. Complete input/modifier/lifecycle/fault/accessibility matrices, forms, cross-owner radio isolation, nested-server/island lifecycle and automatic default bootstrap remain open."
     },
     {
       "id": 4,

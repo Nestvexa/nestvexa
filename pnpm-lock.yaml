@@ -74,9 +74,6 @@ importers:
 
   examples/live-counter:
     dependencies:
-      '@alpinejs/csp':
-        specifier: 3.17.5
-        version: 3.17.5
       '@nestjs/common':
         specifier: 12.2.0
         version: 12.2.0(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -86,12 +83,6 @@ importers:
       '@nestjs/platform-express':
         specifier: 12.2.0
         version: 12.2.0(@nestjs/common@12.2.0(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@12.2.0)
-      '@nestvexa/alpine':
-        specifier: workspace:*
-        version: link:../../packages/alpine
-      '@nestvexa/client':
-        specifier: workspace:*
-        version: link:../../packages/client
       '@nestvexa/live':
         specifier: workspace:*
         version: link:../../packages/live
@@ -188,12 +179,21 @@ importers:
 
   packages/nestvexa:
     dependencies:
+      '@alpinejs/csp':
+        specifier: 3.17.5
+        version: 3.17.5
       '@nestjs/common':
         specifier: ^12.0.0
         version: 12.2.0(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/core':
         specifier: ^12.0.0
         version: 12.2.0(@nestjs/common@12.2.0(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@12.2.0)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestvexa/alpine':
+        specifier: workspace:*
+        version: link:../alpine
+      '@nestvexa/client':
+        specifier: workspace:*
+        version: link:../client
       '@nestvexa/core':
         specifier: workspace:*
         version: link:../core

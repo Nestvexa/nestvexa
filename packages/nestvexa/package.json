@@ -12,23 +12,31 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./assets": {
+      "types": "./dist/assets.d.ts",
+      "import": "./dist/assets.js"
     }
   },
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
     "README.md",
+    "THIRD_PARTY_NOTICES.md",
     "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run ../../tests/integration.test.ts",
+    "test": "vitest run ../../tests/integration.test.ts ../../tests/assets.test.ts",
     "lint": "eslint src"
   },
   "dependencies": {
     "@nestvexa/core": "workspace:*",
     "@nestvexa/views": "workspace:*",
-    "@nestvexa/engine-hbs": "workspace:*"
+    "@nestvexa/engine-hbs": "workspace:*",
+    "@nestvexa/client": "workspace:*",
+    "@nestvexa/alpine": "workspace:*",
+    "@alpinejs/csp": "3.17.5"
   },
   "peerDependencies": {
     "@nestjs/common": "^12.0.0",

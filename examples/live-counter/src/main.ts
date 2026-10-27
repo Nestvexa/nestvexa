@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { HbsEngine, NestvexaModule, configureNestvexa } from 'nestvexa';
+import { NestvexaAssetsModule, NestvexaAssetsService } from 'nestvexa/assets';
 import {
   LiveModule,
   LiveRuntime,
@@ -21,7 +22,6 @@ import {
   Action,
 } from '@nestvexa/live';
 import { fileURLToPath } from 'node:url';
-import { readFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import session from 'express-session';
 
@@ -40,12 +40,6 @@ const renderer = new HbsEngine({
   root,
   helpers: { eq: (left, right) => left === right },
 });
-const clientEntry = new URL(import.meta.resolve('@nestvexa/client'));
-const alpineAdapter = new URL(import.meta.resolve('@nestvexa/alpine'));
-const alpineEntry = new URL(
-  './module.esm.js',
-  import.meta.resolve('@alpinejs/csp'),
-);
 
 @LiveComponent({ name: 'counter', view: 'counter' })
 class Counter {
@@ -116,7 +110,11 @@ class Counter {
 
 @Controller()
 class PageController {
-  constructor(@Inject(LiveRuntime) private readonly live: LiveRuntime) {}
+  constructor(
+    @Inject(LiveRuntime) private readonly live: LiveRuntime,
+    @Inject(NestvexaAssetsService)
+    private readonly assets: NestvexaAssetsService,
+  ) {}
   @Get()
   @Header('Cache-Control', 'no-store')
   @Header(
@@ -136,87 +134,14 @@ class PageController {
   stylesheet() {
     return 'body{font-family:system-ui,sans-serif;line-height:1.6;margin:2rem;max-width:60rem}button,input{font:inherit;min-height:2.75rem;box-sizing:border-box}button{padding:.4rem .8rem;margin:.25rem}input{padding:.4rem;margin:.25rem}form{margin-block:1rem}output{font-variant-numeric:tabular-nums}.working,.queued{font-weight:700;text-decoration:underline}';
   }
-  @Get('assets/live.js')
-  @Header('Content-Type', 'text/javascript; charset=utf-8')
-  client() {
-    return readFile(clientEntry, 'utf8');
-  }
-  @Get('assets/morph.js')
-  @Header('Content-Type', 'text/javascript; charset=utf-8')
-  morph() {
-    return readFile(new URL('./morph.js', clientEntry), 'utf8');
-  }
-  @Get('assets/protocol.js')
-  @Header('Content-Type', 'text/javascript; charset=utf-8')
-  protocol() {
-    return readFile(new URL('./protocol.js', clientEntry), 'utf8');
-  }
-  @Get('assets/grammar.js')
-  @Header('Content-Type', 'text/javascript; charset=utf-8')
-  grammar() {
-    return readFile(new URL('./grammar.js', clientEntry), 'utf8');
-  }
-  @Get('assets/bindings.js')
-  @Header('Content-Type', 'text/javascript; charset=utf-8')
-  bindings() {
-    return readFile(new URL('./bindings.js', clientEntry), 'utf8');
-  }
-  @Get('assets/events.js')
-  @Header('Content-Type', 'text/javascript; charset=utf-8')
-  events() {
-    return readFile(new URL('./events.js', clientEntry), 'utf8');
-  }
-  @Get('assets/listeners.js')
-  @Header('Content-Type', 'text/javascript; charset=utf-8')
-  listeners() {
-    return readFile(new URL('./listeners.js', clientEntry), 'utf8');
-  }
-  @Get('assets/models.js')
-  @Header('Content-Type', 'text/javascript; charset=utf-8')
-  models() {
-    return readFile(new URL('./models.js', clientEntry), 'utf8');
-  }
-  @Get('assets/model-scheduler.js')
-  @Header('Content-Type', 'text/javascript; charset=utf-8')
-  modelScheduler() {
-    return readFile(new URL('./model-scheduler.js', clientEntry), 'utf8');
-  }
-  @Get('assets/loading.js')
-  @Header('Content-Type', 'text/javascript; charset=utf-8')
-  loading() {
-    return readFile(new URL('./loading.js', clientEntry), 'utf8');
-  }
-  @Get('assets/control-state.js')
-  @Header('Content-Type', 'text/javascript; charset=utf-8')
-  controlState() {
-    return readFile(new URL('./control-state.js', clientEntry), 'utf8');
-  }
-  @Get('assets/transport.js')
-  @Header('Content-Type', 'text/javascript; charset=utf-8')
-  transport() {
-    return readFile(new URL('./transport.js', clientEntry), 'utf8');
-  }
-  @Get('assets/form-reset.js')
-  @Header('Content-Type', 'text/javascript; charset=utf-8')
-  formReset() {
-    return readFile(new URL('./form-reset.js', clientEntry), 'utf8');
-  }
-  @Get('assets/alpine.js')
-  @Header('Content-Type', 'text/javascript; charset=utf-8')
-  alpine() {
-    return readFile(alpineEntry, 'utf8');
-  }
-  @Get('assets/alpine-adapter.js')
-  @Header('Content-Type', 'text/javascript; charset=utf-8')
-  adapter() {
-    return readFile(alpineAdapter, 'utf8');
-  }
   @Get('assets/boot.js')
+  @Header('Cache-Control', 'no-store')
   @Header('Content-Type', 'text/javascript; charset=utf-8')
   boot() {
-    return `import {createLiveClient} from './live.js';
-import Alpine from './alpine.js';
-import {installLiveAlpine} from './alpine-adapter.js';
+    const { entries } = this.assets.getManifest();
+    return `import {createLiveClient} from ${JSON.stringify(entries.live)};
+import Alpine from ${JSON.stringify(entries.alpine)};
+import {installLiveAlpine} from ${JSON.stringify(entries.alpineAdapter)};
 const client = createLiveClient({onError(error) {document.getElementById('status').textContent = error.message;}});
 client.mount(); client.mount();
 installLiveAlpine(Alpine, client); installLiveAlpine(Alpine, client);
@@ -239,6 +164,7 @@ class LiveRendererLifecycle {
 @Module({
   imports: [
     NestvexaModule.forRoot({ views: { root } }),
+    NestvexaAssetsModule.register(),
     LiveModule.register({
       components: [Counter],
       renderer,
