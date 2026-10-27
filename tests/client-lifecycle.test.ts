@@ -40,6 +40,7 @@ beforeAll(async () => {
       'model-scheduler',
       'loading',
       'control-state',
+      'transport',
     ].map((name) => [
       `/${name}.js`,
       new URL(`../packages/client/dist/${name}.js`, import.meta.url),

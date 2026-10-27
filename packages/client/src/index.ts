@@ -12,6 +12,8 @@ import type { DirectEventBinding } from './listeners.js';
 import { getModelDirective, readModelValue } from './models.js';
 import { createModelScheduler } from './model-scheduler.js';
 import { createLoadingController, validateLoading } from './loading.js';
+import { LiveHttpError, requestLive, requestTimeout } from './transport.js';
+export { LiveHttpError } from './transport.js';
 export { parseLoadingDirective, parseLoadingTarget } from './loading.js';
 export type { LoadingDirective } from './loading.js';
 export { parseModelDirective } from './models.js';
@@ -40,6 +42,8 @@ export interface LiveClientOptions {
   readonly root?: Document | Element;
   readonly fetch?: typeof fetch;
   readonly onError?: (error: Error, component: Element | null) => void;
+  /** Total fetch/body deadline per dispatched request: 1–300000ms; default 30000ms. */
+  readonly requestTimeoutMs?: number;
 }
 export interface LiveClient {
   mount(): void;
@@ -79,6 +83,7 @@ interface Component {
   submitting: boolean;
   active: boolean;
   request: AbortController | null;
+  failure: Error | null;
 }
 function owner(element: Element): Element | null {
   return element.closest('[data-nv-component]');
@@ -207,6 +212,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     );
   const window = view;
   const transport = options.fetch ?? window.fetch.bind(window);
+  const timeout = requestTimeout(options.requestTimeoutMs);
   const components = new Map<Element, Component>();
   let mounted = false;
   let observer: MutationObserver | null = null;
@@ -255,7 +261,24 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   function contains(element: Element): boolean {
     return element.isConnected && (element === root || root.contains(element));
   }
+  function failureFor(state: Component): Error | null {
+    if (state.failure) return state.failure;
+    for (
+      let parent = state.root.parentElement;
+      parent;
+      parent = parent.parentElement
+    ) {
+      const failure = components.get(parent)?.failure;
+      if (failure) return failure;
+    }
+    return null;
+  }
   function busy(state: Component): void {
+    if (failureFor(state)) {
+      loading.restore(state.root);
+      state.root.setAttribute('aria-busy', 'false');
+      return;
+    }
     state.root.setAttribute('aria-busy', state.pending ? 'true' : 'false');
     loading.update(state.root, state.pendingActions);
   }
@@ -281,6 +304,17 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         if (reject) rejected.add(state.root);
         releaseComponent(state);
       }
+  }
+  function suspend(state: Component, error: Error): void {
+    if (state.failure || !state.active || !mounted) return;
+    cancelSubtree(state.root);
+    for (const child of components.values())
+      if (child === state || state.root.contains(child.root)) {
+        child.failure = error;
+        child.request?.abort();
+        busy(child);
+      }
+    report(error, state.root);
   }
   function validMarker(state: Component): boolean {
     return [...state.markers].every(
@@ -319,6 +353,12 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     ) {
       const ancestor = components.get(parent);
       if (ancestor && !usable(ancestor)) return false;
+      if (ancestor?.failure && !state.failure) {
+        state.failure = ancestor.failure;
+        cancelSubtree(state.root);
+        state.request?.abort();
+        busy(state);
+      }
     }
     return state.active;
   }
@@ -449,6 +489,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
             submitting: false,
             active: true,
             request: null,
+            failure: null,
           };
           refreshBindings(state);
           components.set(element, state);
@@ -467,6 +508,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   }
   async function invoke(state: Component, action: string): Promise<void> {
     if (!usable(state)) return;
+    const failure = failureFor(state);
+    if (failure) throw failure;
     for (const [element] of state.invalid)
       if (!contains(element) || owner(element) !== state.root)
         state.invalid.delete(element);
@@ -486,39 +529,40 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     const abort = new AbortController();
     state.request = abort;
     try {
-      const response = await transport(`${state.endpoint}/${action}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        redirect: 'error',
-        headers: {
-          'content-type': 'application/json',
-          'x-nestvexa-csrf': state.csrf,
+      const payload = await requestLive(
+        transport,
+        `${state.endpoint}/${action}`,
+        {
+          method: 'POST',
+          credentials: 'same-origin',
+          redirect: 'error',
+          headers: {
+            'content-type': 'application/json',
+            'x-nestvexa-csrf': state.csrf,
+          },
+          body: JSON.stringify({
+            protocol: 'nestvexa-live/1',
+            requestId,
+            snapshot: state.snapshot,
+            revision: state.revision,
+            updates,
+            input: null,
+          }),
         },
-        signal: abort.signal,
-        body: JSON.stringify({
-          protocol: 'nestvexa-live/1',
-          requestId,
-          snapshot: state.snapshot,
-          revision: state.revision,
-          updates,
-          input: null,
-        }),
-      });
-      if (!response.ok)
-        throw new LiveClientError(
-          'HTTP',
-          `Live request failed (${response.status})`,
-        );
-      if (!response.headers.get('content-type')?.includes('application/json'))
-        throw new LiveClientError('RESPONSE', 'Expected a JSON Live response');
-      const text = await response.text();
-      if (text.length > 2_097_152)
-        throw new LiveClientError(
-          'RESPONSE',
-          'Live response exceeds size limit',
-        );
-      const result = parseLiveResponse(JSON.parse(text) as unknown);
+        abort,
+        {
+          setTimeout: (callback, milliseconds) =>
+            window.setTimeout(callback, milliseconds),
+          clearTimeout: (timer) => window.clearTimeout(timer),
+        },
+        timeout,
+      );
       if (!usable(state)) return;
+      // A parent may suspend this registration after the transport race won
+      // but before this continuation runs. Never apply that settled response.
+      const interrupted = failureFor(state);
+      if (interrupted) throw interrupted;
+      const result = parseLiveResponse(payload);
       if (
         result.requestId !== requestId ||
         result.component.id !== state.id ||
@@ -626,6 +670,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         if (state.dirty.get(key)?.version === field.version)
           state.dirty.delete(key);
       if (!usable(state)) return;
+      const interruptedBeforeCommit = failureFor(state);
+      if (interruptedBeforeCommit) throw interruptedBeforeCommit;
       state.snapshot = result.snapshot;
       state.revision = result.component.revision;
       state.values = result.state;
@@ -645,6 +691,24 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           detail: { requestId, revision: state.revision },
         }),
       );
+    } catch (error) {
+      if (!usable(state)) return;
+      const previous = failureFor(state);
+      if (previous) throw previous;
+      const recoverable =
+        error instanceof LiveHttpError &&
+        [400, 401, 403, 404, 405, 413, 415, 422, 429].includes(error.status);
+      if (!recoverable)
+        suspend(
+          state,
+          error instanceof Error
+            ? error
+            : new LiveClientError(
+                'RESPONSE',
+                'Live response could not be applied; reconcile server state before further actions',
+              ),
+        );
+      throw error;
     } finally {
       state.request = null;
     }
@@ -654,6 +718,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     action: string,
     submit: boolean,
   ): Promise<void> {
+    const failure = failureFor(state);
+    if (failure) return Promise.reject(failure);
     if (action !== '_sync')
       for (const element of owned(state.root)) models.cancel(element);
     if (state.pending >= 16)
@@ -687,7 +753,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         if (state.active && mounted) busy(state);
       });
     state.queue = task.catch((error: unknown) => {
-      if (state.active && mounted) report(error, state.root);
+      if (state.active && mounted && error !== failureFor(state))
+        report(error, state.root);
     });
     return task;
   }
@@ -737,9 +804,10 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         state.dirty.set(name, { value, version: ++state.fieldVersion });
       refreshBindings(state);
       if (
-        (directive.mode === 'live' && type === 'input') ||
-        (directive.mode === 'change' && type === 'change') ||
-        (directive.mode === 'blur' && type === 'focusout')
+        !failureFor(state) &&
+        ((directive.mode === 'live' && type === 'input') ||
+          (directive.mode === 'change' && type === 'change') ||
+          (directive.mode === 'blur' && type === 'focusout'))
       )
         models.schedule(element, name, directive);
     } catch (error) {
@@ -789,6 +857,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   ): void {
     if (handledEvents.has(event)) return;
     if (event.type === 'submit') event.preventDefault();
+    const state = registeredScope(binding.element);
+    if (state && failureFor(state)) return;
     if (dispatcher?.handle(event, binding.element, binding.directive))
       handledEvents.add(event);
   }

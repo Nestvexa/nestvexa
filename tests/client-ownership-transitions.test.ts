@@ -312,10 +312,12 @@ describe('registered client ownership transitions', () => {
     await page.locator('#slow').click();
     await page.clock.runFor(1000);
     expect((await metrics()).requests).toHaveLength(1);
-    expect((await metrics()).errors).toEqual(['undefined']);
+    expect((await metrics()).errors).toEqual(['NETWORK']);
     expect(
       await page.evaluate(() => window.nvOwnershipSession.messages),
-    ).toEqual(['Fixture transport failure']);
+    ).toEqual([
+      'Live request failed; reconcile server state before further actions',
+    ]);
     expect(await page.locator('#slow').isDisabled()).toBe(false);
   });
   it('rejects nv:ignore on the component root without making requests', async () => {

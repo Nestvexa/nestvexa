@@ -5463,24 +5463,32 @@
         "packages/client/src/events.ts",
         "packages/client/src/listeners.ts",
         "packages/client/src/morph.ts",
-        "packages/client/src/control-state.ts"
+        "packages/client/src/control-state.ts",
+        "packages/client/src/transport.ts",
+        "packages/client/src/grammar.ts"
       ],
       "testFiles": [
         "tests/client-events.test.ts",
         "tests/browser/events.spec.ts",
         "tests/client-native-controls.test.ts",
         "tests/client-ownership-transitions.test.ts",
-        "tests/browser/native-controls.spec.ts"
+        "tests/browser/native-controls.spec.ts",
+        "tests/client-transport-lifecycle.test.ts",
+        "tests/browser/request-lifecycle.spec.ts",
+        "tests/client-model-lifecycle.test.ts"
       ],
       "docs": [
         "docs/reference/directives.md",
         "packages/client/README.md",
-        "docs/guides/native-controls.md"
+        "docs/guides/native-controls.md",
+        "docs/guides/request-lifecycle.md",
+        "docs/adr/0010-observability-and-performance.md"
       ],
       "examples": [
-        "examples/live-counter/README.md"
+        "examples/live-counter/README.md",
+        "examples/live-counter/src/main.ts"
       ],
-      "securityNotes": "Closed action/modifier grammar; key and ownership filters precede effects, retained configurations are bounded, and browser event objects are never sent to the server.",
+      "securityNotes": "Closed action/modifier grammar; key and ownership filters precede effects, retained configurations are bounded, and browser event objects are never sent to the server. Total browser fetch/body deadline and streaming decoded-byte limit precede state application; uncertain outcomes freeze queued/nested transport without replay, retain drafts and prevent native enhanced submits. Server cancellation, auth and durable idempotency remain host-owned.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -5496,10 +5504,18 @@
           "executedAt": "2026-10-27T04:31:22.595Z",
           "report": "docs/implementation/native-checkpoint-evidence-2026-10-27.json",
           "scope": "Partial native-control and ownership implementation:511 aggregate tests,75 Chromium/Firefox/WebKit checks, seven packed npm/pnpm consumer installs; Node22.23.4/24.22.1 each passed strict compilation and503 aggregate tests. Full compound acceptance remains open; releaseReady is false."
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-27T13:12:08.251Z",
+          "report": "docs/implementation/transport-checkpoint-evidence-2026-10-27.json",
+          "scope": "Partial bounded transport and uncertain-outcome suspension:597 aggregate tests and93 Chromium/Firefox/WebKit checks; seven tarballs passed two npm/pnpm external strict-TypeScript and real Nest consumers. Isolated Windows Node22.23.4 and24.22.1 each passed strict compilation and597 tests. The continuation race regression failed before the source guard and passed in the complete corpus. Full compound acceptance remains open; releaseReady is false."
         }
       ],
       "outstandingIssues": [
-        "Only event scheduling and current transport/binding subset implemented; bundling, navigation, complete ownership registry, diagnostics and remaining compound clauses are open."
+        "Only event scheduling and current transport/binding subset implemented; bundling, navigation, complete ownership registry, diagnostics and remaining compound clauses are open.",
+        "Current bounded transport has scoped implementation; full distributed fault, long-memory, progress/streaming UI, safe idempotent retry, bundling and complete compatibility acceptance remain open."
       ]
     },
     {
@@ -6671,14 +6687,40 @@
       "id": "BROW-020",
       "priority": "P1",
       "package": "@nestvexa/client",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/client/src/index.ts",
+        "packages/client/src/transport.ts",
+        "packages/client/src/grammar.ts"
+      ],
+      "testFiles": [
+        "tests/client-transport-lifecycle.test.ts",
+        "tests/browser/request-lifecycle.spec.ts",
+        "tests/client-ownership-transitions.test.ts",
+        "tests/client-model-lifecycle.test.ts"
+      ],
+      "docs": [
+        "docs/guides/request-lifecycle.md",
+        "packages/client/README.md",
+        "docs/reference/directives.md",
+        "docs/adr/0010-observability-and-performance.md"
+      ],
+      "examples": [
+        "examples/live-counter/src/main.ts"
+      ],
+      "securityNotes": " Total browser fetch/body deadline and streaming decoded-byte limit precede state application; uncertain outcomes freeze queued/nested transport without replay, retain drafts and prevent native enhanced submits. Server cancellation, auth and durable idempotency remain host-owned.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-27T13:12:08.251Z",
+          "report": "docs/implementation/transport-checkpoint-evidence-2026-10-27.json",
+          "scope": "Partial bounded transport and uncertain-outcome suspension:597 aggregate tests and93 Chromium/Firefox/WebKit checks; seven tarballs passed two npm/pnpm external strict-TypeScript and real Nest consumers. Isolated Windows Node22.23.4 and24.22.1 each passed strict compilation and597 tests. The continuation race regression failed before the source guard and passed in the complete corpus. Full compound acceptance remains open; releaseReady is false."
+        }
+      ],
+      "outstandingIssues": [
+        "Current bounded transport has scoped implementation; full distributed fault, long-memory, progress/streaming UI, safe idempotent retry, bundling and complete compatibility acceptance remain open."
+      ]
     },
     {
       "sourceKey": "c610c7171fce18345fd402b608f3d911ecae97068babc60b2faf2d801cf18e1c",
@@ -10591,14 +10633,40 @@
       "id": "QA-015",
       "priority": "P1",
       "package": "cross-package",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/client/src/index.ts",
+        "packages/client/src/transport.ts",
+        "packages/client/src/grammar.ts"
+      ],
+      "testFiles": [
+        "tests/client-transport-lifecycle.test.ts",
+        "tests/browser/request-lifecycle.spec.ts",
+        "tests/client-ownership-transitions.test.ts",
+        "tests/client-model-lifecycle.test.ts"
+      ],
+      "docs": [
+        "docs/guides/request-lifecycle.md",
+        "packages/client/README.md",
+        "docs/reference/directives.md",
+        "docs/adr/0010-observability-and-performance.md"
+      ],
+      "examples": [
+        "examples/live-counter/src/main.ts"
+      ],
+      "securityNotes": " Total browser fetch/body deadline and streaming decoded-byte limit precede state application; uncertain outcomes freeze queued/nested transport without replay, retain drafts and prevent native enhanced submits. Server cancellation, auth and durable idempotency remain host-owned.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-27T13:12:08.251Z",
+          "report": "docs/implementation/transport-checkpoint-evidence-2026-10-27.json",
+          "scope": "Partial bounded transport and uncertain-outcome suspension:597 aggregate tests and93 Chromium/Firefox/WebKit checks; seven tarballs passed two npm/pnpm external strict-TypeScript and real Nest consumers. Isolated Windows Node22.23.4 and24.22.1 each passed strict compilation and597 tests. The continuation race regression failed before the source guard and passed in the complete corpus. Full compound acceptance remains open; releaseReady is false."
+        }
+      ],
+      "outstandingIssues": [
+        "Current bounded transport has scoped implementation; full distributed fault, long-memory, progress/streaming UI, safe idempotent retry, bundling and complete compatibility acceptance remain open."
+      ]
     },
     {
       "sourceKey": "88fa9013bba3ea0732f0bf5558f7710927078e8860a3be7b84d0127e474022a9",
@@ -12471,14 +12539,40 @@
       "id": "QA-073",
       "priority": "P1",
       "package": "cross-package",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/client/src/index.ts",
+        "packages/client/src/transport.ts",
+        "packages/client/src/grammar.ts"
+      ],
+      "testFiles": [
+        "tests/client-transport-lifecycle.test.ts",
+        "tests/browser/request-lifecycle.spec.ts",
+        "tests/client-ownership-transitions.test.ts",
+        "tests/client-model-lifecycle.test.ts"
+      ],
+      "docs": [
+        "docs/guides/request-lifecycle.md",
+        "packages/client/README.md",
+        "docs/reference/directives.md",
+        "docs/adr/0010-observability-and-performance.md"
+      ],
+      "examples": [
+        "examples/live-counter/src/main.ts"
+      ],
+      "securityNotes": " Total browser fetch/body deadline and streaming decoded-byte limit precede state application; uncertain outcomes freeze queued/nested transport without replay, retain drafts and prevent native enhanced submits. Server cancellation, auth and durable idempotency remain host-owned.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-27T13:12:08.251Z",
+          "report": "docs/implementation/transport-checkpoint-evidence-2026-10-27.json",
+          "scope": "Partial bounded transport and uncertain-outcome suspension:597 aggregate tests and93 Chromium/Firefox/WebKit checks; seven tarballs passed two npm/pnpm external strict-TypeScript and real Nest consumers. Isolated Windows Node22.23.4 and24.22.1 each passed strict compilation and597 tests. The continuation race regression failed before the source guard and passed in the complete corpus. Full compound acceptance remains open; releaseReady is false."
+        }
+      ],
+      "outstandingIssues": [
+        "Current bounded transport has scoped implementation; full distributed fault, long-memory, progress/streaming UI, safe idempotent retry, bundling and complete compatibility acceptance remain open."
+      ]
     },
     {
       "sourceKey": "1e6c3f7dc43678034fd509b5ce54aae6813b83a4c17120ee63614c860b2a86ea",
@@ -14740,14 +14834,40 @@
       "id": "PHASE-041",
       "priority": "P1",
       "package": "cross-package",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/client/src/index.ts",
+        "packages/client/src/transport.ts",
+        "packages/client/src/grammar.ts"
+      ],
+      "testFiles": [
+        "tests/client-transport-lifecycle.test.ts",
+        "tests/browser/request-lifecycle.spec.ts",
+        "tests/client-ownership-transitions.test.ts",
+        "tests/client-model-lifecycle.test.ts"
+      ],
+      "docs": [
+        "docs/guides/request-lifecycle.md",
+        "packages/client/README.md",
+        "docs/reference/directives.md",
+        "docs/adr/0010-observability-and-performance.md"
+      ],
+      "examples": [
+        "examples/live-counter/src/main.ts"
+      ],
+      "securityNotes": " Total browser fetch/body deadline and streaming decoded-byte limit precede state application; uncertain outcomes freeze queued/nested transport without replay, retain drafts and prevent native enhanced submits. Server cancellation, auth and durable idempotency remain host-owned.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-27T13:12:08.251Z",
+          "report": "docs/implementation/transport-checkpoint-evidence-2026-10-27.json",
+          "scope": "Partial bounded transport and uncertain-outcome suspension:597 aggregate tests and93 Chromium/Firefox/WebKit checks; seven tarballs passed two npm/pnpm external strict-TypeScript and real Nest consumers. Isolated Windows Node22.23.4 and24.22.1 each passed strict compilation and597 tests. The continuation race regression failed before the source guard and passed in the complete corpus. Full compound acceptance remains open; releaseReady is false."
+        }
+      ],
+      "outstandingIssues": [
+        "Current bounded transport has scoped implementation; full distributed fault, long-memory, progress/streaming UI, safe idempotent retry, bundling and complete compatibility acceptance remain open."
+      ]
     },
     {
       "sourceKey": "c1bc8a2d3c90183c0b5c7ca35df86927115c9b0d1594aa228d079a2c49a2e026",

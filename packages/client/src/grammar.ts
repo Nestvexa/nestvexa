@@ -1,6 +1,14 @@
 export class LiveClientError extends Error {
   constructor(
-    readonly code: 'DIRECTIVE' | 'MARKER' | 'RESPONSE' | 'HTTP' | 'HTML',
+    readonly code:
+      | 'DIRECTIVE'
+      | 'MARKER'
+      | 'RESPONSE'
+      | 'HTTP'
+      | 'HTML'
+      | 'NETWORK'
+      | 'TIMEOUT'
+      | 'ABORTED',
     message: string,
   ) {
     super(message);

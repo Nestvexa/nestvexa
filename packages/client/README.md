@@ -5,6 +5,7 @@ Small experimental browser-only Live client. Import `createLiveClient` and expli
 ```js
 import { createLiveClient } from '@nestvexa/client';
 const client = createLiveClient({
+  requestTimeoutMs: 30_000,
   onError(error) {
     console.error(error.message);
   },
@@ -12,7 +13,7 @@ const client = createLiveClient({
 client.mount();
 ```
 
-Install local packed artifacts while unpublished. Future npm/pnpm/yarn package name is `@nestvexa/client`. ESM output requires modern browsers with fetch, AbortController, crypto.randomUUID and MutationObserver. The local matrix includes Chromium, Firefox and WebKit; consult the latest report for pass/fail outcomes.
+Install local packed artifacts while unpublished. Future npm/pnpm/yarn package name is `@nestvexa/client`. ESM output requires modern browsers with fetch, ReadableStream, TextDecoder, AbortController, crypto.randomUUID and MutationObserver. The local matrix includes Chromium, Firefox and WebKit; consult the latest report for pass/fail outcomes.
 
 Implemented directives: click, submit, keydown, model, loading/target, replace, ignore, text, show, bind, dirty, cloak and ref. Event modifiers support prevent/stop/self/once, keyboard/system filters, debounce and leading throttle; see the [exact grammar](../../docs/reference/directives.md). Unsupported modifiers/directives are rejected explicitly. Expressions are not evaluated. The optional [Alpine adapter](../alpine/README.md) supplies `$live.call/get/set` inside an ignored ownership boundary. The full master directive matrix remains unmet.
 
@@ -31,6 +32,12 @@ A component root has one active client owner. A second client cannot attach comp
 `client.call(element, action)` returns the queued request promise. `get(element, field)` returns detached state or local edits. `set(element, field, primitive)` updates local state until submitted. `refs(element)` resolves owned references from the current DOM. Server authorization and writable-state checks always apply.
 
 Requests are serialized per component, capped at 16 pending operations, sent same-origin with host CSRF token, and never automatically retried. Duplicate submits are suppressed. Response identity/request/revision checks precede DOM updates. Keyed nodes retain identity unless incoming markup explicitly replaces them; nested live/ignored/island roots are ownership boundaries. Focus/caret and newer input edits are preserved where tested; removing the focused control moves focus to the retained component root.
+
+`requestTimeoutMs` accepts an integer from 1 through 300,000; the default is 30,000ms. Each deadline starts when its request is dispatched and covers fetch plus body consumption, excluding time in the component queue. The client counts the response body's bytes as they arrive, rejecting more than 2,097,152 bytes before decoding the complete text. It requires `application/json` (parameters allowed) and valid UTF-8. A declared length cannot bypass the streaming limit. This deadline does not cancel server business work or preempt synchronous JavaScript.
+
+An uncertain network, deadline, response/protocol or rendering failure suspends further transport for that component and its nested owned roots. The registration, local drafts and `get`/`set` access remain available; enhanced form submission remains prevented. Pending requests are aborted, queued calls reject the stored cause, loading baselines restore and component `aria-busy` becomes false. Independent sibling components remain separate. Errors use stable `LiveClientError` codes including `NETWORK`, `TIMEOUT`, `RESPONSE` and `HTTP`; exported `LiveHttpError` adds a numeric `status`. Native fetch exception text and HTTP error bodies are not exposed by the transport. The HTTP rejection allowlist permits explicit correction after 400/401/403/404/405/413/415/422/429; it never triggers an automatic retry or guarantees a business rollback. Other HTTP outcomes suspend transport.
+
+Recover by reloading or obtaining trusted authoritative server state, then disposing and explicitly mounting against reconciled markup. Simply clearing the browser failure or reusing old markers cannot prove that a timed-out action did not commit. Removal/disposal cancellation settles affected `call()` promises without applying a late response; a resolved cancellation is not a business-success acknowledgement. See the [request lifecycle guide](../../docs/guides/request-lifecycle.md) for recovery, errors and exact bounds. Full transport/fault/platform acceptance remains open.
 
 Ordinary morphing merges native values with incoming server defaults. Unbound text/textarea edits, checkbox/radio choices and single/multiple-select selections remain local while their server defaults stay unchanged; a changed default is authoritative. These unbound values are not added to Live state or request updates. Textarea reset defaults are updated, option keys preserve duplicate-value identity, and file selections survive ordinary reconciliation without implying upload support. Compatible newer model drafts survive only while an original matching field/cast/control type remains; changes clear hidden stale edits. Multiple selects remain unsupported as `nv:model` array values. Editable content stays local while `contenteditable=false` content follows the server. Explicit replacement intentionally resets local state. Use valid forms and unique radio names or distinct forms per component; shared native radio groups across owners are not a proven isolation boundary. See the [native control and ownership guide](../../docs/guides/native-controls.md) for rules, reset options and limits. The full native-input/teleport/framework lifecycle matrix remains open.
 

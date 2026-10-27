@@ -53,6 +53,7 @@ beforeAll(async () => {
       'model-scheduler',
       'loading',
       'control-state',
+      'transport',
     ].map((name) => [
       `/${name}.js`,
       new URL(`../packages/client/dist/${name}.js`, import.meta.url),
@@ -324,7 +325,13 @@ describe('real-browser model lifecycle with controlled transport', () => {
           updates: { query: 'draft' },
         },
       ],
-      errors: [{ code: null, message: 'Model fixture transport failed' }],
+      errors: [
+        {
+          code: 'NETWORK',
+          message:
+            'Live request failed; reconcile server state before further actions',
+        },
+      ],
     });
     await page.clock.runFor(5000);
     expect((await metrics()).requests).toHaveLength(1);

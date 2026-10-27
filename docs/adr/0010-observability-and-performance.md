@@ -1,6 +1,6 @@
 # ADR 0010: Redacted diagnostics and reproducible performance evidence
 
-Date: 2026-10-25. Status: **benchmark/verification foundations exist; production diagnostics and broad performance acceptance pending**.
+Date: 2026-10-25; bounded client transport amendment 2026-10-27. Status: **benchmark/verification and initial client transport limits exist; production diagnostics and broad performance acceptance pending**.
 
 ## Decision
 
@@ -13,6 +13,12 @@ Measure before claiming improvement. Record OS/CPU/runtime, dependency versions,
 Use deterministic byte/count limits for portable CI where possible. Wall-clock thresholds need an adequately stable runner and measured variance. Performance suites must not skip correctness/security checks to improve numbers. Cache isolation, bounded records/listeners and stale-response handling are correctness requirements even if a faster unsafe alternative exists.
 
 ## Alternatives and costs
+
+Each dispatched Live request has a 30-second default browser deadline covering fetch and response-body reading, configurable within 1–300000ms. Queued wait time is separate. Incremental body reads enforce a 2097152-byte limit on Fetch-decoded content, with bounded geometric buffer growth, strict UTF-8 and exact JSON media type checking. The deadline races the transport and reader so cleanup can settle even when an injected implementation ignores abort; custom resource release remains host-owned. Browser timers do not preempt synchronous parsing/rendering or guarantee server cancellation.
+
+An uncertain result suspends further transport in that component and nested roots, restores loading, and retains local state access and enhanced form prevention. There is no automatic replay or clear-failure shortcut; the host must obtain authoritative state before remounting. A documented HTTP rejection allowlist preserves explicit correction flows such as state-validation 422. Private fetch/reader exception text and server error bodies are excluded from transport messages. [Transport lifecycle cases](../../tests/client-transport-lifecycle.test.ts) and [real Nest fault scenarios](../../tests/browser/request-lifecycle.spec.ts) exercise these boundaries; executed acceptance remains in the checkpoint.
+
+Relying only on AbortSignal was rejected because custom fetch/streams can ignore cancellation and retain a permanently busy UI. Reading the full response text before checking its size was rejected because it applies the limit too late and counts UTF-16 characters instead of bytes. Automatically advancing the queue after an ambiguous result was rejected because the server may have committed an effect without returning a usable revision. Suspension costs a reload or explicit recovery; it preserves uncertain outcomes honestly rather than guessing a retry policy.
 
 Unconditional full-state logging was rejected for privacy and secret exposure. Vendor-bound telemetry in the default distribution was rejected for dependency and operational cost. Machine-independent latency guarantees were rejected because host workload dominates. Capturing traces and statistics costs CPU/storage; sampling and opt-in debug detail must be explicit and must never weaken security event policy.
 

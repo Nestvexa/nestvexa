@@ -22,6 +22,12 @@ This alpha implements the following configuration grammar. Names identify regist
 
 Attribute bindings allow `title`, `aria-label`, `aria-expanded`, `aria-disabled`, `href`, `src`, `disabled` and `readonly`. Boolean attributes require booleans. URLs accept HTTP(S) or relative URLs, rejecting credentials, whitespace/control characters and executable schemes. No style, event-handler, `srcdoc` or HTML binding exists.
 
+## Request deadlines and suspended transport
+
+Directive actions and model synchronization share the [bounded request lifecycle](../guides/request-lifecycle.md). `createLiveClient({ requestTimeoutMs })` accepts an integer from 1 through 300,000, defaulting to 30,000ms. The dispatch-to-body deadline excludes queue wait; the streaming response limit is 2,097,152 bytes with JSON MIME and strict UTF-8 validation. No timeout or retry modifier is added to directive strings.
+
+An uncertain transport/protocol/render failure suspends subsequent requests for the component and nested owned roots. Scheduled directive work is canceled, queued calls reject the stored cause, loading baselines restore and `aria-busy` becomes false. Local draft/state access remains available and `nv:submit` still prevents native submission; clicking again does not silently retry. Explicit correction remains possible after the documented HTTP rejection allowlist. A host must reload or reconcile authoritative state before disposal/remounting to resume uncertain work. Aborting or removing a component does not undo server effects, and cancellation resolving a client promise does not acknowledge business success.
+
 ## Whole subtree and wrapper-only ignore
 
 `nv:ignore=""` retains a whole subtree. `nv:ignore.self=""` instead retains an inner wrapper's current attributes, including class/style/ARIA and IDs, while Live updates its children normally. Child actions, models, text, loading and refs remain active. Use a stable `data-nv-key` when the widget may change its wrapper ID. Same-node event/text/ref declarations retain their existing contracts, but all retained wrapper `nv:*` declarations must remain identical between responses. Reconfiguration requires a new key or explicit ancestor replacement and is rejected before patching owned HTML otherwise.

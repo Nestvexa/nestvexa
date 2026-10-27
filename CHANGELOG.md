@@ -2,6 +2,8 @@
 
 ## 0.1.0-alpha.0 — unreleased
 
+Added bounded request/body deadlines, streaming byte limits, strict response decoding and stable transport errors with numeric HTTP status. Uncertain outcomes now stop queued/nested transport while preserving drafts and enhanced form prevention until explicit reconciliation. Removal/disposal settles canceled client work promptly; cancellation does not acknowledge server success or rollback.
+
 Added `nv:ignore.self` for attribute-owned wrappers with Live-owned children, effective markup preflight, frozen directive configuration, explicit conflict errors and cleanup on ownership transitions. Malformed whole-ignore declarations now reject setup; the bare-ignore parser result is unchanged.
 
 Added native control default merging, keyed selection preservation, coherent textarea/reset behavior, and marker/ownership transition cleanup. Unbound control drafts stay local and are not added to Live state. Changed server defaults and explicit replacement remain authoritative. Fixed hidden dirty values after control schema changes and duplicate/obsolete event transport errors after cancellation.

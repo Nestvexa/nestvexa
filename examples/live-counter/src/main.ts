@@ -191,6 +191,11 @@ class PageController {
   controlState() {
     return readFile(new URL('./control-state.js', clientEntry), 'utf8');
   }
+  @Get('assets/transport.js')
+  @Header('Content-Type', 'text/javascript; charset=utf-8')
+  transport() {
+    return readFile(new URL('./transport.js', clientEntry), 'utf8');
+  }
   @Get('assets/alpine.js')
   @Header('Content-Type', 'text/javascript; charset=utf-8')
   alpine() {
