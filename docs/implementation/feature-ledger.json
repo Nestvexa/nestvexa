@@ -5779,24 +5779,39 @@
       "priority": "P1",
       "package": "@nestvexa/client",
       "implementationFiles": [
-        "packages/client/src/index.ts"
+        "packages/client/src/loading.ts",
+        "packages/client/src/index.ts",
+        "packages/client/src/protocol.ts"
       ],
       "testFiles": [
         "tests/client.test.ts",
-        "tests/browser/live.spec.ts"
+        "tests/browser/live.spec.ts",
+        "tests/client-loading.test.ts",
+        "tests/client-rendering-lifecycle.test.ts",
+        "tests/browser/replacement-loading.spec.ts"
       ],
       "docs": [
         "docs/reference/directives.md",
-        "packages/client/README.md"
+        "packages/client/README.md",
+        "docs/adr/0004-renderers-and-islands.md"
       ],
       "examples": [
         "examples/live-counter/README.md"
       ],
-      "securityNotes": "Data-only registered identifiers and explicit ownership/attribute boundaries; no arbitrary JavaScript expression evaluation.",
+      "securityNotes": "Closed loading/target grammar accepts only bounded simple class tokens, action identifiers including $sync, and disabled/readonly/aria-disabled/aria-busy. Competing property owners and root visibility/aria-busy effects reject configuration; captured class/attribute baselines restore without blindly enabling server-disabled controls. Counts include queued work; presentation is not authorization.",
       "state": "InProgress",
-      "validationEvidence": [],
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-27T03:24:05.203Z",
+          "report": "docs/implementation/rendering-checkpoint-evidence-2026-10-27.json",
+          "scope": "Partial rendering implementation:447 aggregate tests,60 Chromium/Firefox/WebKit checks and seven packed npm/pnpm consumers. Full compound acceptance remains open and releaseReady is false."
+        }
+      ],
       "outstandingIssues": [
-        "Display and aria-busy subset exists; class/attribute/disable targets and complete concurrency matrix remain open."
+        "Visibility/inverse visibility, targeted class/attribute/remove effects and per-action queued counts have scoped evidence; the complete concurrency, screen-reader/focus, cleanup and modifier matrix remains pending.",
+        "Loading delays, arbitrary attribute/class expressions and unverified renderer-specific behavior are not supported."
       ]
     },
     {
@@ -6088,14 +6103,41 @@
       "id": "DIR-020",
       "priority": "P1",
       "package": "@nestvexa/client",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/client/src/morph.ts",
+        "packages/client/src/index.ts",
+        "packages/client/src/events.ts",
+        "packages/client/src/listeners.ts",
+        "packages/client/src/protocol.ts"
+      ],
+      "testFiles": [
+        "tests/client-replace.test.ts",
+        "tests/client-rendering-lifecycle.test.ts",
+        "tests/browser/replacement-loading.spec.ts"
+      ],
+      "docs": [
+        "docs/reference/directives.md",
+        "packages/client/README.md",
+        "docs/adr/0004-renderers-and-islands.md"
+      ],
+      "examples": [
+        "examples/live-counter/README.md"
+      ],
+      "securityNotes": "Replacement is limited to owned inner elements and incoming server markup; root and same-node ownership boundaries reject configuration. Explicit ancestor replacement may remove boundaries. Before removal, client timers/listeners/nested requests are canceled and ownership released; noncancelable outer-subtree events expose lifecycle without executable directives. Replacement deliberately resets native/widget/Alpine state and clears dirty fields when all original bound controls disappear.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-27T03:24:05.203Z",
+          "report": "docs/implementation/rendering-checkpoint-evidence-2026-10-27.json",
+          "scope": "Partial rendering implementation:447 aggregate tests,60 Chromium/Firefox/WebKit checks and seven packed npm/pnpm consumers. Full compound acceptance remains open and releaseReady is false."
+        }
+      ],
+      "outstandingIssues": [
+        "Children/self replacement and initial teardown/mount notifications have scoped evidence; the complete renderer/input/focus/cleanup matrix remains pending.",
+        "The full nested component server API, official framework island mounts and renderer-specific teardown/hydration acceptance remain unimplemented or unverified."
+      ]
     },
     {
       "sourceKey": "bcdd872c4555ce74df1ccf39b4f53adbc9f897775bf7f2ad9bcf82480699a4f7",
@@ -14408,6 +14450,9 @@
         "packages/client/src/morph.ts",
         "packages/client/src/bindings.ts",
         "packages/client/src/events.ts",
+        "packages/client/src/loading.ts",
+        "packages/client/src/listeners.ts",
+        "packages/client/src/protocol.ts",
         "packages/live/src/runtime.ts"
       ],
       "testFiles": [
@@ -14418,6 +14463,10 @@
         "tests/client-bindings.test.ts",
         "tests/client-bindings-dom.test.ts",
         "tests/client-events.test.ts",
+        "tests/client-loading.test.ts",
+        "tests/client-replace.test.ts",
+        "tests/client-rendering-lifecycle.test.ts",
+        "tests/browser/replacement-loading.spec.ts",
         "tests/browser/live.spec.ts",
         "tests/browser/events.spec.ts"
       ],
@@ -14428,7 +14477,7 @@
       "examples": [
         "examples/live-counter/README.md"
       ],
-      "securityNotes": "Owned data directives use a closed grammar with explicit HTML/attribute boundaries. Model writes use a separately authorized synchronization route; no arbitrary directive JavaScript or action-method guard inheritance is assumed.",
+      "securityNotes": "Owned data directives use a closed grammar with explicit HTML/attribute boundaries. Model writes use a separately authorized synchronization route; no arbitrary directive JavaScript or action-method guard inheritance is assumed. Loading restores original attribute/class baselines and tracks queued work. Explicit replacement cancels removed client resources and cannot replace the component root or claim shared renderer ownership.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -14437,10 +14486,18 @@
           "executedAt": "2026-10-26T20:22:16.515Z",
           "report": "docs/implementation/model-checkpoint-evidence-2026-10-26.json",
           "scope": "Partial model/state implementation:379 aggregate tests and48 three-browser fixture checks; complete compound acceptance remains open and releaseReady is false."
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-27T03:24:05.203Z",
+          "report": "docs/implementation/rendering-checkpoint-evidence-2026-10-27.json",
+          "scope": "Partial rendering implementation:447 aggregate tests,60 Chromium/Firefox/WebKit checks and seven packed npm/pnpm consumers. Full compound acceptance remains open and releaseReady is false."
         }
       ],
       "outstandingIssues": [
-        "nv:replace is not implemented; advanced loading behavior and the complete directive/modifier/input/cleanup acceptance matrix remain pending."
+        "Initial replacement lifecycle and targeted loading effects have scoped evidence; the complete directive/modifier/input/cleanup/concurrency/accessibility acceptance matrix remains pending.",
+        "Full nested-server and framework-island ownership/hydration support is not implemented; optional loading delays and arbitrary presentation expressions are unsupported."
       ]
     },
     {

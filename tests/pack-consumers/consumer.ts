@@ -22,10 +22,40 @@ import {
   LiveRuntime,
   State,
 } from '@nestvexa/live';
-import { createLiveClient } from '@nestvexa/client';
+import {
+  createLiveClient,
+  parseDirective,
+  parseLoadingDirective,
+  parseLoadingTarget,
+} from '@nestvexa/client';
+import type {
+  LiveDirective,
+  LoadingDirective,
+  ReplacementDirective,
+} from '@nestvexa/client';
 
 // Importing a browser entry in Node must not initialize a document or a global runtime.
 assert.equal(typeof createLiveClient, 'function');
+const replacement: LiveDirective = parseDirective('nv:replace.self', '');
+assert.deepEqual(replacement, {
+  kind: 'replace',
+  self: true,
+} satisfies ReplacementDirective);
+const loading: LoadingDirective = parseLoadingDirective(
+  'nv:loading.attr',
+  'disabled',
+);
+assert.deepEqual(loading, {
+  kind: 'loading',
+  mode: 'attr',
+  remove: false,
+  attribute: 'disabled',
+});
+assert.deepEqual(parseLoadingTarget('increment, $sync'), [
+  'increment',
+  '$sync',
+]);
+assert.throws(() => parseLoadingDirective('nv:loading.attr', 'onclick'));
 
 @Injectable()
 class CounterService {

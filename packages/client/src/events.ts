@@ -108,6 +108,8 @@ export interface EventDispatcher {
   handle(event: Event, element: Element, directive: EventDirective): boolean;
   /** Cancel timers and forget modifiers for detached or no-longer-owned nodes. */
   prune(root: Document | Element): void;
+  /** Forget all modifier state for a subtree before it is removed. */
+  cancel(root: Element): void;
   dispose(): void;
 }
 interface DispatchRecord {
@@ -288,6 +290,11 @@ export function createEventDispatcher(
     },
     prune(root): void {
       prune(root);
+    },
+    cancel(root): void {
+      for (const record of active)
+        if (record.element === root || root.contains(record.element))
+          remove(record);
     },
     dispose(): void {
       if (disposed) return;

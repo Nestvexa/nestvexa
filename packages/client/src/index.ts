@@ -6,6 +6,9 @@ import { createDirectEventListeners } from './listeners.js';
 import type { DirectEventBinding } from './listeners.js';
 import { getModelDirective, readModelValue } from './models.js';
 import { createModelScheduler } from './model-scheduler.js';
+import { createLoadingController, validateLoading } from './loading.js';
+export { parseLoadingDirective, parseLoadingTarget } from './loading.js';
+export type { LoadingDirective } from './loading.js';
 export { parseModelDirective } from './models.js';
 export type { ModelDirective } from './models.js';
 export { parseEventDirective } from './events.js';
@@ -22,7 +25,11 @@ export {
   parseIdentifier,
   parseLiveResponse,
 } from './protocol.js';
-export type { LiveDirective, LiveResponse } from './protocol.js';
+export type {
+  LiveDirective,
+  LiveResponse,
+  ReplacementDirective,
+} from './protocol.js';
 
 export interface LiveClientOptions {
   readonly root?: Document | Element;
@@ -53,6 +60,7 @@ interface Component {
   fieldVersion: number;
   queue: Promise<void>;
   pending: number;
+  readonly pendingActions: Map<string, number>;
   submitting: boolean;
   active: boolean;
   request: AbortController | null;
@@ -79,6 +87,8 @@ function ignored(element: Element, component: Element): boolean {
   return false;
 }
 function validateDirectives(component: Element): void {
+  validateLoading(component);
+  validateReplacement(component, component);
   for (const element of owned(component)) {
     getModelDirective(element);
     for (const kind of ['click', 'submit', 'keydown'])
@@ -100,6 +110,29 @@ function validateDirectives(component: Element): void {
           throw new LiveClientError('DIRECTIVE', 'nv:submit requires a form');
       }
   }
+}
+function validateReplacement(element: Element, component: Element): void {
+  const attributes = [...element.attributes].filter(
+    (attribute) =>
+      attribute.name === 'nv:replace' ||
+      attribute.name.startsWith('nv:replace.'),
+  );
+  const isolated =
+    element.hasAttribute('nv:ignore') ||
+    element.hasAttribute('data-nv-island') ||
+    (element !== component && element.hasAttribute('data-nv-component'));
+  if (
+    attributes.length > 1 ||
+    (attributes.length && (isolated || element === component))
+  )
+    throw new LiveClientError(
+      'DIRECTIVE',
+      'Replacement requires one directive on an owned inner element',
+    );
+  for (const attribute of attributes)
+    parseDirective(attribute.name, attribute.value);
+  if (isolated) return;
+  for (const child of element.children) validateReplacement(child, component);
 }
 function selection(element: Element | null): {
   start: number;
@@ -148,6 +181,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   let dispatcher: EventDispatcher | undefined;
   let composing = new WeakSet<Element>();
   let models = makeModels();
+  let loading = createLoadingController();
   function makeModels(): ReturnType<typeof createModelScheduler> {
     return createModelScheduler({
       invoke: async (element) => {
@@ -191,22 +225,42 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   }
   function busy(state: Component): void {
     state.root.setAttribute('aria-busy', state.pending ? 'true' : 'false');
-    for (const element of owned(state.root))
-      if (element.hasAttribute('nv:loading')) {
-        element.toggleAttribute('hidden', state.pending === 0);
-        element.setAttribute('aria-hidden', state.pending ? 'false' : 'true');
-      }
+    loading.update(state.root, state.pendingActions);
+  }
+  function releaseComponent(state: Component): void {
+    state.active = false;
+    state.request?.abort();
+    loading.restore(state.root);
+    components.delete(state.root);
+    if (componentOwners.get(state.root) === ownership)
+      componentOwners.delete(state.root);
+  }
+  function beforeRemove(node: Node): void {
+    if (!(node instanceof window.Element)) return;
+    dispatcher?.cancel(node);
+    direct.remove(node);
+    for (const element of [node, ...node.querySelectorAll('*')])
+      models.cancel(element);
+    for (const state of components.values())
+      if (node === state.root || node.contains(state.root))
+        releaseComponent(state);
+    node.dispatchEvent(
+      new window.CustomEvent('nestvexa:before-remove', { bubbles: true }),
+    );
+  }
+  function afterInsert(node: Node): void {
+    if (node instanceof window.Element)
+      node.dispatchEvent(
+        new window.CustomEvent('nestvexa:after-insert', { bubbles: true }),
+      );
   }
   function discover(): void {
     dispatcher?.prune(root);
     models.prune(root);
+    loading.prune();
     for (const [element, state] of components)
       if (!contains(element)) {
-        state.active = false;
-        state.request?.abort();
-        components.delete(element);
-        if (componentOwners.get(element) === ownership)
-          componentOwners.delete(element);
+        releaseComponent(state);
       }
     const markers = [...root.querySelectorAll('[data-nv-component]')];
     if (
@@ -292,6 +346,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
             fieldVersion: 0,
             queue: Promise.resolve(),
             pending: 0,
+            pendingActions: new Map(),
             submitting: false,
             active: true,
             request: null,
@@ -409,14 +464,51 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         : null;
       const caret = selection(focused);
       const scroll = { top: state.root.scrollTop, left: state.root.scrollLeft };
-      morphChildren(state.root, template.content, dirty);
+      const previousControls = new Map<string, Element[]>();
+      for (const element of owned(state.root)) {
+        const model = getModelDirective(element);
+        if (model && state.dirty.has(model.field)) {
+          const controls = previousControls.get(model.field) ?? [];
+          controls.push(element);
+          previousControls.set(model.field, controls);
+        }
+      }
+      loading.restore(state.root);
+      morphChildren(state.root, template.content, dirty, {
+        beforeRemove,
+        afterInsert,
+      });
+      for (const [field, controls] of previousControls)
+        if (
+          !controls.some(
+            (element) =>
+              element.isConnected &&
+              owner(element) === state.root &&
+              getModelDirective(element)?.field === field,
+          )
+        )
+          state.dirty.delete(field);
+      for (const [element] of state.invalid)
+        if (!element.isConnected || owner(element) !== state.root)
+          state.invalid.delete(element);
       if (focused?.isConnected && 'focus' in focused) {
         (focused as HTMLElement).focus({ preventScroll: true });
-        if (caret)
+        // A retained INPUT may now have a type without the selection API.
+        if (caret && selection(focused) !== null)
           (focused as HTMLInputElement).setSelectionRange(
             caret.start,
             caret.end,
             caret.direction,
+          );
+      } else if (focused && state.root instanceof window.HTMLElement) {
+        const temporary = !state.root.hasAttribute('tabindex');
+        if (temporary) state.root.setAttribute('tabindex', '-1');
+        state.root.focus({ preventScroll: true });
+        if (temporary)
+          state.root.addEventListener(
+            'blur',
+            () => state.root.removeAttribute('tabindex'),
+            { once: true },
           );
       }
       state.root.scrollTop = scroll.top;
@@ -428,6 +520,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       state.revision = result.component.revision;
       state.values = result.state;
       refreshBindings(state);
+      busy(state);
       state.root.setAttribute('data-nv-state', JSON.stringify(result.state));
       state.root.setAttribute('data-nv-snapshot', result.snapshot);
       state.root.setAttribute('data-nv-revision', String(state.revision));
@@ -453,12 +546,29 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       throw new LiveClientError('DIRECTIVE', 'Live request queue is full');
     if (submit && state.submitting) return Promise.resolve();
     if (submit) state.submitting = true;
+    const targetAction = action === '_sync' ? '$sync' : action;
     state.pending++;
-    busy(state);
+    state.pendingActions.set(
+      targetAction,
+      (state.pendingActions.get(targetAction) ?? 0) + 1,
+    );
+    try {
+      busy(state);
+    } catch (error) {
+      state.pending--;
+      const count = (state.pendingActions.get(targetAction) ?? 1) - 1;
+      if (count) state.pendingActions.set(targetAction, count);
+      else state.pendingActions.delete(targetAction);
+      if (submit) state.submitting = false;
+      throw error;
+    }
     const task = state.queue
       .then(() => invoke(state, action))
       .finally(() => {
         state.pending--;
+        const count = (state.pendingActions.get(targetAction) ?? 1) - 1;
+        if (count) state.pendingActions.set(targetAction, count);
+        else state.pendingActions.delete(targetAction);
         if (submit) state.submitting = false;
         if (state.active && mounted) busy(state);
       });
@@ -672,6 +782,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     mount(): void {
       if (mounted) return;
       models = makeModels();
+      loading = createLoadingController();
       mounted = true;
       dispatcher = createEventDispatcher({
         invoke: (element, action) =>
@@ -713,6 +824,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       dispatcher = undefined;
       direct.dispose();
       models.dispose();
+      loading.dispose();
       composing = new WeakSet<Element>();
       root.removeEventListener('click', action);
       root.removeEventListener('submit', action);

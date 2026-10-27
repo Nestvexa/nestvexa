@@ -1,6 +1,6 @@
-# Release checkpoint report — 2026-10-26
+# Release checkpoint report — 2026-10-27
 
-**A. Status: NOT YET READY — BLOCKERS.** This is an interim report, not Phase 17 acceptance. The [925-unit ledger](feature-ledger.md) records **82 InProgress, 843 Pending and 0 Done**. No complete phase is accepted. The implemented model checkpoint and isolated-runtime reruns passed; mandatory master scope, matrix and review gates remain open.
+**A. Status: NOT YET READY — BLOCKERS.** This is an interim report, not Phase 17 acceptance. The [925-unit ledger](feature-ledger.md) records **83 InProgress, 842 Pending and 0 Done**. No complete phase is accepted. The rendering checkpoint and both isolated runtime reruns passed after the caret correction below. Calendar dates follow Africa/Cairo and verification timestamps use UTC.
 
 ## B. What exists
 
@@ -10,13 +10,32 @@ Live has generated Nest routes, bounded JSON/state tokens, host identity/CSRF/or
 
 The model slice adds deferred/live/blur/change/lazy modes, finite decimal and explicit boolean casts, bounded debounce/leading throttle, native single-select/radio values, IME handling and cleanup. Invalid local conversion blocks requests. The fixed `_sync` route requires explicit `$sync` authorization and component/global Nest policies; action-method guards do not apply and no action or action hooks run. Pure writable-state validators can return422 before component execution while preserving the snapshot for correction; transaction revision checks still reject conflicting writes. Full model/forms acceptance remains open.
 
+The new rendering slice adds per-action targeted loading, including queued requests and `$sync`, reversible visibility/class/allowlisted-attribute effects, server-baseline restoration and conflict checks. Explicit incoming child/self replacement resets native/file/Alpine local state, notifies outer-subtree removal/insertion, cancels removed client resources, moves removed focus to the retained root and clears dirty fields when every original control disappears. Ordinary morphing retains ownership boundaries; explicit ancestor replacement may remove them. The full nested-server API and official framework island lifecycle remain unimplemented.
+
 Observed versions: Windows host Node 24.13.0, additional Node 22.23.4 and 24.22.1, pnpm 10.26.1, Nest 12.2.0, TypeScript 6.0.3, Handlebars 4.7.10, Vitest 5.0.5, Playwright 1.64.1, express-session 1.19.0, Alpine CSP 3.17.5 and axe Playwright 4.14.0. See [compatibility](../architecture/upstream-compatibility.md).
 
 ## C. Evidence
 
+The [rendering evidence summary](rendering-checkpoint-evidence-2026-10-27.json) preserves the complete host checkpoint started at **2026-10-27T03:24:05.203Z**. All implemented-checkpoint commands exited 0 except `release:check`, which correctly exited 1 for unfinished master scope, matrix and review gates. Isolated Windows Node **22.23.4 and 24.22.1 each passed strict compilation and all 447 aggregate tests**. The complete three-browser server and packed-consumer suites ran under host Node 24.13.0.
+
+| Current rendering command/report                         | Observed result and scope                                                                                                                                   |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Frozen install, formatting, lint, strict typecheck/build | All exited 0                                                                                                                                                |
+| `pnpm test`                                              | **447/447 passed**, including 38 loading, 18 replacement and 12 rendering-lifecycle cases                                                                   |
+| `pnpm test:e2e`                                          | **60 expected, 0 unexpected/skipped/flaky**, Chromium/Firefox/WebKit with 2 workers; 12 new rendering/input-type checks                                     |
+| `pnpm test:coverage`                                     | **97.18% branches, 98.20% statements**, only three config/protocol/store files; excludes most runtime/action/client code                                    |
+| `pnpm test:pack`                                         | Seven archives inspected; npm and pnpm consumers passed strict types, real MVC/Live policies and Node-safe imports; timestamp **2026-10-27T03:26:09.467Z**  |
+| `pnpm size:check`                                        | **87,321 raw bytes, 22,896 summed per-module gzip bytes across 10 modules**, below 35KiB excluding Alpine/maps; not measured HTTP transfer                  |
+| Docs, ledger and audit                                   | All exited 0; audit reported no known vulnerabilities, without implying independent security approval                                                       |
+| HBS microbenchmark                                       | 1,000 cached adapter renders; p50 0.1932ms, p95 0.2609ms, p99 0.3064ms on the recorded Windows/Node/CPU; no plain-Nest or application comparison            |
+| Isolated runtimes                                        | Windows Node 22.23.4 and 24.22.1 each passed strict compilation and 447 tests; full server/browser/consumer matrices were not repeated under those binaries |
+| `pnpm release:check`                                     | Correctly exited 1; full master requirements, matrices and review remain unmet                                                                              |
+
+The following model and registration tables preserve earlier verified checkpoints and their distinct artifact/runtime scope.
+
 The [model checkpoint summary](model-checkpoint-evidence-2026-10-26.json) preserves the successful combined runner at **2026-10-26T20:22:16.515Z** on Windows/Node 24.13.0. All implemented-checkpoint commands exited 0; `release:check` correctly exited 1 because mandatory scope/review/matrix gates remain open. The pack result timestamp is **2026-10-26T20:23:42.043Z**. Isolated Node **22.23.4 and 24.22.1 each passed strict compilation and 379 aggregate tests** after the test-fixture transport correction described below.
 
-| Current model command/report                      | Observed result and scope                                                                                                                                               |
+| Historical model command/report                   | Observed result and scope                                                                                                                                               |
 | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Frozen install, formatting, lint, typecheck/build | All exited 0 in the combined model checkpoint                                                                                                                           |
 | `pnpm test`                                       | **379/379 passed**, including native-control/model scheduler, synchronization policy/validation and registration regressions                                            |
@@ -50,19 +69,27 @@ Earlier model attempts also retain failures: one reached 47/48 browser passes be
 
 An earlier isolated Node 24.22.1 run reached 378/379 aggregate passes when fetch rejected an OS-assigned reserved ephemeral port in the Fastify shutdown fixture. The request rejection also caused a 15-second fixture admission wait timeout and unhandled rejection. This test-transport/cleanup failure did not establish a product defect. The test now uses a real node:http request with fail-fast gate waits and guaranteed cleanup; fresh host checkpoint and isolated Node 22/24 compilation/aggregate checks subsequently passed.
 
+The first rendering aggregate attempt passed425/433 tests; eight model-lifecycle setup hooks timed out because their fixture asset allowlist omitted the new `loading.js` import. The allowlist was fixed without disabling tests. A new WebKit replacement-focus assertion assumed mouse activation would focus a button; it now explicitly establishes keyboard focus and presses Enter. The corrected scenarios subsequently passed in the complete host checkpoint. These fixture corrections do not fabricate server responses or claim a product defect from an invalid fixture premise.
+
+A later attempt passed 444/444 aggregate tests and 56/57 browser checks. Its WebKit event case used an automation double-click that exceeded the 100ms debounce window, producing two legitimate actions. The fixture now dispatches its pair in one browser turn; a subsequent complete runner passed 444/57 before the input-type regression was added.
+
+Internal review then found a real caret defect in ordinary morphing: a retained focused text input could become a number, email or file input, after which restoring its old caret threw `InvalidStateError` before the client advanced its revision. All three new Chromium regressions failed before the fix. Selection capability is now checked after morphing; the entire 12-case lifecycle suite passes. A real Nest text/number switching flow also passes across all three browser engines and successfully invokes a subsequent action. Final aggregate/browser totals are 447/60, with both isolated runtime reruns green. This was a scoped internal review, not independent security approval or completion of the full native-input matrix.
+
 ## D. Documentation
 
 Root [README](../../README.md), every package README, ten ADRs, architecture records, [Live protocol](../guides/live-protocol.md), [hardening](../security/hardening.md), partial [ASVS mapping](../security/asvs-traceability.md), preliminary [security review](../security/security-design-review.md), community policies and [changelog](../../CHANGELOG.md) exist. The production docs website and guides for undelivered systems remain required work.
 
 ## E. Artifacts
 
-Version 0.1.0-alpha.0 tarballs are under artifacts/packages. The current pack report and tracked model summary contain all seven package names, SHA-256 values, archive inventories and successful npm/pnpm consumer commands. Both new client model modules are present in the client archive. Reports/logs are under artifacts/reports; readable docs snapshots under artifacts/docs. No publication, SBOM, provenance attestation or approved release manifest is claimed.
+Version 0.1.0-alpha.0 tarballs are under artifacts/packages. The [rendering summary](rendering-checkpoint-evidence-2026-10-27.json) preserves all seven package names, SHA-256 values, inventories and consumer commands; the client archive includes loading and model modules with declarations. Historical summaries retain their original evidence. Reports/logs are under artifacts/reports and 35 readable documentation snapshots under artifacts/docs. No publication, SBOM, provenance attestation or approved release manifest is claimed.
 
 ## F. Known issues and unmet gates
 
 Full Live behavior, forms/uploads, alternative engines, official Inertia React/Vue/Svelte integrations, hybrid islands, universal actions, realtime/distributed stores/cache/jobs, extensions, CLI and automatic default bootstrap remain unmet. Linux is unverified because the local Docker daemon is unavailable. Full Nest/platform/browser/fault matrices, project-wide coverage, mutation/fuzz/long-memory/load tests and independent review remain open.
 
 Memory state/sample sessions are single-process without durable exactly-once business guarantees. Hosts own authentication, principal/tenant selection, logout revocation, body limits, production sessions, renderer lifecycle, TLS/proxy policy and business transactions. Synchronization is a separate write surface: policies required for every edit must use `$sync` authorization or component/global scope, rather than an action-method guard. Nested paths, multiple selects and file/array models remain unsupported.
+
+Loading effects do not authorize requests. Replacement deliberately loses removed local state and does not provide official island teardown/hydration or a complete nested-server component API. Complete concurrency, input/modifier, cleanup, focus and screen-reader acceptance remains open beyond the scoped fixtures.
 
 ## G. Owner release steps
 

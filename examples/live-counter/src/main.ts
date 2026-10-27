@@ -63,6 +63,10 @@ class Counter {
   @State() saved = '';
   @State() visible = true;
   @State() healthLink = '/api/health';
+  @State() numericControl = false;
+  @Action() toggleInputType(): void {
+    this.numericControl = !this.numericControl;
+  }
   @Action() toggleVisible(): void {
     this.visible = !this.visible;
   }
@@ -106,7 +110,7 @@ class PageController {
   @Get('assets/example.css')
   @Header('Content-Type', 'text/css; charset=utf-8')
   stylesheet() {
-    return 'body{font-family:system-ui,sans-serif;line-height:1.6;margin:2rem;max-width:60rem}button,input{font:inherit;min-height:2.75rem;box-sizing:border-box}button{padding:.4rem .8rem;margin:.25rem}input{padding:.4rem;margin:.25rem}form{margin-block:1rem}output{font-variant-numeric:tabular-nums}';
+    return 'body{font-family:system-ui,sans-serif;line-height:1.6;margin:2rem;max-width:60rem}button,input{font:inherit;min-height:2.75rem;box-sizing:border-box}button{padding:.4rem .8rem;margin:.25rem}input{padding:.4rem;margin:.25rem}form{margin-block:1rem}output{font-variant-numeric:tabular-nums}.working,.queued{font-weight:700;text-decoration:underline}';
   }
   @Get('assets/live.js')
   @Header('Content-Type', 'text/javascript; charset=utf-8')
@@ -152,6 +156,11 @@ class PageController {
   @Header('Content-Type', 'text/javascript; charset=utf-8')
   modelScheduler() {
     return readFile(new URL('./model-scheduler.js', clientEntry), 'utf8');
+  }
+  @Get('assets/loading.js')
+  @Header('Content-Type', 'text/javascript; charset=utf-8')
+  loading() {
+    return readFile(new URL('./loading.js', clientEntry), 'utf8');
   }
   @Get('assets/alpine.js')
   @Header('Content-Type', 'text/javascript; charset=utf-8')
@@ -214,6 +223,7 @@ class LiveRendererLifecycle {
           'save',
           'slow',
           'toggleVisible',
+          'toggleInputType',
         ].includes(action),
     }),
   ],

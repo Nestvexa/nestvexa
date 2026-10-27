@@ -36,6 +36,20 @@ describe('browser protocol boundary', () => {
     });
     expect(() => parseDirective('nv:poll', 'refresh')).toThrow();
     expect(() => parseDirective('nv:ignore', 'expression')).toThrow();
+    expect(parseDirective('nv:replace', '')).toEqual({
+      kind: 'replace',
+      self: false,
+    });
+    expect(parseDirective('nv:replace.self', '')).toEqual({
+      kind: 'replace',
+      self: true,
+    });
+    expect(parseDirective('nv:target', 'increment, $sync')).toEqual({
+      kind: 'target',
+      actions: ['increment', '$sync'],
+    });
+    expect(() => parseDirective('nv:replace', 'code()')).toThrow();
+    expect(() => parseDirective('nv:replace.unknown', '')).toThrow();
   });
   it('validates revision, envelope and state keys before accepting responses', () => {
     const result = {

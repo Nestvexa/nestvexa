@@ -29,6 +29,72 @@ function compatible(old: Node, next: Node): boolean {
       (old as Element).tagName === (next as Element).tagName)
   );
 }
+export interface MorphLifecycle {
+  /** Called before removing an outermost subtree; descendants are included in that notification. */
+  readonly beforeRemove?: (node: Node) => void;
+  /** Called after inserting a new outermost subtree; moving retained keyed nodes does not notify. */
+  readonly afterInsert?: (node: Node) => void;
+}
+
+function replacement(element: Element): 'children' | 'self' | undefined {
+  const children = element.getAttribute('nv:replace');
+  const self = element.getAttribute('nv:replace.self');
+  if (
+    (children !== null && children !== '') ||
+    (self !== null && self !== '') ||
+    (children !== null && self !== null)
+  )
+    throw new LiveClientError(
+      'DIRECTIVE',
+      'Use one empty nv:replace or nv:replace.self declaration',
+    );
+  if (
+    children !== null &&
+    [
+      'AREA',
+      'BASE',
+      'BR',
+      'COL',
+      'EMBED',
+      'HR',
+      'IMG',
+      'INPUT',
+      'LINK',
+      'META',
+      'PARAM',
+      'SOURCE',
+      'TRACK',
+      'WBR',
+      'TEXTAREA',
+      'SELECT',
+    ].includes(element.tagName)
+  )
+    throw new LiveClientError(
+      'DIRECTIVE',
+      'nv:replace requires a container; use nv:replace.self for native controls',
+    );
+  return self !== null ? 'self' : children !== null ? 'children' : undefined;
+}
+
+/** Check all owned sibling sets before changing any DOM, including late nested duplicates. */
+function validateKeys(parent: Element | DocumentFragment, label: string): void {
+  const keys = new Set<string>();
+  for (const node of parent.childNodes) {
+    const id = key(node);
+    if (id) {
+      if (keys.has(id))
+        throw new LiveClientError('HTML', `Duplicate ${label} DOM key`);
+      keys.add(id);
+    }
+    if (node.nodeType === 1) {
+      const element = node as Element;
+      if (!boundary(element)) {
+        replacement(element);
+        validateKeys(element, label);
+      }
+    }
+  }
+}
 export function validateFragment(fragment: DocumentFragment): void {
   for (const element of fragment.querySelectorAll('*')) {
     if (element.namespaceURI !== 'http://www.w3.org/1999/xhtml')
@@ -64,30 +130,54 @@ export function validateFragment(fragment: DocumentFragment): void {
     }
   }
 }
-/** Keyed nodes remain the same objects. Boundaries retain their entire owned subtree. */
+/**
+ * Keyed nodes remain the same objects unless incoming markup explicitly replaces them.
+ * Ownership boundaries retain their subtree; replacement deliberately resets local DOM state.
+ */
 export function morphChildren(
   parent: Element | DocumentFragment,
   incoming: Element | DocumentFragment,
   dirty: ReadonlyMap<string, unknown>,
+  lifecycle: MorphLifecycle = {},
+): void {
+  validateKeys(parent, 'existing');
+  validateKeys(incoming, 'incoming');
+  patchChildren(parent, incoming, dirty, lifecycle);
+}
+function remove(node: Node, lifecycle: MorphLifecycle): void {
+  if (!node.parentNode) return;
+  lifecycle.beforeRemove?.(node);
+  node.parentNode?.removeChild(node);
+}
+function insert(
+  parent: Element | DocumentFragment,
+  node: Node,
+  cursor: Node | null,
+  lifecycle: MorphLifecycle,
+): void {
+  parent.insertBefore(node, cursor);
+  lifecycle.afterInsert?.(node);
+}
+function replaceChildren(
+  element: Element,
+  incoming: Element,
+  lifecycle: MorphLifecycle,
+): void {
+  for (const child of [...element.childNodes]) remove(child, lifecycle);
+  for (const child of incoming.childNodes)
+    insert(element, child.cloneNode(true), null, lifecycle);
+}
+function patchChildren(
+  parent: Element | DocumentFragment,
+  incoming: Element | DocumentFragment,
+  dirty: ReadonlyMap<string, unknown>,
+  lifecycle: MorphLifecycle,
 ): void {
   const originals = [...parent.childNodes];
   const keyed = new Map<string, Node>();
   for (const node of originals) {
     const id = key(node);
-    if (id) {
-      if (keyed.has(id))
-        throw new LiveClientError('HTML', 'Duplicate existing DOM key');
-      keyed.set(id, node);
-    }
-  }
-  const incomingKeys = new Set<string>();
-  for (const node of incoming.childNodes) {
-    const id = key(node);
-    if (id) {
-      if (incomingKeys.has(id))
-        throw new LiveClientError('HTML', 'Duplicate incoming DOM key');
-      incomingKeys.add(id);
-    }
+    if (id) keyed.set(id, node);
   }
   const retained = new Set<Node>();
   let cursor = parent.firstChild;
@@ -100,23 +190,47 @@ export function morphChildren(
         : undefined;
     let current: Node;
     if (candidate && !retained.has(candidate) && compatible(candidate, next)) {
-      current = candidate;
-      if (current !== cursor) parent.insertBefore(current, cursor);
-      morphNode(current, next, dirty);
+      const element =
+        candidate.nodeType === 1 ? (candidate as Element) : undefined;
+      const incomingElement =
+        next.nodeType === 1 ? (next as Element) : undefined;
+      if (
+        element &&
+        incomingElement &&
+        !boundary(element) &&
+        (boundary(incomingElement) || replacement(incomingElement) === 'self')
+      ) {
+        current = next.cloneNode(true);
+        lifecycle.beforeRemove?.(candidate);
+        parent.replaceChild(current, candidate);
+        if (candidate !== cursor) parent.insertBefore(current, cursor);
+        lifecycle.afterInsert?.(current);
+      } else {
+        current = candidate;
+        if (current !== cursor) parent.insertBefore(current, cursor);
+        morphNode(current, next, dirty, lifecycle);
+      }
+    } else if (candidate && !retained.has(candidate)) {
+      const insertionPoint =
+        candidate === cursor ? candidate.nextSibling : cursor;
+      remove(candidate, lifecycle);
+      current = next.cloneNode(true);
+      insert(parent, current, insertionPoint, lifecycle);
     } else {
       current = next.cloneNode(true);
-      parent.insertBefore(current, cursor);
+      insert(parent, current, cursor, lifecycle);
     }
     retained.add(current);
     cursor = current.nextSibling;
   }
   for (const node of originals)
-    if (!retained.has(node)) node.parentNode?.removeChild(node);
+    if (!retained.has(node)) remove(node, lifecycle);
 }
 function morphNode(
   current: Node,
   next: Node,
   dirty: ReadonlyMap<string, unknown>,
+  lifecycle: MorphLifecycle,
 ): void {
   if (current.nodeType !== 1 || next.nodeType !== 1) {
     if (current.nodeValue !== next.nodeValue)
@@ -140,6 +254,10 @@ function morphNode(
   for (const attribute of replacement.attributes)
     if (element.getAttribute(attribute.name) !== attribute.value)
       element.setAttribute(attribute.name, attribute.value);
+  if (replacement.hasAttribute('nv:replace')) {
+    replaceChildren(element, replacement, lifecycle);
+    return;
+  }
   if (element.tagName === 'INPUT') {
     const input = element as HTMLInputElement;
     const nextInput = replacement as HTMLInputElement;
@@ -157,7 +275,7 @@ function morphNode(
     return;
   }
   if (element.hasAttribute('contenteditable')) return;
-  morphChildren(element, replacement, dirty);
+  patchChildren(element, replacement, dirty, lifecycle);
   if (element.tagName === 'SELECT')
     (element as HTMLSelectElement).value =
       retainValue && selected !== undefined

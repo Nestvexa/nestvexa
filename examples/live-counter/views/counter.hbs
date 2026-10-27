@@ -3,7 +3,14 @@
   <p>Double: <span id="double">{{doubled}}</span></p>
   <button type="button" nv:click="decrement">Decrease</button>
   <button type="button" nv:click="increment">Increase</button>
-  <button type="button" nv:click="slow">Slow increase</button>
+  <button
+    type="button"
+    nv:click="slow"
+    nv:loading.attr="disabled"
+    nv:target="slow"
+  >
+    Slow increase
+  </button>
   <form nv:submit="save">
     <label for="name">Display name</label
     ><input id="name" nv:model="name" value="{{name}}" maxlength="80" />
@@ -26,6 +33,66 @@
   </div>
   <button type="button" nv:click="toggleVisible">Toggle detail</button>
   <span nv:loading="" hidden role="status">Updating…</span>
+  <label for="changing-control">Changing input type</label>
+  {{#if numericControl}}
+  <input
+    id="changing-control"
+    type="number"
+    value="12"
+    nv:keydown.enter.prevent="toggleInputType"
+  />
+  {{else}}
+  <input
+    id="changing-control"
+    type="text"
+    value="12"
+    nv:keydown.enter.prevent="toggleInputType"
+  />
+  {{/if}}
+  <span
+    id="loading-style"
+    class="baseline"
+    nv:loading.class="working"
+    nv:target="slow"
+    >Slow action status</span
+  >
+  <span id="increment-style" nv:loading.class="queued" nv:target="increment"
+    >Increment action status</span
+  >
+  <span id="idle-status" nv:loading.remove="" nv:target="slow"
+    >Ready for a slow action</span
+  >
+  <button
+    id="server-disabled"
+    type="button"
+    disabled
+    nv:loading.attr="disabled"
+    nv:target="slow"
+  >
+    Unavailable server control
+  </button>
+  <section id="replace-children" nv:replace="" aria-label="Replace children">
+    <h2>Replacement children</h2>
+    <label for="replacement-note">Temporary replacement note</label
+    ><input id="replacement-note" value="Server default" />
+    <button type="button" nv:click="increment">
+      Replace children increase
+    </button>
+    <output>{{count}}</output>
+  </section>
+  <section id="replace-self" nv:replace.self="" aria-label="Replace element">
+    <h2>Replacement element</h2>
+    <button type="button" nv:click="increment">Replace element increase</button
+    ><output>{{count}}</output>
+  </section>
+  <section id="replace-alpine" nv:replace="" aria-label="Replaced Alpine">
+    <h2>Replaced Alpine</h2>
+    <div nv:ignore="" x-data="localCounter">
+      <button type="button" x-on:click="incrementLocal">
+        Replacement Alpine click</button
+      ><output id="replacement-alpine-local" x-text="clicks">0</output>
+    </div>
+  </section>
   <section aria-label="Model synchronization">
     <h2>Model synchronization</h2>
     <label for="search">Live search</label

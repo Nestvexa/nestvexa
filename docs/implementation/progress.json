@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "checkpointDate": "2026-10-26",
+  "checkpointDate": "2026-10-27",
   "releaseStatus": "NOT YET READY — BLOCKERS",
   "phases": [
     {
@@ -19,13 +19,13 @@
       "id": 2,
       "state": "InProgress",
       "scope": "Live protocol, opaque state store, generated routes, registration ownership, authorized model synchronization and pure writable-state validation",
-      "remaining": "Windows/Node24.13 combined model checkpoint passed 379 aggregate tests and 48 three-browser checks with pack/docs/audit. Node22.23.4 and Node24.22.1 each passed strict compilation and all 379 aggregate tests after the fixture-transport correction. Full security, protocol, lifecycle and compatibility acceptance remains open"
+      "remaining": "October27 rendering host checkpoint passed447 aggregate/60 browser checks plus pack/docs/audit; isolated Node22.23.4 and24.22.1 each passed strict compilation and447 tests. Historical model379/48 results remain distinct. Full security, protocol, lifecycle and compatibility acceptance remains open"
     },
     {
       "id": 3,
       "state": "InProgress",
-      "scope": "Initial directives, queued transport, keyed morph, CSP Alpine bridge, event/keyboard modifiers and primitive model modes/casts/timers",
-      "remaining": "Combined 379-test aggregate and 48 three-browser checks passed with 2 browser workers and actual server-response gates; corrected fixture also passed isolated Node22/24 aggregates. Full input/modifier/cleanup matrix, nv:replace, broader loading behavior and automatic default bootstrap remain open"
+      "scope": "Initial directives, queued transport, keyed morph, CSP Alpine bridge, event/model modifiers, targeted loading and explicit replacement/removal lifecycle",
+      "remaining": "Complete host rendering checkpoint passed447 aggregate/60 browser checks, including38 loading/18 replacement/12 rendering-lifecycle tests and a fixed input-type/caret regression. Isolated Node22/24 strict compilation and447 tests passed. Complete input/modifier/cleanup/concurrency/accessibility matrix, full nested-server/island lifecycle and automatic default bootstrap remain open"
     },
     {
       "id": 4,

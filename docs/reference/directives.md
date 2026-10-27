@@ -2,22 +2,85 @@
 
 This alpha implements the following configuration grammar. Names identify registered actions or top-level public state. Expressions, dotted paths, executable JavaScript and unrecognized modifiers are rejected explicitly. The complete directive matrix in the master plan remains unmet.
 
-| Directive                 | Current behavior                                                                           |
-| ------------------------- | ------------------------------------------------------------------------------------------ |
-| `nv:click="increment"`    | Calls a registered action; disabled controls are ignored                                   |
-| `nv:submit="save"`        | Prevents native submission and suppresses duplicate pending submits                        |
-| `nv:keydown.enter="save"` | Calls a registered action when the selected keyboard event matches                         |
-| `nv:model="name"`         | Holds native form-control edits until an action; explicit modifiers enable synchronization |
-| `nv:loading=""`           | Displays pending status and updates component `aria-busy`                                  |
-| `nv:ignore=""`            | Preserves the subtree; put independently owned Alpine widgets here                         |
-| `nv:text="name"`          | Sets primitive `textContent`; rejects targets containing elements or form controls         |
-| `nv:show="visible"`       | Requires a boolean; toggles visibility/ARIA and moves focus before hiding focused content  |
-| `nv:bind="title:name"`    | Binds one allowed attribute to public state                                                |
-| `nv:dirty="name"`         | Shows an indicator for pending local edits; empty value targets any field                  |
-| `nv:cloak=""`             | Removed after successful initialization; add matching CSS to prevent initial flashing      |
-| `nv:ref="name"`           | Declares a unique owned reference returned by `client.refs(element)`                       |
+| Directive                 | Current behavior                                                                               |
+| ------------------------- | ---------------------------------------------------------------------------------------------- |
+| `nv:click="increment"`    | Calls a registered action; disabled controls are ignored                                       |
+| `nv:submit="save"`        | Prevents native submission and suppresses duplicate pending submits                            |
+| `nv:keydown.enter="save"` | Calls a registered action when the selected keyboard event matches                             |
+| `nv:model="name"`         | Holds native form-control edits until an action; explicit modifiers enable synchronization     |
+| `nv:loading=""`           | Displays pending status; optional targets/classes/allowlisted attributes track queued requests |
+| `nv:target="save,$sync"`  | Selects 1–16 action/synchronization identifiers for loading directives on the same element     |
+| `nv:replace=""`           | Replaces children of an owned inner wrapper; `.self` replaces the wrapper too                  |
+| `nv:ignore=""`            | Preserves the subtree; put independently owned Alpine widgets here                             |
+| `nv:text="name"`          | Sets primitive `textContent`; rejects targets containing elements or form controls             |
+| `nv:show="visible"`       | Requires a boolean; toggles visibility/ARIA and moves focus before hiding focused content      |
+| `nv:bind="title:name"`    | Binds one allowed attribute to public state                                                    |
+| `nv:dirty="name"`         | Shows an indicator for pending local edits; empty value targets any field                      |
+| `nv:cloak=""`             | Removed after successful initialization; add matching CSS to prevent initial flashing          |
+| `nv:ref="name"`           | Declares a unique owned reference returned by `client.refs(element)`                           |
 
 Attribute bindings allow `title`, `aria-label`, `aria-expanded`, `aria-disabled`, `href`, `src`, `disabled` and `readonly`. Boolean attributes require booleans. URLs accept HTTP(S) or relative URLs, rejecting credentials, whitespace/control characters and executable schemes. No style, event-handler, `srcdoc` or HTML binding exists.
+
+## Loading and targets
+
+Loading counts include queued and executing requests, so an effect stays active until its matching requests settle. Counts are isolated by Live component and action; the internal synchronization request is named `$sync` for targeting. There is no loading delay or duration modifier.
+
+| Declaration                         | Behavior while matching work is pending                                                     |
+| ----------------------------------- | ------------------------------------------------------------------------------------------- |
+| `nv:loading=""`                     | Shows the element; otherwise hides it using `hidden` and `aria-hidden`                      |
+| `nv:loading.remove=""`              | Hides the element; otherwise shows it                                                       |
+| `nv:loading.class="working busy"`   | Adds each listed simple class                                                               |
+| `nv:loading.class.remove="ready"`   | Removes each listed simple class                                                            |
+| `nv:loading.attr="disabled"`        | Applies the selected boolean attribute, or `true` for an allowed ARIA attribute             |
+| `nv:loading.attr.remove="readonly"` | Removes the selected attribute                                                              |
+| `nv:target="save,$sync"`            | Activates same-element loading effects when any listed request has a positive pending count |
+
+Without `nv:target`, any pending request on the component activates the element's loading effects. A target is a comma-separated list of 1 through 16 unique registered-style identifiers, with `$sync` explicitly allowed; empty, duplicate, executable or dotted expressions are rejected. Target names do not expose methods or grant permission. `nv:target` without a same-element loading directive is invalid.
+
+Class declarations allow 1 through 16 unique whitespace-separated tokens, each starting with a letter/underscore and containing only letters, digits, underscore or hyphen, up to 64 characters. This deliberately excludes arbitrary class expressions and utility syntax containing punctuation. Attribute effects allow only `disabled`, `readonly`, `aria-disabled` and `aria-busy`. Native `disabled` requires a disableable HTML form control. `readonly` requires a textarea or a supported text/date/time/number input; checkbox, radio, file, hidden, range, color and button types are rejected because HTML ignores the attribute there. See the [HTML input attribute rules](https://html.spec.whatwg.org/multipage/input.html#attr-input-readonly). Attribute names and class tokens are configuration, never JavaScript.
+
+Class effects restore token membership; attribute effects restore their exact captured values after work settles or the controller releases the element. Class attribute whitespace/order is not preserved. They do not blindly enable a control: an initially disabled server control stays disabled. Later host changes are retained as the next baseline, and baselines are restored before incoming server markup is applied. Visibility directives deliberately own `hidden`/`aria-hidden` while mounted; cleanup restores their captured values. Component `aria-busy` reflects all component requests independently of loading targets.
+
+Multiple loading declarations may coexist only when they control distinct properties. Duplicate property owners, visibility combined with `nv:show`/`nv:dirty`, and loading plus `nv:bind` for the same attribute are rejected before applying the effects. Loading visibility cannot hide the component root, and loading cannot own root `aria-busy`. Hiding focused content moves focus to the retained root. Ignored, island and nested Live subtrees are not patched by their parent loading controller. Effects are restored on detach, reconfiguration, ownership change or client disposal. None of these UI states replaces server authorization or prevents a forged HTTP request.
+
+```html
+<button
+  type="button"
+  nv:click="save"
+  nv:loading.attr="disabled"
+  nv:target="save"
+>
+  Save
+</button>
+<span role="status" nv:loading="" nv:target="save,$sync" hidden>Updating…</span>
+<span class="ready" nv:loading.class.remove="ready" nv:target="save"
+  >Status</span
+>
+```
+
+The [loading parser/controller](../../packages/client/src/loading.ts), [loading tests](../../tests/client-loading.test.ts) and [loading/replacement browser scenarios](../../tests/browser/replacement-loading.spec.ts) define this slice. Current execution evidence belongs in the implementation checkpoint; no complete concurrency/accessibility acceptance is inferred from file presence.
+
+## Explicit replacement and removal lifecycle
+
+`nv:replace=""` replaces every child of its owned inner container while retaining the wrapper object. Its wrapper attributes are still reconciled from the server fragment. `nv:replace.self=""` replaces the whole element. Both require empty values and cannot coexist on one node. The incoming server fragment chooses replacement versus normal keyed morphing; a previous replacement declaration does not force future fragments to keep that mode.
+
+Neither form is allowed on the Live component root or on the same node as `nv:ignore`, a nested Live root or an island marker. Void elements and native input/textarea/select controls require `.self`; child replacement requires a container. Stable ignored/nested/island boundaries survive ordinary parent morphing, including keyed moves. An explicitly replaced ancestor deliberately removes its descendants, including ownership boundaries. Framework owners must handle teardown when that happens; this is not automatic React/Vue/Svelte island integration.
+
+Replacement resets node-local event/widget state, native input/file selections and Alpine local state inside the removed subtree. It is unsuitable for edits that must survive reconciliation. When every original model control for a dirty field is removed, its local dirty value is discarded even if a newly inserted control names the same field; the new server state becomes authoritative. If an original matching control survives, the ordinary newer-edit preservation rule remains. Removing the focused control moves focus to the retained component root rather than attempting to focus a detached node.
+
+Before each outer element subtree is removed, the client cancels its scheduled event/model work, removes direct listeners, aborts requests for nested mounted Live roots and releases their client ownership. It then emits bubbling, noncancelable `nestvexa:before-remove` on the still-connected outer element. After an outer element subtree is inserted, `nestvexa:after-insert` bubbles from that element. Descendants are covered by their outer notification; retained keyed moves do not emit remove/insert events. Text-node changes do not emit these DOM CustomEvents. The events carry no request/state payload and cannot cancel replacement. `nestvexa:updated` signals completion of Live reconciliation and client discovery, not completion of every third-party asynchronous initializer.
+
+```html
+<section nv:replace="" aria-label="Resetting panel">
+  <label for="temporary">Temporary note</label>
+  <input id="temporary" value="Server default" />
+</section>
+<input nv:replace.self="" type="file" aria-label="Resetting attachment" />
+```
+
+The [morph implementation](../../packages/client/src/morph.ts), [replacement tests](../../tests/client-replace.test.ts), [rendering lifecycle tests](../../tests/client-rendering-lifecycle.test.ts) and [browser scenarios](../../tests/browser/replacement-loading.spec.ts) define the current replacement boundary. Controlled transport fixtures in lifecycle tests do not establish server protocol conformance. The full nested component server API, official framework island mounts and all renderer-specific teardown contracts remain required work.
+
+Ordinary morphing checks a retained control's selection capability after applying its new type before restoring a saved caret. A text-to-number/email/file change must still advance the client revision and permit the next action. The lifecycle regressions cover all three changes, and the Nest browser flow covers text/number switching. This does not accept the entire native-input matrix.
 
 ## Event modifiers
 

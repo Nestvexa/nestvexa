@@ -1,10 +1,19 @@
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 
-const [name, scope] = process.argv.slice(2);
+const [name, scope, calendarDate] = process.argv.slice(2);
 if (!name || !/^[a-z][a-z0-9-]{0,63}$/.test(name) || !scope)
   throw new Error(
-    'Usage: node scripts/snapshot-checkpoint.mjs <name> "<scope>"',
+    'Usage: node scripts/snapshot-checkpoint.mjs <name> "<scope>" [YYYY-MM-DD]',
+  );
+if (
+  calendarDate &&
+  (!/^\d{4}-\d{2}-\d{2}$/.test(calendarDate) ||
+    !Number.isFinite(Date.parse(calendarDate)) ||
+    new Date(calendarDate).toISOString().slice(0, 10) !== calendarDate)
+)
+  throw new Error(
+    'Checkpoint calendar date must be a valid YYYY-MM-DD date; command timestamps remain UTC',
   );
 const hashes = {};
 async function read(path) {
@@ -20,6 +29,7 @@ const tests = await read(`${directory}/vitest.json`);
 const browser = await read(`${directory}/playwright.json`);
 const pack = await read(`${directory}/pack.json`);
 const size = await read(`${directory}/client-size.json`);
+const benchmark = await read(`${directory}/benchmark.json`);
 const coverage = await read(
   `${directory}/coverage/high-risk/coverage-summary.json`,
 );
@@ -40,6 +50,7 @@ for (const [command, timestamp] of [
   ['pnpm test:e2e', browser.stats.startTime],
   ['pnpm test:pack', pack.timestamp],
   ['pnpm size:check', size.timestamp],
+  ['pnpm bench', benchmark.timestamp],
 ]) {
   const time =
     typeof timestamp === 'number' ? timestamp : Date.parse(timestamp);
@@ -108,6 +119,7 @@ for (const feature of ledger.features)
   states[feature.state] = (states[feature.state] ?? 0) + 1;
 const snapshot = {
   schemaVersion: 1,
+  checkpointDate: calendarDate ?? verification.timestamp.slice(0, 10),
   scope,
   verificationTimestamp: verification.timestamp,
   environment: { node: verification.node, platform: verification.platform },
@@ -123,6 +135,7 @@ const snapshot = {
   browser: browser.stats,
   pack,
   clientSize: size,
+  benchmark,
   highRiskCoverage: {
     total: coverage.total,
     files: Object.keys(coverage).filter((key) => key !== 'total'),
@@ -139,7 +152,7 @@ const snapshot = {
     'No independent security certification, publication, remote push, SBOM or provenance attestation',
   ],
 };
-const destination = `docs/implementation/${name}-checkpoint-evidence-${verification.timestamp.slice(0, 10)}.json`;
+const destination = `docs/implementation/${name}-checkpoint-evidence-${snapshot.checkpointDate}.json`;
 await writeFile(destination, JSON.stringify(snapshot, null, 2) + '\n');
 console.log(
   `Saved ${destination}: ${tests.numPassedTests} tests, ${browser.stats.expected} browser checks; release ready: ${verification.releaseReady}`,

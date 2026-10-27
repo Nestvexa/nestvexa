@@ -19,6 +19,14 @@ export function createDirectEventListeners(
     listeners.clear();
   }
   return {
+    remove(root: Element): void {
+      for (const [element, entries] of listeners)
+        if (element === root || root.contains(element)) {
+          for (const { event, listener } of entries.values())
+            element.removeEventListener(event, listener);
+          listeners.delete(element);
+        }
+    },
     sync(bindings: readonly DirectEventBinding[]): void {
       if (bindings.length > 1000)
         throw new Error('Live direct event listener capacity reached');

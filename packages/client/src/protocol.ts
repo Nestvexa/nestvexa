@@ -4,12 +4,22 @@ import type { BindingDirective } from './bindings.js';
 import { parseEventDirective } from './events.js';
 import type { EventDirective } from './events.js';
 import { parseModelDirective } from './models.js';
+import { parseLoadingDirective, parseLoadingTarget } from './loading.js';
+import type { LoadingDirective } from './loading.js';
 export { LiveClientError, parseIdentifier } from './grammar.js';
 export type LiveDirective =
   | { readonly kind: 'click' | 'submit' | 'model'; readonly value: string }
   | { readonly kind: 'loading' | 'ignore'; readonly value: '' }
   | BindingDirective
-  | EventDirective;
+  | EventDirective
+  | LoadingDirective
+  | ReplacementDirective
+  | { readonly kind: 'target'; readonly actions: readonly string[] };
+// Additional directives remain data-only configuration.
+export type ReplacementDirective = {
+  readonly kind: 'replace';
+  readonly self: boolean;
+};
 /** Closed directive grammar: only the implemented data bindings and event modifiers are accepted. */
 export function parseDirective(name: string, value: string): LiveDirective {
   const kind = name.slice(3);
@@ -23,6 +33,11 @@ export function parseDirective(name: string, value: string): LiveDirective {
     return { kind: 'model', value: parseModelDirective(name, value).field };
   if ((kind === 'loading' || kind === 'ignore') && value === '')
     return { kind, value };
+  if (name === 'nv:target')
+    return { kind: 'target', actions: parseLoadingTarget(value) };
+  if (name.startsWith('nv:loading.')) return parseLoadingDirective(name, value);
+  if ((name === 'nv:replace' || name === 'nv:replace.self') && value === '')
+    return { kind: 'replace', self: name === 'nv:replace.self' };
   if (['text', 'show', 'bind', 'dirty', 'cloak', 'ref'].includes(kind))
     return parseBindingDirective(name, value);
   throw new LiveClientError(

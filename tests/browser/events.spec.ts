@@ -39,7 +39,13 @@ test('debounce coalesces and throttle invokes only its leading event', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Debounced increase' }).dblclick();
+  await page
+    .getByRole('button', { name: 'Debounced increase' })
+    .evaluate((element) => {
+      // Deliver a burst in one browser turn rather than timing automation transport.
+      (element as HTMLButtonElement).click();
+      (element as HTMLButtonElement).click();
+    });
   await expect(page.locator('#count')).toHaveText('1');
   await page
     .getByRole('button', { name: 'Throttled increase' })
