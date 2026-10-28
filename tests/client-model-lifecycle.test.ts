@@ -55,6 +55,7 @@ beforeAll(async () => {
       'control-state',
       'transport',
       'form-reset',
+      'focus',
     ].map((name) => [
       `/${name}.js`,
       new URL(`../packages/client/dist/${name}.js`, import.meta.url),

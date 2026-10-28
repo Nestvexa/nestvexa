@@ -1,4 +1,6 @@
 import { LiveClientError, parseIdentifier } from './grammar.js';
+import { createFocusController } from './focus.js';
+import type { FocusController } from './focus.js';
 
 export type BindingAttribute =
   | 'title'
@@ -192,23 +194,6 @@ interface Operation {
   readonly value: string | boolean | null;
 }
 
-function moveFocusBeforeHiding(root: Element, element: Element): void {
-  const document = root.ownerDocument;
-  const active = document.activeElement;
-  if (!active || !element.contains(active)) return;
-  const target = root === element ? root.parentElement : root;
-  const view = document.defaultView;
-  if (!target || !view || !(target instanceof view.HTMLElement)) return;
-  const temporary = !target.hasAttribute('tabindex');
-  if (temporary) target.setAttribute('tabindex', '-1');
-  target.focus({ preventScroll: true });
-  // Keep the temporary focusability until focus leaves; removing it immediately blurs on some engines.
-  if (temporary)
-    target.addEventListener('blur', () => target.removeAttribute('tabindex'), {
-      once: true,
-    });
-}
-
 /**
  * Apply the implemented state bindings to one owned component.
  * Validate every operation and ref before mutating DOM; cloak disappears only after success.
@@ -217,6 +202,7 @@ export function applyBindings(
   root: Element,
   read: (field: string) => unknown,
   isDirty: (field?: string) => boolean,
+  focus: FocusController = createFocusController(),
 ): void {
   const operations: Operation[] = [];
   const cloaked: Element[] = [];
@@ -270,7 +256,7 @@ export function applyBindings(
       case 'show':
       case 'dirty': {
         const shown = value === true;
-        if (!shown) moveFocusBeforeHiding(root, element);
+        if (!shown) focus.beforeHiding(root, element);
         element.toggleAttribute('hidden', !shown);
         element.setAttribute('aria-hidden', shown ? 'false' : 'true');
         break;

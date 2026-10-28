@@ -1,5 +1,7 @@
 # @nestvexa/client
 
+Visibility/dirty bindings, loading visibility and reconciliation now share temporary focusability ownership, including shared ancestor leases and disposal cleanup. See the [focus guide](../../docs/guides/focus-restoration.md) for the installed-module boundary and remaining gaps.
+
 Post-morph [focus restoration](../../docs/guides/focus-restoration.md) falls back to an available component root when a focused control becomes unavailable, preserves host-selected focus, and releases its temporary tabindex/listener on blur, release or disposal. Existing root focus policy stays host-owned; complete keyboard/screen-reader acceptance remains open.
 
 Small experimental browser-only Live client. Import `createLiveClient` and explicitly call `mount()`; `dispose()` removes listeners, observers and aborts in-flight requests. Imports do not touch DOM globals. No Nest or frontend framework dependencies are included.

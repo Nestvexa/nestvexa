@@ -111,7 +111,7 @@ try {
   for (const url of Object.values(manifest.entries))
     assert.ok(bootstrap.includes(JSON.stringify(url)));
   assert.match(manifest.version, /^[a-f0-9]{64}$/);
-  assert.equal(Object.keys(manifest.files).length, 15);
+  assert.equal(Object.keys(manifest.files).length, 16);
   for (const [name, url] of Object.entries(manifest.files)) {
     const response = await fetch(`${base}${url}`);
     assert.equal(response.status, 200, name);
@@ -178,7 +178,7 @@ try {
   });
   assert.deepEqual(await health.json(), { status: 'ok' });
   console.log(
-    'Minimal umbrella-only install passed shared HBS layouts/escaping, Live action/CSRF/replay, native REST, default boot and all 15 version-neutral client/Alpine assets.',
+    'Minimal umbrella-only install passed shared HBS layouts/escaping, Live action/CSRF/replay, native REST, default boot and all 16 version-neutral client/Alpine assets.',
   );
 } finally {
   await app.close();

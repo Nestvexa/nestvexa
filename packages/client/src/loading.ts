@@ -1,4 +1,6 @@
 import { LiveClientError, parseIdentifier } from './grammar.js';
+import { createFocusController } from './focus.js';
+import type { FocusController } from './focus.js';
 
 export type LoadingAttribute =
   'disabled' | 'readonly' | 'aria-disabled' | 'aria-busy';
@@ -303,23 +305,6 @@ function desired(effect: Effect, busy: boolean): string | null {
   if (effect.directive.remove) return null;
   return effect.kind === 'attr' && effect.key.startsWith('aria-') ? 'true' : '';
 }
-function moveFocusBeforeHiding(root: Element, element: Element): void {
-  const document = root.ownerDocument;
-  const view = document.defaultView;
-  if (
-    !view ||
-    !element.contains(document.activeElement) ||
-    !(root instanceof view.HTMLElement)
-  )
-    return;
-  const temporary = !root.hasAttribute('tabindex');
-  if (temporary) root.setAttribute('tabindex', '-1');
-  root.focus({ preventScroll: true });
-  if (temporary)
-    root.addEventListener('blur', () => root.removeAttribute('tabindex'), {
-      once: true,
-    });
-}
 export interface LoadingController {
   update(root: Element, pending: ReadonlyMap<string, number>): void;
   /** Restore captured properties and forget this root before server markup is applied. */
@@ -330,7 +315,10 @@ export interface LoadingController {
 }
 
 /** Reversible presentation effects, independently counted by target action. No timers or transport side effects. */
-export function createLoadingController(): LoadingController {
+export function createLoadingController(
+  sharedFocus?: FocusController,
+): LoadingController {
+  const focus = sharedFocus ?? createFocusController();
   const records = new Map<Element, RecordEntry>();
   function release(element: Element, record: RecordEntry): void {
     for (const effect of record.effects)
@@ -339,6 +327,7 @@ export function createLoadingController(): LoadingController {
     records.delete(element);
   }
   function prune(): void {
+    focus.prune();
     for (const [element, record] of records) {
       let same = false;
       if (
@@ -393,7 +382,7 @@ export function createLoadingController(): LoadingController {
           if (current !== effect.applied) effect.baseline = current;
           const value = desired(effect, busy);
           if (effect.key === 'hidden' && value !== null)
-            moveFocusBeforeHiding(root, entry.element);
+            focus.beforeHiding(root, entry.element);
           write(entry.element, effect, value);
         }
       }
@@ -405,6 +394,7 @@ export function createLoadingController(): LoadingController {
     prune,
     dispose(): void {
       for (const [element, record] of records) release(element, record);
+      if (!sharedFocus) focus.dispose();
     },
   };
 }

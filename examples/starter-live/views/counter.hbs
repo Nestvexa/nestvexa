@@ -34,6 +34,25 @@
   {{/if}}
   <button type="button" nv:click="disableEditor">Disable focus target</button>
   <button type="button" nv:click="hideEditor">Hide focus target</button>
+  <section
+    id="visibility-panel"
+    nv:show="panelVisible"
+    aria-label="Visibility focus example"
+  >
+    <label for="visibility-target">Visibility focus target</label>
+    <input id="visibility-target" value="Local visibility draft" />
+    <button type="button" nv:click="hidePanel">Hide visibility panel</button>
+  </section>
+  <section
+    id="loading-panel"
+    nv:loading.remove=""
+    nv:target="slowPanel"
+    aria-label="Loading focus example"
+  >
+    <label for="loading-target">Loading focus target</label>
+    <input id="loading-target" value="Local loading draft" />
+    <button type="button" nv:click="slowPanel">Run loading focus</button>
+  </section>
   <div nv:ignore x-data="{ clicks: 0 }">
     <button type="button" x-on:click="clicks++">Local Alpine click</button>
     <output id="local" x-text="clicks">0</output>

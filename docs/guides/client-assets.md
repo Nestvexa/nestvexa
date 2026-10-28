@@ -104,6 +104,8 @@ Content hashes provide cache identity. This standalone subpath supplies no SRI h
 
 ## Migrate from manual asset routes
 
+The current allowlist contains 14 client modules plus the Alpine adapter and CSP build. It includes the shared focus module `focus.js`, for 16 served assets. Custom hosts with fixed file lists must add it when upgrading; `NestvexaAssetsModule` resolves it automatically.
+
 1. Add one `NestvexaAssetsModule.register()` import and inject its service into the host boot controller.
 2. Replace hardcoded imports such as `./live.js`, `./alpine.js` and `./alpine-adapter.js` with the corresponding manifest entry URLs, serialized with `JSON.stringify()` in generated JavaScript.
 3. Remove the per-module `readFile()` controllers once every browser import uses the new namespace. Keep host CSS and application boot routes.

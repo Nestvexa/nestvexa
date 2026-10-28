@@ -109,7 +109,7 @@ let server: Server;
 let base: string;
 beforeAll(async () => {
   const assets = new Map(
-    ['loading', 'grammar'].map((name) => [
+    ['loading', 'grammar', 'focus'].map((name) => [
       `/${name}.js`,
       new URL(`../packages/client/dist/${name}.js`, import.meta.url),
     ]),
@@ -459,6 +459,38 @@ describe('actual Chromium reversible loading effects', () => {
       temporaryRemoved: true,
     });
   });
+
+  it.each(['dispose', 'prune', 'host-tabindex'])(
+    'releases temporary loading focusability without erasing host writes: %s',
+    async (mode) => {
+      const result = await page.evaluate((mode) => {
+        const root = document.createElement('section');
+        root.setAttribute('data-nv-component', 'root');
+        root.innerHTML = '<div nv:loading.remove=""><input id="edit"></div>';
+        const outside = document.createElement('button');
+        document.body.append(root, outside);
+        const controller = window.nvLoadingFixture.createLoadingController();
+        controller.update(root, new Map());
+        root.querySelector<HTMLInputElement>('#edit')?.focus();
+        controller.update(root, new Map([['save', 1]]));
+        const moved = document.activeElement === root;
+        if (mode === 'host-tabindex') {
+          root.setAttribute('tabindex', '0');
+          outside.focus();
+        } else if (mode === 'prune') {
+          root.remove();
+          controller.prune();
+        } else controller.dispose();
+        const tabindex = root.getAttribute('tabindex');
+        controller.dispose();
+        return { moved, tabindex };
+      }, mode);
+      expect(result).toEqual({
+        moved: true,
+        tabindex: mode === 'host-tabindex' ? '0' : null,
+      });
+    },
+  );
   it('prunes detached roots and configuration changes before capturing another property', async () => {
     const result = await page.evaluate(() => {
       const root = document.createElement('section');

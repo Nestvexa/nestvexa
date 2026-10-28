@@ -15,6 +15,7 @@ export const CLIENT_MODULES = [
   'bindings.js',
   'control-state.js',
   'events.js',
+  'focus.js',
   'form-reset.js',
   'grammar.js',
   'listeners.js',

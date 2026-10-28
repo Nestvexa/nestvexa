@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased: visibility and loading focus ownership
+
+Visibility, dirty indicators, loading visibility and post-update restoration now share temporary focusability cleanup. Shared ancestor fallbacks retain their temporary tabindex until their remaining owners release it or focus leaves. Added focused browser/controller regressions and included the new client module in asset hosting. Complete Phase 3/accessibility acceptance remains open.
+
 ## Unreleased: focus after Live updates
 
 Reconciliation now falls back to an available component root when a focused control becomes disabled, hidden or inert, preserves focus chosen by host hooks, and releases its temporary focusability on blur/release/disposal. Added real-server browser scenarios and controlled lifecycle regressions. Complete accessibility and Phase 3 acceptance remain open.

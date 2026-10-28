@@ -36,7 +36,13 @@ All registry observations above came from actual `pnpm view <package> version en
 - **Vite:** current documentation describes separate development and build paths, backend integration and SSR. Its documented Node minimum is 20.19+/22.12+; Nestvexa targets maintained LTS releases instead of treating the minimum as support policy. Exact Vite/framework plugin selection is deferred until optional adapter implementation. [Vite guide](https://vite.dev/guide/).
 - **Security:** OWASP identifies ASVS **5.0.0**, published 2025-05-30, as the stable standard. A requirement-by-requirement mapping and independent security review remain release blockers. [ASVS](https://asvs.owasp.org/).
 
-## Current focus-restoration verification
+## Current visibility/loading focus verification
+
+The Windows/Node 24.13.0 full runner at **2026-10-28T18:52:07.899Z** passed **841/841 aggregate tests** and **138/138 browser checks** across Chromium/Firefox/WebKit with no pending/skipped/flaky/unexpected cases or browser runner errors. Frozen install, format/lint, strict typecheck/all builds, selected coverage, size, seven tarballs in four external full/minimal npm/pnpm consumers, docs, ledger, benchmark and audit exited 0. Pack timestamp: **2026-10-28T18:54:55.530Z**. Release checking intentionally exited 1; no phase is accepted.
+
+Fresh isolated Windows Node **22.23.4** at **2026-10-28T18:56:41.212Z** and **24.22.1** at **2026-10-28T18:57:42.521Z** each passed strict compilation and all **841 aggregate tests**. These include real HTTP/Chromium DOM fixtures without repeating the complete three-browser server or four-consumer matrix under both binaries. Linux/full release compatibility remain unverified. No selected dependency version changed. The browser asset catalog gained focus.js. See [saved visibility evidence](../implementation/visibility-focus-checkpoint-evidence-2026-10-28.json) for exact observed scope.
+
+## Historical focus-restoration verification
 
 The full Windows/Node 24.13.0 checkpoint at **2026-10-28T04:50:41.595Z** passed **814/814 aggregate tests** and **126/126 browser checks** across Chromium/Firefox/WebKit, with no pending/skipped/flaky/unexpected results or browser runner errors. Frozen install, format/lint, strict typecheck/all builds, selected coverage, size, seven tarballs in four external full/minimal npm/pnpm consumers, docs, ledger, benchmark and audit exited 0. Pack timestamp: **2026-10-28T04:54:02.190Z**. Release checking intentionally exited 1; no phase is accepted.
 

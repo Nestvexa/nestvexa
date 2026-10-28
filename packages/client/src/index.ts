@@ -15,6 +15,11 @@ import { createLoadingController, validateLoading } from './loading.js';
 import { LiveHttpError, requestLive, requestTimeout } from './transport.js';
 import { planFormReset, resetSignature, resetValue } from './form-reset.js';
 import type { ResetField } from './form-reset.js';
+import {
+  availableForFocus,
+  createFocusController,
+  focusMoved,
+} from './focus.js';
 export { LiveHttpError } from './transport.js';
 export { parseLoadingDirective, parseLoadingTarget } from './loading.js';
 export type { LoadingDirective } from './loading.js';
@@ -188,29 +193,6 @@ function controlSignature(element: Element): string {
   ]);
 }
 
-/** Native focus can fail silently after a retained control becomes hidden or disabled. */
-function availableForFocus(element: HTMLElement): boolean {
-  if (
-    !element.isConnected ||
-    element.matches(':disabled') ||
-    element.closest('[hidden], [inert]') ||
-    element.getClientRects().length === 0
-  )
-    return false;
-  const visibility =
-    element.ownerDocument.defaultView?.getComputedStyle(element).visibility;
-  return visibility !== 'hidden' && visibility !== 'collapse';
-}
-function focusMoved(document: Document, previous: Element): boolean {
-  const active = document.activeElement;
-  return (
-    active !== null &&
-    active !== previous &&
-    active !== document.body &&
-    active !== document.documentElement
-  );
-}
-
 /** Explicit, idempotent browser startup. Importing this module does not touch DOM globals. */
 export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   const ownership = Symbol('nestvexa-client');
@@ -239,13 +221,13 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   const transport = options.fetch ?? window.fetch.bind(window);
   const timeout = requestTimeout(options.requestTimeoutMs);
   const components = new Map<Element, Component>();
-  const focusCleanups = new Map<HTMLElement, () => void>();
+  let focus = createFocusController();
   let mounted = false;
   let observer: MutationObserver | null = null;
   let dispatcher: EventDispatcher | undefined;
   let composing = new WeakSet<Element>();
   let models = makeModels();
-  let loading = createLoadingController();
+  let loading = createLoadingController(focus);
   let generation = 0;
   let resetTimer: number | undefined;
   const resets = new Map<
@@ -424,37 +406,17 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     state.request?.abort();
     loading.restore(state.root);
     state.root.removeAttribute('aria-busy');
-    releaseFocus(state.root);
+    focus.release(state.root);
     components.delete(state.root);
     if (componentOwners.get(state.root) === ownership)
       componentOwners.delete(state.root);
   }
   function cancelSubtree(node: Element): void {
-    releaseFocus(node);
+    focus.release(node);
     dispatcher?.cancel(node);
     direct.remove(node);
     for (const element of [node, ...node.querySelectorAll('*')])
       models.cancel(element);
-  }
-  function releaseFocus(node: Element): void {
-    for (const [target, cleanup] of focusCleanups)
-      if (target === node || node.contains(target)) cleanup();
-  }
-  function focusRoot(target: HTMLElement): void {
-    const temporary = !target.hasAttribute('tabindex');
-    if (temporary) {
-      target.setAttribute('tabindex', '-1');
-      const cleanup = (): void => {
-        target.removeEventListener('blur', cleanup);
-        if (target.getAttribute('tabindex') === '-1')
-          target.removeAttribute('tabindex');
-        focusCleanups.delete(target);
-      };
-      focusCleanups.set(target, cleanup);
-      target.addEventListener('blur', cleanup, { once: true });
-    }
-    target.focus({ preventScroll: true });
-    if (doc.activeElement !== target) focusCleanups.get(target)?.();
   }
   function releaseSubtree(node: Element, reject: boolean): void {
     cancelSubtree(node);
@@ -550,6 +512,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       );
   }
   function discover(): void {
+    focus.prune();
     dispatcher?.prune(root);
     models.prune(root);
     loading.prune();
@@ -762,6 +725,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           field === undefined
             ? [...dirty.keys()].some(differs)
             : differs(field),
+        focus,
       );
       const focused = state.root.contains(doc.activeElement)
         ? doc.activeElement
@@ -827,7 +791,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           state.root instanceof window.HTMLElement &&
           availableForFocus(state.root)
         ) {
-          focusRoot(state.root);
+          focus.focus(state.root, state.root);
         }
       }
       state.root.scrollTop = scroll.top;
@@ -1082,6 +1046,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         field === undefined
           ? [...state.dirty.keys()].some(differs)
           : differs(field),
+      focus,
     );
   }
   function hasChanges(state: Component): boolean {
@@ -1133,7 +1098,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     mount(): void {
       if (mounted) return;
       models = makeModels();
-      loading = createLoadingController();
+      focus = createFocusController();
+      loading = createLoadingController(focus);
       mounted = true;
       generation++;
       dispatcher = createEventDispatcher({
@@ -1189,7 +1155,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       direct.dispose();
       models.dispose();
       loading.dispose();
-      for (const cleanup of focusCleanups.values()) cleanup();
+      focus.dispose();
       composing = new WeakSet<Element>();
       root.removeEventListener('click', action);
       root.removeEventListener('submit', action);

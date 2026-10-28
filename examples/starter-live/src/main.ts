@@ -46,6 +46,8 @@ class Counter {
   @State() saved = '';
   @State() editorDisabled = false;
   @State() editorHidden = false;
+  @State({ writable: true, validate: (value) => typeof value === 'boolean' })
+  panelVisible = true;
   @Computed() get doubled(): number {
     return this.count * 2;
   }
@@ -60,6 +62,12 @@ class Counter {
   }
   @Action() hideEditor(): void {
     this.editorHidden = true;
+  }
+  @Action() hidePanel(): void {
+    this.panelVisible = false;
+  }
+  @Action() async slowPanel(): Promise<void> {
+    await new Promise<void>((resolve) => setTimeout(resolve, 200));
   }
 }
 
@@ -117,6 +125,8 @@ class Pages {
               'save',
               'disableEditor',
               'hideEditor',
+              'hidePanel',
+              'slowPanel',
             ].includes(action),
         }),
       },

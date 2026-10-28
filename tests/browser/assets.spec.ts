@@ -32,6 +32,7 @@ test('content-addressed modules boot Live and Alpine under the host CSP', async 
       'bindings.js',
       'control-state.js',
       'events.js',
+      'focus.js',
       'form-reset.js',
       'grammar.js',
       'listeners.js',

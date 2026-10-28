@@ -26,6 +26,7 @@ let base: string;
 
 beforeAll(async () => {
   const assets = new Map([
+    ['/focus.js', new URL('../packages/client/dist/focus.js', import.meta.url)],
     [
       '/bindings.js',
       new URL('../packages/client/dist/bindings.js', import.meta.url),
@@ -362,6 +363,27 @@ describe('real-browser data binding ownership and atomic validation', () => {
       };
     });
     expect(result).toEqual({ hidden: true, active: 'parent', aria: 'true' });
+  });
+
+  it('preserves a host tabindex change after a visibility fallback blurs', async () => {
+    const result = await page.evaluate(() => {
+      const root = document.createElement('section');
+      root.setAttribute('data-nv-component', 'root');
+      root.innerHTML = '<div nv:show="visible"><input></div>';
+      const outside = document.createElement('button');
+      document.body.append(root, outside);
+      root.querySelector('input')?.focus();
+      window.nvBindingFixture.applyBindings(
+        root,
+        () => false,
+        () => false,
+      );
+      const moved = document.activeElement === root;
+      root.setAttribute('tabindex', '0');
+      outside.focus();
+      return { moved, tabindex: root.getAttribute('tabindex') };
+    });
+    expect(result).toEqual({ moved: true, tabindex: '0' });
   });
 
   it('shows field and aggregate dirty indicators independently without reading their state', async () => {

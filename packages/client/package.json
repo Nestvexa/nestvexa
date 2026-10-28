@@ -22,7 +22,7 @@
   "sideEffects": false,
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run ../../tests/client.test.ts",
+    "test": "vitest run ../../tests/client.test.ts ../../tests/client-focus.test.ts",
     "lint": "eslint src"
   },
   "publishConfig": {
