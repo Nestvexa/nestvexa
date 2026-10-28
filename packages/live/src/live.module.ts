@@ -12,9 +12,14 @@ import type {
   CanActivate,
   DynamicModule,
   ExecutionContext,
+  InjectionToken,
   ModuleMetadata,
+  OnModuleInit,
+  OptionalFactoryDependency,
+  Provider,
   Type,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { GUARDS_METADATA, ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 import {
   definition,
@@ -25,6 +30,7 @@ import type { ComponentDefinition } from './metadata.js';
 import { LIVE_OPTIONS, LiveRuntime } from './runtime.js';
 import { LiveInfrastructureModule } from './registration.js';
 import type { LiveHostOptions } from './runtime.js';
+import { MemoryLiveStore } from './store.js';
 
 const ROUTE = Symbol('nv:route');
 @Injectable()
@@ -46,6 +52,176 @@ class LiveAdmissionGuard implements CanActivate {
 export interface LiveModuleOptions extends LiveHostOptions {
   readonly components: readonly Type<object>[];
   readonly imports?: ModuleMetadata['imports'];
+}
+/** Host policy and services resolved after the static Nest route graph is built. */
+export type LiveRuntimeFactoryOptions = Omit<
+  LiveHostOptions,
+  'endpoint' | 'basePath'
+>;
+export interface LiveModuleAsyncOptions<
+  Dependencies extends unknown[] = unknown[],
+> {
+  readonly components: readonly Type<object>[];
+  readonly endpoint?: string;
+  readonly basePath?: string;
+  readonly imports?: ModuleMetadata['imports'];
+  readonly inject?: (InjectionToken | OptionalFactoryDependency)[];
+  readonly useFactory: (
+    ...dependencies: Dependencies
+  ) => LiveRuntimeFactoryOptions | Promise<LiveRuntimeFactoryOptions>;
+}
+
+function structure(options: {
+  readonly components: readonly Type<object>[];
+  readonly endpoint?: string;
+  readonly basePath?: string;
+}) {
+  const endpoint =
+    options.endpoint === undefined ? '/_nestvexa/live' : options.endpoint;
+  const basePath = options.basePath === undefined ? '' : options.basePath;
+  const pathPattern = /^\/[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/;
+  if (
+    typeof endpoint !== 'string' ||
+    /[\r\n]/.test(endpoint) ||
+    !pathPattern.test(endpoint) ||
+    endpoint.length > 256
+  )
+    throw new Error('Invalid live endpoint prefix');
+  if (
+    typeof basePath !== 'string' ||
+    /[\r\n]/.test(basePath) ||
+    (basePath !== '' && (!pathPattern.test(basePath) || basePath.length > 256))
+  )
+    throw new Error('Invalid live public base path');
+  if (!Array.isArray(options.components))
+    throw new Error('Live components must be an explicit array');
+  const components = Object.freeze([...options.components]);
+  const definitions = Object.freeze(components.map(definition));
+  if (
+    new Set(definitions.map((entry) => entry.name)).size !== definitions.length
+  )
+    throw new Error('Duplicate live component name');
+  return { endpoint, basePath, definitions };
+}
+
+function validateHost(options: LiveRuntimeFactoryOptions): void {
+  const origin = new URL(options.origin);
+  if (
+    !['http:', 'https:'].includes(origin.protocol) ||
+    origin.origin !== options.origin
+  )
+    throw new Error('Live origin must be an exact HTTP(S) origin');
+  if (
+    typeof options.authorize !== 'function' ||
+    typeof options.resolveIdentity !== 'function'
+  )
+    throw new Error('Live identity and authorization policies are required');
+  if (
+    options.maxRequestsPerMinute !== undefined &&
+    (!Number.isSafeInteger(options.maxRequestsPerMinute) ||
+      options.maxRequestsPerMinute < 1)
+  )
+    throw new Error('Invalid live rate limit');
+}
+
+function factoryOptions(
+  options: LiveRuntimeFactoryOptions,
+): LiveRuntimeFactoryOptions {
+  if (typeof options !== 'object' || options === null || Array.isArray(options))
+    throw new Error('Invalid Live runtime factory options');
+  const prototype: unknown = Object.getPrototypeOf(options);
+  if (prototype !== Object.prototype && prototype !== null)
+    throw new Error('Invalid Live runtime factory options');
+  const allowed = new Set([
+    'origin',
+    'resolveIdentity',
+    'authorize',
+    'renderer',
+    'store',
+    'maxRequestsPerMinute',
+  ]);
+  for (const key of Reflect.ownKeys(options)) {
+    if (typeof key !== 'string' || !allowed.has(key))
+      throw new Error(
+        'Live runtime factory cannot override static registration or unknown options',
+      );
+    const descriptor = Object.getOwnPropertyDescriptor(options, key);
+    if (!descriptor || !('value' in descriptor))
+      throw new Error('Live runtime factory options must use data properties');
+  }
+  // Copy only validated own data fields; inherited Object.prototype values
+  // must not supply policies or execute getters for omitted options.
+  const snapshot = { ...options };
+  Object.setPrototypeOf(snapshot, null);
+  validateHost(snapshot);
+  const renderer = snapshot.renderer;
+  if (
+    !renderer ||
+    typeof renderer !== 'object' ||
+    typeof renderer.name !== 'string' ||
+    !renderer.name ||
+    !Array.isArray(renderer.extensions) ||
+    !renderer.extensions.every(
+      (extension: unknown) => typeof extension === 'string',
+    ) ||
+    !renderer.capabilities ||
+    typeof renderer.capabilities !== 'object' ||
+    typeof renderer.initialize !== 'function' ||
+    typeof renderer.render !== 'function' ||
+    typeof renderer.dispose !== 'function'
+  )
+    throw new Error('Live runtime factory requires a view engine adapter');
+  if (
+    snapshot.store !== undefined &&
+    !(snapshot.store instanceof MemoryLiveStore)
+  )
+    throw new Error('Live runtime factory requires a MemoryLiveStore instance');
+  return Object.freeze({
+    origin: snapshot.origin,
+    resolveIdentity: snapshot.resolveIdentity,
+    authorize: snapshot.authorize,
+    renderer,
+    ...(snapshot.store === undefined ? {} : { store: snapshot.store }),
+    ...(snapshot.maxRequestsPerMinute === undefined
+      ? {}
+      : { maxRequestsPerMinute: snapshot.maxRequestsPerMinute }),
+  });
+}
+
+/** Stays singleton even when the configuration factory accidentally becomes request-scoped. */
+@Injectable()
+class LiveAsyncConfigurationGuard implements OnModuleInit {
+  constructor(@Inject(ModuleRef) private readonly moduleRef: ModuleRef) {}
+  onModuleInit(): void {
+    if (this.moduleRef.introspect(LIVE_OPTIONS).scope !== Scope.DEFAULT)
+      throw new Error('Live async configuration must have singleton scope');
+    try {
+      // Strict lookup also checks this module's provider if another registration
+      // happens to be the public introspection API's selected token instance.
+      this.moduleRef.get(LIVE_OPTIONS, { strict: true });
+      this.moduleRef.get(LiveRuntime, { strict: true });
+    } catch (cause) {
+      throw new Error('Live async configuration must have singleton scope', {
+        cause,
+      });
+    }
+  }
+}
+
+function providers(
+  definitions: readonly ComponentDefinition[],
+  options: Provider,
+): Provider[] {
+  return [
+    options,
+    LiveRuntime,
+    LiveAdmissionGuard,
+    ...definitions.map((component) => ({
+      provide: component.type,
+      useClass: component.type,
+      scope: Scope.REQUEST,
+    })),
+  ];
 }
 function generatedController(
   component: ComponentDefinition,
@@ -173,62 +349,60 @@ function generatedController(
 @Module({})
 export class LiveModule {
   static register(options: LiveModuleOptions): DynamicModule {
-    const origin = new URL(options.origin);
-    if (
-      !['http:', 'https:'].includes(origin.protocol) ||
-      origin.origin !== options.origin
-    )
-      throw new Error('Live origin must be an exact HTTP(S) origin');
-    const endpoint = options.endpoint ?? '/_nestvexa/live';
-    const basePath = options.basePath ?? '';
-    const pathPattern = /^\/[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/;
-    if (!pathPattern.test(endpoint) || endpoint.length > 256)
-      throw new Error('Invalid live endpoint prefix');
-    if (
-      basePath !== '' &&
-      (!pathPattern.test(basePath) || basePath.length > 256)
-    )
-      throw new Error('Invalid live public base path');
-    if (
-      typeof options.authorize !== 'function' ||
-      typeof options.resolveIdentity !== 'function'
-    )
-      throw new Error('Live identity and authorization policies are required');
-    if (
-      options.maxRequestsPerMinute !== undefined &&
-      (!Number.isSafeInteger(options.maxRequestsPerMinute) ||
-        options.maxRequestsPerMinute < 1)
-    )
-      throw new Error('Invalid live rate limit');
-    const definitions = options.components.map(definition);
-    if (
-      new Set(definitions.map((entry) => entry.name)).size !==
-      definitions.length
-    )
-      throw new Error('Duplicate live component name');
+    validateHost(options);
+    const { endpoint, basePath, definitions } = structure(options);
     return {
       module: LiveModule,
       imports: [LiveInfrastructureModule, ...(options.imports ?? [])],
       controllers: definitions.map((component) =>
         generatedController(component, endpoint),
       ),
+      providers: providers(definitions, {
+        provide: LIVE_OPTIONS,
+        useValue: Object.freeze({
+          ...options,
+          endpoint,
+          basePath,
+          definitions,
+        }),
+      }),
+      exports: [LiveRuntime],
+    };
+  }
+
+  /** Static route identities plus asynchronously injected singleton host policies. */
+  static registerAsync<Dependencies extends unknown[]>(
+    options: LiveModuleAsyncOptions<Dependencies>,
+  ): DynamicModule {
+    const { endpoint, basePath, definitions } = structure(options);
+    const imports = [...(options.imports ?? [])];
+    const inject = (options.inject ?? []).map((entry) =>
+      typeof entry === 'object' && entry !== null
+        ? Object.freeze({ token: entry.token, optional: entry.optional })
+        : entry,
+    );
+    const useFactory = options.useFactory;
+    if (typeof useFactory !== 'function')
+      throw new Error('Live async configuration requires useFactory');
+    return {
+      module: LiveModule,
+      imports: [LiveInfrastructureModule, ...imports],
+      controllers: definitions.map((component) =>
+        generatedController(component, endpoint),
+      ),
       providers: [
-        {
+        ...providers(definitions, {
           provide: LIVE_OPTIONS,
-          useValue: Object.freeze({
-            ...options,
-            endpoint,
-            basePath,
-            definitions,
-          }),
-        },
-        LiveRuntime,
-        LiveAdmissionGuard,
-        ...definitions.map((component) => ({
-          provide: component.type,
-          useClass: component.type,
-          scope: Scope.REQUEST,
-        })),
+          inject,
+          useFactory: async (...dependencies: Dependencies) =>
+            Object.freeze({
+              ...factoryOptions(await useFactory(...dependencies)),
+              endpoint,
+              basePath,
+              definitions,
+            }),
+        }),
+        LiveAsyncConfigurationGuard,
       ],
       exports: [LiveRuntime],
     };

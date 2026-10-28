@@ -1,6 +1,6 @@
 # @nestvexa/alpine
 
-Explicit Alpine adapter for the Nestvexa Live client. It registers `$live.call`, `$live.get`, and `$live.set` through Alpine's public magic API. It does not start Alpine, touch browser globals on import, or install another Alpine runtime automatically.
+Alpine adapter for the Nestvexa Live client. `installLiveAlpine` registers `$live.call`, `$live.get`, and `$live.set` through Alpine's public magic API. `startLiveAlpine` additionally supports explicitly delegated startup. Importing the package does not touch browser globals or install a runtime.
 
 ## Installation
 
@@ -22,6 +22,10 @@ Alpine.start();
 ```
 
 Install after loading Alpine and before calling `Alpine.start()`. If the host already owns Alpine startup, register during its initialization hook and do not start it twice. Reinstalling this adapter with the same Alpine/client pair is idempotent. Binding one Alpine instance to a different client throws. Cross-copy or pre-existing unrelated `$live` plugin detection is not guaranteed; applications must assign one integration owner.
+
+For a fresh document whose startup is delegated to Nestvexa, replace those three startup calls with `const app = startLiveAlpine(Alpine, client)`. Import it from this package. Optional `{ document, configure }` supplies an attached document and a trusted synchronous extension hook after bridge installation but before mount/start. The returned frozen application exposes `alpine`, `client`, and idempotent `dispose()`.
+
+One document owns one application, including across copies of the bootstrap package. A repeated startup with the same Alpine returns the existing application; a different runtime or visible host `window.Alpine` rejects. Undisclosed already-started Alpine cannot be detected using public APIs, so delegated mode requires fresh startup. Persisted pagehide retains the same client/drafts for BFCache; nonpersisted departure disposes Live and removes its page listener. This does not stop or destroy Alpine DOM. Failed/disposed startup leaves a reload-only tombstone, preventing unsafe partial restart. Cleanup failures are surfaced. Existing host startup must keep using `installLiveAlpine`.
 
 ## Local DOM ownership
 
@@ -46,6 +50,6 @@ The adapter caches a facade per element and registers cleanup with Alpine. Remov
 
 ## Public API and verification
 
-Exports: `installLiveAlpine`, `AlpineHost`, `AlpineMagicUtilities`, `LiveClientBridge`, and `LiveMagic`. There are no configuration defaults beyond the explicit version/ownership restrictions above. No import-time or startup side effects exist.
+Exports: `installLiveAlpine`, `startLiveAlpine`, `AlpineHost`, `AlpineMagicUtilities`, `LiveClientBridge`, `LiveMagic`, `AlpineRuntime`, `ManagedLiveClient`, `StartLiveAlpineOptions`, and `LiveAlpineApplication`. Delegated startup defaults to the current document. There are no import-time startup side effects.
 
-At repository root run `pnpm exec vitest run tests/alpine.test.ts` and `pnpm test:e2e`. Unit tests validate registration, binding, cleanup, reactive invalidation and lifecycle rejection; only the real browser suite proves interaction with upstream Alpine. See the [Live counter](../../examples/live-counter/README.md), [client package](../client/README.md), [security policy](../../SECURITY.md), [status](../../docs/implementation/STATUS.md), and [changelog](../../CHANGELOG.md). Maintainer identity and official repository URLs await owner input. ESM only; no dual-module identity promise.
+At repository root run `pnpm exec vitest run tests/alpine.test.ts tests/alpine-start.test.ts` and `pnpm test:e2e`. The startup tests use Chromium with the actual CSP runtime/client and explicitly controlled transport fixtures. Browser examples exercise real server requests. See the [default starter](../../examples/starter-live/README.md), [Live counter](../../examples/live-counter/README.md), [client package](../client/README.md), [security policy](../../SECURITY.md), [status](../../docs/implementation/STATUS.md), and [changelog](../../CHANGELOG.md). Maintainer identity and official repository URLs await owner input. ESM only; no dual-module identity promise.

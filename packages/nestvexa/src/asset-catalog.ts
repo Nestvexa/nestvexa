@@ -65,6 +65,7 @@ export function normalizeAssetOptions(input: unknown): AssetOptions {
   const basePath = base === undefined ? '' : base;
   const valid = (value: unknown): value is string =>
     typeof value === 'string' &&
+    !/[\r\n]/.test(value) &&
     value.length <= 256 &&
     /^\/[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/.test(value);
   if (!valid(path) || (basePath !== '' && !valid(basePath))) return invalid();

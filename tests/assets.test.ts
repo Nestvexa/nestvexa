@@ -210,6 +210,8 @@ describe('asset catalog and configuration boundaries', () => {
     { path: '/x#fragment' },
     { path: '/x\\y' },
     { path: '/x\0y' },
+    { path: '/x\n' },
+    { basePath: '/host\n' },
     { path: null },
     { path: false },
     { path: '/' + 'x'.repeat(256) },

@@ -27,13 +27,14 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run ../../tests/integration.test.ts ../../tests/assets.test.ts",
+    "test": "vitest run ../../tests/integration.test.ts ../../tests/assets.test.ts ../../tests/umbrella-live.test.ts",
     "lint": "eslint src"
   },
   "dependencies": {
     "@nestvexa/core": "workspace:*",
     "@nestvexa/views": "workspace:*",
     "@nestvexa/engine-hbs": "workspace:*",
+    "@nestvexa/live": "workspace:*",
     "@nestvexa/client": "workspace:*",
     "@nestvexa/alpine": "workspace:*",
     "@alpinejs/csp": "3.17.5"

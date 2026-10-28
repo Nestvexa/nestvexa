@@ -22,7 +22,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run ../../tests/alpine.test.ts",
+    "test": "vitest run ../../tests/alpine.test.ts ../../tests/alpine-start.test.ts",
     "lint": "eslint src"
   },
   "dependencies": {

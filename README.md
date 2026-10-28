@@ -18,6 +18,8 @@ Open `http://127.0.0.1:3100`. The example serves two Handlebars pages and `/api/
 
 For the cookie-backed Live counter, run `pnpm --filter @nestvexa/example-live-counter start` after building, then open `http://127.0.0.1:3101`. It demonstrates actions, deferred/live/blur/change model binding, native draft reset, numeric and boolean validation, loading status, focus preservation and independent local DOM. See its [bootstrap and limitations](examples/live-counter/README.md) and [reset behavior](docs/guides/form-reset.md).
 
+For the integrated default setup, run `pnpm --filter @nestvexa/example-starter-live start` and open `http://127.0.0.1:3102`. It uses one HBS engine for MVC and Live, `{{nvScripts}}` in its layout, and automatic CSP Alpine/client startup. See the [default Live guide](docs/guides/default-live-setup.md) for required host session and authorization policies.
+
 ```ts
 import { Module } from '@nestjs/common';
 import { NestvexaModule } from 'nestvexa';
@@ -45,9 +47,9 @@ Call `await configureNestvexa(app)` after creating the Nest app and before `app.
 
 The Node packages are ESM-only and use legacy TypeScript decorators with `experimentalDecorators` and `emitDecoratorMetadata`. The exact dependency selection and tested environments are recorded in [upstream compatibility](docs/architecture/upstream-compatibility.md). Supported versions will only be advertised after their tests run.
 
-The optional [@nestvexa/live](packages/live/README.md) package implements explicit generated Nest action routes and bound server-side state; [@nestvexa/client](packages/client/README.md) implements the corresponding browser transport and a small directive subset. They are separately registered rather than implicitly activated by the MVC distribution.
+The [@nestvexa/live](packages/live/README.md) package implements explicit generated Nest action routes and bound server-side state; [@nestvexa/client](packages/client/README.md) implements the corresponding browser transport and a small directive subset. The umbrella includes Live and re-exports its server API; activation requires a second root registration argument with component types and host security policies.
 
-The umbrella includes the client, Alpine adapter and CSP distribution dependencies. Explicit `NestvexaAssetsModule.register()` from `nestvexa/assets` serves their approved modules through content-addressed URLs; the [asset guide](docs/guides/client-assets.md) replaces per-module route boilerplate. Hosts still own browser startup, sessions and Live registration. The core kernel remains independent of browser renderers.
+The umbrella includes the client, Alpine adapter and CSP distribution dependencies. Integrated Live registration serves their approved modules through content-addressed URLs and supplies an external boot module. Advanced hosts can use `browser.mode: 'manual'` or explicit `NestvexaAssetsModule.register()` from `nestvexa/assets`; the [asset guide](docs/guides/client-assets.md) covers that lower-level integration. Hosts always own sessions, identity and authorization. The core kernel remains independent of browser renderers.
 
 The [@nestvexa/alpine](packages/alpine/README.md) adapter supplies `$live.call/get/set` to Alpine widgets inside an ignored Live subtree. The counter runs the actual Alpine CSP build with a restrictive script policy. See the [directive reference](docs/reference/directives.md) for the implemented grammar and remaining gaps.
 
@@ -55,7 +57,7 @@ The [@nestvexa/alpine](packages/alpine/README.md) adapter supplies `$live.call/g
 
 Ordinary `{{value}}` interpolation escapes HTML. Triple braces bypass escaping and are for framework-created layout fragments or trusted application markup only. Templates and helper functions are trusted application code. View names must come from server code. Host applications own authentication, cookies, CSRF for their routes, CSP, request limits, logging and deployment policy. Configuration flags alone do not install those controls. See [hardening](docs/security/hardening.md).
 
-`live.enabled: true` in the MVC convenience module still fails explicitly; use `LiveModule.register` with host identity, authorization, origin and renderer contracts. This prevents insecure implicit defaults. Live state is JSON-only and stored in process memory with fixed expiry and revision locks; it is not a distributed transaction system. React, Vue, Svelte, Inertia, alternative engines, CLI and distributed transports are not implemented. The required command `npx nestvexa init` is not available yet.
+`live.enabled: true` requires an explicit registration, for example `NestvexaModule.forRoot(options, { components: [Counter], useFactory: () => ({ origin, resolveIdentity, authorize }) })`. Async host dependencies use the registration's `imports` and `inject`; renderer ownership stays with the umbrella. Both security flags remain required. Live state is JSON-only and stored in process memory with fixed expiry and revision locks; it is not a distributed transaction system. React, Vue, Svelte, Inertia, alternative engines, CLI and distributed transports are not implemented. The required command `npx nestvexa init` is not available yet.
 
 ## Verification
 

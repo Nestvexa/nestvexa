@@ -22,7 +22,7 @@ export class AppModule {}
 
 Keep the usual `await configureNestvexa(app)` call before listening when using the MVC bridge. The assets module can also be registered independently of that bridge. Nest initializes its asset snapshot during `app.init()` or `app.listen()`; package import and `register()` perform no filesystem reads. Missing installed asset files fail initialization. A second registration owner in the same application is rejected, including registrations with different public prefixes. Separate Nest applications have separate snapshots and lifecycles.
 
-`NestvexaModule.forRoot({ live: { enabled: true } })` still rejects the incomplete automatic Live setup. Register `LiveModule` and its identity/authorization policy explicitly as in the [Live counter](../../examples/live-counter/README.md).
+For automatic HBS/Live/Alpine composition, use the umbrella's second registration argument with explicit identity/authorization policies; see [default setup](default-live-setup.md). Do not register a second asset owner in that mode. A bare `NestvexaModule.forRoot({ live: { enabled: true } })` still rejects missing policies. The [Live counter](../../examples/live-counter/README.md) demonstrates independently registered Live and manual startup.
 
 ## Read the manifest and start the browser runtime
 
@@ -100,7 +100,7 @@ The handler sets a no-store baseline before asset lookup. Unknown versions or fi
 
 Only approved installed modules can be returned. Request values select a map entry and are never passed to filesystem resolution. Source maps, TypeScript declarations, package metadata and arbitrary files are outside the route catalog. The service clears its manifest and bytes at application shutdown; manifest access before readiness or after shutdown rejects as unavailable.
 
-Content hashes provide cache identity. This slice supplies no SRI helper, automatic compression, CDN deployment, Vite manifest, SPA renderer, browser auto-start or complete default Live bootstrap. CSP remains a host response policy; loading the CSP build supports the [Alpine CSP contract](https://alpinejs.dev/advanced/csp) but does not install a CSP header. Preserve upstream license comments when redistributing browser code; see [third-party notices](../../THIRD_PARTY_NOTICES.md).
+Content hashes provide cache identity. This standalone subpath supplies no SRI helper, automatic compression, CDN deployment, Vite manifest or SPA renderer. Automatic browser startup belongs to the separate integrated umbrella registration. CSP remains a host response policy; loading the CSP build supports the [Alpine CSP contract](https://alpinejs.dev/advanced/csp) but does not install a CSP header. Preserve upstream license comments when redistributing browser code; see [third-party notices](../../THIRD_PARTY_NOTICES.md).
 
 ## Migrate from manual asset routes
 

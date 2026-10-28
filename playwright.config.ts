@@ -15,6 +15,11 @@ export default defineConfig({
   ],
   webServer: [
     {
+      command: 'pnpm --filter @nestvexa/example-starter-live start',
+      url: 'http://127.0.0.1:3102',
+      reuseExistingServer: false,
+    },
+    {
       command: 'pnpm --filter @nestvexa/example-starter-hbs start',
       url: 'http://127.0.0.1:3100',
       reuseExistingServer: false,

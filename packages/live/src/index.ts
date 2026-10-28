@@ -1,4 +1,9 @@
-export { LiveModule, type LiveModuleOptions } from './live.module.js';
+export {
+  LiveModule,
+  type LiveModuleOptions,
+  type LiveModuleAsyncOptions,
+  type LiveRuntimeFactoryOptions,
+} from './live.module.js';
 export {
   LiveRuntime,
   type LiveHostOptions,

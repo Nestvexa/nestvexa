@@ -4,6 +4,8 @@ artifacts
 pnpm-lock.yaml
 NESTVEXA_MASTER_IMPLEMENTATION_PROMPT.md
 .vscode
+# Owner-provided design references; preserve originals outside framework source checks.
+Nestvexa_Brand_Kit
 docs/implementation/feature-ledger.md
 docs/implementation/requirements.json
 docs/implementation/feature-ledger.json

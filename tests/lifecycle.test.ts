@@ -109,12 +109,12 @@ describe('bootstrap failure boundaries', () => {
     expect(host.hasReplyDecorator('view')).toBe(true);
   });
 
-  it('rejects unimplemented Live instead of registering a fake endpoint', async () => {
+  it('requires explicit host policies before enabling Live', async () => {
     await expect(
       Test.createTestingModule({
         imports: [NestvexaModule.forRoot({ live: { enabled: true } })],
       }).compile(),
-    ).rejects.toThrow('Live runtime is not available');
+    ).rejects.toThrow('live.enabled must match');
   });
 
   it('rejects a non-HBS engine in the default distribution', async () => {

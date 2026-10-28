@@ -191,6 +191,20 @@ async function consume(manager, profile) {
     join(consumer, 'views/counter.hbs'),
     '<output>{{count}}</output>',
   );
+  if (profile === 'minimal') {
+    await writeFile(
+      join(consumer, 'views/default-home.hbs'),
+      '<h1>{{message}}</h1>{{{widget}}}',
+    );
+    await writeFile(
+      join(consumer, 'views/default-counter.hbs'),
+      '<output>{{count}}</output>',
+    );
+    await writeFile(
+      join(consumer, 'views/default-layout.hbs'),
+      '<!doctype html><html lang="en"><head><title>Default packed setup</title></head><body>{{{body}}}{{nvScripts}}</body></html>',
+    );
+  }
   const install =
     manager === 'pnpm'
       ? ['install', '--ignore-scripts']
@@ -281,7 +295,7 @@ try {
   console.log(
     'Inspected ' +
       report.packages.length +
-      ' tarballs; npm/pnpm full MVC/Live and minimal umbrella-only asset consumers passed.',
+      ' tarballs; npm/pnpm full MVC/Live and minimal umbrella-only default setup consumers passed.',
   );
 } catch (error) {
   report.error =

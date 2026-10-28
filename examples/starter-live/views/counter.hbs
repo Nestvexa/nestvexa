@@ -1,0 +1,23 @@
+<section aria-label="Counter">
+  <p>
+    Count: <output id="count" aria-live="polite">{{count}}</output>; double:
+    <output id="double">{{doubled}}</output>
+  </p>
+  <button type="button" nv:click="increment" nv:loading.attr="disabled">
+    Increment
+  </button>
+  <form nv:submit="save">
+    <label
+      >Name <input name="name" nv:model="name" maxlength="80" value="{{name}}"
+    /></label>
+    <button type="submit" nv:loading.attr="disabled">Save name</button>
+    <p>Saved: <output id="saved" aria-live="polite">{{saved}}</output></p>
+  </form>
+  <div nv:ignore x-data="{ clicks: 0 }">
+    <button type="button" x-on:click="clicks++">Local Alpine click</button>
+    <output id="local" x-text="clicks">0</output>
+    <button type="button" x-on:click="$live.call('increment')">
+      Alpine server click
+    </button>
+  </div>
+</section>

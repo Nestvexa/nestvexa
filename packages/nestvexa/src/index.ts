@@ -1,177 +1,144 @@
-import { Inject, Injectable, Module } from '@nestjs/common';
-import type {
-  DynamicModule,
-  INestApplication,
-  OnApplicationShutdown,
-  Provider,
-} from '@nestjs/common';
+import { Module } from '@nestjs/common';
+import type { DynamicModule } from '@nestjs/common';
 import { CoreModule, NestvexaConfigService } from '@nestvexa/core';
-import type { NestvexaOptions, NestvexaAsyncOptions } from '@nestvexa/core';
+import type { NestvexaAsyncOptions, NestvexaOptions } from '@nestvexa/core';
 import { HbsEngine } from '@nestvexa/engine-hbs';
-import { resolve } from 'node:path';
+import { LiveModule } from '@nestvexa/live';
+import type {
+  LiveModuleAsyncOptions,
+  LiveRuntimeFactoryOptions,
+} from '@nestvexa/live';
+import { NestvexaRendererModule } from './mvc.module.js';
+import { NestvexaBrowserModule } from './browser.module.js';
+import type { NestvexaBrowserOptions } from './browser.module.js';
 
 export * from '@nestvexa/core';
-export { HbsEngine } from '@nestvexa/engine-hbs';
 export * from '@nestvexa/views';
+export * from '@nestvexa/live';
+export { HbsEngine } from '@nestvexa/engine-hbs';
+export { configureNestvexa } from './mvc.module.js';
+export { NestvexaBrowserService } from './browser.module.js';
+export type { NestvexaBrowserOptions } from './browser.module.js';
 
-const engineProvider: Provider = {
-  provide: HbsEngine,
-  inject: [NestvexaConfigService],
-  useFactory: (config: NestvexaConfigService) => {
-    const { views, live } = config.value;
-    if (views.engine !== 'hbs')
-      throw new Error(
-        'This distribution requires the hbs engine. Register another adapter explicitly.',
-      );
-    if (live.enabled)
-      throw new Error(
-        'Live runtime is not available in this alpha. Remove live.enabled; no live endpoint has been registered.',
-      );
-    return new HbsEngine({
-      root: views.root,
-      cache: views.cache,
-      ...(views.layout ? { defaultLayout: views.layout } : {}),
-    });
-  },
-};
+/** Host policies are required; the umbrella owns the shared HBS renderer. */
+export type NestvexaLivePolicies = Omit<LiveRuntimeFactoryOptions, 'renderer'>;
+/** Route structure is available synchronously, even when host policy configuration is async. */
+export interface NestvexaLiveOptions<
+  Dependencies extends unknown[] = unknown[],
+> extends Omit<LiveModuleAsyncOptions<Dependencies>, 'useFactory'> {
+  readonly browser?: NestvexaBrowserOptions;
+  readonly useFactory: (
+    ...dependencies: Dependencies
+  ) => NestvexaLivePolicies | Promise<NestvexaLivePolicies>;
+}
 
-/** Default distribution. Call configureNestvexa before app.listen(). */
+function dataObject(
+  value: unknown,
+  keys: readonly string[],
+  label: string,
+): asserts value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new Error(`Invalid ${label}`);
+  const prototype: unknown = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null)
+    throw new Error(`Invalid ${label}`);
+  for (const key of Reflect.ownKeys(value)) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (
+      typeof key !== 'string' ||
+      !keys.includes(key) ||
+      !descriptor ||
+      !('value' in descriptor)
+    )
+      throw new Error(`Invalid ${label}`);
+  }
+}
+function integrated<Dependencies extends unknown[]>(
+  core: DynamicModule,
+  live?: NestvexaLiveOptions<Dependencies>,
+): DynamicModule {
+  if (live === undefined) {
+    return {
+      module: NestvexaModule,
+      imports: [NestvexaRendererModule.configure(core)],
+      exports: [NestvexaRendererModule],
+    };
+  }
+  dataObject(
+    live,
+    [
+      'components',
+      'endpoint',
+      'basePath',
+      'imports',
+      'inject',
+      'useFactory',
+      'browser',
+    ],
+    'umbrella Live registration',
+  );
+  const factory = live.useFactory;
+  if (typeof factory !== 'function')
+    throw new Error('Live policy useFactory is required');
+  const browser = NestvexaBrowserModule.register(live.browser, live.basePath);
+  // The same exported module object is imported by MVC and Live: no global DI escape.
+  const renderer = NestvexaRendererModule.configure(core, browser);
+  const registration = LiveModule.registerAsync<
+    [HbsEngine, NestvexaConfigService, ...Dependencies]
+  >({
+    components: live.components,
+    ...(live.endpoint === undefined ? {} : { endpoint: live.endpoint }),
+    ...(live.basePath === undefined ? {} : { basePath: live.basePath }),
+    imports: [renderer, ...(live.imports ?? [])],
+    inject: [HbsEngine, NestvexaConfigService, ...(live.inject ?? [])],
+    useFactory: async (engine, config, ...dependencies) => {
+      if (!config.value.live.enabled)
+        throw new Error(
+          'Explicit Live registration requires live.enabled: true',
+        );
+      if (
+        !config.value.security.csrf ||
+        !config.value.security.requireAuthorizedActions
+      )
+        throw new Error('Integrated Live requires CSRF and authorized actions');
+      const policies = await factory(...dependencies);
+      dataObject(
+        policies,
+        [
+          'origin',
+          'resolveIdentity',
+          'authorize',
+          'store',
+          'maxRequestsPerMinute',
+        ],
+        'umbrella Live policies',
+      );
+      return { ...policies, renderer: engine };
+    },
+  });
+  return {
+    module: NestvexaModule,
+    imports: [renderer, registration],
+    exports: [NestvexaRendererModule, LiveModule],
+  };
+}
+
+/** MVC by default; enable Live explicitly with registered types and host identity/authorization policies. */
 @Module({})
 export class NestvexaModule {
-  static forRoot(options: NestvexaOptions = {}): DynamicModule {
-    return {
-      module: NestvexaModule,
-      imports: [CoreModule.forRoot(options)],
-      providers: [engineProvider, NestvexaRuntime],
-      exports: [CoreModule, HbsEngine, NestvexaRuntime],
-    };
-  }
-
-  static forRootAsync<T extends unknown[]>(
-    options: NestvexaAsyncOptions<T>,
+  static forRoot<Dependencies extends unknown[]>(
+    options: NestvexaOptions = {},
+    live?: NestvexaLiveOptions<Dependencies>,
   ): DynamicModule {
-    return {
-      module: NestvexaModule,
-      imports: [CoreModule.forRootAsync(options)],
-      providers: [engineProvider, NestvexaRuntime],
-      exports: [CoreModule, HbsEngine, NestvexaRuntime],
-    };
+    return integrated(CoreModule.forRoot(options), live);
   }
-}
-
-interface ExpressViewHost {
-  engine(
-    extension: string,
-    callback: (
-      path: string,
-      options: Record<string, unknown>,
-      callback: (error: Error | null, html?: string) => void,
-    ) => void,
-  ): unknown;
-  set(name: string, value: unknown): unknown;
-}
-interface ViewReply {
-  type(contentType: string): ViewReply;
-  send(html: string): unknown;
-}
-interface FastifyViewHost {
-  hasReplyDecorator(name: string): boolean;
-  decorateReply(
-    name: string,
-    fn: (
-      this: ViewReply,
-      view: string,
-      model: Record<string, unknown>,
-    ) => Promise<unknown>,
-  ): unknown;
-}
-
-function expressHost(host: unknown): host is ExpressViewHost {
-  return typeof host === 'function' ||
-    (typeof host === 'object' && host !== null)
-    ? 'engine' in host &&
-        typeof host.engine === 'function' &&
-        'set' in host &&
-        typeof host.set === 'function'
-    : false;
-}
-function fastifyHost(host: unknown): host is FastifyViewHost {
-  return (
-    typeof host === 'object' &&
-    host !== null &&
-    'hasReplyDecorator' in host &&
-    typeof host.hasReplyDecorator === 'function' &&
-    'decorateReply' in host &&
-    typeof host.decorateReply === 'function'
-  );
-}
-
-async function installViews(
-  app: INestApplication,
-  engine: HbsEngine,
-  config: NestvexaConfigService,
-): Promise<void> {
-  const adapter = app.getHttpAdapter();
-  const kind: string = adapter.getType();
-  if (kind !== 'express' && kind !== 'fastify')
-    throw new Error(`Unsupported Nest HTTP adapter: ${kind}`);
-  const host: unknown = adapter.getInstance();
-  if (kind === 'express') {
-    if (!expressHost(host)) throw new Error('Invalid Express view host');
-    await engine.initialize();
-    host.engine('hbs', (file, model, done) =>
-      engine.renderFile(file, model, done),
-    );
-    host.set('views', resolve(config.value.views.root));
-    host.set('view engine', 'hbs');
-    host.set('view cache', config.value.views.cache);
-  } else {
-    if (!fastifyHost(host)) throw new Error('Invalid Fastify view host');
-    if (host.hasReplyDecorator('view'))
-      throw new Error(
-        'Fastify reply.view is already registered. Configure a single view owner.',
-      );
-    await engine.initialize();
-    host.decorateReply('view', async function (view, model) {
-      const html = await engine.render(view, model);
-      return this.type('text/html; charset=utf-8').send(html);
-    });
+  static forRootAsync<
+    Dependencies extends unknown[],
+    LiveDependencies extends unknown[],
+  >(
+    options: NestvexaAsyncOptions<Dependencies>,
+    live?: NestvexaLiveOptions<LiveDependencies>,
+  ): DynamicModule {
+    return integrated(CoreModule.forRootAsync(options), live);
   }
-}
-
-/** Application-local initialization and teardown; no process-global registry. */
-@Injectable()
-class NestvexaRuntime implements OnApplicationShutdown {
-  private app: INestApplication | undefined;
-  private setup: Promise<void> | undefined;
-  private disposed = false;
-  constructor(
-    @Inject(HbsEngine) private readonly engine: HbsEngine,
-    @Inject(NestvexaConfigService)
-    private readonly config: NestvexaConfigService,
-  ) {}
-
-  configure(app: INestApplication): Promise<void> {
-    if (this.disposed)
-      return Promise.reject(new Error('Nestvexa runtime has shut down'));
-    if (this.app && this.app !== app)
-      return Promise.reject(
-        new Error('Nestvexa runtime is already bound to another application'),
-      );
-    this.app = app;
-    this.setup ??= installViews(app, this.engine, this.config);
-    return this.setup;
-  }
-
-  async onApplicationShutdown(): Promise<void> {
-    if (this.disposed) return;
-    this.disposed = true;
-    if (this.setup) await this.setup.catch(() => undefined);
-    await this.engine.dispose();
-  }
-}
-
-/** Install the view bridge once before listen(). Concurrent repeated calls share initialization. */
-export async function configureNestvexa(app: INestApplication): Promise<void> {
-  await app.get(NestvexaRuntime).configure(app);
 }

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased: integrated default Live setup
+
+Added explicit umbrella Live registration with async host policy injection, one shared HBS engine, external browser boot and `nvScripts` layout helper. Added delegated Alpine startup with document ownership and persisted-page lifecycle handling, plus an umbrella-only starter and external consumer coverage. Existing manual Live renderer and browser setup remain supported. Full master-plan release gates remain open.
+
 ## 0.1.0-alpha.0 — unreleased
 
 Added explicit `nestvexa/assets` hosting for allowlisted Live/Alpine modules with immutable content-addressed URLs, version-neutral Nest routes and conditional GET/HEAD. The umbrella declares its browser runtime dependencies, and the Live example replaces individual asset routes with the shared manifest. Browser startup and Live security policies remain host-owned.

@@ -22,7 +22,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run ../../tests/live-protocol.test.ts ../../tests/live.test.ts",
+    "test": "vitest run ../../tests/live-protocol.test.ts ../../tests/live.test.ts ../../tests/live-async.test.ts",
     "lint": "eslint src"
   },
   "dependencies": {

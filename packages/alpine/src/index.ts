@@ -121,3 +121,161 @@ export function installLiveAlpine(
   });
   installed.set(alpine, client);
 }
+
+/** Alpine instance selected by an application that delegates startup to Nestvexa. */
+export interface AlpineRuntime extends AlpineHost {
+  start(): void;
+}
+/** Live operations and explicit lifecycle consumed by the default bootstrap. */
+export interface ManagedLiveClient extends LiveClientBridge {
+  mount(): void;
+  dispose(): void;
+}
+export interface StartLiveAlpineOptions {
+  readonly document?: Document;
+  /** Trusted application extension hook, called after bridge registration and before startup. */
+  readonly configure?: (
+    alpine: AlpineRuntime,
+    client: ManagedLiveClient,
+  ) => void;
+}
+export interface LiveAlpineApplication {
+  readonly alpine: AlpineRuntime;
+  readonly client: ManagedLiveClient;
+  /** Release Live transport and page lifecycle listeners. This does not tear down Alpine DOM. */
+  dispose(): void;
+}
+
+interface BootstrapRecord {
+  readonly contract: 'nestvexa.alpine.application/1';
+  readonly application: LiveAlpineApplication;
+  status: 'starting' | 'active' | 'disposed' | 'failed';
+}
+const bootstrapKey = Symbol.for('nestvexa.alpine.application/1');
+
+function bootstrapRecord(value: unknown): value is BootstrapRecord {
+  if (typeof value !== 'object' || value === null) return false;
+  const own = (object: object, key: string): unknown => {
+    const descriptor = Object.getOwnPropertyDescriptor(object, key);
+    return descriptor && 'value' in descriptor ? descriptor.value : undefined;
+  };
+  const contract = own(value, 'contract');
+  const status = own(value, 'status');
+  const application = own(value, 'application');
+  if (typeof application !== 'object' || application === null) return false;
+  const alpine = own(application, 'alpine');
+  const client = own(application, 'client');
+  return (
+    contract === 'nestvexa.alpine.application/1' &&
+    typeof status === 'string' &&
+    ['starting', 'active', 'disposed', 'failed'].includes(status) &&
+    typeof own(application, 'dispose') === 'function' &&
+    typeof alpine === 'object' &&
+    alpine !== null &&
+    typeof client === 'object' &&
+    client !== null
+  );
+}
+
+/**
+ * Start one default Live/Alpine pair for an attached browser document.
+ * Existing host Alpine ownership must use installLiveAlpine instead.
+ * Persisted pagehide keeps the same client and drafts for BFCache restoration;
+ * ordinary departure disposes Live without pretending Alpine has a public stop API.
+ * A failed or disposed document cannot be restarted safely: reload it instead.
+ */
+export function startLiveAlpine(
+  alpine: AlpineRuntime,
+  client: ManagedLiveClient,
+  options: StartLiveAlpineOptions = {},
+): LiveAlpineApplication {
+  const doc = options.document ?? globalThis.document;
+  const view = doc?.defaultView;
+  if (!doc || !view || view.document !== doc)
+    throw new Error(
+      'Default Live/Alpine startup requires an attached browser document',
+    );
+  const descriptor = Object.getOwnPropertyDescriptor(doc, bootstrapKey);
+  if (descriptor) {
+    const prior: unknown = descriptor.value;
+    if (!bootstrapRecord(prior))
+      throw new Error(
+        'This document has an incompatible Live/Alpine bootstrap owner',
+      );
+    if (prior.status !== 'active')
+      throw new Error(
+        `Live/Alpine startup is ${prior.status}; reload the document before starting again`,
+      );
+    if (prior.application.alpine !== alpine)
+      throw new Error(
+        'This document already belongs to another Alpine runtime',
+      );
+    return prior.application;
+  }
+  if (Reflect.has(view, 'Alpine'))
+    throw new Error(
+      'The host already owns Alpine; use installLiveAlpine with its existing startup lifecycle',
+    );
+  if (
+    typeof alpine?.start !== 'function' ||
+    typeof client?.mount !== 'function' ||
+    typeof client?.dispose !== 'function' ||
+    (options.configure !== undefined && typeof options.configure !== 'function')
+  )
+    throw new Error(
+      'Default Live/Alpine startup requires complete lifecycle APIs',
+    );
+
+  const application: LiveAlpineApplication = Object.freeze({
+    alpine,
+    client,
+    dispose(): void {
+      if (record.status === 'disposed' || record.status === 'failed') return;
+      record.status = 'disposed';
+      view.removeEventListener('pagehide', pagehide);
+      client.dispose();
+    },
+  });
+  const record: BootstrapRecord = {
+    contract: 'nestvexa.alpine.application/1',
+    application,
+    status: 'starting',
+  };
+  const pagehide = (event: PageTransitionEvent): void => {
+    if (!event.persisted) application.dispose();
+  };
+  Object.defineProperty(doc, bootstrapKey, { value: record });
+  try {
+    installLiveAlpine(alpine, client);
+    options.configure?.(alpine, client);
+    if (record.status !== 'starting')
+      throw new Error('Live/Alpine startup was disposed during configuration');
+    client.mount();
+    if (record.status !== 'starting')
+      throw new Error('Live/Alpine startup was disposed while mounting');
+    alpine.start();
+    if (record.status !== 'starting')
+      throw new Error(
+        'Live/Alpine startup was disposed while initializing Alpine',
+      );
+    view.addEventListener('pagehide', pagehide);
+    record.status = 'active';
+    return application;
+  } catch (error) {
+    const alreadyDisposed = record.status === 'disposed';
+    record.status = 'failed';
+    view.removeEventListener('pagehide', pagehide);
+    if (!alreadyDisposed) {
+      try {
+        client.dispose();
+      } catch (cleanupError) {
+        throw new AggregateError(
+          [error, cleanupError],
+          'Live/Alpine startup and Live cleanup failed; reload the document',
+          { cause: cleanupError },
+        );
+      }
+    }
+    throw error;
+  }
+}

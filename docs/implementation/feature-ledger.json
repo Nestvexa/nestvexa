@@ -2278,24 +2278,47 @@
       "implementationFiles": [
         "packages/nestvexa/src/index.ts",
         "packages/core/src/core.module.ts",
-        "packages/core/src/config.ts"
+        "packages/core/src/config.ts",
+        "packages/nestvexa/src/mvc.module.ts",
+        "packages/nestvexa/src/browser.module.ts",
+        "packages/live/src/live.module.ts",
+        "packages/alpine/src/index.ts"
       ],
       "testFiles": [
         "tests/core.test.ts",
-        "tests/integration.test.ts"
+        "tests/integration.test.ts",
+        "tests/umbrella-live.test.ts",
+        "tests/live-async.test.ts",
+        "tests/alpine-start.test.ts",
+        "tests/browser/default-setup.spec.ts",
+        "tests/pack-consumers/assets.ts"
       ],
       "docs": [
         "README.md",
-        "packages/nestvexa/README.md"
+        "packages/nestvexa/README.md",
+        "docs/guides/default-live-setup.md",
+        "packages/alpine/README.md",
+        "packages/live/README.md"
       ],
       "examples": [
-        "examples/starter-hbs/src/main.ts"
+        "examples/starter-hbs/src/main.ts",
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/layout.hbs"
       ],
-      "securityNotes": "Native MVC only. No Live dispatch, CSRF middleware, universal action authorization or complete acceptance claim.",
+      "securityNotes": "Native MVC only. No Live dispatch, CSRF middleware, universal action authorization or complete acceptance claim. Integrated Live requires explicit session/identity/CSRF/origin/authorization policies and singleton setup; HBS renderer and browser ownership are application-local. Default startup requires delegated fresh Alpine; failed/disposed documents require reload.",
       "state": "InProgress",
-      "validationEvidence": [],
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-28T02:59:04.282Z",
+          "report": "docs/implementation/default-setup-checkpoint-evidence-2026-10-28.json",
+          "scope": "801 aggregate and 117 three-browser checks; four external npm/pnpm consumers; both fresh isolated Windows Node versions. Partial evidence, not compound acceptance."
+        }
+      ],
       "outstandingIssues": [
-        "Complete every clause, required platform/negative/browser/pack checks and recorded validation evidence before Done."
+        "Complete every clause, required platform/negative/browser/pack checks and recorded validation evidence before Done.",
+        "Complete compound acceptance, Linux/full compatibility and lifecycle/security review remain open; full Live API and CLI initializer are not implemented."
       ]
     },
     {
@@ -2312,24 +2335,47 @@
       "implementationFiles": [
         "packages/nestvexa/src/index.ts",
         "packages/core/src/core.module.ts",
-        "packages/core/src/config.ts"
+        "packages/core/src/config.ts",
+        "packages/nestvexa/src/mvc.module.ts",
+        "packages/nestvexa/src/browser.module.ts",
+        "packages/live/src/live.module.ts",
+        "packages/alpine/src/index.ts"
       ],
       "testFiles": [
         "tests/core.test.ts",
-        "tests/integration.test.ts"
+        "tests/integration.test.ts",
+        "tests/umbrella-live.test.ts",
+        "tests/live-async.test.ts",
+        "tests/alpine-start.test.ts",
+        "tests/browser/default-setup.spec.ts",
+        "tests/pack-consumers/assets.ts"
       ],
       "docs": [
         "README.md",
-        "packages/nestvexa/README.md"
+        "packages/nestvexa/README.md",
+        "docs/guides/default-live-setup.md",
+        "packages/alpine/README.md",
+        "packages/live/README.md"
       ],
       "examples": [
-        "examples/starter-hbs/src/main.ts"
+        "examples/starter-hbs/src/main.ts",
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/layout.hbs"
       ],
-      "securityNotes": "Native MVC only. No Live dispatch, CSRF middleware, universal action authorization or complete acceptance claim.",
+      "securityNotes": "Native MVC only. No Live dispatch, CSRF middleware, universal action authorization or complete acceptance claim. Integrated Live requires explicit session/identity/CSRF/origin/authorization policies and singleton setup; HBS renderer and browser ownership are application-local. Default startup requires delegated fresh Alpine; failed/disposed documents require reload.",
       "state": "InProgress",
-      "validationEvidence": [],
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-28T02:59:04.282Z",
+          "report": "docs/implementation/default-setup-checkpoint-evidence-2026-10-28.json",
+          "scope": "801 aggregate and 117 three-browser checks; four external npm/pnpm consumers; both fresh isolated Windows Node versions. Partial evidence, not compound acceptance."
+        }
+      ],
       "outstandingIssues": [
-        "Complete every clause, required platform/negative/browser/pack checks and recorded validation evidence before Done."
+        "Complete every clause, required platform/negative/browser/pack checks and recorded validation evidence before Done.",
+        "Complete compound acceptance, Linux/full compatibility and lifecycle/security review remain open; full Live API and CLI initializer are not implemented."
       ]
     },
     {
@@ -2346,24 +2392,47 @@
       "implementationFiles": [
         "packages/nestvexa/src/index.ts",
         "packages/core/src/core.module.ts",
-        "packages/core/src/config.ts"
+        "packages/core/src/config.ts",
+        "packages/nestvexa/src/mvc.module.ts",
+        "packages/nestvexa/src/browser.module.ts",
+        "packages/live/src/live.module.ts",
+        "packages/alpine/src/index.ts"
       ],
       "testFiles": [
         "tests/core.test.ts",
-        "tests/integration.test.ts"
+        "tests/integration.test.ts",
+        "tests/umbrella-live.test.ts",
+        "tests/live-async.test.ts",
+        "tests/alpine-start.test.ts",
+        "tests/browser/default-setup.spec.ts",
+        "tests/pack-consumers/assets.ts"
       ],
       "docs": [
         "README.md",
-        "packages/nestvexa/README.md"
+        "packages/nestvexa/README.md",
+        "docs/guides/default-live-setup.md",
+        "packages/alpine/README.md",
+        "packages/live/README.md"
       ],
       "examples": [
-        "examples/starter-hbs/src/main.ts"
+        "examples/starter-hbs/src/main.ts",
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/layout.hbs"
       ],
-      "securityNotes": "Native MVC only. No Live dispatch, CSRF middleware, universal action authorization or complete acceptance claim.",
+      "securityNotes": "Native MVC only. No Live dispatch, CSRF middleware, universal action authorization or complete acceptance claim. Integrated Live requires explicit session/identity/CSRF/origin/authorization policies and singleton setup; HBS renderer and browser ownership are application-local. Default startup requires delegated fresh Alpine; failed/disposed documents require reload.",
       "state": "InProgress",
-      "validationEvidence": [],
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-28T02:59:04.282Z",
+          "report": "docs/implementation/default-setup-checkpoint-evidence-2026-10-28.json",
+          "scope": "801 aggregate and 117 three-browser checks; four external npm/pnpm consumers; both fresh isolated Windows Node versions. Partial evidence, not compound acceptance."
+        }
+      ],
       "outstandingIssues": [
-        "Complete every clause, required platform/negative/browser/pack checks and recorded validation evidence before Done."
+        "Complete every clause, required platform/negative/browser/pack checks and recorded validation evidence before Done.",
+        "Complete compound acceptance, Linux/full compatibility and lifecycle/security review remain open; full Live API and CLI initializer are not implemented."
       ]
     },
     {
@@ -2599,14 +2668,44 @@
       "id": "CORE-015",
       "priority": "P1",
       "package": "@nestvexa/core",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/nestvexa/src/index.ts",
+        "packages/nestvexa/src/mvc.module.ts",
+        "packages/nestvexa/src/browser.module.ts",
+        "packages/live/src/live.module.ts",
+        "packages/alpine/src/index.ts"
+      ],
+      "testFiles": [
+        "tests/umbrella-live.test.ts",
+        "tests/live-async.test.ts",
+        "tests/alpine-start.test.ts",
+        "tests/browser/default-setup.spec.ts",
+        "tests/pack-consumers/assets.ts"
+      ],
+      "docs": [
+        "docs/guides/default-live-setup.md",
+        "packages/nestvexa/README.md",
+        "packages/alpine/README.md",
+        "packages/live/README.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/layout.hbs"
+      ],
+      "securityNotes": " Integrated Live requires explicit session/identity/CSRF/origin/authorization policies and singleton setup; HBS renderer and browser ownership are application-local. Default startup requires delegated fresh Alpine; failed/disposed documents require reload.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-28T02:59:04.282Z",
+          "report": "docs/implementation/default-setup-checkpoint-evidence-2026-10-28.json",
+          "scope": "801 aggregate and 117 three-browser checks; four external npm/pnpm consumers; both fresh isolated Windows Node versions. Partial evidence, not compound acceptance."
+        }
+      ],
+      "outstandingIssues": [
+        "Complete compound acceptance, Linux/full compatibility and lifecycle/security review remain open; full Live API and CLI initializer are not implemented."
+      ]
     },
     {
       "sourceKey": "757e9a3297b599587f61bece9126b62353e17f84369476fa18e4cb9a98f68a5c",
@@ -2767,23 +2866,36 @@
         "packages/nestvexa/src/index.ts",
         "packages/live/src/registration.ts",
         "packages/live/src/runtime.ts",
-        "packages/live/src/live.module.ts"
+        "packages/live/src/live.module.ts",
+        "packages/nestvexa/src/mvc.module.ts",
+        "packages/nestvexa/src/browser.module.ts",
+        "packages/alpine/src/index.ts"
       ],
       "testFiles": [
         "tests/core.test.ts",
         "tests/integration.test.ts",
-        "tests/live-registration.test.ts"
+        "tests/live-registration.test.ts",
+        "tests/umbrella-live.test.ts",
+        "tests/live-async.test.ts",
+        "tests/alpine-start.test.ts",
+        "tests/browser/default-setup.spec.ts",
+        "tests/pack-consumers/assets.ts"
       ],
       "docs": [
         "packages/core/README.md",
         "docs/architecture/overview.md",
-        "packages/live/README.md"
+        "packages/live/README.md",
+        "docs/guides/default-live-setup.md",
+        "packages/nestvexa/README.md",
+        "packages/alpine/README.md"
       ],
       "examples": [
         "examples/starter-hbs/src/main.ts",
-        "examples/live-counter/src/main.ts"
+        "examples/live-counter/src/main.ts",
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/layout.hbs"
       ],
-      "securityNotes": "Application-local DI registration rejects duplicate Live types/names/routes, delegates mounts to the owning policy/store, shares public request context IDs across modules, and rejects late work after shutdown. Renderer lifecycle remains host-owned. Evidence is limited to the implemented Live/MVC slice.",
+      "securityNotes": "Application-local DI registration rejects duplicate Live types/names/routes, delegates mounts to the owning policy/store, shares public request context IDs across modules, and rejects late work after shutdown. Renderer lifecycle remains host-owned. Evidence is limited to the implemented Live/MVC slice. Integrated Live requires explicit session/identity/CSRF/origin/authorization policies and singleton setup; HBS renderer and browser ownership are application-local. Default startup requires delegated fresh Alpine; failed/disposed documents require reload.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -2791,11 +2903,19 @@
           "exitCode": 0,
           "executedAt": "2026-10-26T14:14:12.280Z",
           "report": "docs/implementation/registration-checkpoint-evidence-2026-10-26.json"
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-28T02:59:04.282Z",
+          "report": "docs/implementation/default-setup-checkpoint-evidence-2026-10-28.json",
+          "scope": "801 aggregate and 117 three-browser checks; four external npm/pnpm consumers; both fresh isolated Windows Node versions. Partial evidence, not compound acceptance."
         }
       ],
       "outstandingIssues": [
         "Complete every clause, required platform/negative/browser/pack checks and recorded validation evidence before Done.",
-        "Complete every remaining clause and the full release matrix before Done; arbitrary host-route conflicts, all transient/async/fault variants, logging/tracing and independent review are not certified by this registration suite."
+        "Complete every remaining clause and the full release matrix before Done; arbitrary host-route conflicts, all transient/async/fault variants, logging/tracing and independent review are not certified by this registration suite.",
+        "Complete compound acceptance, Linux/full compatibility and lifecycle/security review remain open; full Live API and CLI initializer are not implemented."
       ]
     },
     {
@@ -2893,23 +3013,36 @@
         "packages/nestvexa/src/index.ts",
         "packages/live/src/registration.ts",
         "packages/live/src/runtime.ts",
-        "packages/live/src/live.module.ts"
+        "packages/live/src/live.module.ts",
+        "packages/nestvexa/src/mvc.module.ts",
+        "packages/nestvexa/src/browser.module.ts",
+        "packages/alpine/src/index.ts"
       ],
       "testFiles": [
         "tests/core.test.ts",
         "tests/integration.test.ts",
-        "tests/live-registration.test.ts"
+        "tests/live-registration.test.ts",
+        "tests/umbrella-live.test.ts",
+        "tests/live-async.test.ts",
+        "tests/alpine-start.test.ts",
+        "tests/browser/default-setup.spec.ts",
+        "tests/pack-consumers/assets.ts"
       ],
       "docs": [
         "packages/core/README.md",
         "docs/architecture/overview.md",
-        "packages/live/README.md"
+        "packages/live/README.md",
+        "docs/guides/default-live-setup.md",
+        "packages/nestvexa/README.md",
+        "packages/alpine/README.md"
       ],
       "examples": [
         "examples/starter-hbs/src/main.ts",
-        "examples/live-counter/src/main.ts"
+        "examples/live-counter/src/main.ts",
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/layout.hbs"
       ],
-      "securityNotes": "Application-local DI registration rejects duplicate Live types/names/routes, delegates mounts to the owning policy/store, shares public request context IDs across modules, and rejects late work after shutdown. Renderer lifecycle remains host-owned. Evidence is limited to the implemented Live/MVC slice.",
+      "securityNotes": "Application-local DI registration rejects duplicate Live types/names/routes, delegates mounts to the owning policy/store, shares public request context IDs across modules, and rejects late work after shutdown. Renderer lifecycle remains host-owned. Evidence is limited to the implemented Live/MVC slice. Integrated Live requires explicit session/identity/CSRF/origin/authorization policies and singleton setup; HBS renderer and browser ownership are application-local. Default startup requires delegated fresh Alpine; failed/disposed documents require reload.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -2917,11 +3050,19 @@
           "exitCode": 0,
           "executedAt": "2026-10-26T14:14:12.280Z",
           "report": "docs/implementation/registration-checkpoint-evidence-2026-10-26.json"
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-28T02:59:04.282Z",
+          "report": "docs/implementation/default-setup-checkpoint-evidence-2026-10-28.json",
+          "scope": "801 aggregate and 117 three-browser checks; four external npm/pnpm consumers; both fresh isolated Windows Node versions. Partial evidence, not compound acceptance."
         }
       ],
       "outstandingIssues": [
         "Complete every clause, required platform/negative/browser/pack checks and recorded validation evidence before Done.",
-        "Complete every remaining clause and the full release matrix before Done; arbitrary host-route conflicts, all transient/async/fault variants, logging/tracing and independent review are not certified by this registration suite."
+        "Complete every remaining clause and the full release matrix before Done; arbitrary host-route conflicts, all transient/async/fault variants, logging/tracing and independent review are not certified by this registration suite.",
+        "Complete compound acceptance, Linux/full compatibility and lifecycle/security review remain open; full Live API and CLI initializer are not implemented."
       ]
     },
     {
@@ -2943,23 +3084,36 @@
         "packages/nestvexa/src/index.ts",
         "packages/live/src/registration.ts",
         "packages/live/src/runtime.ts",
-        "packages/live/src/live.module.ts"
+        "packages/live/src/live.module.ts",
+        "packages/nestvexa/src/mvc.module.ts",
+        "packages/nestvexa/src/browser.module.ts",
+        "packages/alpine/src/index.ts"
       ],
       "testFiles": [
         "tests/core.test.ts",
         "tests/integration.test.ts",
-        "tests/live-registration.test.ts"
+        "tests/live-registration.test.ts",
+        "tests/umbrella-live.test.ts",
+        "tests/live-async.test.ts",
+        "tests/alpine-start.test.ts",
+        "tests/browser/default-setup.spec.ts",
+        "tests/pack-consumers/assets.ts"
       ],
       "docs": [
         "packages/core/README.md",
         "docs/architecture/overview.md",
-        "packages/live/README.md"
+        "packages/live/README.md",
+        "docs/guides/default-live-setup.md",
+        "packages/nestvexa/README.md",
+        "packages/alpine/README.md"
       ],
       "examples": [
         "examples/starter-hbs/src/main.ts",
-        "examples/live-counter/src/main.ts"
+        "examples/live-counter/src/main.ts",
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/layout.hbs"
       ],
-      "securityNotes": "Application-local DI registration rejects duplicate Live types/names/routes, delegates mounts to the owning policy/store, shares public request context IDs across modules, and rejects late work after shutdown. Renderer lifecycle remains host-owned. Evidence is limited to the implemented Live/MVC slice.",
+      "securityNotes": "Application-local DI registration rejects duplicate Live types/names/routes, delegates mounts to the owning policy/store, shares public request context IDs across modules, and rejects late work after shutdown. Renderer lifecycle remains host-owned. Evidence is limited to the implemented Live/MVC slice. Integrated Live requires explicit session/identity/CSRF/origin/authorization policies and singleton setup; HBS renderer and browser ownership are application-local. Default startup requires delegated fresh Alpine; failed/disposed documents require reload.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -2967,11 +3121,19 @@
           "exitCode": 0,
           "executedAt": "2026-10-26T14:14:12.280Z",
           "report": "docs/implementation/registration-checkpoint-evidence-2026-10-26.json"
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-28T02:59:04.282Z",
+          "report": "docs/implementation/default-setup-checkpoint-evidence-2026-10-28.json",
+          "scope": "801 aggregate and 117 three-browser checks; four external npm/pnpm consumers; both fresh isolated Windows Node versions. Partial evidence, not compound acceptance."
         }
       ],
       "outstandingIssues": [
         "Complete every clause, required platform/negative/browser/pack checks and recorded validation evidence before Done.",
-        "Complete every remaining clause and the full release matrix before Done; arbitrary host-route conflicts, all transient/async/fault variants, logging/tracing and independent review are not certified by this registration suite."
+        "Complete every remaining clause and the full release matrix before Done; arbitrary host-route conflicts, all transient/async/fault variants, logging/tracing and independent review are not certified by this registration suite.",
+        "Complete compound acceptance, Linux/full compatibility and lifecycle/security review remain open; full Live API and CLI initializer are not implemented."
       ]
     },
     {
@@ -3227,14 +3389,44 @@
       "id": "CORE-036",
       "priority": "P1",
       "package": "@nestvexa/core",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/nestvexa/src/index.ts",
+        "packages/nestvexa/src/mvc.module.ts",
+        "packages/nestvexa/src/browser.module.ts",
+        "packages/live/src/live.module.ts",
+        "packages/alpine/src/index.ts"
+      ],
+      "testFiles": [
+        "tests/umbrella-live.test.ts",
+        "tests/live-async.test.ts",
+        "tests/alpine-start.test.ts",
+        "tests/browser/default-setup.spec.ts",
+        "tests/pack-consumers/assets.ts"
+      ],
+      "docs": [
+        "docs/guides/default-live-setup.md",
+        "packages/nestvexa/README.md",
+        "packages/alpine/README.md",
+        "packages/live/README.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/layout.hbs"
+      ],
+      "securityNotes": " Integrated Live requires explicit session/identity/CSRF/origin/authorization policies and singleton setup; HBS renderer and browser ownership are application-local. Default startup requires delegated fresh Alpine; failed/disposed documents require reload.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-28T02:59:04.282Z",
+          "report": "docs/implementation/default-setup-checkpoint-evidence-2026-10-28.json",
+          "scope": "801 aggregate and 117 three-browser checks; four external npm/pnpm consumers; both fresh isolated Windows Node versions. Partial evidence, not compound acceptance."
+        }
+      ],
+      "outstandingIssues": [
+        "Complete compound acceptance, Linux/full compatibility and lifecycle/security review remain open; full Live API and CLI initializer are not implemented."
+      ]
     },
     {
       "sourceKey": "71efb35542ba7dd4a3365766ca36e93730e0436449c2371bf1950f068469b682",
@@ -14214,7 +14406,11 @@
         "packages/engine-hbs/src/index.ts",
         "packages/nestvexa/src/assets.ts",
         "packages/nestvexa/src/asset-catalog.ts",
-        "packages/nestvexa/package.json"
+        "packages/nestvexa/package.json",
+        "packages/nestvexa/src/mvc.module.ts",
+        "packages/nestvexa/src/browser.module.ts",
+        "packages/live/src/live.module.ts",
+        "packages/alpine/src/index.ts"
       ],
       "testFiles": [
         "tests/core.test.ts",
@@ -14224,7 +14420,11 @@
         "tests/contracts.test.ts",
         "tests/browser/assets.spec.ts",
         "tests/pack-consumers/assets.ts",
-        "scripts/pack.mjs"
+        "scripts/pack.mjs",
+        "tests/umbrella-live.test.ts",
+        "tests/live-async.test.ts",
+        "tests/alpine-start.test.ts",
+        "tests/browser/default-setup.spec.ts"
       ],
       "docs": [
         "docs/implementation/STATUS.md",
@@ -14232,13 +14432,18 @@
         "README.md",
         "docs/guides/client-assets.md",
         "packages/nestvexa/README.md",
-        "THIRD_PARTY_NOTICES.md"
+        "THIRD_PARTY_NOTICES.md",
+        "docs/guides/default-live-setup.md",
+        "packages/alpine/README.md",
+        "packages/live/README.md"
       ],
       "examples": [
         "examples/starter-hbs/src/main.ts",
-        "examples/live-counter/src/main.ts"
+        "examples/live-counter/src/main.ts",
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/layout.hbs"
       ],
-      "securityNotes": "Phase work has started. These source links are partial evidence only; no phase exit gate is accepted. Explicit app-local allowlisted installed asset snapshots; native Nest version-neutral routes preserve the host pipeline. Hash URLs identify code for caching and never authorize actions. No request-driven filesystem resolution or automatic runtime startup.",
+      "securityNotes": "Phase work has started. These source links are partial evidence only; no phase exit gate is accepted. Explicit app-local allowlisted installed asset snapshots; native Nest version-neutral routes preserve the host pipeline. Hash URLs identify code for caching and never authorize actions. No request-driven filesystem resolution or automatic runtime startup. Integrated Live requires explicit session/identity/CSRF/origin/authorization policies and singleton setup; HBS renderer and browser ownership are application-local. Default startup requires delegated fresh Alpine; failed/disposed documents require reload.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -14247,11 +14452,19 @@
           "executedAt": "2026-10-27T19:05:15.493Z",
           "report": "docs/implementation/asset-hosting-checkpoint-evidence-2026-10-27.json",
           "scope": "Partial explicit asset hosting:703 aggregate tests including 71 asset cases,105 Chromium/Firefox/WebKit checks, seven tarballs in four external full/minimal npm/pnpm strict-TypeScript and real Nest consumers. Minimal consumers install only nestvexa and Nest peers and fetch all 15 approved assets. Full compound acceptance remains open; releaseReady is false. Fresh isolated Windows Node 22.23.4 and 24.22.1 each passed strict compilation and 703 tests without repeating the complete three-browser server or four-consumer matrix."
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-28T02:59:04.282Z",
+          "report": "docs/implementation/default-setup-checkpoint-evidence-2026-10-28.json",
+          "scope": "801 aggregate and 117 three-browser checks; four external npm/pnpm consumers; both fresh isolated Windows Node versions. Partial evidence, not compound acceptance."
         }
       ],
       "outstandingIssues": [
         "Complete every clause, required platform/negative/browser/pack checks and recorded validation evidence before Done.",
-        "SRI, full asset/Vite/CDN/deployment/HMR/renderer matrix, automatic Live/Alpine bootstrap and full compound phase acceptance remain open."
+        "SRI, full asset/Vite/CDN/deployment/HMR/renderer matrix, automatic Live/Alpine bootstrap and full compound phase acceptance remain open.",
+        "Complete compound acceptance, Linux/full compatibility and lifecycle/security review remain open; full Live API and CLI initializer are not implemented."
       ]
     },
     {
@@ -14375,7 +14588,11 @@
         "packages/engine-hbs/src/index.ts",
         "packages/nestvexa/src/assets.ts",
         "packages/nestvexa/src/asset-catalog.ts",
-        "packages/nestvexa/package.json"
+        "packages/nestvexa/package.json",
+        "packages/nestvexa/src/mvc.module.ts",
+        "packages/nestvexa/src/browser.module.ts",
+        "packages/live/src/live.module.ts",
+        "packages/alpine/src/index.ts"
       ],
       "testFiles": [
         "tests/core.test.ts",
@@ -14385,7 +14602,11 @@
         "tests/contracts.test.ts",
         "tests/browser/assets.spec.ts",
         "tests/pack-consumers/assets.ts",
-        "scripts/pack.mjs"
+        "scripts/pack.mjs",
+        "tests/umbrella-live.test.ts",
+        "tests/live-async.test.ts",
+        "tests/alpine-start.test.ts",
+        "tests/browser/default-setup.spec.ts"
       ],
       "docs": [
         "docs/implementation/STATUS.md",
@@ -14393,13 +14614,18 @@
         "README.md",
         "docs/guides/client-assets.md",
         "packages/nestvexa/README.md",
-        "THIRD_PARTY_NOTICES.md"
+        "THIRD_PARTY_NOTICES.md",
+        "docs/guides/default-live-setup.md",
+        "packages/alpine/README.md",
+        "packages/live/README.md"
       ],
       "examples": [
         "examples/starter-hbs/src/main.ts",
-        "examples/live-counter/src/main.ts"
+        "examples/live-counter/src/main.ts",
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/layout.hbs"
       ],
-      "securityNotes": "Phase work has started. These source links are partial evidence only; no phase exit gate is accepted. Explicit app-local allowlisted installed asset snapshots; native Nest version-neutral routes preserve the host pipeline. Hash URLs identify code for caching and never authorize actions. No request-driven filesystem resolution or automatic runtime startup.",
+      "securityNotes": "Phase work has started. These source links are partial evidence only; no phase exit gate is accepted. Explicit app-local allowlisted installed asset snapshots; native Nest version-neutral routes preserve the host pipeline. Hash URLs identify code for caching and never authorize actions. No request-driven filesystem resolution or automatic runtime startup. Integrated Live requires explicit session/identity/CSRF/origin/authorization policies and singleton setup; HBS renderer and browser ownership are application-local. Default startup requires delegated fresh Alpine; failed/disposed documents require reload.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -14408,11 +14634,19 @@
           "executedAt": "2026-10-27T19:05:15.493Z",
           "report": "docs/implementation/asset-hosting-checkpoint-evidence-2026-10-27.json",
           "scope": "Partial explicit asset hosting:703 aggregate tests including 71 asset cases,105 Chromium/Firefox/WebKit checks, seven tarballs in four external full/minimal npm/pnpm strict-TypeScript and real Nest consumers. Minimal consumers install only nestvexa and Nest peers and fetch all 15 approved assets. Full compound acceptance remains open; releaseReady is false. Fresh isolated Windows Node 22.23.4 and 24.22.1 each passed strict compilation and 703 tests without repeating the complete three-browser server or four-consumer matrix."
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-28T02:59:04.282Z",
+          "report": "docs/implementation/default-setup-checkpoint-evidence-2026-10-28.json",
+          "scope": "801 aggregate and 117 three-browser checks; four external npm/pnpm consumers; both fresh isolated Windows Node versions. Partial evidence, not compound acceptance."
         }
       ],
       "outstandingIssues": [
         "Complete every clause, required platform/negative/browser/pack checks and recorded validation evidence before Done.",
-        "SRI, full asset/Vite/CDN/deployment/HMR/renderer matrix, automatic Live/Alpine bootstrap and full compound phase acceptance remain open."
+        "SRI, full asset/Vite/CDN/deployment/HMR/renderer matrix, automatic Live/Alpine bootstrap and full compound phase acceptance remain open.",
+        "Complete compound acceptance, Linux/full compatibility and lifecycle/security review remain open; full Live API and CLI initializer are not implemented."
       ]
     },
     {
@@ -14501,14 +14735,44 @@
       "id": "PHASE-026",
       "priority": "P1",
       "package": "cross-package",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/nestvexa/src/index.ts",
+        "packages/nestvexa/src/mvc.module.ts",
+        "packages/nestvexa/src/browser.module.ts",
+        "packages/live/src/live.module.ts",
+        "packages/alpine/src/index.ts"
+      ],
+      "testFiles": [
+        "tests/umbrella-live.test.ts",
+        "tests/live-async.test.ts",
+        "tests/alpine-start.test.ts",
+        "tests/browser/default-setup.spec.ts",
+        "tests/pack-consumers/assets.ts"
+      ],
+      "docs": [
+        "docs/guides/default-live-setup.md",
+        "packages/nestvexa/README.md",
+        "packages/alpine/README.md",
+        "packages/live/README.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/layout.hbs"
+      ],
+      "securityNotes": " Integrated Live requires explicit session/identity/CSRF/origin/authorization policies and singleton setup; HBS renderer and browser ownership are application-local. Default startup requires delegated fresh Alpine; failed/disposed documents require reload.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-28T02:59:04.282Z",
+          "report": "docs/implementation/default-setup-checkpoint-evidence-2026-10-28.json",
+          "scope": "801 aggregate and 117 three-browser checks; four external npm/pnpm consumers; both fresh isolated Windows Node versions. Partial evidence, not compound acceptance."
+        }
+      ],
+      "outstandingIssues": [
+        "Complete compound acceptance, Linux/full compatibility and lifecycle/security review remain open; full Live API and CLI initializer are not implemented."
+      ]
     },
     {
       "sourceKey": "b93f20ce49f40f521b8b9c4d0457381c199203fb0ca710592374064a7dc1ed10",
@@ -14721,14 +14985,44 @@
       "id": "PHASE-037",
       "priority": "P1",
       "package": "cross-package",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/nestvexa/src/index.ts",
+        "packages/nestvexa/src/mvc.module.ts",
+        "packages/nestvexa/src/browser.module.ts",
+        "packages/live/src/live.module.ts",
+        "packages/alpine/src/index.ts"
+      ],
+      "testFiles": [
+        "tests/umbrella-live.test.ts",
+        "tests/live-async.test.ts",
+        "tests/alpine-start.test.ts",
+        "tests/browser/default-setup.spec.ts",
+        "tests/pack-consumers/assets.ts"
+      ],
+      "docs": [
+        "docs/guides/default-live-setup.md",
+        "packages/nestvexa/README.md",
+        "packages/alpine/README.md",
+        "packages/live/README.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/layout.hbs"
+      ],
+      "securityNotes": " Integrated Live requires explicit session/identity/CSRF/origin/authorization policies and singleton setup; HBS renderer and browser ownership are application-local. Default startup requires delegated fresh Alpine; failed/disposed documents require reload.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-28T02:59:04.282Z",
+          "report": "docs/implementation/default-setup-checkpoint-evidence-2026-10-28.json",
+          "scope": "801 aggregate and 117 three-browser checks; four external npm/pnpm consumers; both fresh isolated Windows Node versions. Partial evidence, not compound acceptance."
+        }
+      ],
+      "outstandingIssues": [
+        "Complete compound acceptance, Linux/full compatibility and lifecycle/security review remain open; full Live API and CLI initializer are not implemented."
+      ]
     },
     {
       "sourceKey": "f1383d7674e75bab4fc1d6d765e9ba9f0dbc39a67ad97577db299517c2d2f0a0",

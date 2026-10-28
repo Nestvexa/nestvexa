@@ -1,0 +1,9 @@
+# Default Live starter
+
+Build from the repository root with `pnpm install --frozen-lockfile && pnpm build`, then run `pnpm --filter @nestvexa/example-starter-live start` and open <http://127.0.0.1:3102>.
+
+This example imports the server API from `nestvexa`, registers a counter and explicit host policies, shares HBS between MVC and Live, and uses `{{nvScripts}}` for automatic client/Alpine CSP startup. It has no frontend build tool or direct Live/client/Alpine package dependency. Native `/api/health` and `/about` remain ordinary Nest routes. The ignored Alpine widget preserves local state while the counter updates.
+
+The session is a local guest demonstration with a random process secret and in-memory store. Production must supply authentication, a stable secret, persistent sessions, HTTPS cookies, authoritative user/tenant bindings, revocation and resource permissions. CSRF and origin checks remain required. Ordinary navigation works without JavaScript; the counter does not have a progressive HTML action fallback yet.
+
+See the [setup guide](../../docs/guides/default-live-setup.md). Browser tests are in [default-setup.spec.ts](../../tests/browser/default-setup.spec.ts). Run `pnpm test:e2e` after building; reports distinguish executed results from remaining acceptance requirements.
