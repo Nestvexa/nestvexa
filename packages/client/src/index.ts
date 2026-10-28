@@ -188,6 +188,29 @@ function controlSignature(element: Element): string {
   ]);
 }
 
+/** Native focus can fail silently after a retained control becomes hidden or disabled. */
+function availableForFocus(element: HTMLElement): boolean {
+  if (
+    !element.isConnected ||
+    element.matches(':disabled') ||
+    element.closest('[hidden], [inert]') ||
+    element.getClientRects().length === 0
+  )
+    return false;
+  const visibility =
+    element.ownerDocument.defaultView?.getComputedStyle(element).visibility;
+  return visibility !== 'hidden' && visibility !== 'collapse';
+}
+function focusMoved(document: Document, previous: Element): boolean {
+  const active = document.activeElement;
+  return (
+    active !== null &&
+    active !== previous &&
+    active !== document.body &&
+    active !== document.documentElement
+  );
+}
+
 /** Explicit, idempotent browser startup. Importing this module does not touch DOM globals. */
 export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   const ownership = Symbol('nestvexa-client');
@@ -216,6 +239,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   const transport = options.fetch ?? window.fetch.bind(window);
   const timeout = requestTimeout(options.requestTimeoutMs);
   const components = new Map<Element, Component>();
+  const focusCleanups = new Map<HTMLElement, () => void>();
   let mounted = false;
   let observer: MutationObserver | null = null;
   let dispatcher: EventDispatcher | undefined;
@@ -400,15 +424,37 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     state.request?.abort();
     loading.restore(state.root);
     state.root.removeAttribute('aria-busy');
+    releaseFocus(state.root);
     components.delete(state.root);
     if (componentOwners.get(state.root) === ownership)
       componentOwners.delete(state.root);
   }
   function cancelSubtree(node: Element): void {
+    releaseFocus(node);
     dispatcher?.cancel(node);
     direct.remove(node);
     for (const element of [node, ...node.querySelectorAll('*')])
       models.cancel(element);
+  }
+  function releaseFocus(node: Element): void {
+    for (const [target, cleanup] of focusCleanups)
+      if (target === node || node.contains(target)) cleanup();
+  }
+  function focusRoot(target: HTMLElement): void {
+    const temporary = !target.hasAttribute('tabindex');
+    if (temporary) {
+      target.setAttribute('tabindex', '-1');
+      const cleanup = (): void => {
+        target.removeEventListener('blur', cleanup);
+        if (target.getAttribute('tabindex') === '-1')
+          target.removeAttribute('tabindex');
+        focusCleanups.delete(target);
+      };
+      focusCleanups.set(target, cleanup);
+      target.addEventListener('blur', cleanup, { once: true });
+    }
+    target.focus({ preventScroll: true });
+    if (doc.activeElement !== target) focusCleanups.get(target)?.();
   }
   function releaseSubtree(node: Element, reject: boolean): void {
     cancelSubtree(node);
@@ -758,25 +804,31 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       for (const [element] of state.invalid)
         if (!element.isConnected || owner(element) !== state.root)
           state.invalid.delete(element);
-      if (focused?.isConnected && 'focus' in focused) {
-        (focused as HTMLElement).focus({ preventScroll: true });
+      // Lifecycle hooks may deliberately choose a different focus target. Preserve it.
+      if (focused && !focusMoved(doc, focused)) {
+        const retained =
+          focused instanceof window.HTMLElement && availableForFocus(focused);
+        if (retained) focused.focus({ preventScroll: true });
         // A retained INPUT may now have a type without the selection API.
-        if (caret && selection(focused) !== null)
+        if (
+          retained &&
+          doc.activeElement === focused &&
+          caret &&
+          selection(focused) !== null
+        )
           (focused as HTMLInputElement).setSelectionRange(
             caret.start,
             caret.end,
             caret.direction,
           );
-      } else if (focused && state.root instanceof window.HTMLElement) {
-        const temporary = !state.root.hasAttribute('tabindex');
-        if (temporary) state.root.setAttribute('tabindex', '-1');
-        state.root.focus({ preventScroll: true });
-        if (temporary)
-          state.root.addEventListener(
-            'blur',
-            () => state.root.removeAttribute('tabindex'),
-            { once: true },
-          );
+        if (
+          (!retained || doc.activeElement !== focused) &&
+          !focusMoved(doc, focused) &&
+          state.root instanceof window.HTMLElement &&
+          availableForFocus(state.root)
+        ) {
+          focusRoot(state.root);
+        }
       }
       state.root.scrollTop = scroll.top;
       state.root.scrollLeft = scroll.left;
@@ -1137,6 +1189,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       direct.dispose();
       models.dispose();
       loading.dispose();
+      for (const cleanup of focusCleanups.values()) cleanup();
       composing = new WeakSet<Element>();
       root.removeEventListener('click', action);
       root.removeEventListener('submit', action);

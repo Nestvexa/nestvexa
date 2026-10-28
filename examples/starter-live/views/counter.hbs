@@ -13,6 +13,27 @@
     <button type="submit" nv:loading.attr="disabled">Save name</button>
     <p>Saved: <output id="saved" aria-live="polite">{{saved}}</output></p>
   </form>
+  {{#if editorHidden}}
+  <div id="focus-editor" hidden>
+    <label for="focus-target">Focus target</label>
+    {{#if editorDisabled}}
+    <input id="focus-target" value="Local focus draft" disabled />
+    {{else}}
+    <input id="focus-target" value="Local focus draft" />
+    {{/if}}
+  </div>
+  {{else}}
+  <div id="focus-editor">
+    <label for="focus-target">Focus target</label>
+    {{#if editorDisabled}}
+    <input id="focus-target" value="Local focus draft" disabled />
+    {{else}}
+    <input id="focus-target" value="Local focus draft" />
+    {{/if}}
+  </div>
+  {{/if}}
+  <button type="button" nv:click="disableEditor">Disable focus target</button>
+  <button type="button" nv:click="hideEditor">Hide focus target</button>
   <div nv:ignore x-data="{ clicks: 0 }">
     <button type="button" x-on:click="clicks++">Local Alpine click</button>
     <output id="local" x-text="clicks">0</output>

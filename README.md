@@ -20,6 +20,8 @@ For the cookie-backed Live counter, run `pnpm --filter @nestvexa/example-live-co
 
 For the integrated default setup, run `pnpm --filter @nestvexa/example-starter-live start` and open `http://127.0.0.1:3102`. It uses one HBS engine for MVC and Live, `{{nvScripts}}` in its layout, and automatic CSP Alpine/client startup. See the [default Live guide](docs/guides/default-live-setup.md) for required host session and authorization policies.
 
+The starter also demonstrates [keyboard focus after server updates](docs/guides/focus-restoration.md), including controls made disabled or hidden while a response is pending. This is scoped behavior verification; complete accessibility acceptance remains open.
+
 ```ts
 import { Module } from '@nestjs/common';
 import { NestvexaModule } from 'nestvexa';

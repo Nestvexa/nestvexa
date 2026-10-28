@@ -24,8 +24,8 @@
     {
       "id": 3,
       "state": "InProgress",
-      "scope": "Initial directives, queued transport, keyed morph, CSP Alpine bridge, event/model modifiers, targeted loading/replacement, native reconciliation, registration ownership, wrapper-only ignore and bounded browser transport/deadline/recovery, and native form reset reconciliation",
-      "remaining": "Default setup: 801 aggregate and 117 three-browser passes, seven tarballs/four full-minimal npm-pnpm consumers; fresh Windows Node 22.23.4 and 24.22.1 each compile and pass the aggregate. Shared HBS, async policy DI and delegated Alpine startup implemented to documented boundaries. Full phase requirements, input/lifecycle/security/accessibility matrices, Linux and complete release acceptance remain open."
+      "scope": "Initial directives, queued transport, keyed morph, CSP Alpine bridge, event/model modifiers, targeted loading/replacement, native reconciliation, registration ownership, wrapper-only ignore and bounded browser transport/deadline/recovery, and native form reset reconciliation, and post-morph focus availability/host ownership/temporary focusability cleanup",
+      "remaining": "Focus checkpoint: 814 aggregate/126 three-browser passes; seven tarballs in four npm/pnpm external consumers. Both isolated Windows Node versions compile and pass aggregate. Complete directive/input/nested-server/renderer/lifecycle/accessibility/security/platform acceptance remains open. Phase4 remains Pending."
     },
     {
       "id": 4,

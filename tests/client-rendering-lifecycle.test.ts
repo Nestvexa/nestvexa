@@ -246,6 +246,163 @@ async function metrics() {
 }
 
 describe('client rendering and resource lifecycle in Chromium', () => {
+  it.each([
+    '<input id="focus-edit" disabled>',
+    '<fieldset disabled><input id="focus-edit"></fieldset>',
+    '<div hidden><input id="focus-edit"></div>',
+    '<div inert><input id="focus-edit"></div>',
+    '<div style="display:none"><input id="focus-edit"></div>',
+    '<input id="focus-edit" type="hidden">',
+    '<div style="visibility:hidden"><input id="focus-edit"></div>',
+  ])(
+    'moves focus to the root when a retained control becomes unavailable: %s',
+    async (html) => {
+      await mount(
+        html
+          .replace(' disabled', '')
+          .replace(' hidden', '')
+          .replace(' inert', '')
+          .replace(' style="display:none"', '')
+          .replace(' style="visibility:hidden"', '')
+          .replace(' type="hidden"', ''),
+      );
+      await page.locator('#focus-edit').focus();
+      const task = await start('refresh');
+      await respond(0, html);
+      expect(await finish(task)).toEqual({ ok: true });
+      expect(
+        await page
+          .locator('#parent')
+          .evaluate((root) => document.activeElement === root),
+      ).toBe(true);
+      expect(
+        await page.locator('#parent').getAttribute('data-nv-revision'),
+      ).toBe('1');
+    },
+  );
+
+  it('does not steal focus selected by a synchronous removal lifecycle hook', async () => {
+    await mount(
+      '<div id="focus-slot" nv:replace=""><input id="focus-edit"></div><button id="focus-destination">Continue</button>',
+    );
+    await page.locator('#focus-edit').focus();
+    await page
+      .locator('#focus-slot')
+      .evaluate((slot) =>
+        slot.addEventListener('nestvexa:before-remove', () =>
+          document.getElementById('focus-destination')?.focus(),
+        ),
+      );
+    const task = await start('refresh');
+    await respond(
+      0,
+      '<div id="focus-slot" nv:replace=""><span>Updated</span></div><button id="focus-destination">Continue</button>',
+    );
+    expect(await finish(task)).toEqual({ ok: true });
+    expect(
+      await page
+        .locator('#focus-destination')
+        .evaluate((target) => document.activeElement === target),
+    ).toBe(true);
+    expect(await page.locator('#parent').getAttribute('tabindex')).toBeNull();
+  });
+
+  it('preserves a host change to temporary root tabindex when focus leaves', async () => {
+    await mount(
+      '<input id="focus-edit"><button id="focus-destination">Continue</button>',
+    );
+    await page.locator('#focus-edit').focus();
+    const task = await start('refresh');
+    await respond(0, '<button id="focus-destination">Continue</button>');
+    expect(await finish(task)).toEqual({ ok: true });
+    await page
+      .locator('#parent')
+      .evaluate((root) => root.setAttribute('tabindex', '0'));
+    await page.locator('#focus-destination').focus();
+    expect(await page.locator('#parent').getAttribute('tabindex')).toBe('0');
+  });
+
+  it.each([undefined, '0'])(
+    'cleans up only its own temporary focusability on disposal (existing=%s)',
+    async (tabindex) => {
+      await mount('<input id="focus-edit">');
+      if (tabindex !== undefined)
+        await page
+          .locator('#parent')
+          .evaluate(
+            (root, value) => root.setAttribute('tabindex', value),
+            tabindex,
+          );
+      await page.locator('#focus-edit').focus();
+      const task = await start('refresh');
+      await respond(0, '<p>Removed</p>');
+      expect(await finish(task)).toEqual({ ok: true });
+      expect(
+        await page
+          .locator('#parent')
+          .evaluate((root) => document.activeElement === root),
+      ).toBe(true);
+      await page.evaluate(() => window.nvRenderingSession.client.dispose());
+      expect(await page.locator('#parent').getAttribute('tabindex')).toBe(
+        tabindex ?? null,
+      );
+    },
+  );
+
+  it('preserves focus moved outside the component while the response is pending', async () => {
+    await mount('<input id="focus-edit">');
+    await page.locator('#focus-edit').focus();
+    const task = await start('refresh');
+    await page.evaluate(() => {
+      const outside = document.createElement('button');
+      outside.id = 'focus-outside';
+      outside.textContent = 'Outside';
+      document.body.append(outside);
+      outside.focus();
+    });
+    await respond(0, '<p>Updated</p>');
+    expect(await finish(task)).toEqual({ ok: true });
+    expect(
+      await page
+        .locator('#focus-outside')
+        .evaluate((target) => document.activeElement === target),
+    ).toBe(true);
+    expect(await page.locator('#parent').getAttribute('tabindex')).toBeNull();
+  });
+
+  it('preserves focus selected by a focus handler during restoration', async () => {
+    await mount(
+      '<input id="focus-edit"><span id="focus-trigger">Remove</span><button id="focus-destination">Continue</button>',
+    );
+    await page.locator('#focus-edit').focus();
+    await page
+      .locator('#focus-edit')
+      .evaluate((element) =>
+        element.addEventListener('focus', () =>
+          document.getElementById('focus-destination')?.focus(),
+        ),
+      );
+    await page
+      .locator('#focus-trigger')
+      .evaluate((element) =>
+        element.addEventListener('nestvexa:before-remove', () =>
+          document.getElementById('focus-edit')?.blur(),
+        ),
+      );
+    const task = await start('refresh');
+    await respond(
+      0,
+      '<input id="focus-edit"><button id="focus-destination">Continue</button>',
+    );
+    expect(await finish(task)).toEqual({ ok: true });
+    expect(
+      await page
+        .locator('#focus-destination')
+        .evaluate((target) => document.activeElement === target),
+    ).toBe(true);
+    expect(await page.locator('#parent').getAttribute('tabindex')).toBeNull();
+  });
+
   it.each(['number', 'email', 'file'])(
     'keeps revision usable when a focused text control changes to %s without caret support',
     async (type) => {

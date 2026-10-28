@@ -4867,20 +4867,34 @@
       ],
       "testFiles": [
         "tests/browser/live.spec.ts",
-        "tests/alpine.test.ts"
+        "tests/alpine.test.ts",
+        "tests/client-rendering-lifecycle.test.ts",
+        "tests/browser/focus.spec.ts"
       ],
       "docs": [
         "packages/client/README.md",
-        "packages/alpine/README.md"
+        "packages/alpine/README.md",
+        "docs/guides/focus-restoration.md"
       ],
       "examples": [
-        "examples/live-counter/README.md"
+        "examples/live-counter/README.md",
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/counter.hbs"
       ],
-      "securityNotes": "Response identity/revision checks and ignored local Alpine boundaries prevent conflicting updates in the exercised slice.",
+      "securityNotes": "Response identity/revision checks and ignored local Alpine boundaries prevent conflicting updates in the exercised slice. Focus restoration is local presentation, never authorization; unavailable targets remain unavailable and host-selected focus is preserved. Reconciliation-owned temporary tabindex/listeners release on blur/release/disposal.",
       "state": "InProgress",
-      "validationEvidence": [],
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-28T04:50:41.595Z",
+          "report": "docs/implementation/focus-restoration-checkpoint-evidence-2026-10-28.json",
+          "scope": "814 aggregate/126 three-browser checks; 25 controlled rendering lifecycle cases and nine focused real-server checks; partial acceptance only."
+        }
+      ],
       "outstandingIssues": [
-        "Full morph input/selection/scroll/nesting/teleport matrix and final browser reruns remain outstanding."
+        "Full morph input/selection/scroll/nesting/teleport matrix and final browser reruns remain outstanding.",
+        "Complete input/modifier/renderer/lifecycle/accessibility and platform acceptance remains open; post-morph focus handling does not certify all directive focus policies or screen-reader behavior."
       ]
     },
     {
@@ -5776,18 +5790,22 @@
         "tests/client-native-controls.test.ts",
         "tests/client-rendering-lifecycle.test.ts",
         "tests/browser/native-controls.spec.ts",
-        "tests/browser/replacement-loading.spec.ts"
+        "tests/browser/replacement-loading.spec.ts",
+        "tests/browser/focus.spec.ts"
       ],
       "docs": [
         "docs/guides/native-controls.md",
         "docs/reference/directives.md",
-        "packages/client/README.md"
+        "packages/client/README.md",
+        "docs/guides/focus-restoration.md"
       ],
       "examples": [
         "examples/live-counter/README.md",
-        "examples/live-counter/views/counter.hbs"
+        "examples/live-counter/views/counter.hbs",
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/counter.hbs"
       ],
-      "securityNotes": "Native values are merged without exposing unbound fields as public state. Caret restoration checks the post-morph selection capability; incompatible field/conversion/control signatures clear stale hidden drafts. Focus is moved to the retained root when its control is removed.",
+      "securityNotes": "Native values are merged without exposing unbound fields as public state. Caret restoration checks the post-morph selection capability; incompatible field/conversion/control signatures clear stale hidden drafts. Focus is moved to the retained root when its control is removed. Focus restoration is local presentation, never authorization; unavailable targets remain unavailable and host-selected focus is preserved. Reconciliation-owned temporary tabindex/listeners release on blur/release/disposal.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -5796,11 +5814,19 @@
           "executedAt": "2026-10-27T04:31:22.595Z",
           "report": "docs/implementation/native-checkpoint-evidence-2026-10-27.json",
           "scope": "Partial native-control and ownership implementation:511 aggregate tests,75 Chromium/Firefox/WebKit checks, seven packed npm/pnpm consumer installs; Node22.23.4/24.22.1 each passed strict compilation and503 aggregate tests. Full compound acceptance remains open; releaseReady is false."
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-28T04:50:41.595Z",
+          "report": "docs/implementation/focus-restoration-checkpoint-evidence-2026-10-28.json",
+          "scope": "814 aggregate/126 three-browser checks; 25 controlled rendering lifecycle cases and nine focused real-server checks; partial acceptance only."
         }
       ],
       "outstandingIssues": [
         "The scoped native-input and keyboard/focus cases do not complete the screen-reader, reduced-motion, offline-indicator or layout-shift requirements.",
-        "Full browser/input/modifier/focus acceptance and manual assistive-technology checks remain open."
+        "Full browser/input/modifier/focus acceptance and manual assistive-technology checks remain open.",
+        "Complete input/modifier/renderer/lifecycle/accessibility and platform acceptance remains open; post-morph focus handling does not certify all directive focus policies or screen-reader behavior."
       ]
     },
     {
@@ -6761,18 +6787,22 @@
         "tests/client-ownership-transitions.test.ts",
         "tests/client-rendering-lifecycle.test.ts",
         "tests/client-replace.test.ts",
-        "tests/browser/native-controls.spec.ts"
+        "tests/browser/native-controls.spec.ts",
+        "tests/browser/focus.spec.ts"
       ],
       "docs": [
         "docs/guides/native-controls.md",
         "docs/reference/directives.md",
-        "packages/client/README.md"
+        "packages/client/README.md",
+        "docs/guides/focus-restoration.md"
       ],
       "examples": [
         "examples/live-counter/README.md",
-        "examples/live-counter/views/counter.hbs"
+        "examples/live-counter/views/counter.hbs",
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/counter.hbs"
       ],
-      "securityNotes": "Unbound native values remain browser-local and are never auto-exposed as Live state. Server-default changes are authoritative; compatible newer model drafts are retained. Replaced or incompatible controls lose stale hidden drafts. File selection preservation does not upload files, and component marker checks are only client consistency checks.",
+      "securityNotes": "Unbound native values remain browser-local and are never auto-exposed as Live state. Server-default changes are authoritative; compatible newer model drafts are retained. Replaced or incompatible controls lose stale hidden drafts. File selection preservation does not upload files, and component marker checks are only client consistency checks. Focus restoration is local presentation, never authorization; unavailable targets remain unavailable and host-selected focus is preserved. Reconciliation-owned temporary tabindex/listeners release on blur/release/disposal.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -6781,12 +6811,20 @@
           "executedAt": "2026-10-27T04:31:22.595Z",
           "report": "docs/implementation/native-checkpoint-evidence-2026-10-27.json",
           "scope": "Partial native-control and ownership implementation:511 aggregate tests,75 Chromium/Firefox/WebKit checks, seven packed npm/pnpm consumer installs; Node22.23.4/24.22.1 each passed strict compilation and503 aggregate tests. Full compound acceptance remains open; releaseReady is false."
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-28T04:50:41.595Z",
+          "report": "docs/implementation/focus-restoration-checkpoint-evidence-2026-10-28.json",
+          "scope": "814 aggregate/126 three-browser checks; 25 controlled rendering lifecycle cases and nine focused real-server checks; partial acceptance only."
         }
       ],
       "outstandingIssues": [
         "The full native-input, scroll/selection, out-of-order/network and accessibility matrix remains open beyond scoped browser fixtures.",
         "Teleports, official framework island hydration and the full nested-server component API remain unimplemented or unverified.",
-        "Multiple selects are supported only as unbound native controls; model arrays, uploads and cross-owner shared native radio groups are unsupported or unverified."
+        "Multiple selects are supported only as unbound native controls; model arrays, uploads and cross-owner shared native radio groups are unsupported or unverified.",
+        "Complete input/modifier/renderer/lifecycle/accessibility and platform acceptance remains open; post-morph focus handling does not certify all directive focus policies or screen-reader behavior."
       ]
     },
     {
@@ -15049,20 +15087,24 @@
         "tests/browser/native-controls.spec.ts",
         "tests/client.test.ts",
         "tests/client-ignore-self.test.ts",
-        "tests/browser/ignore-self.spec.ts"
+        "tests/browser/ignore-self.spec.ts",
+        "tests/browser/focus.spec.ts"
       ],
       "docs": [
         "docs/guides/native-controls.md",
         "docs/reference/directives.md",
         "packages/client/README.md",
         "docs/guides/ignore-self.md",
-        "docs/adr/0004-renderers-and-islands.md"
+        "docs/adr/0004-renderers-and-islands.md",
+        "docs/guides/focus-restoration.md"
       ],
       "examples": [
         "examples/live-counter/README.md",
-        "examples/live-counter/views/counter.hbs"
+        "examples/live-counter/views/counter.hbs",
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/counter.hbs"
       ],
-      "securityNotes": "Native values and owned subtree boundaries are snapshotted before mutation. Browser-only state is not added to server payloads, incompatible dirty controls are reconciled, and external marker changes abort work without treating the browser check as server authorization. Effective wrapper attributes are projected before preview, protocol directive validation and form-owner control reconciliation. Attribute ownership is not server authorization; native/editor/root combinations and competing same-node effects are explicitly rejected.",
+      "securityNotes": "Native values and owned subtree boundaries are snapshotted before mutation. Browser-only state is not added to server payloads, incompatible dirty controls are reconciled, and external marker changes abort work without treating the browser check as server authorization. Effective wrapper attributes are projected before preview, protocol directive validation and form-owner control reconciliation. Attribute ownership is not server authorization; native/editor/root combinations and competing same-node effects are explicitly rejected. Focus restoration is local presentation, never authorization; unavailable targets remain unavailable and host-selected focus is preserved. Reconciliation-owned temporary tabindex/listeners release on blur/release/disposal.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -15078,11 +15120,19 @@
           "executedAt": "2026-10-27T12:39:50.278Z",
           "report": "docs/implementation/ignore-self-checkpoint-evidence-2026-10-27.json",
           "scope": "Partial wrapper-only ignore and effective incoming projection:558 aggregate tests,84 Chromium/Firefox/WebKit checks; seven tarballs passed two npm/pnpm external strict-TypeScript and real Nest consumers. Isolated Windows Node22.23.4 and24.22.1 each passed strict compilation and558 tests. Full compound acceptance remains open; releaseReady is false."
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-28T04:50:41.595Z",
+          "report": "docs/implementation/focus-restoration-checkpoint-evidence-2026-10-28.json",
+          "scope": "814 aggregate/126 three-browser checks; 25 controlled rendering lifecycle cases and nine focused real-server checks; partial acceptance only."
         }
       ],
       "outstandingIssues": [
         "Complete visual regression, browser/input/modifier, scroll/selection and nested-owner acceptance remains open.",
-        "Full nested-server/framework-island/teleport lifecycle support and shared native group isolation remain unmet or unverified."
+        "Full nested-server/framework-island/teleport lifecycle support and shared native group isolation remain unmet or unverified.",
+        "Complete input/modifier/renderer/lifecycle/accessibility and platform acceptance remains open; post-morph focus handling does not certify all directive focus policies or screen-reader behavior."
       ]
     },
     {
@@ -15306,17 +15356,22 @@
         "tests/browser/native-controls.spec.ts",
         "tests/browser/live.spec.ts",
         "tests/browser/models.spec.ts",
-        "tests/browser/replacement-loading.spec.ts"
+        "tests/browser/replacement-loading.spec.ts",
+        "tests/client-rendering-lifecycle.test.ts",
+        "tests/browser/focus.spec.ts"
       ],
       "docs": [
         "docs/guides/native-controls.md",
         "docs/reference/directives.md",
-        "packages/client/README.md"
+        "packages/client/README.md",
+        "docs/guides/focus-restoration.md"
       ],
       "examples": [
-        "examples/live-counter/README.md"
+        "examples/live-counter/README.md",
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/counter.hbs"
       ],
-      "securityNotes": "Controlled Chromium transport cases are labeled as client lifecycle evidence, not server conformance. Actual Nest browser scenarios are separate. Test presence is not a passed command, full accessibility certification or acceptance of every directive.",
+      "securityNotes": "Controlled Chromium transport cases are labeled as client lifecycle evidence, not server conformance. Actual Nest browser scenarios are separate. Test presence is not a passed command, full accessibility certification or acceptance of every directive. Focus restoration is local presentation, never authorization; unavailable targets remain unavailable and host-selected focus is preserved. Reconciliation-owned temporary tabindex/listeners release on blur/release/disposal.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -15325,11 +15380,19 @@
           "executedAt": "2026-10-27T04:31:22.595Z",
           "report": "docs/implementation/native-checkpoint-evidence-2026-10-27.json",
           "scope": "Partial native-control and ownership implementation:511 aggregate tests,75 Chromium/Firefox/WebKit checks, seven packed npm/pnpm consumer installs; Node22.23.4/24.22.1 each passed strict compilation and503 aggregate tests. Full compound acceptance remains open; releaseReady is false."
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-28T04:50:41.595Z",
+          "report": "docs/implementation/focus-restoration-checkpoint-evidence-2026-10-28.json",
+          "scope": "814 aggregate/126 three-browser checks; 25 controlled rendering lifecycle cases and nine focused real-server checks; partial acceptance only."
         }
       ],
       "outstandingIssues": [
         "The complete directive/modifier/browser back-forward, nested mutation and accessibility matrix remains open; future directives cannot be accepted from existing fixture presence.",
-        "Full nested-server and official framework-island flows remain unimplemented or unverified."
+        "Full nested-server and official framework-island flows remain unimplemented or unverified.",
+        "Complete input/modifier/renderer/lifecycle/accessibility and platform acceptance remains open; post-morph focus handling does not certify all directive focus policies or screen-reader behavior."
       ]
     },
     {

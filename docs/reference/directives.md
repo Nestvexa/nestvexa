@@ -97,6 +97,8 @@ The [morph implementation](../../packages/client/src/morph.ts), [replacement tes
 
 Ordinary morphing checks a retained control's selection capability after applying its new type before restoring a saved caret. A text-to-number/email/file change must still advance the client revision and permit the next action. The lifecycle regressions cover all three changes, and the Nest browser flow covers text/number switching. This does not accept the entire native-input matrix.
 
+If a retained focused control becomes disabled, hidden, inert or unrendered, reconciliation attempts to move focus to an available component root. It preserves a different focus target chosen by synchronous host hooks and cleans up its temporary root tabindex on blur, release or disposal. See [focus restoration](../guides/focus-restoration.md) for boundaries, host ownership and verification scope.
+
 ## Native values and component ownership
 
 Ordinary morphing preserves an unbound control's live value or selection while its incoming server default stays unchanged. A changed default replaces it. This includes unbound multiple selects; it does not enable array-valued `nv:model`. Textareas receive the new `defaultValue` for native form reset, and keyed options preserve selected identity when values repeat. Bound controls follow the response unless a compatible newer local draft exists. The field, conversion and native control type must still match an original surviving control; otherwise both the visible control and hidden dirty state reset from the server. A dirty radio choice that disappears leaves no matching radio checked rather than silently selecting a different choice.

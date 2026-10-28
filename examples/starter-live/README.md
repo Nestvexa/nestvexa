@@ -6,4 +6,6 @@ This example imports the server API from `nestvexa`, registers a counter and exp
 
 The session is a local guest demonstration with a random process secret and in-memory store. Production must supply authentication, a stable secret, persistent sessions, HTTPS cookies, authoritative user/tenant bindings, revocation and resource permissions. CSRF and origin checks remain required. Ordinary navigation works without JavaScript; the counter does not have a progressive HTML action fallback yet.
 
+The focus target input and server disable/hide actions demonstrate [post-update keyboard focus restoration](../../docs/guides/focus-restoration.md). Its unbound draft remains browser-local while the server changes availability.
+
 See the [setup guide](../../docs/guides/default-live-setup.md). Browser tests are in [default-setup.spec.ts](../../tests/browser/default-setup.spec.ts). Run `pnpm test:e2e` after building; reports distinguish executed results from remaining acceptance requirements.

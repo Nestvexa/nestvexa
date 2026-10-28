@@ -44,6 +44,8 @@ class Counter {
   })
   name = '';
   @State() saved = '';
+  @State() editorDisabled = false;
+  @State() editorHidden = false;
   @Computed() get doubled(): number {
     return this.count * 2;
   }
@@ -52,6 +54,12 @@ class Counter {
   }
   @Action() save(): void {
     this.saved = this.name;
+  }
+  @Action() disableEditor(): void {
+    this.editorDisabled = true;
+  }
+  @Action() hideEditor(): void {
+    this.editorHidden = true;
   }
 }
 
@@ -102,7 +110,14 @@ class Pages {
           },
           authorize: (_identity, component, action) =>
             component === 'counter' &&
-            ['$mount', '$sync', 'increment', 'save'].includes(action),
+            [
+              '$mount',
+              '$sync',
+              'increment',
+              'save',
+              'disableEditor',
+              'hideEditor',
+            ].includes(action),
         }),
       },
     ),

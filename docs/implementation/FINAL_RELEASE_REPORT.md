@@ -1,6 +1,6 @@
 # Release checkpoint report — 2026-10-28
 
-**A. Status: NOT YET READY — BLOCKERS.** This is an interim report, not Phase 17 acceptance. The [925-unit ledger](feature-ledger.md) records **98 InProgress, 827 Pending and 0 Done**. No complete phase is accepted. The default-setup host checkpoint passed **801 aggregate/117 browser checks** and four full/minimal packed consumers. Historical asset703/105, reset631/102, transport597/93, self-ignore558/84, native511/75 and rendering447/60 retain their original scope below. Calendar dates follow Africa/Cairo and verification timestamps use UTC.
+**A. Status: NOT YET READY — BLOCKERS.** This is an interim report, not Phase 17 acceptance. The [925-unit ledger](feature-ledger.md) records **98 InProgress, 827 Pending and 0 Done**. No complete phase is accepted. The focus-restoration host checkpoint passed **814 aggregate/126 browser checks** and four full/minimal packed consumers. Default setup801/117 remains historical. Historical asset703/105, reset631/102, transport597/93, self-ignore558/84, native511/75 and rendering447/60 retain their original scope below. Calendar dates follow Africa/Cairo and verification timestamps use UTC.
 
 ## B. What exists
 
@@ -24,9 +24,21 @@ Native reset now reconciles actual defaults into owned primitive model drafts, p
 
 The explicit asset host replaces the example's per-file controllers with an application-local immutable catalog and content-hash manifest. `nestvexa/assets` serves approved client, Alpine bridge and Alpine CSP code through ordinary version-neutral Nest handlers. It supports conditional GET/HEAD and excludes source maps, declarations and arbitrary filesystem paths. Successful responses use immutable caching; failed lookups retain a no-store baseline. Integrated umbrella registration now supplies async policy DI, shared HBS, `nvScripts` and an external boot module. Hosts retain sessions, authorization and CSP; existing Alpine startup uses manual mode. See [default setup](../guides/default-live-setup.md) for static route structure, URI version prefixes, BFCache retention and reload-only failed/disposed lifecycle.
 
+Post-morph restoration now checks whether a retained focused control is available before restoring focus/caret. Controls disabled directly or through a fieldset, hidden, inert or no longer rendered use an available component-root fallback. A host-selected target from removal/focus hooks is preserved. Reconciliation-owned temporary tabindex/listeners release on blur, component release, subtree removal and disposal without removing a changed host value. The scope excludes other visibility/loading focus implementations, contenteditable selection, shadow/iframe/portal focus, manual screen-reader acceptance and cross-owner radio isolation.
+
 ## C. Evidence
 
-The [default-setup evidence snapshot](default-setup-checkpoint-evidence-2026-10-28.json) preserves the current command timings, report hashes, seven tarball inventories and both isolated runtime checks. Historical snapshots below retain their original scope.
+The full Windows/Node 24.13.0 checkpoint at **2026-10-28T04:50:41.595Z** passed **814/814 aggregate tests** and **126/126 browser checks** across Chromium/Firefox/WebKit, with no pending/skipped/flaky/unexpected results or browser runner errors. Frozen install, format/lint, strict typecheck/all builds, selected coverage, size, seven tarballs in four external full/minimal npm/pnpm consumers, docs, ledger, benchmark and audit exited 0. Pack timestamp: **2026-10-28T04:54:02.190Z**. Release checking intentionally exited 1; no phase is accepted. The [saved focus evidence](focus-restoration-checkpoint-evidence-2026-10-28.json) records exact report hashes, command timings, tarballs and isolated runtime checks.
+
+The first selected old-source run had four failures, four passes and 12 unselected cases; refined wrapper fixtures retain their controls. A further reentrant focus-handler regression failed in a 24/25 run and passed after preserving that handler target. The final 25-case controlled corpus includes 13 new cases. Nine focused real Nest checks cover disabled/hidden fallback and user focus changes while a response is held. No assertions or suites were disabled.
+
+Docs generated 42 linked snapshots. Custom client: **127,228 raw / 32,810 summed per-module gzip bytes across 13 modules**, below 35,840 excluding Alpine adapter/upstream Alpine/maps; not total startup or wire compression. Coverage remains **97.18% branches / 98.20% statements over only three configuration/protocol/store files**, excluding focus/runtime/client and most project code. Cached-HBS-only benchmark at **2026-10-28T04:55:38.031Z**, 1,000 iterations on Windows/i7-1165G7/Node 24.13.0: p50 0.1668ms, p95 0.2181ms, p99 0.2489ms, before isolated runtime checks. No plain-Nest/application comparison or performance improvement is inferred.
+
+Fresh isolated Windows Node **22.23.4** at **2026-10-28T04:56:05.131Z** and **24.22.1** at **2026-10-28T04:57:51.015Z** each passed strict compilation and all **814 aggregate tests**. They include HTTP/Chromium DOM fixtures without repeating the complete three-browser server or four-consumer matrix under both binaries. Linux remains unverified.
+
+### Historical default-setup evidence
+
+The [default-setup evidence snapshot](default-setup-checkpoint-evidence-2026-10-28.json) preserves that checkpoint's command timings, report hashes, seven tarball inventories and both isolated runtime checks. Historical snapshots below retain their original scope.
 
 The default-setup runner began at **2026-10-28T02:59:04.282Z** on Windows/Node 24.13.0. Frozen install, format/lint, strict typecheck including all package/example builds, **801 aggregate tests**, selected coverage, size, **117 browser checks**, seven tarballs in four external full/minimal npm/pnpm consumers, docs, ledger, benchmark and high-severity dependency audit passed. `release:check` intentionally exited 1 with `releaseReady:false`. No pending/skipped/flaky/unexpected test results or browser runner errors were reported.
 
@@ -204,6 +216,8 @@ Further review after the initial 503/72 checkpoint found a radio-group defect: d
 Root [README](../../README.md), every package README, ten ADRs, architecture records, [default Live setup](../guides/default-live-setup.md), [Live protocol](../guides/live-protocol.md), [native controls/ownership](../guides/native-controls.md), [native reset](../guides/form-reset.md), [wrapper-only ignore](../guides/ignore-self.md), [request lifecycle](../guides/request-lifecycle.md), [client asset hosting/migration](../guides/client-assets.md), [third-party notices](../../THIRD_PARTY_NOTICES.md), [hardening](../security/hardening.md), partial [ASVS mapping](../security/asvs-traceability.md), preliminary [security review](../security/security-design-review.md), community policies and [changelog](../../CHANGELOG.md) exist. The production docs website and guides for undelivered systems remain required work.
 
 ## E. Artifacts
+
+Current focus checkpoint: seven 0.1.0-alpha.0 tarballs under artifacts/packages, verified at **2026-10-28T04:54:02.190Z** in four external consumers. The saved focus snapshot records inventories and SHA-256 hashes. Built docs remain local snapshots under artifacts/docs; publication, SBOM and provenance attestations remain unperformed.
 
 The current default-setup pack report at **2026-10-28T03:01:55.462Z** verifies all seven 0.1.0-alpha.0 archives in four full/minimal npm/pnpm consumers. Tarballs remain under `artifacts/packages`, with built declarations, runtime modules, READMEs and licenses; the umbrella includes its third-party notice. Current mutable reports/logs are under `artifacts/reports`; docs snapshots are under `artifacts/docs`. The current docs build produced 41 snapshots. No SBOM/provenance attestation or public release was produced.
 
