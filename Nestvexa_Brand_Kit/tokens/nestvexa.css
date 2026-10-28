@@ -1,0 +1,58 @@
+/* Nestvexa v1 — draft brand / UI tokens */
+:root {
+  --nvx-color-primary: #0E9F79;
+  --nvx-color-hover: #0B765D;
+  --nvx-color-pressed: #065942;
+  --nvx-color-subtle: #DFF5EC;
+  --nvx-color-pale: #F0FAF6;
+  --nvx-neutral-ink: #111C25;
+  --nvx-neutral-canvas: #F8FAF8;
+  --nvx-neutral-white: #FFFFFF;
+  --nvx-neutral-muted: #61717A;
+  --nvx-neutral-border: #D7E2DD;
+  --nvx-semantic-success: #0B765D;
+  --nvx-semantic-info: #2457AE;
+  --nvx-semantic-warning: #A96312;
+  --nvx-semantic-error: #C53442;
+  --nvx-spacing-0: 0px;
+  --nvx-spacing-1: 4px;
+  --nvx-spacing-2: 8px;
+  --nvx-spacing-3: 12px;
+  --nvx-spacing-4: 16px;
+  --nvx-spacing-5: 20px;
+  --nvx-spacing-6: 24px;
+  --nvx-spacing-8: 32px;
+  --nvx-spacing-10: 40px;
+  --nvx-spacing-12: 48px;
+  --nvx-spacing-16: 64px;
+  --nvx-radius-sm: 6px;
+  --nvx-radius-md: 10px;
+  --nvx-radius-lg: 14px;
+  --nvx-radius-xl: 18px;
+  --nvx-radius-pill: 999px;
+  --nvx-motion-fast: 120ms;
+  --nvx-motion-base: 180ms;
+  --nvx-motion-slow: 280ms;
+  --nvx-motion-easing: cubic-bezier(.2,.7,.2,1);
+  --nvx-shadow-sm: 0 1px 2px rgba(17,28,37,.08);
+  --nvx-shadow-md: 0 8px 24px rgba(17,28,37,.08);
+  --nvx-layout-contentMax: 1200px;
+  --nvx-layout-docsSidebar: 248px;
+  --nvx-layout-header: 64px;
+  --nvx-font-body: Inter, system-ui, sans-serif;
+  --nvx-font-display: "Inter Display", Inter, system-ui, sans-serif;
+  --nvx-font-code: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
+  --nvx-bg: #F8FAF8; --nvx-surface: #FFFFFF; --nvx-fg: #111C25;
+  --nvx-text-muted: #61717A; --nvx-border: #D7E2DD;
+  --nvx-action-bg: #0B765D; --nvx-action-fg: #FFFFFF;
+}
+[data-theme="dark"] {
+  --nvx-bg: #0C151B; --nvx-surface: #16232C; --nvx-fg: #F8FAF8;
+  --nvx-text-muted: #ACC0B9; --nvx-border: #2D4248;
+  --nvx-action-bg: #0E9F79; --nvx-action-fg: #071B15;
+}
+.nvx-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; border-radius:10px; border:1px solid transparent; padding:11px 16px; font-weight:600; background:var(--nvx-action-bg); color:var(--nvx-action-fg); cursor:pointer; transition:background 180ms ease; }
+.nvx-btn:hover { filter:brightness(.94); }
+.nvx-btn:focus-visible { outline:3px solid #78DDBE; outline-offset:3px; }
+.nvx-card { background:var(--nvx-surface); border:1px solid var(--nvx-border); border-radius:14px; padding:24px; }
+@media (prefers-reduced-motion:reduce) { .nvx-btn { transition:none; } }
