@@ -3,6 +3,21 @@ import { access, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 describe('package contracts', () => {
+  it('keeps browser declaration documentation and external source maps after comment-free JavaScript emission', async () => {
+    const code = await readFile('packages/client/dist/index.js', 'utf8');
+    const declarations = await readFile(
+      'packages/client/dist/index.d.ts',
+      'utf8',
+    );
+    expect(code).not.toContain('Explicit, idempotent browser startup.');
+    expect(declarations).toContain('Explicit, idempotent browser startup.');
+    expect(code).toContain('//# sourceMappingURL=index.js.map');
+    const map = JSON.parse(
+      await readFile('packages/client/dist/index.js.map', 'utf8'),
+    ) as { sources: string[]; version: number };
+    expect(map.version).toBe(3);
+    expect(map.sources).toContain('../src/index.ts');
+  });
   it('keeps core free of renderers and gives every package explicit ESM and type exports', async () => {
     const names = await readdir('packages');
     expect(names.length).toBeGreaterThanOrEqual(4);

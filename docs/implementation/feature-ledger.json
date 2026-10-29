@@ -4915,7 +4915,7 @@
           "command": "pnpm checkpoint:check",
           "exitCode": 0,
           "executedAt": "2026-10-29T07:40:17.867Z",
-          "report": "artifacts/reports/verification.json",
+          "report": "docs/implementation/editor-selection-checkpoint-evidence-2026-10-29.json",
           "scope": "870 aggregate/162 three-browser checks; 77 controlled focus/rendering cases and 24 real Nest editor checks. Seven tarballs/four full-minimal npm-pnpm consumers; Node22/24 strict and aggregate evidence saved separately. Partial compound acceptance only; full release gates remain blocking."
         }
       ],
@@ -5874,7 +5874,7 @@
           "command": "pnpm checkpoint:check",
           "exitCode": 0,
           "executedAt": "2026-10-29T07:40:17.867Z",
-          "report": "artifacts/reports/verification.json",
+          "report": "docs/implementation/editor-selection-checkpoint-evidence-2026-10-29.json",
           "scope": "870 aggregate/162 three-browser checks; 77 controlled focus/rendering cases and 24 real Nest editor checks. Seven tarballs/four full-minimal npm-pnpm consumers; Node22/24 strict and aggregate evidence saved separately. Partial compound acceptance only; full release gates remain blocking."
         }
       ],
@@ -6134,7 +6134,8 @@
         "packages/client/src/morph.ts",
         "packages/live/src/runtime.ts",
         "packages/live/src/live.module.ts",
-        "packages/client/src/form-reset.ts"
+        "packages/client/src/form-reset.ts",
+        "packages/client/package.json"
       ],
       "testFiles": [
         "tests/client.test.ts",
@@ -6144,18 +6145,24 @@
         "tests/live-model.test.ts",
         "tests/browser/models.spec.ts",
         "tests/client-form-reset.test.ts",
-        "tests/browser/form-reset.spec.ts"
+        "tests/browser/form-reset.spec.ts",
+        "tests/client-native-controls.test.ts",
+        "tests/contracts.test.ts",
+        "tests/browser/multiple-select.spec.ts"
       ],
       "docs": [
         "docs/reference/directives.md",
         "packages/client/README.md",
-        "docs/guides/form-reset.md"
+        "docs/guides/form-reset.md",
+        "docs/guides/multiple-select.md"
       ],
       "examples": [
         "examples/live-counter/README.md",
-        "examples/live-counter/views/counter.hbs"
+        "examples/live-counter/views/counter.hbs",
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/counter.hbs"
       ],
-      "securityNotes": "Data-only top-level identifiers and bounded primitive casts/timers; no expression evaluation. Model synchronization requires explicit host $sync authorization plus origin, CSRF, identity, ownership, writable-state validation and revision checks. Component/global policies apply; action-method guards do not authorize the internal synchronization route. Invalid local conversion blocks requests. Native reset only reconciles active owned primitive fields; canceled resets preserve drafts, defaults are preflighted, and resets do not authorize writes or automatically dispatch synchronization.",
+      "securityNotes": "Data-only top-level identifiers and bounded primitive casts/timers; no expression evaluation. Model synchronization requires explicit host $sync authorization plus origin, CSRF, identity, ownership, writable-state validation and revision checks. Component/global policies apply; action-method guards do not authorize the internal synchronization route. Invalid local conversion blocks requests. Native reset only reconciles active owned primitive fields; canceled resets preserve drafts, defaults are preflighted, and resets do not authorize writes or automatically dispatch synchronization. Native multiple-select arrays are bounded unique flat primitives with strict option catalogs and ordered equality; unknown newer selections stay subject to server validation. Aliases share state and reset defaults must agree. Client bounds do not authorize items; the example independently validates count/type/allowlist/session. Public setters remain primitive-only and reject active array fields atomically.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -6171,12 +6178,20 @@
           "executedAt": "2026-10-27T17:54:42.885Z",
           "report": "docs/implementation/form-reset-checkpoint-evidence-2026-10-27.json",
           "scope": "Partial native form reset reconciliation:631 aggregate tests including 34 controlled reset cases,102 Chromium/Firefox/WebKit checks, seven tarballs in two external npm/pnpm strict-TypeScript and real Nest consumers. The selected native-button preview regression failed before the task fallback. Full compound acceptance remains open; releaseReady is false. Fresh isolated Windows Node 22.23.4 and 24.22.1 each passed strict compilation and 631 tests, without repeating the full three-browser server or consumer matrix."
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-29T08:16:22.385Z",
+          "report": "docs/implementation/multiple-select-checkpoint-evidence-2026-10-29.json",
+          "scope": "924 aggregate/174 three-browser checks,104 model cases/25 array lifecycle cases and12 real Nest multiple-select checks. Seven tarballs/four external full-minimal npm-pnpm consumers; fresh Node22/24 strict and aggregate checks. Partial compound acceptance only."
         }
       ],
       "outstandingIssues": [
         "Default deferred, live, blur/change/lazy, decimal/boolean casts and bounded debounce/leading throttle have scoped evidence; the complete input/modifier/cleanup acceptance matrix remains pending.",
         "Nested paths, multiple selects, file/array models and the wider forms subsystem are not implemented.",
-        "Native reset has scoped primitive model evidence; complete forms, input/default/ownership/accessibility and lifecycle matrices remain open."
+        "Native reset has scoped primitive model evidence; complete forms, input/default/ownership/accessibility and lifecycle matrices remain open.",
+        "Complete directive/input/modifier/nested-renderer/accessibility/platform acceptance remains open. Multiple-select arrays do not add generic programmatic array setters, checkbox groups, files, nested paths or complete forms."
       ]
     },
     {
@@ -6262,7 +6277,9 @@
         "packages/client/src/form-reset.ts",
         "packages/client/src/focus.ts",
         "packages/client/src/loading.ts",
-        "packages/nestvexa/src/asset-catalog.ts"
+        "packages/nestvexa/src/asset-catalog.ts",
+        "packages/client/src/models.ts",
+        "packages/client/package.json"
       ],
       "testFiles": [
         "tests/client.test.ts",
@@ -6274,14 +6291,19 @@
         "tests/client-bindings-dom.test.ts",
         "tests/client-loading.test.ts",
         "tests/browser/visibility-focus.spec.ts",
-        "tests/pack-consumers/assets.ts"
+        "tests/pack-consumers/assets.ts",
+        "tests/client-models.test.ts",
+        "tests/client-native-controls.test.ts",
+        "tests/contracts.test.ts",
+        "tests/browser/multiple-select.spec.ts"
       ],
       "docs": [
         "docs/reference/directives.md",
         "packages/client/README.md",
         "docs/guides/form-reset.md",
         "docs/guides/focus-restoration.md",
-        "docs/guides/client-assets.md"
+        "docs/guides/client-assets.md",
+        "docs/guides/multiple-select.md"
       ],
       "examples": [
         "examples/live-counter/README.md",
@@ -6289,7 +6311,7 @@
         "examples/starter-live/src/main.ts",
         "examples/starter-live/views/counter.hbs"
       ],
-      "securityNotes": "Data-only registered identifiers and explicit ownership/attribute boundaries; no arbitrary JavaScript expression evaluation. Native reset only reconciles active owned primitive fields; canceled resets preserve drafts, defaults are preflighted, and resets do not authorize writes or automatically dispatch synchronization. Visibility/loading/reconciliation share browser presentation leases, never server state or authorization. Owner cleanup preserves a changed host tabindex and shared ancestor ownership. Asset serving allowlists focus.js.",
+      "securityNotes": "Data-only registered identifiers and explicit ownership/attribute boundaries; no arbitrary JavaScript expression evaluation. Native reset only reconciles active owned primitive fields; canceled resets preserve drafts, defaults are preflighted, and resets do not authorize writes or automatically dispatch synchronization. Visibility/loading/reconciliation share browser presentation leases, never server state or authorization. Owner cleanup preserves a changed host tabindex and shared ancestor ownership. Asset serving allowlists focus.js. Native multiple-select arrays are bounded unique flat primitives with strict option catalogs and ordered equality; unknown newer selections stay subject to server validation. Aliases share state and reset defaults must agree. Client bounds do not authorize items; the example independently validates count/type/allowlist/session. Public setters remain primitive-only and reject active array fields atomically.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -6305,12 +6327,20 @@
           "executedAt": "2026-10-28T18:52:07.899Z",
           "report": "docs/implementation/visibility-focus-checkpoint-evidence-2026-10-28.json",
           "scope": "841 aggregate/138 three-browser checks,23 controller cases and12 focused real-server checks; partial compound acceptance."
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-29T08:16:22.385Z",
+          "report": "docs/implementation/multiple-select-checkpoint-evidence-2026-10-29.json",
+          "scope": "924 aggregate/174 three-browser checks,104 model cases/25 array lifecycle cases and12 real Nest multiple-select checks. Seven tarballs/four external full-minimal npm-pnpm consumers; fresh Node22/24 strict and aggregate checks. Partial compound acceptance only."
         }
       ],
       "outstandingIssues": [
         "Local-versus-server dirty reconciliation is exercised; complete restored snapshot/form lifecycle acceptance remains open.",
         "Native reset has scoped primitive model evidence; complete forms, input/default/ownership/accessibility and lifecycle matrices remain open.",
-        "Complete directive/input/lifecycle/accessibility/security/platform acceptance remains open; duplicate module copies and contenteditable selection are outside this focus slice."
+        "Complete directive/input/lifecycle/accessibility/security/platform acceptance remains open; duplicate module copies and contenteditable selection are outside this focus slice.",
+        "Complete directive/input/modifier/nested-renderer/accessibility/platform acceptance remains open. Multiple-select arrays do not add generic programmatic array setters, checkbox groups, files, nested paths or complete forms."
       ]
     },
     {
@@ -6902,7 +6932,10 @@
         "packages/client/src/focus.ts",
         "packages/client/src/bindings.ts",
         "packages/client/src/loading.ts",
-        "packages/nestvexa/src/asset-catalog.ts"
+        "packages/nestvexa/src/asset-catalog.ts",
+        "packages/client/src/models.ts",
+        "packages/client/src/form-reset.ts",
+        "packages/client/package.json"
       ],
       "testFiles": [
         "tests/client-native-controls.test.ts",
@@ -6916,7 +6949,11 @@
         "tests/client-loading.test.ts",
         "tests/browser/visibility-focus.spec.ts",
         "tests/pack-consumers/assets.ts",
-        "tests/browser/editor-selection.spec.ts"
+        "tests/browser/editor-selection.spec.ts",
+        "tests/client-models.test.ts",
+        "tests/client-form-reset.test.ts",
+        "tests/contracts.test.ts",
+        "tests/browser/multiple-select.spec.ts"
       ],
       "docs": [
         "docs/guides/native-controls.md",
@@ -6924,7 +6961,9 @@
         "packages/client/README.md",
         "docs/guides/focus-restoration.md",
         "docs/guides/client-assets.md",
-        "docs/adr/0004-renderers-and-islands.md"
+        "docs/adr/0004-renderers-and-islands.md",
+        "docs/guides/multiple-select.md",
+        "docs/guides/form-reset.md"
       ],
       "examples": [
         "examples/live-counter/README.md",
@@ -6932,7 +6971,7 @@
         "examples/starter-live/src/main.ts",
         "examples/starter-live/views/counter.hbs"
       ],
-      "securityNotes": "Unbound native values remain browser-local and are never auto-exposed as Live state. Server-default changes are authoritative; compatible newer model drafts are retained. Replaced or incompatible controls lose stale hidden drafts. File selection preservation does not upload files, and component marker checks are only client consistency checks. Focus restoration is local presentation, never authorization; unavailable targets remain unavailable and host-selected focus is preserved. Reconciliation-owned temporary tabindex/listeners release on blur/release/disposal. Visibility/loading/reconciliation share browser presentation leases, never server state or authorization. Owner cleanup preserves a changed host tabindex and shared ancestor ownership. Asset serving allowlists focus.js. One retained owned inner light-DOM editor can preserve a native directed selection by original node identity. Editor HTML is never automatically exposed as state; replaced/invalid/unavailable or cross-owner endpoints do not restore. Native selection may persist without a framework write. Callback overrides suppress the previous range; final host focus choices remain authoritative.",
+      "securityNotes": "Unbound native values remain browser-local and are never auto-exposed as Live state. Server-default changes are authoritative; compatible newer model drafts are retained. Replaced or incompatible controls lose stale hidden drafts. File selection preservation does not upload files, and component marker checks are only client consistency checks. Focus restoration is local presentation, never authorization; unavailable targets remain unavailable and host-selected focus is preserved. Reconciliation-owned temporary tabindex/listeners release on blur/release/disposal. Visibility/loading/reconciliation share browser presentation leases, never server state or authorization. Owner cleanup preserves a changed host tabindex and shared ancestor ownership. Asset serving allowlists focus.js. One retained owned inner light-DOM editor can preserve a native directed selection by original node identity. Editor HTML is never automatically exposed as state; replaced/invalid/unavailable or cross-owner endpoints do not restore. Native selection may persist without a framework write. Callback overrides suppress the previous range; final host focus choices remain authoritative. Native multiple-select arrays are bounded unique flat primitives with strict option catalogs and ordered equality; unknown newer selections stay subject to server validation. Aliases share state and reset defaults must agree. Client bounds do not authorize items; the example independently validates count/type/allowlist/session. Public setters remain primitive-only and reject active array fields atomically.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -6960,17 +6999,25 @@
           "command": "pnpm checkpoint:check",
           "exitCode": 0,
           "executedAt": "2026-10-29T07:40:17.867Z",
-          "report": "artifacts/reports/verification.json",
+          "report": "docs/implementation/editor-selection-checkpoint-evidence-2026-10-29.json",
           "scope": "870 aggregate/162 three-browser checks; 77 controlled focus/rendering cases and 24 real Nest editor checks. Seven tarballs/four full-minimal npm-pnpm consumers; Node22/24 strict and aggregate evidence saved separately. Partial compound acceptance only; full release gates remain blocking."
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-29T08:16:22.385Z",
+          "report": "docs/implementation/multiple-select-checkpoint-evidence-2026-10-29.json",
+          "scope": "924 aggregate/174 three-browser checks,104 model cases/25 array lifecycle cases and12 real Nest multiple-select checks. Seven tarballs/four external full-minimal npm-pnpm consumers; fresh Node22/24 strict and aggregate checks. Partial compound acceptance only."
         }
       ],
       "outstandingIssues": [
         "The full native-input, scroll/selection, out-of-order/network and accessibility matrix remains open beyond scoped browser fixtures.",
         "Teleports, official framework island hydration and the full nested-server component API remain unimplemented or unverified.",
-        "Multiple selects are supported only as unbound native controls; model arrays, uploads and cross-owner shared native radio groups are unsupported or unverified.",
+        "Bound multiple selects now support documented flat arrays; checkbox selection groups, uploads, nested models and cross-owner shared native radio groups remain unsupported or unverified.",
         "Complete input/modifier/renderer/lifecycle/accessibility and platform acceptance remains open; post-morph focus handling does not certify all directive focus policies or screen-reader behavior.",
         "Complete directive/input/lifecycle/accessibility/security/platform acceptance remains open; duplicate module copies and unsupported editor/shadow/iframe/multi-range selections remain outside this focus slice.",
-        "Selection across replacement nodes, editor/renderer boundaries, plugin editors, editable Live roots, independently focused inherited descendants, shadow DOM/iframes and multiple ranges remains unsupported. Full compound accessibility/lifecycle/platform acceptance is open."
+        "Selection across replacement nodes, editor/renderer boundaries, plugin editors, editable Live roots, independently focused inherited descendants, shadow DOM/iframes and multiple ranges remains unsupported. Full compound accessibility/lifecycle/platform acceptance is open.",
+        "Complete directive/input/modifier/nested-renderer/accessibility/platform acceptance remains open. Multiple-select arrays do not add generic programmatic array setters, checkbox groups, files, nested paths or complete forms."
       ]
     },
     {
@@ -15227,7 +15274,10 @@
         "packages/client/src/focus.ts",
         "packages/client/src/bindings.ts",
         "packages/client/src/loading.ts",
-        "packages/nestvexa/src/asset-catalog.ts"
+        "packages/nestvexa/src/asset-catalog.ts",
+        "packages/client/src/models.ts",
+        "packages/client/src/form-reset.ts",
+        "packages/client/package.json"
       ],
       "testFiles": [
         "tests/client-native-controls.test.ts",
@@ -15244,7 +15294,11 @@
         "tests/client-loading.test.ts",
         "tests/browser/visibility-focus.spec.ts",
         "tests/pack-consumers/assets.ts",
-        "tests/browser/editor-selection.spec.ts"
+        "tests/browser/editor-selection.spec.ts",
+        "tests/client-models.test.ts",
+        "tests/client-form-reset.test.ts",
+        "tests/contracts.test.ts",
+        "tests/browser/multiple-select.spec.ts"
       ],
       "docs": [
         "docs/guides/native-controls.md",
@@ -15253,7 +15307,9 @@
         "docs/guides/ignore-self.md",
         "docs/adr/0004-renderers-and-islands.md",
         "docs/guides/focus-restoration.md",
-        "docs/guides/client-assets.md"
+        "docs/guides/client-assets.md",
+        "docs/guides/multiple-select.md",
+        "docs/guides/form-reset.md"
       ],
       "examples": [
         "examples/live-counter/README.md",
@@ -15261,7 +15317,7 @@
         "examples/starter-live/src/main.ts",
         "examples/starter-live/views/counter.hbs"
       ],
-      "securityNotes": "Native values and owned subtree boundaries are snapshotted before mutation. Browser-only state is not added to server payloads, incompatible dirty controls are reconciled, and external marker changes abort work without treating the browser check as server authorization. Effective wrapper attributes are projected before preview, protocol directive validation and form-owner control reconciliation. Attribute ownership is not server authorization; native/editor/root combinations and competing same-node effects are explicitly rejected. Focus restoration is local presentation, never authorization; unavailable targets remain unavailable and host-selected focus is preserved. Reconciliation-owned temporary tabindex/listeners release on blur/release/disposal. Visibility/loading/reconciliation share browser presentation leases, never server state or authorization. Owner cleanup preserves a changed host tabindex and shared ancestor ownership. Asset serving allowlists focus.js. One retained owned inner light-DOM editor can preserve a native directed selection by original node identity. Editor HTML is never automatically exposed as state; replaced/invalid/unavailable or cross-owner endpoints do not restore. Native selection may persist without a framework write. Callback overrides suppress the previous range; final host focus choices remain authoritative.",
+      "securityNotes": "Native values and owned subtree boundaries are snapshotted before mutation. Browser-only state is not added to server payloads, incompatible dirty controls are reconciled, and external marker changes abort work without treating the browser check as server authorization. Effective wrapper attributes are projected before preview, protocol directive validation and form-owner control reconciliation. Attribute ownership is not server authorization; native/editor/root combinations and competing same-node effects are explicitly rejected. Focus restoration is local presentation, never authorization; unavailable targets remain unavailable and host-selected focus is preserved. Reconciliation-owned temporary tabindex/listeners release on blur/release/disposal. Visibility/loading/reconciliation share browser presentation leases, never server state or authorization. Owner cleanup preserves a changed host tabindex and shared ancestor ownership. Asset serving allowlists focus.js. One retained owned inner light-DOM editor can preserve a native directed selection by original node identity. Editor HTML is never automatically exposed as state; replaced/invalid/unavailable or cross-owner endpoints do not restore. Native selection may persist without a framework write. Callback overrides suppress the previous range; final host focus choices remain authoritative. Native multiple-select arrays are bounded unique flat primitives with strict option catalogs and ordered equality; unknown newer selections stay subject to server validation. Aliases share state and reset defaults must agree. Client bounds do not authorize items; the example independently validates count/type/allowlist/session. Public setters remain primitive-only and reject active array fields atomically.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -15296,8 +15352,15 @@
           "command": "pnpm checkpoint:check",
           "exitCode": 0,
           "executedAt": "2026-10-29T07:40:17.867Z",
-          "report": "artifacts/reports/verification.json",
+          "report": "docs/implementation/editor-selection-checkpoint-evidence-2026-10-29.json",
           "scope": "870 aggregate/162 three-browser checks; 77 controlled focus/rendering cases and 24 real Nest editor checks. Seven tarballs/four full-minimal npm-pnpm consumers; Node22/24 strict and aggregate evidence saved separately. Partial compound acceptance only; full release gates remain blocking."
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-29T08:16:22.385Z",
+          "report": "docs/implementation/multiple-select-checkpoint-evidence-2026-10-29.json",
+          "scope": "924 aggregate/174 three-browser checks,104 model cases/25 array lifecycle cases and12 real Nest multiple-select checks. Seven tarballs/four external full-minimal npm-pnpm consumers; fresh Node22/24 strict and aggregate checks. Partial compound acceptance only."
         }
       ],
       "outstandingIssues": [
@@ -15305,7 +15368,8 @@
         "Full nested-server/framework-island/teleport lifecycle support and shared native group isolation remain unmet or unverified.",
         "Complete input/modifier/renderer/lifecycle/accessibility and platform acceptance remains open; post-morph focus handling does not certify all directive focus policies or screen-reader behavior.",
         "Complete directive/input/lifecycle/accessibility/security/platform acceptance remains open; duplicate module copies and unsupported editor/shadow/iframe/multi-range selections remain outside this focus slice.",
-        "Selection across replacement nodes, editor/renderer boundaries, plugin editors, editable Live roots, independently focused inherited descendants, shadow DOM/iframes and multiple ranges remains unsupported. Full compound accessibility/lifecycle/platform acceptance is open."
+        "Selection across replacement nodes, editor/renderer boundaries, plugin editors, editable Live roots, independently focused inherited descendants, shadow DOM/iframes and multiple ranges remains unsupported. Full compound accessibility/lifecycle/platform acceptance is open.",
+        "Complete directive/input/modifier/nested-renderer/accessibility/platform acceptance remains open. Multiple-select arrays do not add generic programmatic array setters, checkbox groups, files, nested paths or complete forms."
       ]
     },
     {
@@ -15330,7 +15394,8 @@
         "packages/client/src/listeners.ts",
         "packages/client/src/protocol.ts",
         "packages/live/src/runtime.ts",
-        "packages/client/src/form-reset.ts"
+        "packages/client/src/form-reset.ts",
+        "packages/client/package.json"
       ],
       "testFiles": [
         "tests/client-models.test.ts",
@@ -15350,20 +15415,26 @@
         "tests/client-ignore-self.test.ts",
         "tests/browser/ignore-self.spec.ts",
         "tests/client-form-reset.test.ts",
-        "tests/browser/form-reset.spec.ts"
+        "tests/browser/form-reset.spec.ts",
+        "tests/client-native-controls.test.ts",
+        "tests/contracts.test.ts",
+        "tests/browser/multiple-select.spec.ts"
       ],
       "docs": [
         "docs/reference/directives.md",
         "packages/client/README.md",
         "docs/guides/ignore-self.md",
         "docs/adr/0004-renderers-and-islands.md",
-        "docs/guides/form-reset.md"
+        "docs/guides/form-reset.md",
+        "docs/guides/multiple-select.md"
       ],
       "examples": [
         "examples/live-counter/README.md",
-        "examples/live-counter/views/counter.hbs"
+        "examples/live-counter/views/counter.hbs",
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/counter.hbs"
       ],
-      "securityNotes": "Owned data directives use a closed grammar with explicit HTML/attribute boundaries. Model writes use a separately authorized synchronization route; no arbitrary directive JavaScript or action-method guard inheritance is assumed. Loading restores original attribute/class baselines and tracks queued work. Explicit replacement cancels removed client resources and cannot replace the component root or claim shared renderer ownership. Effective wrapper attributes are projected before preview, protocol directive validation and form-owner control reconciliation. Attribute ownership is not server authorization; native/editor/root combinations and competing same-node effects are explicitly rejected. Native reset only reconciles active owned primitive fields; canceled resets preserve drafts, defaults are preflighted, and resets do not authorize writes or automatically dispatch synchronization.",
+      "securityNotes": "Owned data directives use a closed grammar with explicit HTML/attribute boundaries. Model writes use a separately authorized synchronization route; no arbitrary directive JavaScript or action-method guard inheritance is assumed. Loading restores original attribute/class baselines and tracks queued work. Explicit replacement cancels removed client resources and cannot replace the component root or claim shared renderer ownership. Effective wrapper attributes are projected before preview, protocol directive validation and form-owner control reconciliation. Attribute ownership is not server authorization; native/editor/root combinations and competing same-node effects are explicitly rejected. Native reset only reconciles active owned primitive fields; canceled resets preserve drafts, defaults are preflighted, and resets do not authorize writes or automatically dispatch synchronization. Native multiple-select arrays are bounded unique flat primitives with strict option catalogs and ordered equality; unknown newer selections stay subject to server validation. Aliases share state and reset defaults must agree. Client bounds do not authorize items; the example independently validates count/type/allowlist/session. Public setters remain primitive-only and reject active array fields atomically.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -15393,12 +15464,20 @@
           "executedAt": "2026-10-27T17:54:42.885Z",
           "report": "docs/implementation/form-reset-checkpoint-evidence-2026-10-27.json",
           "scope": "Partial native form reset reconciliation:631 aggregate tests including 34 controlled reset cases,102 Chromium/Firefox/WebKit checks, seven tarballs in two external npm/pnpm strict-TypeScript and real Nest consumers. The selected native-button preview regression failed before the task fallback. Full compound acceptance remains open; releaseReady is false. Fresh isolated Windows Node 22.23.4 and 24.22.1 each passed strict compilation and 631 tests, without repeating the full three-browser server or consumer matrix."
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-29T08:16:22.385Z",
+          "report": "docs/implementation/multiple-select-checkpoint-evidence-2026-10-29.json",
+          "scope": "924 aggregate/174 three-browser checks,104 model cases/25 array lifecycle cases and12 real Nest multiple-select checks. Seven tarballs/four external full-minimal npm-pnpm consumers; fresh Node22/24 strict and aggregate checks. Partial compound acceptance only."
         }
       ],
       "outstandingIssues": [
         "Initial replacement lifecycle and targeted loading effects have scoped evidence; the complete directive/modifier/input/cleanup/concurrency/accessibility acceptance matrix remains pending.",
         "Full nested-server and framework-island ownership/hydration support is not implemented; optional loading delays and arbitrary presentation expressions are unsupported.",
-        "Native reset has scoped primitive model evidence; complete forms, input/default/ownership/accessibility and lifecycle matrices remain open."
+        "Native reset has scoped primitive model evidence; complete forms, input/default/ownership/accessibility and lifecycle matrices remain open.",
+        "Complete directive/input/modifier/nested-renderer/accessibility/platform acceptance remains open. Multiple-select arrays do not add generic programmatic array setters, checkbox groups, files, nested paths or complete forms."
       ]
     },
     {
@@ -15525,7 +15604,10 @@
         "packages/client/src/focus.ts",
         "packages/client/src/bindings.ts",
         "packages/client/src/loading.ts",
-        "packages/nestvexa/src/asset-catalog.ts"
+        "packages/nestvexa/src/asset-catalog.ts",
+        "packages/client/src/models.ts",
+        "packages/client/src/form-reset.ts",
+        "packages/client/package.json"
       ],
       "testFiles": [
         "tests/client-native-controls.test.ts",
@@ -15541,7 +15623,11 @@
         "tests/client-loading.test.ts",
         "tests/browser/visibility-focus.spec.ts",
         "tests/pack-consumers/assets.ts",
-        "tests/browser/editor-selection.spec.ts"
+        "tests/browser/editor-selection.spec.ts",
+        "tests/client-models.test.ts",
+        "tests/client-form-reset.test.ts",
+        "tests/contracts.test.ts",
+        "tests/browser/multiple-select.spec.ts"
       ],
       "docs": [
         "docs/guides/native-controls.md",
@@ -15549,14 +15635,16 @@
         "packages/client/README.md",
         "docs/guides/focus-restoration.md",
         "docs/guides/client-assets.md",
-        "docs/adr/0004-renderers-and-islands.md"
+        "docs/adr/0004-renderers-and-islands.md",
+        "docs/guides/multiple-select.md",
+        "docs/guides/form-reset.md"
       ],
       "examples": [
         "examples/live-counter/README.md",
         "examples/starter-live/src/main.ts",
         "examples/starter-live/views/counter.hbs"
       ],
-      "securityNotes": "Controlled Chromium transport cases are labeled as client lifecycle evidence, not server conformance. Actual Nest browser scenarios are separate. Test presence is not a passed command, full accessibility certification or acceptance of every directive. Focus restoration is local presentation, never authorization; unavailable targets remain unavailable and host-selected focus is preserved. Reconciliation-owned temporary tabindex/listeners release on blur/release/disposal. Visibility/loading/reconciliation share browser presentation leases, never server state or authorization. Owner cleanup preserves a changed host tabindex and shared ancestor ownership. Asset serving allowlists focus.js. One retained owned inner light-DOM editor can preserve a native directed selection by original node identity. Editor HTML is never automatically exposed as state; replaced/invalid/unavailable or cross-owner endpoints do not restore. Native selection may persist without a framework write. Callback overrides suppress the previous range; final host focus choices remain authoritative.",
+      "securityNotes": "Controlled Chromium transport cases are labeled as client lifecycle evidence, not server conformance. Actual Nest browser scenarios are separate. Test presence is not a passed command, full accessibility certification or acceptance of every directive. Focus restoration is local presentation, never authorization; unavailable targets remain unavailable and host-selected focus is preserved. Reconciliation-owned temporary tabindex/listeners release on blur/release/disposal. Visibility/loading/reconciliation share browser presentation leases, never server state or authorization. Owner cleanup preserves a changed host tabindex and shared ancestor ownership. Asset serving allowlists focus.js. One retained owned inner light-DOM editor can preserve a native directed selection by original node identity. Editor HTML is never automatically exposed as state; replaced/invalid/unavailable or cross-owner endpoints do not restore. Native selection may persist without a framework write. Callback overrides suppress the previous range; final host focus choices remain authoritative. Native multiple-select arrays are bounded unique flat primitives with strict option catalogs and ordered equality; unknown newer selections stay subject to server validation. Aliases share state and reset defaults must agree. Client bounds do not authorize items; the example independently validates count/type/allowlist/session. Public setters remain primitive-only and reject active array fields atomically.",
       "state": "InProgress",
       "validationEvidence": [
         {
@@ -15584,8 +15672,15 @@
           "command": "pnpm checkpoint:check",
           "exitCode": 0,
           "executedAt": "2026-10-29T07:40:17.867Z",
-          "report": "artifacts/reports/verification.json",
+          "report": "docs/implementation/editor-selection-checkpoint-evidence-2026-10-29.json",
           "scope": "870 aggregate/162 three-browser checks; 77 controlled focus/rendering cases and 24 real Nest editor checks. Seven tarballs/four full-minimal npm-pnpm consumers; Node22/24 strict and aggregate evidence saved separately. Partial compound acceptance only; full release gates remain blocking."
+        },
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-29T08:16:22.385Z",
+          "report": "docs/implementation/multiple-select-checkpoint-evidence-2026-10-29.json",
+          "scope": "924 aggregate/174 three-browser checks,104 model cases/25 array lifecycle cases and12 real Nest multiple-select checks. Seven tarballs/four external full-minimal npm-pnpm consumers; fresh Node22/24 strict and aggregate checks. Partial compound acceptance only."
         }
       ],
       "outstandingIssues": [
@@ -15593,7 +15688,8 @@
         "Full nested-server and official framework-island flows remain unimplemented or unverified.",
         "Complete input/modifier/renderer/lifecycle/accessibility and platform acceptance remains open; post-morph focus handling does not certify all directive focus policies or screen-reader behavior.",
         "Complete directive/input/lifecycle/accessibility/security/platform acceptance remains open; duplicate module copies and unsupported editor/shadow/iframe/multi-range selections remain outside this focus slice.",
-        "Selection across replacement nodes, editor/renderer boundaries, plugin editors, editable Live roots, independently focused inherited descendants, shadow DOM/iframes and multiple ranges remains unsupported. Full compound accessibility/lifecycle/platform acceptance is open."
+        "Selection across replacement nodes, editor/renderer boundaries, plugin editors, editable Live roots, independently focused inherited descendants, shadow DOM/iframes and multiple ranges remains unsupported. Full compound accessibility/lifecycle/platform acceptance is open.",
+        "Complete directive/input/modifier/nested-renderer/accessibility/platform acceptance remains open. Multiple-select arrays do not add generic programmatic array setters, checkbox groups, files, nested paths or complete forms."
       ]
     },
     {

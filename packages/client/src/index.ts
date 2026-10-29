@@ -10,6 +10,12 @@ import type { EventDispatcher, EventDirective } from './events.js';
 import { createDirectEventListeners } from './listeners.js';
 import type { DirectEventBinding } from './listeners.js';
 import { getModelDirective, readModelValue } from './models.js';
+import {
+  copyModelArray,
+  planModelSelection,
+  sameModelValue,
+} from './models.js';
+import type { ModelDirective, ModelValue } from './models.js';
 import { createModelScheduler } from './model-scheduler.js';
 import { createLoadingController, validateLoading } from './loading.js';
 import { LiveHttpError, requestLive, requestTimeout } from './transport.js';
@@ -61,7 +67,7 @@ export interface LiveClient {
   set(element: Element, name: string, value: string | number | boolean): void;
   refs(element: Element): ReadonlyMap<string, Element>;
 }
-type Field = string | number | boolean;
+type Field = ModelValue;
 const componentOwners = new WeakMap<Element, symbol>();
 const markerAttributes = new Set([
   'data-nv-component',
@@ -192,6 +198,40 @@ function controlSignature(element: Element): string {
         : null,
     getModelDirective(element)?.cast,
   ]);
+}
+
+/** Validate array aliases and all projections before applying any native selection. */
+function modelSelections(
+  component: Element,
+  read: (field: string) => unknown,
+  invalid: ReadonlyMap<Element, string> = new Map(),
+): readonly (() => void)[] {
+  const groups = new Map<string, { multiple: boolean; cast: string }[]>();
+  const operations: (() => void)[] = [];
+  for (const element of owned(component)) {
+    if (invalid.has(element)) continue;
+    const directive = getModelDirective(element);
+    if (!directive) continue;
+    const multiple =
+      element.tagName === 'SELECT' && (element as HTMLSelectElement).multiple;
+    const entries = groups.get(directive.field) ?? [];
+    entries.push({ multiple, cast: directive.cast });
+    groups.set(directive.field, entries);
+    const apply = planModelSelection(element, directive, read(directive.field));
+    if (apply) operations.push(apply);
+  }
+  for (const entries of groups.values())
+    if (
+      entries.some((entry) => entry.multiple) &&
+      entries.some(
+        (entry) => !entry.multiple || entry.cast !== entries[0]?.cast,
+      )
+    )
+      throw new LiveClientError(
+        'DIRECTIVE',
+        'Multiple-select aliases require the same array shape and cast',
+      );
+  return operations;
 }
 
 /** Explicit, idempotent browser startup. Importing this module does not touch DOM globals. */
@@ -642,6 +682,11 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         'DIRECTIVE',
         'Correct invalid model values before submitting',
       );
+    modelSelections(state.root, (field) =>
+      state.dirty.has(field)
+        ? state.dirty.get(field)?.value
+        : state.values[field],
+    );
     if (action === '_sync' && !hasChanges(state)) return;
     const sent = new Map(state.dirty);
     const updates: Record<string, Field> = Object.create(null) as Record<
@@ -717,17 +762,44 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
               state.dirty.get(model.field)?.value ?? state.values[model.field],
             );
         }
+      // A changed model shape/cast has no compatible array draft. Validate its
+      // authoritative response value rather than projecting the old scalar/cast.
+      const arrayCasts = new Map<string, string>();
+      for (const element of owned(state.root)) {
+        const model = getModelDirective(element);
+        if (
+          model &&
+          element.tagName === 'SELECT' &&
+          (element as HTMLSelectElement).multiple
+        )
+          arrayCasts.set(model.field, model.cast);
+      }
+      for (const element of owned(preview)) {
+        const model = getModelDirective(element);
+        if (
+          model &&
+          element.tagName === 'SELECT' &&
+          (element as HTMLSelectElement).multiple &&
+          arrayCasts.get(model.field) !== model.cast
+        )
+          dirty.delete(model.field);
+      }
       const differs = (field: string): boolean =>
-        dirty.has(field) && !Object.is(dirty.get(field), result.state[field]);
+        dirty.has(field) &&
+        !sameModelValue(dirty.get(field), result.state[field]);
+      const read = (field: string): unknown =>
+        dirty.has(field) ? dirty.get(field) : result.state[field];
+      const selections = modelSelections(preview, read);
       applyBindings(
         preview,
-        (field) => (dirty.has(field) ? dirty.get(field) : result.state[field]),
+        read,
         (field) =>
           field === undefined
             ? [...dirty.keys()].some(differs)
             : differs(field),
         focus,
       );
+      for (const apply of selections) apply();
       const focused = state.root.contains(doc.activeElement)
         ? doc.activeElement
         : null;
@@ -915,7 +987,15 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     const state = registeredScope(element);
     if (!state || ignored(element, state.root)) return;
     try {
-      const directive = getModelDirective(element);
+      let directive: ModelDirective | undefined;
+      try {
+        directive = getModelDirective(element);
+      } catch (error) {
+        // A mutated invalid catalog must not silently submit an earlier value.
+        state.invalid.set(element, '');
+        models.cancel(element);
+        throw error;
+      }
       if (!directive) return;
       const name = directive.field;
       if (!Object.hasOwn(state.values, name))
@@ -931,10 +1011,13 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         if (
           typeof previous === 'string' ||
           typeof previous === 'number' ||
-          typeof previous === 'boolean'
+          typeof previous === 'boolean' ||
+          Array.isArray(previous)
         )
           state.dirty.set(name, {
-            value: previous,
+            value: Array.isArray(previous)
+              ? copyModelArray(previous)
+              : previous,
             version: ++state.fieldVersion,
           });
         refreshBindings(state);
@@ -943,7 +1026,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       if (value === undefined) return;
       state.invalid.delete(element);
       const previous = state.dirty.get(name)?.value ?? state.values[name];
-      if (!Object.is(previous, value))
+      if (!sameModelValue(previous, value))
         state.dirty.set(name, { value, version: ++state.fieldVersion });
       refreshBindings(state);
       if (
@@ -1047,25 +1130,28 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     const differs = (field: string): boolean =>
       [...state.invalid.values()].includes(field) ||
       (state.dirty.has(field) &&
-        !Object.is(state.dirty.get(field)?.value, state.values[field]));
+        !sameModelValue(state.dirty.get(field)?.value, state.values[field]));
+    const read = (field: string): unknown =>
+      state.dirty.has(field)
+        ? state.dirty.get(field)?.value
+        : state.values[field];
+    const selections = modelSelections(state.root, read, state.invalid);
     applyBindings(
       state.root,
-      (field) =>
-        state.dirty.has(field)
-          ? state.dirty.get(field)?.value
-          : state.values[field],
+      read,
       (field) =>
         field === undefined
           ? [...state.dirty.keys()].some(differs)
           : differs(field),
       focus,
     );
+    for (const apply of selections) apply();
   }
   function hasChanges(state: Component): boolean {
     return (
       state.invalid.size > 0 ||
       [...state.dirty].some(
-        ([field, item]) => !Object.is(item.value, state.values[field]),
+        ([field, item]) => !sameModelValue(item.value, state.values[field]),
       )
     );
   }
@@ -1090,7 +1176,11 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         state.dirty.has(key) ? state.dirty.get(key)?.value : state.values[key],
       );
     },
-    set(element: Element, name: string, value: Field): void {
+    set(
+      element: Element,
+      name: string,
+      value: string | number | boolean,
+    ): void {
       flushResets();
       const state = componentFor(element);
       const key = parseIdentifier(name);
@@ -1104,6 +1194,15 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           'DIRECTIVE',
           'Expected finite primitive state',
         );
+      // Preserve the previous valid draft if a primitive cannot describe an
+      // active multiple-select field. Public set remains primitive-only.
+      modelSelections(state.root, (field) =>
+        field === key
+          ? value
+          : state.dirty.has(field)
+            ? state.dirty.get(field)?.value
+            : state.values[field],
+      );
       state.dirty.set(key, { value, version: ++state.fieldVersion });
       refreshBindings(state);
     },

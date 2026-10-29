@@ -24,6 +24,8 @@ The starter also demonstrates [keyboard focus after server updates](docs/guides/
 
 Its [local editable example](docs/guides/focus-restoration.md#local-editable-selection) keeps retained caret/range positions through keyed reordering, without sending draft HTML as Live state. Plugin, cross-editor and replaced-node selections require their own host policy.
 
+The Interests form binds [bounded multiple-select arrays](docs/guides/multiple-select.md) with strict item validation, shared aliases and native reset. Checkbox groups, files, nested models and the complete forms subsystem remain unimplemented.
+
 ```ts
 import { Module } from '@nestjs/common';
 import { NestvexaModule } from 'nestvexa';

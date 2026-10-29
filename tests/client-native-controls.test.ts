@@ -539,15 +539,19 @@ describe('native form values during ordinary DOM morphing', () => {
     );
   });
 
-  it('continues to reject model-bound multiple selects rather than silently enabling array models', async () => {
+  it('accepts a multiple-select model catalog and rejects ambiguous incoming values before patching', async () => {
     await mount(
+      '<select id="edit" nv:model="choice" multiple><option value="a">A</option></select>',
+    );
+    await morph(
       '<select id="edit" nv:model="choice" multiple><option value="a">A</option></select>',
     );
     await expect(
       morph(
-        '<select id="edit" nv:model="choice" multiple><option value="a">A</option></select>',
+        '<select id="edit" nv:model="choice" multiple><option value="a">A</option><option value="a">Duplicate</option></select>',
       ),
     ).rejects.toThrow('Multiple-select');
+    expect(await page.locator('#edit option').count()).toBe(1);
   });
 
   it('keeps unbound local values out of Live public state and request updates', async () => {

@@ -7,12 +7,75 @@ export interface ModelDirective {
   readonly debounceMs?: number;
   readonly throttleMs?: number;
 }
-export type ModelValue = string | number | boolean;
+export type ModelScalar = string | number | boolean;
+export type ModelValue = ModelScalar | readonly ModelScalar[];
+export const MODEL_ARRAY_LIMITS = Object.freeze({
+  maxItems: 256,
+  maxOptions: 1024,
+  maxBytes: 16_384,
+});
 
 function invalid(
   message = 'Invalid or unsupported model modifier configuration',
 ): never {
   throw new LiveClientError('DIRECTIVE', message);
+}
+
+function scalarBytes(value: ModelScalar, encoder: TextEncoder): number {
+  if (typeof value === 'string' && value.length > MODEL_ARRAY_LIMITS.maxBytes)
+    invalid('Model array exceeds its UTF-8 JSON byte limit');
+  const serialized = JSON.stringify(value);
+  return encoder.encode(serialized).byteLength;
+}
+
+/** Detach bounded flat values without executing array entry getters or conversion hooks. */
+export function copyModelArray(raw: unknown): readonly ModelScalar[] {
+  if (!Array.isArray(raw) || Object.getPrototypeOf(raw) !== Array.prototype)
+    invalid('Model arrays must be plain native arrays');
+  const length: unknown = Object.getOwnPropertyDescriptor(raw, 'length')?.value;
+  if (
+    typeof length !== 'number' ||
+    !Number.isSafeInteger(length) ||
+    length > MODEL_ARRAY_LIMITS.maxItems
+  )
+    invalid('Model array exceeds its item limit');
+  if (Reflect.ownKeys(raw).length !== length + 1)
+    invalid('Model arrays must be dense and have no additional properties');
+  const result: ModelScalar[] = [];
+  const seen = new Set<ModelScalar>();
+  const encoder = new TextEncoder();
+  let bytes = 2;
+  for (let index = 0; index < length; index++) {
+    const descriptor = Object.getOwnPropertyDescriptor(raw, String(index));
+    if (!descriptor || !('value' in descriptor) || !descriptor.enumerable)
+      invalid('Model array entries must be enumerable own data properties');
+    const value = coerceModelValue(descriptor.value, 'auto');
+    const normalized = typeof value === 'number' && value === 0 ? 0 : value;
+    if (seen.has(normalized)) invalid('Model array values must be unique');
+    seen.add(normalized);
+    bytes += scalarBytes(normalized, encoder) + (index === 0 ? 0 : 1);
+    if (bytes > MODEL_ARRAY_LIMITS.maxBytes)
+      invalid('Model array exceeds its UTF-8 JSON byte limit');
+    result.push(normalized);
+  }
+  return Object.freeze(result);
+}
+
+/** Ordered bounded array comparison; this is not general deep JSON equality. */
+export function sameModelValue(left: unknown, right: unknown): boolean {
+  if (!Array.isArray(left) && !Array.isArray(right))
+    return Object.is(left, right);
+  if (!Array.isArray(left) || !Array.isArray(right)) return false;
+  try {
+    const first = copyModelArray(left);
+    const second = copyModelArray(right);
+    return (
+      first.length === second.length &&
+      first.every((value, index) => Object.is(value, second[index]))
+    );
+  } catch {
+    return false;
+  }
 }
 
 const modes: Readonly<Record<string, ModelDirective['mode']>> = {
@@ -95,7 +158,7 @@ export function parseModelDirective(
 export function coerceModelValue(
   raw: unknown,
   cast: ModelDirective['cast'],
-): ModelValue {
+): ModelScalar {
   if (cast !== 'auto' && cast !== 'number' && cast !== 'boolean') invalid();
   if (
     typeof raw !== 'string' &&
@@ -143,12 +206,7 @@ function control(
     invalid('Models require an HTML form control');
   const tag = element.tagName;
   if (tag === 'TEXTAREA') return tag;
-  if (tag === 'SELECT') {
-    // The verified HTML namespace and tag prove the native control interface.
-    if ((element as HTMLSelectElement).multiple)
-      invalid('Multiple-select model values are not supported yet');
-    return tag;
-  }
+  if (tag === 'SELECT') return tag;
   if (tag !== 'INPUT' || !inputTypes.has((element as HTMLInputElement).type))
     invalid('Unsupported model form control');
   if (
@@ -159,7 +217,35 @@ function control(
   return tag;
 }
 
-/** Exactly one model declaration may own a native HTML input, textarea or single select. */
+function multipleOptions(
+  select: HTMLSelectElement,
+  directive: ModelDirective,
+): ReadonlyMap<HTMLOptionElement, ModelScalar> {
+  if (!['auto', 'number', 'boolean'].includes(directive.cast)) invalid();
+  if (select.options.length > MODEL_ARRAY_LIMITS.maxOptions)
+    invalid('Multiple-select model exceeds its option limit');
+  const choices = new Map<HTMLOptionElement, ModelScalar>();
+  const values = new Set<ModelScalar>();
+  const encoder = new TextEncoder();
+  for (const option of select.options) {
+    if (option.hasAttribute('nv:text') && !option.hasAttribute('value'))
+      invalid(
+        'Multiple-select reactive option labels require an explicit value',
+      );
+    const converted = coerceModelValue(option.value, directive.cast);
+    const value =
+      typeof converted === 'number' && converted === 0 ? 0 : converted;
+    if (values.has(value))
+      invalid('Multiple-select coerced option values must be unique');
+    if (scalarBytes(value, encoder) + 2 > MODEL_ARRAY_LIMITS.maxBytes)
+      invalid('Multiple-select option exceeds the model array byte limit');
+    values.add(value);
+    choices.set(option, value);
+  }
+  return choices;
+}
+
+/** Exactly one model declaration may own a native HTML input, textarea or select. */
 export function getModelDirective(
   element: Element,
 ): ModelDirective | undefined {
@@ -172,7 +258,9 @@ export function getModelDirective(
   const attribute = attributes[0];
   if (!attribute) return undefined;
   const directive = parseModelDirective(attribute.name, attribute.value);
-  control(element, directive);
+  const tag = control(element, directive);
+  if (tag === 'SELECT' && (element as HTMLSelectElement).multiple)
+    multipleOptions(element as HTMLSelectElement, directive);
   return directive;
 }
 
@@ -182,6 +270,15 @@ export function readModelValue(
   directive: ModelDirective,
 ): ModelValue | undefined {
   const tag = control(element, directive);
+  if (tag === 'SELECT' && (element as HTMLSelectElement).multiple) {
+    const values: ModelScalar[] = [];
+    for (const [option, value] of multipleOptions(
+      element as HTMLSelectElement,
+      directive,
+    ))
+      if (option.selected) values.push(value);
+    return copyModelArray(values);
+  }
   if (tag === 'INPUT') {
     const input = element as HTMLInputElement;
     if (input.type === 'radio' && !input.checked) return undefined;
@@ -198,6 +295,31 @@ export function readModelValue(
     (element as HTMLTextAreaElement | HTMLSelectElement).value,
     directive.cast,
   );
+}
+
+/** Plan value-membership projection without changing defaults, array order or dispatching input events. */
+export function planModelSelection(
+  element: Element,
+  directive: ModelDirective,
+  raw: unknown,
+): (() => void) | undefined {
+  if (
+    element.namespaceURI !== 'http://www.w3.org/1999/xhtml' ||
+    element.tagName !== 'SELECT' ||
+    !(element as HTMLSelectElement).multiple
+  )
+    return undefined;
+  const values = copyModelArray(raw);
+  const expected = directive.cast === 'auto' ? 'string' : directive.cast;
+  if (values.some((value) => typeof value !== expected))
+    invalid('Multiple-select model array values must match the declared cast');
+  const choices = multipleOptions(element as HTMLSelectElement, directive);
+  const desired = new Set(values);
+  return () => {
+    for (const [option, value] of choices)
+      if (option.selected !== desired.has(value))
+        option.selected = desired.has(value);
+  };
 }
 
 /** Used by morphing without assuming the unmodified nv:model attribute name. */

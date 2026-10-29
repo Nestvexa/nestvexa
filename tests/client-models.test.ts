@@ -14,7 +14,10 @@ import type { Server } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import {
   coerceModelValue,
+  copyModelArray,
+  MODEL_ARRAY_LIMITS,
   parseModelDirective,
+  sameModelValue,
 } from '../packages/client/dist/models.js';
 
 declare global {
@@ -186,13 +189,12 @@ describe('native browser model control readers', () => {
       { field: 'kind', value: null },
     ]);
   });
-  it('rejects duplicate declarations, unsupported controls, multiple selects and foreign namespaces', async () => {
+  it('rejects duplicate declarations, unsupported controls and foreign namespaces', async () => {
     const rejected = await page.evaluate(() => {
       const cases = [
         '<input nv:model="name" nv:model.live="name" />',
         '<input type="file" nv:model="file" />',
         '<button nv:model="name">Button</button>',
-        '<select multiple nv:model="items"><option selected>One</option></select>',
         '<input type="checkbox" nv:model.number="amount" />',
         '<svg><g nv:model="name"></g></svg>',
       ];
@@ -216,7 +218,278 @@ describe('native browser model control readers', () => {
         }
       });
     });
-    expect(rejected).toEqual(Array.from({ length: 6 }, () => true));
+    expect(rejected).toEqual(Array.from({ length: 5 }, () => true));
+  });
+  it('reads multiple-select arrays in DOM order, including disabled selected options and empty selections', async () => {
+    const values = await page.evaluate(() => {
+      return [
+        '<select multiple nv:model="items"><option value="" selected>Empty string</option><optgroup disabled><option value="العربية" selected>Arabic</option></optgroup><option value="other">Other</option></select>',
+        '<select multiple nv:model.number="items"><option value="-0" selected>Zero</option><option value="2.5" selected>Decimal</option></select>',
+        '<select multiple nv:model.boolean="items"><option value="0" selected>No</option><option value="1" selected>Yes</option></select>',
+        '<select multiple nv:model="items"><option value="one">One</option></select>',
+      ].map((html) => {
+        const template = document.createElement('template');
+        template.innerHTML = html;
+        const element = template.content.firstElementChild;
+        if (!element) throw new Error('Missing select');
+        const directive = window.nvModelFixture.getModelDirective(element);
+        if (!directive) throw new Error('Missing model');
+        const value = window.nvModelFixture.readModelValue(element, directive);
+        return { value, frozen: Object.isFrozen(value) };
+      });
+    });
+    expect(values).toEqual([
+      { value: ['', 'العربية'], frozen: true },
+      { value: [0, 2.5], frozen: true },
+      { value: [false, true], frozen: true },
+      { value: [], frozen: true },
+    ]);
+  });
+  it.each([
+    [
+      'duplicate text',
+      '<select multiple nv:model="items"><option value="a">First</option><option value="a">Second</option></select>',
+    ],
+    [
+      'coerced numeric duplicate',
+      '<select multiple nv:model.number="items"><option value="01">First</option><option value="1">Second</option></select>',
+    ],
+    [
+      'zero duplicate',
+      '<select multiple nv:model.number="items"><option value="-0">First</option><option value="0">Second</option></select>',
+    ],
+    [
+      'coerced boolean duplicate',
+      '<select multiple nv:model.boolean="items"><option value="true">First</option><option value="1">Second</option></select>',
+    ],
+    [
+      'invalid unselected number',
+      '<select multiple nv:model.number="items"><option value="1" selected>One</option><option value="">Empty</option></select>',
+    ],
+    [
+      'invalid unselected boolean',
+      '<select multiple nv:model.boolean="items"><option value="1" selected>Yes</option><option value="no">Invalid</option></select>',
+    ],
+    [
+      'reactive label without value',
+      '<select multiple nv:model="items"><option nv:text="label">Initial</option></select>',
+    ],
+  ])(
+    'rejects an ambiguous multiple-select catalog before mutation: %s',
+    async (_name, html) => {
+      expect(
+        await page.evaluate((html) => {
+          const template = document.createElement('template');
+          template.innerHTML = html;
+          const element = template.content.firstElementChild;
+          if (!element) throw new Error('Missing select');
+          const before = element.outerHTML;
+          try {
+            window.nvModelFixture.getModelDirective(element);
+            return false;
+          } catch {
+            return element.outerHTML === before;
+          }
+        }, html),
+      ).toBe(true);
+    },
+  );
+  it('permits a reactive option label when its value is explicit', async () => {
+    expect(
+      await page.evaluate(() => {
+        const select = document.createElement('select');
+        select.multiple = true;
+        select.setAttribute('nv:model', 'items');
+        select.innerHTML =
+          '<option value="stable" nv:text="label" selected>Initial</option>';
+        const directive = window.nvModelFixture.getModelDirective(select);
+        if (!directive) throw new Error('Missing model');
+        select.options[0]?.replaceChildren(
+          document.createTextNode('New label'),
+        );
+        return window.nvModelFixture.readModelValue(select, directive);
+      }),
+    ).toEqual(['stable']);
+  });
+  it('enforces option-count, selection-count and UTF-8 array byte budgets', async () => {
+    expect(
+      await page.evaluate(() => {
+        const results: boolean[] = [];
+        for (const mode of ['options', 'items', 'bytes']) {
+          const select = document.createElement('select');
+          select.multiple = true;
+          select.setAttribute('nv:model', 'items');
+          const count = mode === 'options' ? 1025 : mode === 'items' ? 257 : 1;
+          for (let index = 0; index < count; index++)
+            select.add(
+              new Option(
+                mode,
+                mode === 'bytes' ? '😀'.repeat(4096) : String(index),
+                false,
+                true,
+              ),
+            );
+          try {
+            const directive = window.nvModelFixture.getModelDirective(select);
+            if (!directive) throw new Error('Missing directive');
+            window.nvModelFixture.readModelValue(select, directive);
+            results.push(false);
+          } catch {
+            results.push(true);
+          }
+        }
+        return results;
+      }),
+    ).toEqual([true, true, true]);
+  });
+  it('accepts exact option and byte boundaries with bounded selected values', async () => {
+    expect(
+      await page.evaluate(() => {
+        const select = document.createElement('select');
+        select.multiple = true;
+        select.setAttribute('nv:model', 'items');
+        for (let index = 0; index < 1024; index++)
+          select.add(
+            new Option(String(index), String(index), false, index < 256),
+          );
+        const directive = window.nvModelFixture.getModelDirective(select);
+        if (!directive) throw new Error('Missing directive');
+        const values = window.nvModelFixture.readModelValue(select, directive);
+        const large = document.createElement('select');
+        large.multiple = true;
+        large.setAttribute('nv:model', 'large');
+        large.add(new Option('Long value', '😀'.repeat(4095), false, true));
+        const largeDirective = window.nvModelFixture.getModelDirective(large);
+        if (!largeDirective) throw new Error('Missing byte-limit directive');
+        const largeValues = window.nvModelFixture.readModelValue(
+          large,
+          largeDirective,
+        );
+        return {
+          count: Array.isArray(values) ? values.length : -1,
+          bytes: new TextEncoder().encode(JSON.stringify(largeValues)).length,
+        };
+      }),
+    ).toEqual({ count: 256, bytes: 16_384 });
+  });
+  it('plans membership projection without changing array order, native defaults or sending input events', async () => {
+    expect(
+      await page.evaluate(() => {
+        const select = document.createElement('select');
+        select.multiple = true;
+        select.setAttribute('nv:model', 'items');
+        select.innerHTML =
+          '<option value="a" selected>A</option><option value="b">B</option><option value="c" disabled>C</option>';
+        document.body.append(select);
+        const directive = window.nvModelFixture.getModelDirective(select);
+        if (!directive) throw new Error('Missing directive');
+        let events = 0;
+        select.addEventListener('input', () => events++);
+        select.addEventListener('change', () => events++);
+        const values = ['c', 'missing', 'b'];
+        const plan = window.nvModelFixture.planModelSelection(
+          select,
+          directive,
+          values,
+        );
+        if (!plan) throw new Error('Missing projection');
+        const before = [...select.selectedOptions].map(
+          (option) => option.value,
+        );
+        plan();
+        return {
+          before,
+          selected: [...select.selectedOptions].map((option) => option.value),
+          defaults: [...select.options].map((option) => option.defaultSelected),
+          values,
+          events,
+        };
+      }),
+    ).toEqual({
+      before: ['a'],
+      selected: ['b', 'c'],
+      defaults: [true, false, false],
+      values: ['c', 'missing', 'b'],
+      events: 0,
+    });
+  });
+  it('projects numbers and booleans only from values matching the declared cast', async () => {
+    expect(
+      await page.evaluate(() => {
+        return [
+          {
+            name: 'nv:model.number',
+            options:
+              '<option value="-0" selected>Zero</option><option value="2.5">Decimal</option>',
+            value: [2.5],
+            wrong: ['2.5'],
+          },
+          {
+            name: 'nv:model.boolean',
+            options:
+              '<option value="0" selected>No</option><option value="1">Yes</option>',
+            value: [true],
+            wrong: ['true'],
+          },
+        ].map((item) => {
+          const select = document.createElement('select');
+          select.multiple = true;
+          select.setAttribute(item.name, 'items');
+          select.innerHTML = item.options;
+          const directive = window.nvModelFixture.getModelDirective(select);
+          if (!directive) throw new Error('Missing directive');
+          let rejected = false;
+          try {
+            window.nvModelFixture.planModelSelection(
+              select,
+              directive,
+              item.wrong,
+            );
+          } catch {
+            rejected = true;
+          }
+          window.nvModelFixture.planModelSelection(
+            select,
+            directive,
+            item.value,
+          )?.();
+          return {
+            rejected,
+            value: window.nvModelFixture.readModelValue(select, directive),
+          };
+        });
+      }),
+    ).toEqual([
+      { rejected: true, value: [2.5] },
+      { rejected: true, value: [true] },
+    ]);
+  });
+  it('clears all selected options for an empty array and ignores non-multiple controls', async () => {
+    expect(
+      await page.evaluate(() => {
+        const select = document.createElement('select');
+        select.multiple = true;
+        select.innerHTML = '<option value="a" selected>A</option>';
+        const directive = window.nvModelFixture.parseModelDirective(
+          'nv:model',
+          'items',
+        );
+        window.nvModelFixture.planModelSelection(select, directive, [])?.();
+        const input = document.createElement('input');
+        const single = document.createElement('select');
+        return {
+          selected: select.selectedOptions.length,
+          input:
+            window.nvModelFixture.planModelSelection(input, directive, [
+              'a',
+            ]) === undefined,
+          single:
+            window.nvModelFixture.planModelSelection(single, directive, [
+              'a',
+            ]) === undefined,
+        };
+      }),
+    ).toEqual({ selected: 0, input: true, single: true });
   });
   it('rejects empty native number inputs and ambiguous cast values without changing the control', async () => {
     const rejected = await page.evaluate(() => {
@@ -328,5 +601,87 @@ describe('primitive model coercion', () => {
   it('keeps ordinary text and boolean values unchanged without an explicit cast', () => {
     expect(coerceModelValue('001', 'auto')).toBe('001');
     expect(coerceModelValue(false, 'auto')).toBe(false);
+  });
+});
+
+describe('bounded flat model arrays', () => {
+  it('copies and freezes values, normalizes wire zero, and compares ordered values', () => {
+    const source = ['Arabic العربية', 2, false, -0];
+    const copied = copyModelArray(source);
+    source[0] = 'changed';
+    expect(copied).toEqual(['Arabic العربية', 2, false, 0]);
+    expect(Object.isFrozen(copied)).toBe(true);
+    expect(sameModelValue(['a', 'b'], ['a', 'b'])).toBe(true);
+    expect(sameModelValue(['a', 'b'], ['b', 'a'])).toBe(false);
+    expect(sameModelValue([], [])).toBe(true);
+    expect(sameModelValue([-0], [0])).toBe(true);
+    expect(sameModelValue(['1'], [1])).toBe(false);
+    expect(sameModelValue([], '')).toBe(false);
+    expect(sameModelValue(1, 1)).toBe(true);
+  });
+  it.each(
+    [
+      null,
+      {},
+      [[1]],
+      [NaN],
+      [Infinity],
+      [undefined],
+      [1n],
+      ['a', 'a'],
+      [-0, 0],
+      new Array(2),
+      Array.from({ length: 257 }, (_, i) => i),
+    ].map((raw) => ({ raw })),
+  )('rejects unsupported or unbounded array $raw', ({ raw }) => {
+    expect(() => copyModelArray(raw)).toThrow();
+    expect(sameModelValue(raw, [])).toBe(false);
+  });
+  it('does not evaluate array getters, extra properties or conversion hooks', () => {
+    let calls = 0;
+    const accessor: unknown[] = [];
+    Object.defineProperty(accessor, '0', {
+      enumerable: true,
+      get() {
+        calls++;
+        return 1;
+      },
+    });
+    const extra = [1];
+    Object.defineProperty(extra, 'extra', {
+      get() {
+        calls++;
+        return true;
+      },
+    });
+    const symbolic = [1];
+    Object.defineProperty(symbolic, Symbol('extra'), { value: 1 });
+    const exotic = [1];
+    Object.setPrototypeOf(exotic, null);
+    for (const value of [
+      accessor,
+      extra,
+      symbolic,
+      exotic,
+      [
+        {
+          toJSON() {
+            calls++;
+            return 1;
+          },
+        },
+      ],
+    ])
+      expect(() => copyModelArray(value)).toThrow();
+    expect(calls).toBe(0);
+  });
+  it('counts UTF-8 JSON punctuation and enforces exact byte and item bounds', () => {
+    expect(copyModelArray(['😀'.repeat(4095)])).toHaveLength(1);
+    expect(() => copyModelArray(['😀'.repeat(4096)])).toThrow();
+    expect(
+      copyModelArray(
+        Array.from({ length: MODEL_ARRAY_LIMITS.maxItems }, (_, i) => i),
+      ),
+    ).toHaveLength(256);
   });
 });

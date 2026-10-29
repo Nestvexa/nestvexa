@@ -61,6 +61,39 @@
     {{/if}}
     <button type="button" nv:click="reorderEditor">Reorder local editor</button>
   </section>
+  <form id="interests-form" nv:submit="saveInterests">
+    <label for="interests">Interests</label>
+    <select
+      id="interests"
+      name="interests"
+      multiple
+      size="3"
+      nv:model.change="interests"
+    >
+      {{#each interestOptions}} {{#if selected}}
+      <option value="{{value}}" selected>{{value}}</option>
+      {{else}}
+      <option value="{{value}}">{{value}}</option>
+      {{/if}} {{/each}}
+    </select>
+    <label for="interests-alias">Interests mirror</label>
+    <select id="interests-alias" multiple size="3" nv:model="interests">
+      {{#each interestOptions}} {{#if selected}}
+      <option value="{{value}}" selected>{{value}}</option>
+      {{else}}
+      <option value="{{value}}">{{value}}</option>
+      {{/if}} {{/each}}
+    </select>
+    <span id="interests-dirty" nv:dirty="interests">Unsaved interests</span>
+    <button type="submit" nv:loading.attr="disabled">Save interests</button>
+    <button type="reset">Reset interests</button>
+    <button type="button" nv:click="slowInterests">
+      Save interests slowly
+    </button>
+    <output id="saved-interests" aria-live="polite"
+      >{{#each savedInterests}}{{this}} {{/each}}</output
+    >
+  </form>
   <section
     id="visibility-panel"
     nv:show="panelVisible"

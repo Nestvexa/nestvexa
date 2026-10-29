@@ -282,6 +282,280 @@ async function metrics() {
   }));
 }
 
+function multi(id = 'choices', directive = 'nv:model', selected = 'a'): string {
+  return `<select id="${id}" multiple ${directive}="items"><option value="a"${selected === 'a' ? ' selected' : ''}>A</option><option value="b"${selected === 'b' ? ' selected' : ''}>B</option><option value="c">C</option></select>`;
+}
+async function choices(selector = '#choices'): Promise<string[]> {
+  return page
+    .locator(selector)
+    .evaluate((element) =>
+      [...(element as HTMLSelectElement).selectedOptions].map(
+        (option) => option.value,
+      ),
+    );
+}
+describe('multiple-select model lifecycle with controlled transport', () => {
+  it('discards an incompatible string array draft when the response changes to numeric values', async () => {
+    const html =
+      '<select id="choices" multiple nv:model="items"><option value="1">One</option><option value="2">Two</option></select>';
+    await mount({ html, state: { items: ['1'] } });
+    await start();
+    await page.locator('#choices').selectOption(['2']);
+    await respond(0, html.replace('nv:model=', 'nv:model.number='), {
+      items: [1],
+    });
+    expect((await metrics()).results[0]).toEqual({ ok: true, code: null });
+    expect(await get('items')).toEqual([1]);
+    expect(await choices()).toEqual(['1']);
+  });
+  it('does not project an older scalar draft into a new multiple-select control', async () => {
+    const html = multi().replace(' multiple', '');
+    await mount({ html, state: { items: 'a' } });
+    await start();
+    await page.locator('#choices').selectOption('b');
+    await respond(0, multi(), { items: ['c'] });
+    expect((await metrics()).results[0]).toEqual({ ok: true, code: null });
+    expect(await get('items')).toEqual(['c']);
+    expect(await choices()).toEqual(['c']);
+  });
+  it.each(['scalar', 'nested', 'duplicate'])(
+    'rejects an incompatible response array before patching: %s',
+    async (mode) => {
+      const html = multi();
+      await mount({ html, state: { items: ['a'] } });
+      await start();
+      await respond(0, html, {
+        items:
+          mode === 'scalar' ? 'a' : mode === 'nested' ? [['a']] : ['a', 'a'],
+      });
+      expect((await metrics()).results[0]).toEqual({
+        ok: false,
+        code: 'DIRECTIVE',
+      });
+      expect(await choices()).toEqual(['a']);
+      expect(
+        await page.locator('#parent').getAttribute('data-nv-revision'),
+      ).toBe('0');
+    },
+  );
+  it('keeps canceled reset array drafts and excludes an ignored select alias', async () => {
+    const html = `<form id="editor">${multi()}<div nv:ignore><select id="ignored" multiple nv:model="items"><option value="private" selected>Private</option></select></div></form>`;
+    await mount({ html, state: { items: ['a'] } });
+    await page.locator('#choices').selectOption(['b']);
+    await page.locator('#editor').evaluate((form) =>
+      form.addEventListener('reset', (event) => event.preventDefault(), {
+        once: true,
+      }),
+    );
+    await reset();
+    expect(await get('items')).toEqual(['b']);
+    expect(await choices('#ignored')).toEqual(['private']);
+    expect((await metrics()).errors).toEqual([]);
+    await start();
+    expect((await metrics()).requests[0]?.body.updates).toEqual({
+      items: ['b'],
+    });
+  });
+  it('validates a catalog changed without an input event before sending an action', async () => {
+    await mount({ html: multi(), state: { items: ['a'] } });
+    await page
+      .locator('#choices option[value="b"]')
+      .evaluate((option) => option.setAttribute('value', 'a'));
+    await start();
+    expect((await metrics()).requests).toEqual([]);
+    expect((await metrics()).results[0]).toEqual({
+      ok: false,
+      code: 'DIRECTIVE',
+    });
+    await page
+      .locator('#choices option')
+      .nth(1)
+      .evaluate((option) => option.setAttribute('value', 'b'));
+    await start();
+    expect((await metrics()).requests).toHaveLength(1);
+  });
+  it('projects initial array state, shares aliases and sends an empty selection', async () => {
+    const html = `<form id="editor">${multi()}${multi('alias')}<span id="dirty" nv:dirty="items">Dirty</span></form>`;
+    await mount({ html, state: { items: ['b'] } });
+    expect(await choices()).toEqual(['b']);
+    expect(await choices('#alias')).toEqual(['b']);
+    await page.locator('#choices').selectOption(['a', 'c']);
+    expect(await choices('#alias')).toEqual(['a', 'c']);
+    expect(await get('items')).toEqual(['a', 'c']);
+    await page.locator('#choices').selectOption([]);
+    await start();
+    expect((await metrics()).requests[0]?.body.updates).toEqual({ items: [] });
+    await respond(0, html, { items: [] });
+    expect(await page.locator('#dirty').isHidden()).toBe(true);
+  });
+  it.each(['nv:model.number', 'nv:model.boolean'])(
+    'uses typed values for %s',
+    async (directive) => {
+      const html = `<form id="editor"><select id="choices" multiple ${directive}="items"><option value="0">No</option><option value="1">Yes</option></select></form>`;
+      await mount({ html, state: { items: [] } });
+      await page.locator('#choices').selectOption(['0', '1']);
+      await start();
+      expect((await metrics()).requests[0]?.body.updates).toEqual({
+        items: directive.endsWith('number') ? [0, 1] : [false, true],
+      });
+    },
+  );
+  it('does not synchronize equivalent arrays and clears dirty when reverting', async () => {
+    const html = `<form id="editor">${multi('choices', 'nv:model.live.debounce.100ms')}<span id="dirty" nv:dirty="items">Dirty</span></form>`;
+    await mount({ html, state: { items: ['a'] } });
+    await page.locator('#choices').selectOption(['a']);
+    await page.clock.runFor(150);
+    expect((await metrics()).requests).toEqual([]);
+    await page.locator('#choices').selectOption(['b']);
+    expect(await page.locator('#dirty').isHidden()).toBe(false);
+    await page.locator('#choices').selectOption(['a']);
+    await page.clock.runFor(150);
+    expect((await metrics()).requests).toEqual([]);
+    expect(await page.locator('#dirty').isHidden()).toBe(true);
+  });
+  it('retains newer unavailable values for server validation after option removal', async () => {
+    const html = `<form id="editor">${multi()}</form>`;
+    await mount({ html, state: { items: ['a'] } });
+    await start();
+    await page.locator('#choices').selectOption(['b', 'c']);
+    const next = html.replace('<option value="c">C</option>', '');
+    await respond(0, next, { items: ['a'] });
+    expect(await choices()).toEqual(['b']);
+    expect(await get('items')).toEqual(['b', 'c']);
+    await start();
+    expect((await metrics()).requests[1]?.body.updates).toEqual({
+      items: ['b', 'c'],
+    });
+  });
+  it('does not rewrite array order merely because options reorder', async () => {
+    const html = `<form id="editor">${multi()}</form>`;
+    await mount({ html, state: { items: ['a', 'b'] } });
+    await start();
+    const next =
+      '<form id="editor"><select id="choices" multiple nv:model="items"><option value="b">B</option><option value="a">A</option></select></form>';
+    await respond(0, next, { items: ['a', 'b'] });
+    expect(await choices()).toEqual(['b', 'a']);
+    expect(await get('items')).toEqual(['a', 'b']);
+    await page.locator('#choices').dispatchEvent('input');
+    expect(await get('items')).toEqual(['b', 'a']);
+  });
+  it.each(['replace', 'single'])(
+    'clears stale newer array drafts after %s',
+    async (mode) => {
+      const html = `<form id="editor"><div id="slot">${multi()}</div></form>`;
+      await mount({ html, state: { items: ['a'] } });
+      await start();
+      await page.locator('#choices').selectOption(['b']);
+      const next =
+        mode === 'replace'
+          ? html.replace('id="slot"', 'id="slot" nv:replace=""')
+          : html.replace(' multiple', '');
+      await respond(0, next, { items: mode === 'single' ? 'a' : ['a'] });
+      expect(await get('items')).toEqual(mode === 'single' ? 'a' : ['a']);
+      await start();
+      expect((await metrics()).requests[1]?.body.updates).toEqual({});
+    },
+  );
+  it('reconciles equal alias defaults and cancels reset synchronization timers', async () => {
+    const html = `<form id="editor">${multi('choices', 'nv:model.live.debounce.100ms')}${multi('alias')}<span id="dirty" nv:dirty="items">Dirty</span></form>`;
+    await mount({ html, state: { items: ['a'] } });
+    await page.locator('#choices').selectOption(['b']);
+    await reset();
+    expect(await get('items')).toEqual(['a']);
+    expect(await choices('#alias')).toEqual(['a']);
+    await page.clock.runFor(150);
+    expect((await metrics()).requests).toEqual([]);
+    expect((await metrics()).errors).toEqual([]);
+  });
+  it('keeps a reset newer than an in-flight server response', async () => {
+    const html = `<form id="editor">${multi()}</form>`;
+    await mount({ html, state: { items: ['b'] } });
+    await start();
+    await reset();
+    await respond(0, html, { items: ['c'] });
+    expect(await get('items')).toEqual(['a']);
+    expect(await choices()).toEqual(['a']);
+    await start();
+    expect((await metrics()).requests[1]?.body.updates).toEqual({
+      items: ['a'],
+    });
+  });
+  it('cancels reset with conflicting array alias defaults', async () => {
+    const html = `<form id="editor">${multi()}${multi('alias', 'nv:model', 'b')}</form>`;
+    await mount({ html, state: { items: ['c'] } });
+    await reset();
+    expect(await choices()).toEqual(['c']);
+    expect(await get('items')).toEqual(['c']);
+    expect((await metrics()).errors).toHaveLength(1);
+  });
+  it.each(['scalar alias', 'cast alias', 'scalar state', 'duplicate option'])(
+    'rejects invalid initial multiple binding: %s',
+    async (mode) => {
+      const html = `<form id="editor">${multi()}${mode === 'scalar alias' ? '<input nv:model="items">' : mode === 'cast alias' ? multi('alias', 'nv:model.number') : ''}</form>`;
+      await mount({
+        html:
+          mode === 'duplicate option'
+            ? html.replace('value="b"', 'value="a"')
+            : html,
+        state: { items: mode === 'scalar state' ? 'a' : ['a'] },
+      });
+      expect((await metrics()).errors).toHaveLength(1);
+      await start();
+      expect((await metrics()).requests).toEqual([]);
+    },
+  );
+  it('rejects invalid response catalogs before changing HTML or revision', async () => {
+    const html = `<form id="editor">${multi()}</form>`;
+    await mount({ html, state: { items: ['a'] } });
+    await start();
+    await respond(0, html.replace('value="b"', 'value="a"'), { items: ['b'] });
+    expect(await choices()).toEqual(['a']);
+    expect(await page.locator('#parent').getAttribute('data-nv-revision')).toBe(
+      '0',
+    );
+    expect((await metrics()).results[0]).toEqual({
+      ok: false,
+      code: 'DIRECTIVE',
+    });
+  });
+  it('blocks mutated invalid catalogs, then accepts explicit correction', async () => {
+    const html = `<form id="editor">${multi()}</form>`;
+    await mount({ html, state: { items: ['a'] } });
+    await page.locator('#choices').evaluate((element) => {
+      (element as HTMLSelectElement).options[1]?.setAttribute('value', 'a');
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await start();
+    expect((await metrics()).requests).toEqual([]);
+    await page.locator('#choices').evaluate((element) => {
+      (element as HTMLSelectElement).options[1]?.setAttribute('value', 'b');
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await start();
+    expect((await metrics()).requests).toHaveLength(1);
+  });
+  it('returns detached arrays and rejects primitive writes to an active array field atomically', async () => {
+    await mount({ html: multi(), state: { items: ['a'] } });
+    expect(
+      await page.evaluate(() => {
+        const root = document.getElementById('parent');
+        if (!root) throw new Error('Missing root');
+        const client = window.nvResetSession.client;
+        const detached = client.get(root, 'items');
+        if (!Array.isArray(detached)) throw new Error('Missing array');
+        detached.push('b');
+        let rejected = false;
+        try {
+          client.set(root, 'items', 'bad');
+        } catch {
+          rejected = true;
+        }
+        return { rejected, state: client.get(root, 'items') };
+      }),
+    ).toEqual({ rejected: true, state: ['a'] });
+  });
+});
+
 describe('native form reset reconciliation', () => {
   it('reconciles reset browser values with public draft state before another action', async () => {
     await mount();

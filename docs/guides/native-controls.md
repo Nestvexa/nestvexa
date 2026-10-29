@@ -47,7 +47,7 @@ Model controls also require explicitly writable server state. The server remains
 
 This still needs a registered component declaring writable `title` state and host-owned Live security configuration; see the [counter bootstrap](../../examples/live-counter/README.md). An edit made after a request started can survive an ordinary response when that control remains compatible. An acknowledged edit may be normalized or replaced by server logic. This is not optimistic business transaction rollback or permission to bypass validation.
 
-A newer radio draft is not silently replaced with another option when its chosen value disappears. If a compatible original group control survives, no unmatched radio is selected and the draft remains subject to server validation or a new user choice. File inputs and multiple selects remain unsupported as model values; preserving their native browser state does not add file/array serialization.
+A newer radio draft is not silently replaced with another option when its chosen value disappears. If a compatible original group control survives, no unmatched radio is selected and the draft remains subject to server validation or a new user choice. File inputs remain unsupported as model values. Multiple-select models now use explicit bounded flat arrays, strict unique option catalogs and shared state projection; see [multiple-select models](multiple-select.md). Unbound duplicate-value options retain the separate native identity policy above; bound multiple catalogs reject ambiguous values.
 
 ## Reset and replacement
 

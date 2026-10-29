@@ -42,18 +42,18 @@ Reconciliation follows the native `form.elements` collection and each control's 
 
 Only active controls owned by that client registration are reconciled. Whole-ignore and island boundaries retain their ownership rules; unbound controls do not become Live state. Independent nested Live registrations keep their own field state. A native reset can still affect unbound or widget-owned controls according to browser rules, without exposing those values to the client or server.
 
-A public field is shared within its component. Resetting one form's control changes that field's local draft and cancels its model timers; it does not physically reset another form's control merely because it names the same field. Use separate state fields for independent forms rather than relying on aliases as separate drafts.
+A public field is shared within its component. Resetting one form's control changes that field's local draft and cancels its model timers. Scalar aliases do not physically reset another form's control merely because it names the same field. Multiple-select aliases project the shared reset array into their live selectedness, including aliases in another form, while retaining their own default-selected attributes. Use separate state fields for independent forms rather than relying on aliases as separate drafts.
 
 ## Rejected or changed defaults
 
-Before allowing the native operation, the client predicts defaults on a detached native form. It cancels the reset and reports a `DIRECTIVE` error when the defaults cannot describe the supported primitive model state. This includes:
+Before allowing the native operation, the client predicts defaults on a detached native form. It cancels the reset and reports a `DIRECTIVE` error when the defaults cannot describe supported scalar or bounded multiple-select array model state. This includes:
 
 - An empty or otherwise invalid numeric model default.
 - A model radio field with no selected default choice.
 - Conflicting default values among controls sharing one public model field.
 - A model radio group shared across client/renderer ownership boundaries.
 
-These restrictions preserve the existing primitive-only model contract. They do not add nullable radio models, array-valued selects, files, nested field paths or a forms schema system. Correct the defaults or use the host's explicit form logic for unsupported state.
+Array aliases compare ordered values rather than object identity; empty selections reset to `[]`. Different alias default order/values, malformed option catalogs or array limits cancel reset. See [multiple-select arrays](multiple-select.md). Nullable radios, checkbox selection groups, files, nested field paths and a forms schema system remain unsupported. Correct the defaults or use explicit host form logic for unsupported state.
 
 Trusted host code can change defaults during reset-event dispatch. If a resulting model becomes unrepresentable after the native reset has run, the client suspends that component's transport instead of dispatching stale hidden state. Recover through authoritative reconciliation as described in the [request lifecycle guide](request-lifecycle.md). A client already suspended by an uncertain request does not regain transport permission merely because its form was reset.
 

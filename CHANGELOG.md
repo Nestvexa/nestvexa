@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased: bounded multiple-select model arrays
+
+Native multiple selects support unique flat string/number/boolean arrays, ordered dirty equality, shared alias projection, bounded option/state validation and native reset reconciliation. Added real Nest synchronization/action/validation/session scenarios. Public client/Alpine setters remain primitive-only; checkbox groups, file models and complete forms remain unmet. Browser JavaScript emits without source comments while a separate declaration pass preserves API documentation and external maps; the existing size budget is unchanged.
+
 ## Unreleased: retained local editor selection
 
 Live updates preserve one native caret or forward/backward range in a retained owned editable host, including keyed ancestor moves, Unicode and plaintext-only editors. Selection restoration runs before focus and respects host callback changes. Added controlled ownership/replacement regressions and real Nest browser scenarios. This does not implement rich-text models or selection remapping across replacement/plugin boundaries; complete Phase 3 acceptance remains open.

@@ -13,19 +13,19 @@
       "id": 1,
       "state": "InProgress",
       "scope": "Core, views, HBS, integrated umbrella Live/Alpine startup and three runnable examples",
-      "remaining": "Retained-editor checkpoint:870 aggregate/162 three-browser checks; seven tarballs/four full-minimal npm-pnpm consumers and fresh Windows Node22/24 strict+aggregate passes. Full phase, input/directive/lifecycle/accessibility/security/platform acceptance remains open. Phase4 Pending."
+      "remaining": "Multiple-select checkpoint:924 aggregate/174 three-browser checks; seven tarballs/four full-minimal npm-pnpm consumers and fresh Windows Node22/24 strict+aggregate passes. Complete phase/directive/input/lifecycle/accessibility/security/platform acceptance remains open. Phase4 Pending."
     },
     {
       "id": 2,
       "state": "InProgress",
       "scope": "Live protocol, opaque state store, generated routes, registration ownership, authorized model synchronization and pure writable-state validation",
-      "remaining": "Retained-editor checkpoint:870 aggregate/162 three-browser checks; seven tarballs/four full-minimal npm-pnpm consumers and fresh Windows Node22/24 strict+aggregate passes. Full phase, input/directive/lifecycle/accessibility/security/platform acceptance remains open. Phase4 Pending."
+      "remaining": "Multiple-select checkpoint:924 aggregate/174 three-browser checks; seven tarballs/four full-minimal npm-pnpm consumers and fresh Windows Node22/24 strict+aggregate passes. Complete phase/directive/input/lifecycle/accessibility/security/platform acceptance remains open. Phase4 Pending."
     },
     {
       "id": 3,
       "state": "InProgress",
-      "scope": "Initial directives, queued transport, keyed morph, CSP Alpine bridge, event/model modifiers, targeted loading/replacement, native reconciliation, registration ownership, wrapper-only ignore and bounded browser transport/deadline/recovery, and native form reset reconciliation, and post-morph focus availability/host ownership/temporary focusability cleanup, shared visibility/loading temporary focus ownership, retained owned light-DOM editor caret/directed selection across keyed moves",
-      "remaining": "Retained-editor checkpoint:870 aggregate/162 three-browser checks; seven tarballs/four full-minimal npm-pnpm consumers and fresh Windows Node22/24 strict+aggregate passes. Full phase, input/directive/lifecycle/accessibility/security/platform acceptance remains open. Phase4 Pending."
+      "scope": "Initial directives, queued transport, keyed morph, CSP Alpine bridge, event/model modifiers, targeted loading/replacement, native reconciliation, registration ownership, wrapper-only ignore and bounded browser transport/deadline/recovery, and native form reset reconciliation, and post-morph focus availability/host ownership/temporary focusability cleanup, shared visibility/loading temporary focus ownership, retained owned light-DOM editor caret/directed selection across keyed moves, bounded native multiple-select arrays, ordered equality, alias projection and reset",
+      "remaining": "Multiple-select checkpoint:924 aggregate/174 three-browser checks; seven tarballs/four full-minimal npm-pnpm consumers and fresh Windows Node22/24 strict+aggregate passes. Complete phase/directive/input/lifecycle/accessibility/security/platform acceptance remains open. Phase4 Pending."
     },
     {
       "id": 4,

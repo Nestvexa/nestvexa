@@ -47,6 +47,26 @@ class Counter {
   @State() editorDisabled = false;
   @State() editorHidden = false;
   @State() editorFirst = false;
+  @State({
+    writable: true,
+    validate: (value) =>
+      Array.isArray(value) &&
+      value.length <= 3 &&
+      new Set(value).size === value.length &&
+      value.every(
+        (item) =>
+          typeof item === 'string' &&
+          ['design', 'build', 'review'].includes(item),
+      ),
+  })
+  interests = ['design'];
+  @State() savedInterests: string[] = [];
+  @Computed() get interestOptions() {
+    return ['design', 'build', 'review'].map((value) => ({
+      value,
+      selected: this.interests.includes(value),
+    }));
+  }
   @State({ writable: true, validate: (value) => typeof value === 'boolean' })
   panelVisible = true;
   @Computed() get doubled(): number {
@@ -66,6 +86,13 @@ class Counter {
   }
   @Action() reorderEditor(): void {
     this.editorFirst = !this.editorFirst;
+  }
+  @Action() saveInterests(): void {
+    this.savedInterests = [...this.interests];
+  }
+  @Action() async slowInterests(): Promise<void> {
+    await new Promise<void>((resolve) => setTimeout(resolve, 200));
+    this.savedInterests = [...this.interests];
   }
   @Action() hidePanel(): void {
     this.panelVisible = false;
@@ -130,6 +157,8 @@ class Pages {
               'disableEditor',
               'hideEditor',
               'reorderEditor',
+              'saveInterests',
+              'slowInterests',
               'hidePanel',
               'slowPanel',
             ].includes(action),

@@ -1,5 +1,5 @@
 import { LiveClientError } from './grammar.js';
-import { getModelDirective, readModelValue } from './models.js';
+import { getModelDirective, readModelValue, sameModelValue } from './models.js';
 import type { ModelDirective, ModelValue } from './models.js';
 
 export interface ResetControl {
@@ -32,7 +32,7 @@ export function resetValue(controls: readonly ResetControl[]): ModelValue {
   for (const control of controls) {
     const candidate = readModelValue(control.element, control.directive);
     if (candidate === undefined) continue;
-    if (value !== undefined && !Object.is(candidate, value))
+    if (value !== undefined && !sameModelValue(candidate, value))
       invalid(
         'Native reset requires consistent defaults for controls sharing a model field',
       );
