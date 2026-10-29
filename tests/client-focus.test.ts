@@ -93,6 +93,101 @@ it('creates and disposes a controller in Node without DOM globals', () => {
   controller.dispose();
 });
 
+describe('local editor selection boundaries', () => {
+  it.each([
+    'ignore',
+    'island',
+    'nested',
+    'outside',
+    'empty',
+    'noneditable-child',
+    'root',
+    'inherited-focus',
+  ])('does not capture an unsupported selection: %s', async (mode) => {
+    expect(
+      await page.evaluate((mode) => {
+        const root = document.getElementById('root');
+        if (!root) throw new Error('Missing root');
+        root.setAttribute('data-nv-component', 'root');
+        root.innerHTML =
+          '<div id="editor" contenteditable="true" tabindex="0">Local <span id="inner">draft</span></div><p id="other">Outside selection</p>';
+        const editor = document.getElementById('editor');
+        const inner = document.getElementById('inner');
+        if (!editor || !inner || !editor.firstChild)
+          throw new Error('Missing editor');
+        editor.focus();
+        const selection = document.getSelection();
+        selection?.setBaseAndExtent(editor.firstChild, 1, editor.firstChild, 3);
+        let focused = editor;
+        if (mode === 'ignore') editor.setAttribute('nv:ignore', '');
+        if (mode === 'island') editor.setAttribute('data-nv-island', 'island');
+        if (mode === 'nested')
+          editor.setAttribute('data-nv-component', 'nested');
+        if (mode === 'empty') selection?.removeAllRanges();
+        if (mode === 'root') {
+          root.setAttribute('contenteditable', 'true');
+          focused = root;
+        }
+        if (mode === 'inherited-focus') focused = inner;
+        if (mode === 'outside' || mode === 'noneditable-child') {
+          if (mode === 'noneditable-child')
+            inner.setAttribute('contenteditable', 'false');
+          const text =
+            mode === 'outside'
+              ? document.getElementById('other')?.firstChild
+              : inner.firstChild;
+          if (!text) throw new Error('Missing boundary text');
+          selection?.setBaseAndExtent(text, 0, text, 2);
+        }
+        return (
+          window.nvFocusFixture.captureEditorSelection(focused, root) === null
+        );
+      }, mode),
+    ).toBe(true);
+  });
+
+  it.each(['ignore', 'island', 'nested', 'detached', 'shortened', 'hidden'])(
+    'does not restore when the original editor becomes %s',
+    async (mode) => {
+      expect(
+        await page.evaluate((mode) => {
+          const root = document.getElementById('root');
+          if (!root) throw new Error('Missing root');
+          root.setAttribute('data-nv-component', 'root');
+          root.innerHTML =
+            '<div id="editor" contenteditable="true" tabindex="0">Local draft</div>';
+          const editor = document.getElementById('editor');
+          const text = editor?.firstChild;
+          if (!editor || !text) throw new Error('Missing editor');
+          editor.focus();
+          document.getSelection()?.setBaseAndExtent(text, 8, text, 8);
+          const captured = window.nvFocusFixture.captureEditorSelection(
+            editor,
+            root,
+          );
+          if (!captured) throw new Error('Missing captured selection');
+          if (mode === 'ignore') editor.setAttribute('nv:ignore', '');
+          if (mode === 'island')
+            editor.setAttribute('data-nv-island', 'island');
+          if (mode === 'nested')
+            editor.setAttribute('data-nv-component', 'nested');
+          if (mode === 'detached') editor.remove();
+          if (mode === 'shortened') text.textContent = 'X';
+          if (mode === 'hidden') editor.hidden = true;
+          let writes = 0;
+          const original = Selection.prototype.setBaseAndExtent;
+          Selection.prototype.setBaseAndExtent = function (...args) {
+            writes++;
+            return original.apply(this, args);
+          };
+          captured.restore();
+          return writes;
+        }, mode),
+      ).toBe(0);
+    },
+  );
+});
+
 describe('temporary browser focus ownership', () => {
   it.each(['blur', 'release', 'dispose', 'prune'] as const)(
     'releases temporary tabindex and listener through %s',

@@ -1,6 +1,6 @@
 # Upstream compatibility
 
-Research performed **2026-10-24**; implementation reconciliation **2026-10-28**. Registry metadata establishes available versions, not runtime compatibility. The lockfile and executed test reports determine the tested matrix. No optional renderer is supported merely because its documentation was read. Checkpoint calendar dates follow Africa/Cairo; verification timestamps remain UTC.
+Research performed **2026-10-24**; implementation reconciliation **2026-10-29**. Registry metadata establishes available versions, not runtime compatibility. The lockfile and executed test reports determine the tested matrix. No optional renderer is supported merely because its documentation was read. Checkpoint calendar dates follow Africa/Cairo; verification timestamps remain UTC.
 
 ## Selected foundation
 
@@ -36,7 +36,15 @@ All registry observations above came from actual `pnpm view <package> version en
 - **Vite:** current documentation describes separate development and build paths, backend integration and SSR. Its documented Node minimum is 20.19+/22.12+; Nestvexa targets maintained LTS releases instead of treating the minimum as support policy. Exact Vite/framework plugin selection is deferred until optional adapter implementation. [Vite guide](https://vite.dev/guide/).
 - **Security:** OWASP identifies ASVS **5.0.0**, published 2025-05-30, as the stable standard. A requirement-by-requirement mapping and independent security review remain release blockers. [ASVS](https://asvs.owasp.org/).
 
-## Current visibility/loading focus verification
+## Current retained-editor verification
+
+The Windows/Node 24.13.0 full runner at **2026-10-29T07:40:17.867Z** passed **870/870 aggregate tests** and **162/162 browser checks** across Chromium/Firefox/WebKit, with no pending/skipped/flaky/unexpected cases or browser runner errors. Frozen install, format/lint, strict typecheck/all builds, selected coverage, size, seven tarballs in four external full/minimal npm/pnpm consumers, docs, ledger, benchmark and audit exited 0. Pack timestamp: **2026-10-29T07:44:08.894Z**. Release checking intentionally exited 1; no complete phase is accepted.
+
+Fresh isolated Windows Node **22.23.4** at **2026-10-29T07:45:35.754Z** and Node **24.22.1** at **2026-10-29T07:46:57.817Z** each passed strict compilation and all **870 aggregate tests**. These include real HTTP/Chromium DOM fixtures without repeating the complete three-browser server or four-consumer matrix under both binaries. The Docker Linux engine remained unavailable on October 29 (named-pipe connection failed); Linux and full release compatibility remain unverified. No dependency version or browser asset count changed. See [saved editor evidence](../implementation/editor-selection-checkpoint-evidence-2026-10-29.json).
+
+The [Selection API Working Draft](https://www.w3.org/TR/selection-api/) (11 June 2026) and [HTML editing-host rules](https://html.spec.whatwg.org/multipage/interaction.html#contenteditable) were checked October 29. Native original-node anchor/focus preservation is bounded framework policy; the draft is not a final W3C Recommendation and no general rich-text/editor compatibility is claimed.
+
+## Historical visibility/loading focus verification
 
 The Windows/Node 24.13.0 full runner at **2026-10-28T18:52:07.899Z** passed **841/841 aggregate tests** and **138/138 browser checks** across Chromium/Firefox/WebKit with no pending/skipped/flaky/unexpected cases or browser runner errors. Frozen install, format/lint, strict typecheck/all builds, selected coverage, size, seven tarballs in four external full/minimal npm/pnpm consumers, docs, ledger, benchmark and audit exited 0. Pack timestamp: **2026-10-28T18:54:55.530Z**. Release checking intentionally exited 1; no phase is accepted.
 

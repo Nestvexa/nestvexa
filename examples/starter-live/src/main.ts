@@ -46,6 +46,7 @@ class Counter {
   @State() saved = '';
   @State() editorDisabled = false;
   @State() editorHidden = false;
+  @State() editorFirst = false;
   @State({ writable: true, validate: (value) => typeof value === 'boolean' })
   panelVisible = true;
   @Computed() get doubled(): number {
@@ -62,6 +63,9 @@ class Counter {
   }
   @Action() hideEditor(): void {
     this.editorHidden = true;
+  }
+  @Action() reorderEditor(): void {
+    this.editorFirst = !this.editorFirst;
   }
   @Action() hidePanel(): void {
     this.panelVisible = false;
@@ -125,6 +129,7 @@ class Pages {
               'save',
               'disableEditor',
               'hideEditor',
+              'reorderEditor',
               'hidePanel',
               'slowPanel',
             ].includes(action),

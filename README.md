@@ -22,6 +22,8 @@ For the integrated default setup, run `pnpm --filter @nestvexa/example-starter-l
 
 The starter also demonstrates [keyboard focus after server updates](docs/guides/focus-restoration.md), including controls made disabled or hidden while a response is pending. This is scoped behavior verification; complete accessibility acceptance remains open.
 
+Its [local editable example](docs/guides/focus-restoration.md#local-editable-selection) keeps retained caret/range positions through keyed reordering, without sending draft HTML as Live state. Plugin, cross-editor and replaced-node selections require their own host policy.
+
 ```ts
 import { Module } from '@nestjs/common';
 import { NestvexaModule } from 'nestvexa';
@@ -67,10 +69,11 @@ Ordinary `{{value}}` interpolation escapes HTML. Triple braces bypass escaping a
 pnpm typecheck
 pnpm lint
 pnpm test
-pnpm exec playwright install chromium
+pnpm exec playwright install chromium firefox webkit
 pnpm test:e2e
 pnpm test:pack
 pnpm test:node22
+pnpm test:node24
 pnpm size:check
 pnpm docs:build
 pnpm bench

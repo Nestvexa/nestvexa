@@ -20,4 +20,27 @@ Loading restores its presentation baselines when a request settles, but does not
 
 See [visibility/loading browser scenarios](../../tests/browser/visibility-focus.spec.ts) and [controller tests](../../tests/client-focus.test.ts). The installed asset catalog now contains 14 client modules plus the Alpine adapter and CSP build (16 assets). A custom host that maintains its own file allowlist must include `focus.js`; the standard asset module handles it automatically.
 
-Contenteditable selection, cross-owner native radio groups, shadow DOM, focus inside iframes, arbitrary widget portals, complete nested renderer lifecycles and manual screen-reader acceptance remain unsupported or unverified. This is not WCAG certification. Client focus never authorizes an action or validates server input.
+## Local editable selection
+
+Ordinary morphing retains the children of native editable elements. For a focused, inner, Live-owned light-DOM editing host, the client also preserves one native selection's original anchor/focus nodes and offsets through keyed moves. This covers collapsed carets, forward/backward ranges, element child offsets, UTF-16 text offsets and `contenteditable="plaintext-only"`. Selection is captured when applying the response, so newer local selection made during transport wins. Editable text is local DOM state; this behavior does not register a model or serialize editor HTML into Live requests.
+
+```html
+<div data-nv-key="note-row">
+  <div
+    contenteditable="true"
+    role="textbox"
+    aria-label="Local note"
+    tabindex="0"
+  >
+    A local <strong>draft</strong>
+  </div>
+</div>
+```
+
+Restoration requires the same connected editor and original endpoint nodes, valid offsets, current editability/visibility, and unchanged Live ownership. Removed/replaced nodes do not transfer their ranges to new elements with the same IDs. Hiding or disabling editability may leave a browser-native selection intact; the client does not actively restore it. Synchronous removal/insertion callbacks that change or clear selection suppress restoration of the old range. Such callbacks can still lose their own new range to later DOM changes; use `nestvexa:updated` to choose a final range after the patch.
+
+Range restoration precedes explicit focus because WebKit can establish its default caret after the focus event. Native selection restoration may itself focus the retained editor. A focus handler can choose its final range or another connected focus target without a subsequent framework range write. This ordering uses the native [Selection API](https://www.w3.org/TR/selection-api/) (currently a Working Draft); editing-host rules come from the [HTML standard](https://html.spec.whatwg.org/multipage/interaction.html#contenteditable).
+
+The [starter](../../examples/starter-live/README.md) includes a keyed local editor and authorized reorder action. [Real-server editor scenarios](../../tests/browser/editor-selection.spec.ts), [controlled rendering regressions](../../tests/client-rendering-lifecycle.test.ts) and [selection boundary tests](../../tests/client-focus.test.ts) cover the supported scope. Controlled fixtures do not establish server conformance. No additional browser asset or dependency is required.
+
+Selection spanning editors/ownership boundaries, multiple ranges, Live roots that are themselves editable, separately focused descendants within an inherited editing host, ignored plugin editors, shadow DOM and iframe selections remain outside this contract. Plugin editors should own their complete `nv:ignore` subtree and manage selection themselves. The client does not remap positions across replaced text nodes or sanitize/submit rich HTML. Cross-owner native radio groups, arbitrary widget portals, complete nested renderer lifecycles and manual screen-reader acceptance remain unsupported or unverified. This is not WCAG certification. Client focus never authorizes an action or validates server input.

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased: retained local editor selection
+
+Live updates preserve one native caret or forward/backward range in a retained owned editable host, including keyed ancestor moves, Unicode and plaintext-only editors. Selection restoration runs before focus and respects host callback changes. Added controlled ownership/replacement regressions and real Nest browser scenarios. This does not implement rich-text models or selection remapping across replacement/plugin boundaries; complete Phase 3 acceptance remains open.
+
 ## Unreleased: visibility and loading focus ownership
 
 Visibility, dirty indicators, loading visibility and post-update restoration now share temporary focusability cleanup. Shared ancestor fallbacks retain their temporary tabindex until their remaining owners release it or focus leaves. Added focused browser/controller regressions and included the new client module in asset hosting. Complete Phase 3/accessibility acceptance remains open.

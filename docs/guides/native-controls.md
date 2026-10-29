@@ -66,6 +66,8 @@ Replacement deliberately resets removed native values, file selections and widge
 
 Editable content follows an explicit local-state policy: native editable content is retained while editable, whereas `contenteditable=false` follows incoming server content. Use `nv:ignore` for an external editor or widget that owns a whole subtree. Selection restoration checks the updated input's native selection capability, so changing a focused text field to a number/email/file field does not interrupt revision advancement.
 
+An owned inner editable host also preserves one caret/range through keyed moves when its original endpoint nodes survive. No editor HTML is serialized into Live updates. Replacement, cross-editor/renderer selections, ignored plugin editors and inherited focused descendants are outside that selection contract. See [local editable selection](focus-restoration.md#local-editable-selection) for exact capture, host callback and focus ordering rules.
+
 ## Registration consistency and handoff
 
 A registration records the exact initial values of these server-created attributes:

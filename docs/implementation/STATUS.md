@@ -1,6 +1,6 @@
 # Implementation status
 
-Checkpoint: **2026-10-28** (Africa/Cairo calendar date). **NOT YET READY — BLOCKERS.** UTC verification timestamps identify individual runs separately.
+Checkpoint: **2026-10-29** (Africa/Cairo calendar date). **NOT YET READY — BLOCKERS.** UTC verification timestamps identify individual runs separately.
 
 The original [master specification](../../NESTVEXA_MASTER_IMPLEMENTATION_PROMPT.md) is preserved. Work started from a directory containing that specification and editor configuration, without an existing Git repository or application manifest.
 
@@ -185,6 +185,20 @@ Custom client: 130,024 raw/33,565 summed per-module gzip bytes over 14 modules, 
 Fresh isolated Windows Node **22.23.4** at **2026-10-28T18:56:41.212Z** and **24.22.1** at **2026-10-28T18:57:42.521Z** each passed strict compilation and all **841 aggregate tests**. These include real HTTP/Chromium DOM fixtures without repeating the complete three-browser server or four-consumer matrix under both binaries. Linux/full release compatibility remain unverified.
 
 Contenteditable selection, cross-owner native radio isolation, shadow/iframe/portal focus, independently duplicated client module coordination, manual screen-reader acceptance and full lifecycle/platform matrices remain open. Internal direct binding-helper callers must supply an explicit controller for owner disposal; its implicit default provides blur cleanup. Normal createLiveClient owns and disposes the shared controller.
+
+## Retained local editor selection checkpoint
+
+One native caret or directed range in a retained owned inner editable host now survives keyed moves. Original endpoint nodes and valid offsets are required; removed/replaced, unavailable and differently owned endpoints do not restore. Synchronous lifecycle selection changes suppress the old range. Restoration precedes explicit focus so native focus handlers retain their final choice, including another connected target. Editor HTML remains local DOM rather than Live state. See the [focus guide](../guides/focus-restoration.md#local-editable-selection).
+
+The Windows/Node 24.13.0 full runner at **2026-10-29T07:40:17.867Z** passed **870/870 aggregate tests** and **162/162 browser checks** across Chromium/Firefox/WebKit, with no pending/skipped/flaky/unexpected cases or browser runner errors. Frozen install, format/lint, strict typecheck/all builds, selected coverage, size, seven tarballs in four external full/minimal npm/pnpm consumers, docs, ledger, benchmark and audit exited 0. Pack timestamp: **2026-10-29T07:44:08.894Z**. Release checking intentionally exited 1; no complete phase is accepted. See [saved editor evidence](editor-selection-checkpoint-evidence-2026-10-29.json).
+
+The 77-case controlled focus/rendering corpus and 24 real Nest editor checks passed, including actual Ctrl+Enter action dispatch. Three refined keyed-move Chromium regressions failed against the preceding client before the fix. The first scoped browser run passed 14/18: WebKit established its default caret after the focus event, invalidating the initial focus-observer approach. Restoring the range before explicit focus fixed all three engines. Two negative assertions initially assumed hiding/noneditable content destroys native selection; they now correctly verify no framework range write. An initial isolated Node22 run passed 869/870: the MVC Fastify fixture received an OS-assigned port that fetch rejected as a browser-reserved bad port. That fixture now uses node:http with the same real TCP endpoint and assertions; fresh host/isolated checks passed. No checks were skipped or disabled. The default starter accessibility scenario includes the new editor and passed automated axe checks; manual screen-reader acceptance remains open.
+
+Custom client: **134,302 raw / 34,473 summed per-module gzip bytes across 14 modules**, below 35,840 excluding Alpine adapter/upstream Alpine/maps; not total startup or wire compression. Selected coverage remains **97.18% branches / 98.20% statements over only three config/protocol/store files**, excluding focus/client and most project code. Cached-HBS-only benchmark at **2026-10-29T07:45:24.686Z**, 1,000 iterations on Windows/i7-1165G7/Node 24.13.0: p50 0.1505ms, p95 0.1932ms, p99 0.2261ms, before isolated runtime checks. No plain-Nest/application comparison or performance improvement is inferred.
+
+Fresh isolated Windows Node **22.23.4** at **2026-10-29T07:45:35.754Z** and Node **24.22.1** at **2026-10-29T07:46:57.817Z** each passed strict compilation and all **870 aggregate tests**. These include real HTTP/Chromium DOM fixtures without repeating the complete three-browser server or four-consumer matrix under both binaries. The Docker Linux engine remained unavailable on October 29 (named-pipe connection failed); Linux and full release compatibility remain unverified. No dependency version or browser asset count changed.
+
+Unsupported selections include cross-editor/renderer ranges, replaced nodes, ignored plugins, editable Live roots, independently focused inherited descendants, multiple ranges, shadow DOM and iframes. Rich-text models, IME/undo-stack guarantees, full lifecycle/accessibility/security/platform matrices and independent security review remain unmet. Phase 4 remains Pending; no mandatory requirement was marked Done.
 
 ## External owner steps
 

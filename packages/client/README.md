@@ -1,5 +1,7 @@
 # @nestvexa/client
 
+Retained local editable hosts preserve a single native caret or forward/backward selection through keyed moves, to the [documented ownership and node-identity limits](../../docs/guides/focus-restoration.md#local-editable-selection). Range restoration precedes focus so host focus handlers keep their final choice. This does not expose editor HTML as model state or add rich-text form support.
+
 Visibility/dirty bindings, loading visibility and reconciliation now share temporary focusability ownership, including shared ancestor leases and disposal cleanup. See the [focus guide](../../docs/guides/focus-restoration.md) for the installed-module boundary and remaining gaps.
 
 Post-morph [focus restoration](../../docs/guides/focus-restoration.md) falls back to an available component root when a focused control becomes unavailable, preserves host-selected focus, and releases its temporary tabindex/listener on blur, release or disposal. Existing root focus policy stays host-owned; complete keyboard/screen-reader acceptance remains open.

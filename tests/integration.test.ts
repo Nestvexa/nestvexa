@@ -31,7 +31,43 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { request as httpRequest } from 'node:http';
 import { map } from 'rxjs';
+
+/** Real TCP requests without fetch's browser-only reserved-port restriction. */
+function get(
+  url: string,
+  options: { headers?: Record<string, string> } = {},
+): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(url, options, (response) => {
+      const chunks: Buffer[] = [];
+      response.on('data', (chunk: unknown) => {
+        if (Buffer.isBuffer(chunk)) chunks.push(chunk);
+        else request.destroy(new Error('Unexpected HTTP response chunk'));
+      });
+      response.on('error', reject);
+      response.on('end', () => {
+        const headers = new Headers();
+        for (const [name, value] of Object.entries(response.headers))
+          if (Array.isArray(value))
+            for (const item of value) headers.append(name, item);
+          else if (value !== undefined) headers.append(name, value);
+        resolve(
+          new Response(Buffer.concat(chunks).toString('utf8'), {
+            status: response.statusCode ?? 500,
+            headers,
+          }),
+        );
+      });
+    });
+    request.on('error', reject);
+    request.setTimeout(5000, () =>
+      request.destroy(new Error('MVC fixture HTTP timeout')),
+    );
+    request.end();
+  });
+}
 
 @Injectable({ scope: Scope.REQUEST })
 class RequestIdentity {
@@ -132,33 +168,35 @@ describe.each(['express', 'fastify'] as const)('Nest MVC on %s', (platform) => {
     await configureNestvexa(app);
     await app.listen(0, '127.0.0.1');
     const base = await app.getUrl();
-    const response = await fetch(`${base}/host`);
+    const response = await get(`${base}/host`);
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toContain('text/html');
     const html = await response.text();
     expect(html).toContain('<!doctype html>');
     expect(html).toContain('&lt;script&gt;');
     expect(html).toContain('<b>yes</b>');
-    const first = (await fetch(`${base}/host/health`).then((r) =>
-      r.json(),
-    )) as { ok: boolean; id: string };
-    const second = (await fetch(`${base}/host/health`).then((r) =>
-      r.json(),
-    )) as { ok: boolean; id: string };
+    const first = (await get(`${base}/host/health`).then((r) => r.json())) as {
+      ok: boolean;
+      id: string;
+    };
+    const second = (await get(`${base}/host/health`).then((r) => r.json())) as {
+      ok: boolean;
+      id: string;
+    };
     expect(first.ok).toBe(true);
     expect(first.id).not.toBe(second.id);
-    expect((await fetch(`${base}/host/protected`)).status).toBe(403);
+    expect((await get(`${base}/host/protected`)).status).toBe(403);
     expect(
       (
-        await fetch(`${base}/host/protected`, {
+        await get(`${base}/host/protected`, {
           headers: { 'x-test-auth': 'allowed' },
         })
       ).status,
     ).toBe(200);
-    expect((await fetch(`${base}/host/number?value=bad`)).status).toBe(400);
+    expect((await get(`${base}/host/number?value=bad`)).status).toBe(400);
     expect(
-      await fetch(`${base}/host/number?value=42`).then((r) => r.json()),
+      await get(`${base}/host/number?value=42`).then((r) => r.json()),
     ).toEqual({ value: 42 });
-    expect((await fetch(`${base}/health`)).status).toBe(404);
+    expect((await get(`${base}/health`)).status).toBe(404);
   });
 });

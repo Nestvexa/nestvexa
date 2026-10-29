@@ -23,6 +23,140 @@ export function focusMoved(document: Document, previous: Element): boolean {
   );
 }
 
+interface SelectionPoints {
+  readonly anchor: Node;
+  readonly anchorOffset: number;
+  readonly focus: Node;
+  readonly focusOffset: number;
+}
+function selectionPoints(document: Document): SelectionPoints | null {
+  const selected = document.getSelection();
+  if (
+    !selected ||
+    selected.rangeCount !== 1 ||
+    !selected.anchorNode ||
+    !selected.focusNode
+  )
+    return null;
+  return {
+    anchor: selected.anchorNode,
+    anchorOffset: selected.anchorOffset,
+    focus: selected.focusNode,
+    focusOffset: selected.focusOffset,
+  };
+}
+function sameSelection(
+  left: SelectionPoints | null,
+  right: SelectionPoints | null,
+): boolean {
+  return (
+    left === right ||
+    (left !== null &&
+      right !== null &&
+      left.anchor === right.anchor &&
+      left.anchorOffset === right.anchorOffset &&
+      left.focus === right.focus &&
+      left.focusOffset === right.focusOffset)
+  );
+}
+function editorPoint(host: HTMLElement, node: Node, offset: number): boolean {
+  if (
+    !host.contains(node) ||
+    !node.isConnected ||
+    ![1, 3].includes(node.nodeType)
+  )
+    return false;
+  const element = node.nodeType === 1 ? (node as Element) : node.parentElement;
+  const view = host.ownerDocument.defaultView;
+  if (
+    !view ||
+    !(element instanceof view.HTMLElement) ||
+    !element.isContentEditable
+  )
+    return false;
+  for (
+    let current: Element | null = element;
+    current && current !== host;
+    current = current.parentElement
+  )
+    if (current.matches('[nv\\:ignore], [data-nv-component], [data-nv-island]'))
+      return false;
+  const length =
+    node.nodeType === 3
+      ? (node.nodeValue?.length ?? 0)
+      : node.childNodes.length;
+  return offset >= 0 && offset <= length;
+}
+
+export interface EditorSelection {
+  /** Synchronous host callbacks can deliberately replace or clear the selection. */
+  observe(operation: () => void): void;
+  restore(): void;
+}
+
+/** Preserve native anchor/focus points only in one retained, Live-owned light-DOM editing host. */
+export function captureEditorSelection(
+  focused: Element | null,
+  root: Element,
+): EditorSelection | null {
+  const document = root.ownerDocument;
+  const view = document.defaultView;
+  if (
+    !view ||
+    !(focused instanceof view.HTMLElement) ||
+    focused === root ||
+    !focused.isContentEditable ||
+    focused.parentElement?.isContentEditable ||
+    focused.closest('[data-nv-component]') !== root ||
+    focused.closest('[nv\\:ignore], [data-nv-island]')
+  )
+    return null;
+  const points = selectionPoints(document);
+  if (
+    !points ||
+    !editorPoint(focused, points.anchor, points.anchorOffset) ||
+    !editorPoint(focused, points.focus, points.focusOffset)
+  )
+    return null;
+  let interrupted = false;
+  return {
+    observe(operation): void {
+      const before = selectionPoints(document);
+      try {
+        operation();
+      } finally {
+        if (!sameSelection(before, selectionPoints(document)))
+          interrupted = true;
+      }
+    },
+    restore(): void {
+      if (
+        interrupted ||
+        focusMoved(document, focused) ||
+        !availableForFocus(focused) ||
+        !focused.isContentEditable ||
+        focused.parentElement?.isContentEditable ||
+        focused.closest('[data-nv-component]') !== root ||
+        focused.closest('[nv\\:ignore], [data-nv-island]') ||
+        !editorPoint(focused, points.anchor, points.anchorOffset) ||
+        !editorPoint(focused, points.focus, points.focusOffset)
+      )
+        return;
+      // Restore before explicit focus: WebKit can reset its caret after the focus
+      // event. Selection restoration itself may focus the host; its focus handlers
+      // then get the final choice, without a second range write afterward.
+      document
+        .getSelection()
+        ?.setBaseAndExtent(
+          points.anchor,
+          points.anchorOffset,
+          points.focus,
+          points.focusOffset,
+        );
+    },
+  };
+}
+
 interface LeaseOwner {
   forget(target: HTMLElement, record: TemporaryFocus): void;
 }

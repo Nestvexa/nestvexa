@@ -34,6 +34,33 @@
   {{/if}}
   <button type="button" nv:click="disableEditor">Disable focus target</button>
   <button type="button" nv:click="hideEditor">Hide focus target</button>
+  <section aria-label="Local editable content">
+    <p id="editor-help">
+      Press Ctrl+Enter while editing to reorder this row. Local editor text
+      stays in this browser; the reorder action sends no editor content.
+    </p>
+    {{#unless editorFirst}}
+    <p id="editor-other-row">Server-owned sibling</p>
+    {{/unless}}
+    <div id="editor-row">
+      <div
+        id="local-editor"
+        contenteditable="true"
+        role="textbox"
+        aria-label="Local editor"
+        aria-describedby="editor-help"
+        aria-multiline="true"
+        tabindex="0"
+        nv:keydown.ctrl.enter.prevent="reorderEditor"
+      >
+        Local 😀 <strong>draft</strong> tail
+      </div>
+    </div>
+    {{#if editorFirst}}
+    <p id="editor-other-row">Server-owned sibling</p>
+    {{/if}}
+    <button type="button" nv:click="reorderEditor">Reorder local editor</button>
+  </section>
   <section
     id="visibility-panel"
     nv:show="panelVisible"

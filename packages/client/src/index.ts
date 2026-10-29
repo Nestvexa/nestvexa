@@ -17,6 +17,7 @@ import { planFormReset, resetSignature, resetValue } from './form-reset.js';
 import type { ResetField } from './form-reset.js';
 import {
   availableForFocus,
+  captureEditorSelection,
   createFocusController,
   focusMoved,
 } from './focus.js';
@@ -731,6 +732,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         ? doc.activeElement
         : null;
       const caret = selection(focused);
+      const editorSelection = captureEditorSelection(focused, state.root);
       const scroll = { top: state.root.scrollTop, left: state.root.scrollLeft };
       const previousControls = new Map<
         string,
@@ -749,8 +751,15 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       }
       loading.restore(state.root);
       morphChildren(state.root, incoming, dirty, {
-        beforeRemove,
-        afterInsert,
+        beforeRemove(node): void {
+          if (editorSelection)
+            editorSelection.observe(() => beforeRemove(node));
+          else beforeRemove(node);
+        },
+        afterInsert(node): void {
+          if (editorSelection) editorSelection.observe(() => afterInsert(node));
+          else afterInsert(node);
+        },
       });
       for (const [field, controls] of previousControls) {
         let survives = false;
@@ -772,7 +781,10 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       if (focused && !focusMoved(doc, focused)) {
         const retained =
           focused instanceof window.HTMLElement && availableForFocus(focused);
-        if (retained) focused.focus({ preventScroll: true });
+        if (retained) {
+          editorSelection?.restore();
+          if (!focusMoved(doc, focused)) focused.focus({ preventScroll: true });
+        }
         // A retained INPUT may now have a type without the selection API.
         if (
           retained &&

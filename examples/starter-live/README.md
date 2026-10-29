@@ -8,4 +8,6 @@ The session is a local guest demonstration with a random process secret and in-m
 
 The focus target input and server disable/hide actions demonstrate [post-update keyboard focus restoration](../../docs/guides/focus-restoration.md). Its unbound draft remains browser-local while the server changes availability.
 
+The local editable row and reorder action demonstrate retained caret/forward/backward ranges through keyed moves. Edit its text and press **Ctrl+Enter** to reorder the row through a real server action while keeping editor focus. [Browser tests](../../tests/browser/editor-selection.spec.ts) exercise the keyboard action, newer selection during transport, outside focus and scroll. Clicking the button normally moves focus according to the browser; the client does not force it back to an unfocused editor. Editor HTML is not model state or submitted by the reorder action.
+
 See the [setup guide](../../docs/guides/default-live-setup.md). Browser tests are in [default-setup.spec.ts](../../tests/browser/default-setup.spec.ts). Run `pnpm test:e2e` after building; reports distinguish executed results from remaining acceptance requirements.

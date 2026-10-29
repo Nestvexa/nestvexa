@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "checkpointDate": "2026-10-28",
+  "checkpointDate": "2026-10-29",
   "releaseStatus": "NOT YET READY — BLOCKERS",
   "phases": [
     {
@@ -13,19 +13,19 @@
       "id": 1,
       "state": "InProgress",
       "scope": "Core, views, HBS, integrated umbrella Live/Alpine startup and three runnable examples",
-      "remaining": "Default setup: 801 aggregate and 117 three-browser passes, seven tarballs/four full-minimal npm-pnpm consumers; fresh Windows Node 22.23.4 and 24.22.1 each compile and pass the aggregate. Shared HBS, async policy DI and delegated Alpine startup implemented to documented boundaries. Full phase requirements, input/lifecycle/security/accessibility matrices, Linux and complete release acceptance remain open."
+      "remaining": "Retained-editor checkpoint:870 aggregate/162 three-browser checks; seven tarballs/four full-minimal npm-pnpm consumers and fresh Windows Node22/24 strict+aggregate passes. Full phase, input/directive/lifecycle/accessibility/security/platform acceptance remains open. Phase4 Pending."
     },
     {
       "id": 2,
       "state": "InProgress",
       "scope": "Live protocol, opaque state store, generated routes, registration ownership, authorized model synchronization and pure writable-state validation",
-      "remaining": "Default setup: 801 aggregate and 117 three-browser passes, seven tarballs/four full-minimal npm-pnpm consumers; fresh Windows Node 22.23.4 and 24.22.1 each compile and pass the aggregate. Shared HBS, async policy DI and delegated Alpine startup implemented to documented boundaries. Full phase requirements, input/lifecycle/security/accessibility matrices, Linux and complete release acceptance remain open."
+      "remaining": "Retained-editor checkpoint:870 aggregate/162 three-browser checks; seven tarballs/four full-minimal npm-pnpm consumers and fresh Windows Node22/24 strict+aggregate passes. Full phase, input/directive/lifecycle/accessibility/security/platform acceptance remains open. Phase4 Pending."
     },
     {
       "id": 3,
       "state": "InProgress",
-      "scope": "Initial directives, queued transport, keyed morph, CSP Alpine bridge, event/model modifiers, targeted loading/replacement, native reconciliation, registration ownership, wrapper-only ignore and bounded browser transport/deadline/recovery, and native form reset reconciliation, and post-morph focus availability/host ownership/temporary focusability cleanup, shared visibility/loading temporary focus ownership",
-      "remaining": "Visibility focus checkpoint:841 aggregate/138 three-browser checks; seven tarballs/four full-minimal npm-pnpm consumers and fresh Node22/24 strict+aggregate passes. Full directive/input/nested-renderer/lifecycle/accessibility/security/platform acceptance remains open. Phase4 Pending."
+      "scope": "Initial directives, queued transport, keyed morph, CSP Alpine bridge, event/model modifiers, targeted loading/replacement, native reconciliation, registration ownership, wrapper-only ignore and bounded browser transport/deadline/recovery, and native form reset reconciliation, and post-morph focus availability/host ownership/temporary focusability cleanup, shared visibility/loading temporary focus ownership, retained owned light-DOM editor caret/directed selection across keyed moves",
+      "remaining": "Retained-editor checkpoint:870 aggregate/162 three-browser checks; seven tarballs/four full-minimal npm-pnpm consumers and fresh Windows Node22/24 strict+aggregate passes. Full phase, input/directive/lifecycle/accessibility/security/platform acceptance remains open. Phase4 Pending."
     },
     {
       "id": 4,

@@ -38,6 +38,8 @@ declare global {
       requests: RenderRequest[];
       errors: { code: string | null; message: string }[];
       tasks: Promise<TaskResult>[];
+      editorNodes?: readonly [Node, Node];
+      editorRestores?: number;
       respond(
         index: number,
         html: string,
@@ -246,6 +248,232 @@ async function metrics() {
 }
 
 describe('client rendering and resource lifecycle in Chromium', () => {
+  it.each(['caret', 'forward', 'backward', 'element', 'unicode', 'plain'])(
+    'preserves a local editable %s selection when its keyed ancestor moves',
+    async (mode) => {
+      const editor =
+        '<div id="editor-row"><div id="local-editor" contenteditable="true" tabindex="0">Local 😀 <strong>draft</strong> tail</div></div>';
+      const sibling = '<div id="other-row">Other row</div>';
+      const markup =
+        mode === 'plain'
+          ? editor.replace(
+              'contenteditable="true"',
+              'contenteditable="plaintext-only"',
+            )
+          : editor;
+      await mount(sibling + markup);
+      const expected = await page.evaluate((mode) => {
+        const editor = document.getElementById('local-editor');
+        const first = editor?.firstChild;
+        const last = editor?.querySelector('strong')?.firstChild;
+        if (!editor || !first || !last) throw new Error('Missing editor nodes');
+        editor.focus();
+        const anchor =
+          mode === 'element' ? editor : mode === 'backward' ? last : first;
+        const focus =
+          mode === 'element'
+            ? editor
+            : ['caret', 'unicode'].includes(mode)
+              ? first
+              : mode === 'backward'
+                ? first
+                : last;
+        const anchorOffset =
+          mode === 'unicode'
+            ? 8
+            : mode === 'element'
+              ? 1
+              : mode === 'backward'
+                ? 4
+                : 2;
+        const focusOffset =
+          mode === 'unicode'
+            ? 8
+            : mode === 'element'
+              ? 2
+              : mode === 'caret'
+                ? 2
+                : mode === 'backward'
+                  ? 2
+                  : 4;
+        document
+          .getSelection()
+          ?.setBaseAndExtent(anchor, anchorOffset, focus, focusOffset);
+        window.nvRenderingSession.editorNodes = [anchor, focus];
+        return { anchorOffset, focusOffset };
+      }, mode);
+      const task = await start('refresh');
+      await respond(0, markup + sibling);
+      expect(await finish(task)).toEqual({ ok: true });
+      expect(
+        await page.evaluate(() => {
+          const selection = document.getSelection();
+          const nodes = window.nvRenderingSession.editorNodes;
+          return {
+            anchor: selection?.anchorNode === nodes?.[0],
+            focus: selection?.focusNode === nodes?.[1],
+            anchorOffset: selection?.anchorOffset,
+            focusOffset: selection?.focusOffset,
+            active: document.activeElement?.id,
+          };
+        }),
+      ).toEqual({
+        anchor: true,
+        focus: true,
+        ...expected,
+        active: 'local-editor',
+      });
+      expect(await page.locator('#local-editor').textContent()).toBe(
+        'Local 😀 draft tail',
+      );
+      expect((await metrics()).requests[0]?.updates).toEqual({});
+    },
+  );
+
+  it.each(['select', 'clear', 'shorten'])(
+    'respects an editor selection changed by a synchronous lifecycle callback: %s',
+    async (mode) => {
+      const editor =
+        '<div id="local-editor" contenteditable="true" tabindex="0">Local draft</div>';
+      await mount(editor + '<span id="remove-me">Remove</span>');
+      await page.evaluate((mode) => {
+        const editor = document.getElementById('local-editor');
+        const text = editor?.firstChild;
+        if (!editor || !text) throw new Error('Missing editor');
+        editor.focus();
+        document.getSelection()?.setBaseAndExtent(text, 8, text, 8);
+        document
+          .getElementById('remove-me')
+          ?.addEventListener('nestvexa:before-remove', () => {
+            if (mode === 'clear') document.getSelection()?.removeAllRanges();
+            else if (mode === 'shorten') text.textContent = 'X';
+            else document.getSelection()?.setBaseAndExtent(text, 1, text, 3);
+          });
+      }, mode);
+      const task = await start('refresh');
+      await respond(0, editor);
+      expect(await finish(task)).toEqual({ ok: true });
+      expect(
+        await page.evaluate(() => {
+          const selected = document.getSelection();
+          return {
+            ranges: selected?.rangeCount,
+            anchor: selected?.anchorOffset,
+            focus: selected?.focusOffset,
+          };
+        }),
+      ).toEqual(
+        mode === 'clear'
+          ? { ranges: 0, anchor: 0, focus: 0 }
+          : mode === 'shorten'
+            ? { ranges: 1, anchor: 0, focus: 0 }
+            : { ranges: 1, anchor: 1, focus: 3 },
+      );
+      expect((await metrics()).errors).toEqual([]);
+    },
+  );
+
+  it('respects a selection chosen by a focus handler during editor restoration', async () => {
+    const editor =
+      '<div id="local-editor" contenteditable="true" tabindex="0">Local draft</div>';
+    await mount('<div id="other-row">Other</div>' + editor);
+    await page.evaluate(() => {
+      const editor = document.getElementById('local-editor');
+      const text = editor?.firstChild;
+      if (!editor || !text) throw new Error('Missing editor');
+      editor.focus();
+      document.getSelection()?.setBaseAndExtent(text, 8, text, 8);
+      editor.addEventListener('focus', () =>
+        document.getSelection()?.setBaseAndExtent(text, 1, text, 3),
+      );
+    });
+    const task = await start('refresh');
+    await respond(0, editor + '<div id="other-row">Other</div>');
+    expect(await finish(task)).toEqual({ ok: true });
+    expect(
+      await page.evaluate(() => ({
+        anchor: document.getSelection()?.anchorOffset,
+        focus: document.getSelection()?.focusOffset,
+      })),
+    ).toEqual({ anchor: 1, focus: 3 });
+  });
+
+  it.each(['replace', 'remove', 'noneditable', 'hidden'])(
+    'does not restore selection when an editor becomes %s',
+    async (mode) => {
+      const editor =
+        '<div id="local-editor" contenteditable="true" tabindex="0">Local draft</div>';
+      await mount('<div id="editor-row">' + editor + '</div>');
+      await page.evaluate(() => {
+        const editor = document.getElementById('local-editor');
+        const text = editor?.firstChild;
+        if (!editor || !text) throw new Error('Missing editor');
+        editor.focus();
+        document.getSelection()?.setBaseAndExtent(text, 8, text, 8);
+        window.nvRenderingSession.editorNodes = [text, text];
+        window.nvRenderingSession.editorRestores = 0;
+        const original = Selection.prototype.setBaseAndExtent;
+        Selection.prototype.setBaseAndExtent = function (...args) {
+          window.nvRenderingSession.editorRestores =
+            (window.nvRenderingSession.editorRestores ?? 0) + 1;
+          return original.apply(this, args);
+        };
+      });
+      const html =
+        mode === 'replace'
+          ? '<div id="editor-row" nv:replace="">' + editor + '</div>'
+          : mode === 'remove'
+            ? '<div id="editor-row">Removed</div>'
+            : '<div id="editor-row">' +
+              editor.replace(
+                'contenteditable="true"',
+                mode === 'hidden'
+                  ? 'contenteditable="true" hidden'
+                  : 'contenteditable="false"',
+              ) +
+              '</div>';
+      const task = await start('refresh');
+      await respond(0, html);
+      expect(await finish(task)).toEqual({ ok: true });
+      // Native selection may survive hiding or changing editability. The client
+      // must not actively restore an old range into an ineligible editor.
+      expect(
+        await page.evaluate(() => window.nvRenderingSession.editorRestores),
+      ).toBe(0);
+      const next = await start('save');
+      await respond(1, html);
+      expect(await finish(next)).toEqual({ ok: true });
+      expect((await metrics()).requests[1]?.revision).toBe(1);
+      expect((await metrics()).errors).toEqual([]);
+    },
+  );
+
+  it('samples the latest editor selection after a pending response and leaves outside focus alone', async () => {
+    const editor =
+      '<div id="local-editor" contenteditable="true" tabindex="0">Local draft</div>';
+    await mount('<div id="other-row">Other</div>' + editor);
+    const task = await start('refresh');
+    await page.evaluate(() => {
+      const outside = document.createElement('div');
+      outside.id = 'outside-editor';
+      outside.contentEditable = 'true';
+      outside.textContent = 'Outside draft';
+      document.body.append(outside);
+      const text = outside.firstChild;
+      if (!text) throw new Error('Missing outside editor');
+      outside.focus();
+      document.getSelection()?.setBaseAndExtent(text, 2, text, 7);
+    });
+    await respond(0, editor + '<div id="other-row">Other</div>');
+    expect(await finish(task)).toEqual({ ok: true });
+    expect(
+      await page.evaluate(() => ({
+        active: document.activeElement?.id,
+        text: document.getSelection()?.toString(),
+      })),
+    ).toEqual({ active: 'outside-editor', text: 'tside' });
+  });
+
   it.each([
     '<input id="focus-edit" disabled>',
     '<fieldset disabled><input id="focus-edit"></fieldset>',
