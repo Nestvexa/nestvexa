@@ -38,7 +38,17 @@ All registry observations above came from actual `pnpm view <package> version en
 
 ## Current Phase 3 acceptance
 
-The latest confirmation checkpoint at **2026-10-30T14:49:10.016Z** passed
+The latest eager-initialization checkpoint at **2026-10-30T16:29:56.204Z** passed
+**1,028 aggregate/219 three-browser checks**, seven tarballs/four external consumers
+and the source-bound Phase 3 regression gate. See the
+[saved evidence](../implementation/initialization-checkpoint-evidence-2026-10-30.json)
+for isolated runtime results and exact scope. Initialization ordering follows the
+[HTML microtask contract](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#microtask-queuing)
+after synchronous client/Alpine startup; async host readiness is not guaranteed.
+No dependency/version/platform support claim changed. Lazy/deferred timing,
+Linux/full release matrix and the rest of Phase 4 remain unfinished.
+
+The earlier confirmation checkpoint at **2026-10-30T14:49:10.016Z** passed
 **990 aggregate/204 three-browser checks** and seven tarballs/four external consumers.
 Isolated Windows Node **22.23.4** at **14:56:36.766Z** and **24.22.1** at
 **14:58:26.249Z** each passed strict compilation and the **990-test aggregate** on

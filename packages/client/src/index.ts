@@ -69,6 +69,8 @@ export interface LiveClientOptions {
   readonly confirm?: LiveConfirm;
   /** Approval deadline, 1–300000ms; default 30000ms. No request is sent on expiry. */
   readonly confirmationTimeoutMs?: number;
+  /** Automatic init attempts per mount lifecycle: 1–1000; default 64. Server quotas still apply. */
+  readonly maxInitializations?: number;
 }
 /** One bounded timing sample per phase of a dispatched request; no retained buffer. */
 export interface LiveDiagnostic {
@@ -115,6 +117,7 @@ interface Component {
   active: boolean;
   request: AbortController | null;
   failure: Error | null;
+  initialized: boolean;
 }
 function owner(element: Element): Element | null {
   return element.closest('[data-nv-component]');
@@ -138,6 +141,7 @@ function ignored(element: Element, component: Element): boolean {
   return false;
 }
 function validateDirectives(component: Element): void {
+  let initializers = 0;
   if (component.hasAttribute('nv:ignore'))
     throw new LiveClientError(
       'DIRECTIVE',
@@ -162,6 +166,14 @@ function validateDirectives(component: Element): void {
     for (const attribute of element.attributes)
       if (attribute.name.startsWith('nv:')) {
         const directive = parseDirective(attribute.name, attribute.value);
+        if (
+          directive.kind === 'init' &&
+          (++initializers > 1 || element.hasAttribute('nv:confirm'))
+        )
+          throw new LiveClientError(
+            'DIRECTIVE',
+            'Use one owned nv:init per component, separate from nv:confirm',
+          );
         if (
           directive.kind === 'confirm' &&
           ![...element.attributes].some((item) =>
@@ -288,6 +300,13 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   const window = view;
   const transport = options.fetch ?? window.fetch.bind(window);
   const timeout = requestTimeout(options.requestTimeoutMs);
+  const initLimit = options.maxInitializations ?? 64;
+  if (!Number.isSafeInteger(initLimit) || initLimit < 1 || initLimit > 1000)
+    throw new LiveClientError(
+      'DIRECTIVE',
+      'maxInitializations must be an integer from 1 through 1000',
+    );
+  let initializations = 0;
   const components = new Map<Element, Component>();
   let focus = createFocusController();
   let mounted = false;
@@ -683,6 +702,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
             active: true,
             request: null,
             failure: null,
+            initialized: false,
           };
           refreshBindings(state);
           components.set(element, state);
@@ -697,6 +717,57 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       syncDirectListeners();
     } catch (error) {
       report(error, null);
+    }
+    const initializers = new Map<Component, Element[]>();
+    const targets = [...root.querySelectorAll('[nv\\:init]')];
+    if (root.nodeType === 1 && (root as Element).hasAttribute('nv:init'))
+      targets.unshift(root as Element);
+    for (const target of targets) {
+      const state = registeredScope(target);
+      if (state && !state.initialized && !ignored(target, state.root)) {
+        const entries = initializers.get(state) ?? [];
+        entries.push(target);
+        initializers.set(state, entries);
+      }
+    }
+    for (const [state, targets] of initializers) {
+      state.initialized = true;
+      try {
+        const target = targets[0];
+        if (
+          !target ||
+          targets.length !== 1 ||
+          target.hasAttribute('nv:confirm')
+        )
+          throw new LiveClientError(
+            'DIRECTIVE',
+            'Use one owned nv:init per component, separate from nv:confirm',
+          );
+        const action = parseIdentifier(target.getAttribute('nv:init') ?? '');
+        if (++initializations > initLimit)
+          throw new LiveClientError(
+            'DIRECTIVE',
+            'Automatic initialization capacity reached',
+          );
+        window.queueMicrotask(() => {
+          try {
+            if (
+              registeredScope(target) !== state ||
+              failureFor(state) ||
+              ignored(target, state.root) ||
+              target.getAttribute('nv:init') !== action ||
+              target.hasAttribute('nv:confirm')
+            )
+              return;
+            validateDirectives(state.root);
+            void schedule(state, action, false).catch(() => undefined);
+          } catch (error) {
+            report(error, state.root);
+          }
+        });
+      } catch (error) {
+        report(error, state.root);
+      }
     }
   }
   function diagnostic(
@@ -1361,6 +1432,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       loading = createLoadingController(focus);
       mounted = true;
       generation++;
+      initializations = 0;
       dispatcher = createEventDispatcher({
         // The component queue reports transport errors once and suppresses released work.
         invoke: invokeEvent,

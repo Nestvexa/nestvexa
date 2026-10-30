@@ -16,7 +16,170 @@ import { readFile } from 'node:fs/promises';
 declare global {
   interface Window {
     nvLifecycleFixture: typeof import('../packages/client/dist/index.js');
+    nvInitSession: {
+      client: import('../packages/client/dist/index.js').LiveClient;
+      requests: {
+        body: InitBody;
+        action: string;
+        hostReady: boolean;
+        owner: Element;
+        resolve(response: Response): void;
+      }[];
+      errors: string[];
+      reply(index: number, status?: number, html?: string): void;
+    };
   }
+}
+
+interface InitBody {
+  requestId: string;
+  revision: number;
+  snapshot: string;
+}
+const initHtml =
+  '<section id="initializer" nv:init="load"><output id="count" nv:text="count">0</output><button id="refresh" type="button" nv:click="refresh">Refresh</button></section>';
+async function mountInit(
+  options: {
+    html?: string;
+    limit?: number;
+    count?: number;
+    after?:
+      | 'dispose'
+      | 'remove'
+      | 'ignore'
+      | 'action'
+      | 'modifier'
+      | 'duplicate'
+      | 'marker'
+      | 'island';
+  } = {},
+): Promise<void> {
+  await page.evaluate(
+    ({ html, options }) => {
+      const first = document.querySelector('[data-nv-component]');
+      if (!first) throw new Error('Missing initialization fixture');
+      first.id = 'parent';
+      first.innerHTML = options.html ?? html;
+      for (let index = 1; index < (options.count ?? 1); index++) {
+        const other = first.cloneNode(true) as Element;
+        other.id = `other-${index}`;
+        other.setAttribute('data-nv-component', `component-${index}`);
+        other.setAttribute('data-nv-name', `other-${index}`);
+        other.setAttribute('data-nv-endpoint', `/live/other-${index}`);
+        document.querySelector('main')?.append(other);
+      }
+      const requests: Window['nvInitSession']['requests'] = [];
+      const errors: string[] = [];
+      let hostReady = false;
+      const client = window.nvLifecycleFixture.createLiveClient({
+        ...(options.limit === undefined
+          ? {}
+          : { maxInitializations: options.limit }),
+        onError(error) {
+          errors.push(error.message);
+        },
+        fetch(url, init) {
+          const owner = [
+            ...document.querySelectorAll('[data-nv-component]'),
+          ].find((element) =>
+            String(url).startsWith(
+              new URL(
+                element.getAttribute('data-nv-endpoint') ?? '',
+                location.href,
+              ).href + '/',
+            ),
+          );
+          if (!owner) throw new Error('Missing request owner');
+          const body = JSON.parse(String(init?.body)) as InitBody;
+          return new Promise<Response>((resolve) =>
+            requests.push({
+              body,
+              owner,
+              action: String(url).split('/').at(-1) ?? '',
+              hostReady,
+              resolve,
+            }),
+          );
+        },
+      });
+      window.nvInitSession = {
+        client,
+        requests,
+        errors,
+        reply(index, status = 200, fragment = html) {
+          const request = requests[index];
+          if (!request) throw new Error('Missing initialization request');
+          request.resolve(
+            new Response(
+              JSON.stringify({
+                protocol: 'nestvexa-live/1',
+                requestId: request.body.requestId,
+                component: {
+                  id: request.owner.getAttribute('data-nv-component'),
+                  name: request.owner.getAttribute('data-nv-name'),
+                  revision: request.body.revision + 1,
+                },
+                snapshot: request.body.snapshot,
+                state: { count: request.body.revision + 1 },
+                html: fragment,
+              }),
+              { status, headers: { 'content-type': 'application/json' } },
+            ),
+          );
+        },
+      };
+      client.mount();
+      client.mount();
+      hostReady = true;
+      const target = first.querySelector('#initializer');
+      if (options.after === 'dispose') client.dispose();
+      else if (options.after === 'remove') target?.remove();
+      else if (options.after === 'ignore')
+        target?.setAttribute('nv:ignore', '');
+      else if (options.after === 'action')
+        target?.setAttribute('nv:init', 'different');
+      else if (options.after === 'modifier')
+        target?.setAttribute('nv:init.once', 'load');
+      else if (options.after === 'duplicate' && target)
+        first.append(target.cloneNode(true));
+      else if (options.after === 'marker')
+        first.setAttribute('data-nv-revision', '99');
+      else if (options.after === 'island')
+        first.setAttribute('data-nv-island', 'owned-by-another-renderer');
+    },
+    { html: initHtml, options },
+  );
+}
+async function initState() {
+  return page.evaluate(() => ({
+    actions: window.nvInitSession.requests.map((request) => request.action),
+    revisions: window.nvInitSession.requests.map(
+      (request) => request.body.revision,
+    ),
+    errors: window.nvInitSession.errors,
+  }));
+}
+async function initReply(
+  index: number,
+  status = 200,
+  html?: string,
+): Promise<void> {
+  await page.evaluate(
+    ({ index, status, html }) =>
+      window.nvInitSession.reply(index, status, html),
+    { index, status, html },
+  );
+  await page.waitForFunction(
+    ({ index, status }) =>
+      status === 200
+        ? Number(
+            window.nvInitSession.requests[index]?.owner.getAttribute(
+              'data-nv-revision',
+            ),
+          ) > (window.nvInitSession.requests[index]?.body.revision ?? Infinity)
+        : window.nvInitSession.errors.length > 0,
+    { index, status },
+  );
 }
 
 let browser: Browser;
@@ -90,7 +253,10 @@ beforeEach(async () => {
   await page.waitForFunction(() => Reflect.has(window, 'nvLifecycleFixture'));
 });
 afterEach(async () => {
-  if (page) await page.close();
+  if (page) {
+    await page.evaluate(() => window.nvInitSession?.client.dispose());
+    await page.close();
+  }
 });
 afterAll(async () => {
   if (browser) await browser.close();
@@ -98,6 +264,157 @@ afterAll(async () => {
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),
     );
+});
+
+describe('automatic initialization in actual Chromium with controlled transport', () => {
+  it('initializes once after registration, then retains the attempt across ordinary and replaced fragments', async () => {
+    await mountInit();
+    expect((await initState()).actions).toEqual(['load']);
+    await initReply(0);
+    await page.locator('#refresh').click();
+    await initReply(
+      1,
+      200,
+      initHtml.replace('<section ', '<section nv:replace.self '),
+    );
+    expect(await initState()).toEqual({
+      actions: ['load', 'refresh'],
+      revisions: [0, 1],
+      errors: [],
+    });
+  });
+  it('runs only after the synchronous host mounting turn completes', async () => {
+    await mountInit();
+    expect((await initState()).actions).toEqual(['load']);
+    expect(
+      await page.evaluate(() => window.nvInitSession.requests[0]?.hostReady),
+    ).toBe(true);
+    expect(await page.locator('#parent').getAttribute('aria-busy')).toBe(
+      'true',
+    );
+    await initReply(0);
+    expect(await page.locator('#count').textContent()).toBe('1');
+  });
+  it.each([
+    'dispose',
+    'remove',
+    'ignore',
+    'action',
+    'modifier',
+    'duplicate',
+    'marker',
+    'island',
+  ] as const)('does not dispatch after pre-microtask %s', async (after) => {
+    await mountInit({ after });
+    expect((await initState()).actions).toEqual([]);
+  });
+  it('does not retry a rejected initialization when another action renders its directive again', async () => {
+    await mountInit();
+    await initReply(0, 403);
+    await page.locator('#refresh').click();
+    await initReply(1);
+    expect((await initState()).actions).toEqual(['load', 'refresh']);
+    expect((await initState()).errors).toHaveLength(1);
+  });
+  it('initializes when the first declaration arrives in a later valid server fragment', async () => {
+    await mountInit({ html: initHtml.replace(' nv:init="load"', '') });
+    expect((await initState()).actions).toEqual([]);
+    await page.locator('#refresh').click();
+    await initReply(0);
+    await page.waitForFunction(
+      () => window.nvInitSession.requests.length === 2,
+    );
+    expect((await initState()).actions).toEqual(['refresh', 'load']);
+    expect((await initState()).revisions).toEqual([0, 1]);
+    await initReply(1);
+    expect((await initState()).actions).toEqual(['refresh', 'load']);
+  });
+  it('does not restore a canceled attempt when a later fragment introduces the declaration again', async () => {
+    await mountInit({ after: 'remove' });
+    await page.evaluate(() => {
+      const root = document.querySelector('#parent');
+      if (!root) throw new Error('Missing initializer owner');
+      void window.nvInitSession.client.call(root, 'refresh');
+    });
+    await initReply(0);
+    expect((await initState()).actions).toEqual(['refresh']);
+  });
+  it('reruns only after an explicit disposal/remount, using the current revision', async () => {
+    await mountInit();
+    await initReply(0);
+    await page.evaluate(() => {
+      window.nvInitSession.client.dispose();
+      window.nvInitSession.client.mount();
+    });
+    await initReply(1);
+    expect((await initState()).revisions).toEqual([0, 1]);
+  });
+  it('bounds automatic requests across different components', async () => {
+    await mountInit({ count: 3, limit: 2 });
+    expect((await initState()).actions).toEqual(['load', 'load']);
+    expect((await initState()).errors).toEqual([
+      'Automatic initialization capacity reached',
+    ]);
+  });
+  it('defaults to a maximum of 64 attempts per client lifecycle', async () => {
+    await mountInit({ count: 65 });
+    expect((await initState()).actions).toHaveLength(64);
+    expect((await initState()).errors).toEqual([
+      'Automatic initialization capacity reached',
+    ]);
+  });
+  it.each([0, -1, 0.5, NaN, Infinity, 1001])(
+    'rejects invalid initialization capacity %s',
+    async (limit) => {
+      const message = await page.evaluate((limit) => {
+        try {
+          window.nvLifecycleFixture.createLiveClient({
+            maxInitializations: limit,
+          });
+          return '';
+        } catch (error) {
+          return error instanceof Error ? error.message : '';
+        }
+      }, limit);
+      expect(message).toContain('maxInitializations');
+    },
+  );
+  it.each([
+    '<section nv:init="load()"></section>',
+    '<section nv:init.once="load"></section>',
+    '<section nv:init="load"><p nv:init="load"></p></section>',
+    '<button nv:init="load" nv:click="refresh" nv:confirm="Continue?">Bad combination</button>',
+  ])('rejects invalid markup before automatic execution', async (html) => {
+    await mountInit({ html });
+    expect((await initState()).actions).toEqual([]);
+    expect((await initState()).errors).toHaveLength(1);
+  });
+  it('ignores initializers owned by whole-ignore and framework boundaries', async () => {
+    await mountInit({
+      html: '<aside nv:ignore><span nv:init="load"></span></aside><div data-nv-island="chart"><span nv:init="load"></span></div>',
+    });
+    expect((await initState()).actions).toEqual([]);
+  });
+  it('runs a newly inserted component independently of a retained parent', async () => {
+    await mountInit();
+    await initReply(0);
+    await page.evaluate(() => {
+      const parent = document.getElementById('parent');
+      if (!parent) throw new Error('Missing parent');
+      const child = parent.cloneNode(true) as Element;
+      child.id = 'child';
+      child.setAttribute('data-nv-component', 'child-component');
+      child.setAttribute('data-nv-name', 'child');
+      child.setAttribute('data-nv-endpoint', '/live/child');
+      child.setAttribute('data-nv-revision', '0');
+      parent.append(child);
+    });
+    await page.waitForFunction(
+      () => window.nvInitSession.requests.length === 2,
+    );
+    await initReply(1);
+    expect((await initState()).actions).toEqual(['load', 'load']);
+  });
 });
 
 describe('real-browser Live client lifecycle', () => {

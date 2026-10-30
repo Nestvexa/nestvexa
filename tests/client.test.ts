@@ -7,6 +7,26 @@ import {
 } from '../packages/client/dist/index.js';
 
 describe('browser protocol boundary', () => {
+  it('parses initialization as a registered action identifier', () => {
+    expect(parseDirective('nv:init', 'load')).toEqual({
+      kind: 'init',
+      value: 'load',
+    });
+  });
+  it.each(['', 'load()', 'a.b', 'constructor', '__proto__'])(
+    'rejects invalid initialization action %s',
+    (action) => {
+      expect(() => parseDirective('nv:init', action)).toThrow();
+    },
+  );
+  it.each([
+    'nv:init.once',
+    'nv:init.lazy',
+    'nv:init.debounce.100ms',
+    'nv:init.visible',
+  ])('rejects unsupported initialization modifiers %s', (name) => {
+    expect(() => parseDirective(name, 'load')).toThrow();
+  });
   it('imports without accessing a browser and fails explicitly when mounted without one', () => {
     expect(() => createLiveClient()).toThrow('browser document');
   });

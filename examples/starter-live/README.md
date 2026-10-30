@@ -1,5 +1,11 @@
 # Default Live starter
 
+`/init` demonstrates eager [`nv:init`](../../docs/reference/nv-init.md), request
+loading and retained Alpine local state. `/init/denied` demonstrates server denial
+without automatic retry. The initial HTML remains available without JavaScript;
+this is not a lazy-hydration or progressive-action example. See the
+[real-server browser cases](../../tests/browser/initialization.spec.ts).
+
 The work-board removal button demonstrates [`nv:confirm`](../../docs/reference/nv-confirm.md)
 with a native prompt, keyboard cancellation/approval and a real session-bound Nest
 action. Empty lists can add new items again. This changes public seed data only;

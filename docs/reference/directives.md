@@ -2,24 +2,25 @@
 
 This alpha implements the following configuration grammar. Names identify registered actions or top-level public state. Expressions, dotted paths, executable JavaScript and unrecognized modifiers are rejected explicitly. The complete directive matrix in the master plan remains unmet.
 
-| Directive                   | Current behavior                                                                                |
-| --------------------------- | ----------------------------------------------------------------------------------------------- |
-| `nv:click="increment"`      | Calls a registered action; disabled controls are ignored                                        |
-| `nv:submit="save"`          | Prevents native submission and suppresses duplicate pending submits                             |
-| `nv:keydown.enter="save"`   | Calls a registered action when the selected keyboard event matches                              |
-| `nv:model="name"`           | Holds native form-control edits until an action; explicit modifiers enable synchronization      |
-| `nv:loading=""`             | Displays pending status; optional targets/classes/allowlisted attributes track queued requests  |
-| `nv:target="save,$sync"`    | Selects 1–16 action/synchronization identifiers for loading directives on the same element      |
-| `nv:replace=""`             | Replaces children of an owned inner wrapper; `.self` replaces the wrapper too                   |
-| `nv:ignore=""`              | Preserves the subtree; put independently owned Alpine widgets here                              |
-| `nv:ignore.self=""`         | Retains an inner wrapper's attributes while descendants remain Live-owned                       |
-| `nv:text="name"`            | Sets primitive `textContent`; rejects targets containing elements or form controls              |
-| `nv:show="visible"`         | Requires a boolean; toggles visibility/ARIA and moves focus before hiding focused content       |
-| `nv:bind="title:name"`      | Binds one allowed attribute to public state                                                     |
-| `nv:dirty="name"`           | Shows an indicator for pending local edits; empty value targets any field                       |
-| `nv:cloak=""`               | Removed after successful initialization; add matching CSS to prevent initial flashing           |
-| `nv:ref="name"`             | Declares a unique owned reference returned by `client.refs(element)`                            |
-| `nv:confirm="Remove item?"` | Requires native or custom async approval before an event action; see [reference](nv-confirm.md) |
+| Directive                   | Current behavior                                                                                    |
+| --------------------------- | --------------------------------------------------------------------------------------------------- |
+| `nv:click="increment"`      | Calls a registered action; disabled controls are ignored                                            |
+| `nv:submit="save"`          | Prevents native submission and suppresses duplicate pending submits                                 |
+| `nv:keydown.enter="save"`   | Calls a registered action when the selected keyboard event matches                                  |
+| `nv:model="name"`           | Holds native form-control edits until an action; explicit modifiers enable synchronization          |
+| `nv:loading=""`             | Displays pending status; optional targets/classes/allowlisted attributes track queued requests      |
+| `nv:target="save,$sync"`    | Selects 1–16 action/synchronization identifiers for loading directives on the same element          |
+| `nv:replace=""`             | Replaces children of an owned inner wrapper; `.self` replaces the wrapper too                       |
+| `nv:ignore=""`              | Preserves the subtree; put independently owned Alpine widgets here                                  |
+| `nv:ignore.self=""`         | Retains an inner wrapper's attributes while descendants remain Live-owned                           |
+| `nv:text="name"`            | Sets primitive `textContent`; rejects targets containing elements or form controls                  |
+| `nv:show="visible"`         | Requires a boolean; toggles visibility/ARIA and moves focus before hiding focused content           |
+| `nv:bind="title:name"`      | Binds one allowed attribute to public state                                                         |
+| `nv:dirty="name"`           | Shows an indicator for pending local edits; empty value targets any field                           |
+| `nv:cloak=""`               | Removed after successful initialization; add matching CSS to prevent initial flashing               |
+| `nv:ref="name"`             | Declares a unique owned reference returned by `client.refs(element)`                                |
+| `nv:confirm="Remove item?"` | Requires native or custom async approval before an event action; see [reference](nv-confirm.md)     |
+| `nv:init="load"`            | One eager registered-action attempt per component registration; see [timing and limits](nv-init.md) |
 
 Attribute bindings allow `title`, `aria-label`, `aria-expanded`, `aria-disabled`, `href`, `src`, `disabled` and `readonly`. Boolean attributes require booleans. URLs accept HTTP(S) or relative URLs, rejecting credentials, whitespace/control characters and executable schemes. No style, event-handler, `srcdoc` or HTML binding exists.
 

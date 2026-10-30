@@ -6398,14 +6398,38 @@
       "id": "DIR-010",
       "priority": "P1",
       "package": "@nestvexa/client",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/client/src/index.ts",
+        "packages/client/src/protocol.ts"
+      ],
+      "testFiles": [
+        "tests/client.test.ts",
+        "tests/client-lifecycle.test.ts",
+        "tests/browser/initialization.spec.ts"
+      ],
+      "docs": [
+        "docs/reference/nv-init.md",
+        "docs/adr/0013-initialization-lifecycle.md",
+        "packages/client/README.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/startup-panel.ts",
+        "examples/starter-live/views/startup-panel.hbs",
+        "examples/starter-live/src/main.ts"
+      ],
+      "securityNotes": "One consumed attempt per registration; bounded automatic capacity, strict identifiers and ownership/marker/directive revalidation before the ordinary authorized Nest action queue. No retries or privileged server lifecycle claim. Important effects require host idempotency.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-30T16:29:56.204Z",
+          "report": "docs/implementation/initialization-checkpoint-evidence-2026-10-30.json"
+        }
+      ],
+      "outstandingIssues": [
+        "Eager timing only. Lazy/deferred component timing and complete hydration reset integration remain unfinished; do not mark the full requirement Done."
+      ]
     },
     {
       "sourceKey": "b82344d59ecc74e038ca7a3076711d4259f783844c025db60aca26d0bd4deb31",
@@ -15819,17 +15843,23 @@
       "testFiles": [
         "tests/client.test.ts",
         "tests/client-confirmation.test.ts",
-        "tests/browser/confirmation.spec.ts"
+        "tests/browser/confirmation.spec.ts",
+        "tests/client-lifecycle.test.ts",
+        "tests/browser/initialization.spec.ts"
       ],
       "docs": [
         "docs/reference/nv-confirm.md",
         "docs/adr/0012-confirmation-lifecycle.md",
-        "packages/client/README.md"
+        "packages/client/README.md",
+        "docs/reference/nv-init.md",
+        "docs/adr/0013-initialization-lifecycle.md"
       ],
       "examples": [
         "examples/starter-live/src/work-board.ts",
         "examples/starter-live/src/main.ts",
-        "examples/starter-live/views/board.hbs"
+        "examples/starter-live/views/board.hbs",
+        "examples/starter-live/src/startup-panel.ts",
+        "examples/starter-live/views/startup-panel.hbs"
       ],
       "securityNotes": "Plain-text approval is presentation only. True-only callback result, bounded deadline/capacity, ownership/configuration recheck and abort/disposal cleanup. Server CSRF, session ownership, authorization and revisions remain authoritative; native UI cannot be force-closed by browser timers.",
       "state": "InProgress",
@@ -15837,12 +15867,12 @@
         {
           "command": "pnpm checkpoint:check",
           "exitCode": 0,
-          "executedAt": "2026-10-30T14:49:10.016Z",
-          "report": "docs/implementation/confirmation-checkpoint-evidence-2026-10-30.json"
+          "executedAt": "2026-10-30T16:29:56.204Z",
+          "report": "docs/implementation/initialization-checkpoint-evidence-2026-10-30.json"
         }
       ],
       "outstandingIssues": [
-        "Confirmation accepted only. init/poll/intersect/offline/transition/sort/current/stream/navigate and complete modifier/browser acceptance remain unfinished; no Phase4 completion claim."
+        "Confirmation and eager initialization implemented. Lazy initialization timing, poll/intersect/offline/transition/sort/current/stream/navigate and complete modifier/browser acceptance remain unfinished; no Phase4 completion claim."
       ]
     },
     {

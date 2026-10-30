@@ -1,0 +1,22 @@
+<section aria-label="Startup content" nv:init="load">
+  <p id="startup-message" role="status">{{message}}</p>
+  <p>Load actions: <output id="startup-loads">{{loads}}</output></p>
+  <p>Refresh actions: <output id="startup-refreshes">{{refreshes}}</output></p>
+  <p nv:loading nv:target="load" role="status" hidden>Loading content</p>
+  <button type="button" nv:click="refresh" nv:loading.attr="disabled">
+    Refresh startup panel
+  </button>
+  <button type="button" nv:click="load" nv:loading.attr="disabled">
+    Explicitly load content
+  </button>
+  <aside nv:ignore x-data="{ clicks: 0 }" aria-label="Local startup state">
+    <button type="button" x-on:click="clicks++">Local startup click</button>
+    <output id="startup-local" x-text="clicks">0</output>
+  </aside>
+  <noscript
+    ><p>
+      Automatic loading requires JavaScript. The initial HTML and ordinary
+      navigation remain available.
+    </p></noscript
+  >
+</section>

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased: bounded eager initialization
+
+Added `nv:init` with one registered-action attempt per component registration,
+microtask dispatch after the synchronous mounting turn, capacity limits and
+ownership/disposal cancellation. Automatic retries are disabled. The startup
+panel example covers permitted and denied actions, loading and Alpine retention.
+Lazy/deferred scheduling remains unimplemented; the Live wire protocol is unchanged.
+
 ## Unreleased: confirmed browser actions
 
 Added plain-text `nv:confirm`, native dialog defaults and a typed asynchronous

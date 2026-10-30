@@ -24,7 +24,20 @@ The repository contains core configuration/registries, view contracts, an HBS en
 
 ## Resume and audit
 
-The current [confirmation checkpoint](confirmation-checkpoint-evidence-2026-10-30.json)
+The latest [initialization checkpoint](initialization-checkpoint-evidence-2026-10-30.json)
+at **2026-10-30T16:29:56.204Z** passed **1,028 aggregate tests and 219 three-browser
+checks**, seven tarballs/four external consumers, static checks, selected coverage,
+size, docs, benchmark and audit. The source-bound Phase 3 regression gate passed.
+Eager `nv:init` now has one consumed attempt per registration, a default 64-attempt
+client limit, dispatch-time ownership validation and no automatic retries. See
+[the reference](../reference/nv-init.md), [ADR 0013](../adr/0013-initialization-lifecycle.md)
+and the `/init`/`/init/denied` starter routes. DIR-010 remains **InProgress** because
+lazy/deferred timing is unfinished; no full Phase 4 acceptance is claimed.
+Ledger: **97 InProgress, 818 Pending, 10 Done**. Isolated Node22.23.4/24.22.1 each
+passed strict compilation and all 1,028 aggregate tests, without repeating the
+full browser/consumer matrix. Earlier checkpoint results below remain historical.
+
+The earlier [confirmation checkpoint](confirmation-checkpoint-evidence-2026-10-30.json)
 at **2026-10-30T14:49:10.016Z** passed **990 aggregate tests and 204 three-browser
 checks**, seven tarballs/four external consumers and all implemented-checkpoint
 gates; isolated Node22/24 strict+990 checks also passed. `nv:confirm` now has a

@@ -1,5 +1,12 @@
 # @nestvexa/client
 
+`nv:init="load"` schedules one eager registered-action attempt per component
+registration after the synchronous mounting turn. Manual entries can configure
+`maxInitializations` (default 64, integer 1–1,000). Ownership changes and disposal
+cancel undispatched work; failures never retry automatically. See the
+[initialization reference](../../docs/reference/nv-init.md) for replacement,
+remounting, capacity and the remaining lazy/deferred timing limitations.
+
 `nv:confirm` adds plain-text native confirmation to event actions. Advanced manual
 entries can supply `confirm: LiveConfirm` and `confirmationTimeoutMs`; the exported
 `LiveConfirmation` context includes an abort signal. See [the individual directive
@@ -31,7 +38,7 @@ client.mount();
 
 Install local packed artifacts while unpublished. Future npm/pnpm/yarn package name is `@nestvexa/client`. ESM output requires modern browsers with fetch, ReadableStream, TextDecoder, AbortController, crypto.randomUUID and MutationObserver. The local matrix includes Chromium, Firefox and WebKit; consult the latest report for pass/fail outcomes.
 
-Implemented directives: click, submit, keydown, model, loading/target, replace, ignore, text, show, bind, dirty, cloak and ref. Event modifiers support prevent/stop/self/once, keyboard/system filters, debounce and leading throttle; see the [exact grammar](../../docs/reference/directives.md). Unsupported modifiers/directives are rejected explicitly. Expressions are not evaluated. The optional [Alpine adapter](../alpine/README.md) supplies `$live.call/get/set` inside an ignored ownership boundary. The full master directive matrix remains unmet.
+Implemented directives: init, confirm, click, submit, keydown, model, loading/target, replace, ignore, text, show, bind, dirty, cloak and ref. Event modifiers support prevent/stop/self/once, keyboard/system filters, debounce and leading throttle; see the [exact grammar](../../docs/reference/directives.md). Unsupported modifiers/directives are rejected explicitly. Expressions are not evaluated. The optional [Alpine adapter](../alpine/README.md) supplies `$live.call/get/set` inside an ignored ownership boundary. The full master directive matrix remains unmet.
 
 `nv:ignore.self=""` retains an inner wrapper's current attributes while its children remain Live-owned. Classes, style, ARIA and IDs stay with the wrapper; use a stable `data-nv-key` if a widget changes its ID. Same-node `nv:*` configuration is fixed across retained updates: change the key or replace an ancestor to reconfigure it. Attribute/model/loading/replacement effects must target children instead. Native input/textarea/select/option/optgroup elements, editable wrappers and Live/island roots explicitly reject `.self`. Ordinary↔self ownership changes replace the wrapper and clean up removed children; an existing whole-ignore subtree remains opaque until key/ancestor replacement. Effective incoming attributes are projected before preview validation and native form-owner reconciliation. `.self` does not grant Alpine `$live` isolation or framework ownership of its children. See the [wrapper ownership guide](../../docs/guides/ignore-self.md) for exact restrictions and failure behavior.
 

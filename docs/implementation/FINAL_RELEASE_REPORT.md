@@ -1,8 +1,8 @@
 # Release checkpoint report — 2026-10-30
 
 **A. Status: NOT YET READY — BLOCKERS.** This is an interim report, not Phase 17
-acceptance. The latest Phase 4 confirmation checkpoint passed **990 aggregate
-tests and 204 browser checks**; Phase 4 is **InProgress**, with the rest of its
+acceptance. The latest Phase 4 initialization checkpoint passed **1,028 aggregate
+tests and 219 browser checks**; Phase 4 is **InProgress**, with the rest of its
 scope still incomplete. Phase 3 tasks 3.1–3.7 and their exit gate passed first on Windows:
 **929 aggregate tests, 192 browser checks, seven tarballs/four external consumers**.
 The [acceptance review](phase3-acceptance.md) and [saved gate](phase3-acceptance-evidence-2026-10-30.json)
@@ -53,7 +53,62 @@ Native multiple-select models now use bounded unique flat string/number/boolean 
 
 ## C. Evidence
 
-### Current confirmation checkpoint
+### Current eager initialization checkpoint
+
+The full Windows/host Node 24.13.0 runner at **2026-10-30T16:29:56.204Z** passed
+frozen install, formatting/lint, strict build/typecheck, **1,028/1,028 aggregate
+tests**, selected coverage, size, **219/219 Chromium/Firefox/WebKit checks**, seven
+tarballs in four full/minimal external npm/pnpm consumers, docs, ledger, benchmark
+and audit. No pending/skipped/unexpected/flaky results or browser runner errors
+were reported. Pack timestamp: **2026-10-30T16:39:06.529Z**. Audit reported no known
+vulnerabilities. The source-bound Phase 3 regression gate passed at
+**2026-10-30T17:20:28.348Z**. `release:check` intentionally exited 1 because the
+master remains incomplete. Command timings, source/report/ledger/tarball hashes
+and isolated runtime outcomes are preserved in the
+[initialization evidence](initialization-checkpoint-evidence-2026-10-30.json).
+
+Isolated Windows Node **22.23.4** at **2026-10-30T17:20:32.199Z** and **24.22.1**
+at **2026-10-30T17:23:04.678Z** each passed strict compilation and all **1,028
+aggregate tests**. These runs do not repeat the full browser/consumer matrix under
+both binaries. An additional packed initialization API probe passed strict
+compilation and runtime parser checks in both full npm/pnpm consumers. Its first
+invocations needed TypeScript 6's explicit `--ignoreConfig` and `--types node`
+flags; those probe corrections changed no package source or normal consumer config.
+
+The added corpus contains **10 parser cases, 28 controlled Chromium cases and
+15 real Nest checks across three browsers**. It covers one-time attempts, repeated
+mount, replacement, late declaration, independent inserted components, canceled
+attempt retention, disposal/remount, capacity, malformed declarations, synchronous
+startup ordering, denied actions, CSRF and session isolation, Alpine retention,
+loading, no-JavaScript HTML/navigation and automated accessibility. A raw authorized
+request may call `load` again: the directive is not durable business idempotency.
+
+The first two scoped browser attempts passed 12/15 checks: the no-JavaScript test
+first selected both legitimate `noscript` elements, then used a matcher that
+excludes `noscript` text. Inspection confirmed the fallback was present in the
+actual DOM. The final test selects its rendered paragraph; all 15 scoped checks
+and the full 219-check run passed. A separate scoped launch found the manually
+started diagnostic server still listening; its verified process was stopped
+before rerunning. No test, browser project or accessibility rule was disabled.
+
+Custom client output is **146,232 raw / 35,049 summed per-module gzip bytes across
+14 modules**, below the unchanged 35,840-byte cap, excluding Alpine/adapter/maps.
+No runtime dependency, asset module or Live wire field was added. This is a size
+estimate, not observed HTTP compression or total startup cost. Selected coverage
+remains **97.18% branches / 98.20% statements in three configuration/protocol/store
+files**, excluding the client and most project code. The cached-HBS-only benchmark
+at **2026-10-30T16:41:34.749Z**, 1,000 iterations on the recorded Windows/i7 host,
+measured p50 **0.1847ms**, p95 **0.2816ms**, p99 **0.3532ms** before isolated runtime
+runs. It is not an end-to-end/plain-Nest comparison or improvement claim.
+
+The [reference](../reference/nv-init.md), [ADR 0013](../adr/0013-initialization-lifecycle.md)
+and example document eager timing, consumed failures, 64 default attempts, explicit
+remount behavior and ordinary server authorization. **DIR-010 remains InProgress**:
+lazy/deferred timing and complete hydration integration are unmet. Ledger:
+**97 InProgress, 818 Pending, 10 Done**. Manual assistive-technology acceptance,
+Linux/full matrix, remaining Phase 4 features and release gates remain open.
+
+### Earlier confirmation checkpoint
 
 The full Windows/host Node 24.13.0 runner at **2026-10-30T14:49:10.016Z** passed
 frozen install, format/lint, strict build/typecheck, **990/990 aggregate tests**,

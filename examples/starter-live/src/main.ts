@@ -23,6 +23,7 @@ import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import session from 'express-session';
 import { WorkBoard } from './work-board.js';
+import { StartupPanel, DeniedStartupPanel } from './startup-panel.js';
 
 declare module 'express-session' {
   interface SessionData {
@@ -156,6 +157,34 @@ class Pages {
   about() {
     return { title: 'About this starter' };
   }
+  @Get('init')
+  @Header('Cache-Control', 'no-store')
+  @Header(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+  )
+  @Render('home')
+  async startup(@Req() request: SessionRequest) {
+    request.session.csrf ??= randomBytes(32).toString('base64url');
+    return {
+      title: 'Automatic startup panel',
+      widget: await this.live.mount(StartupPanel, request),
+    };
+  }
+  @Get('init/denied')
+  @Header('Cache-Control', 'no-store')
+  @Header(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+  )
+  @Render('home')
+  async deniedStartup(@Req() request: SessionRequest) {
+    request.session.csrf ??= randomBytes(32).toString('base64url');
+    return {
+      title: 'Denied startup action',
+      widget: await this.live.mount(DeniedStartupPanel, request),
+    };
+  }
   @Get('api/health')
   health() {
     return { status: 'ok' };
@@ -167,7 +196,7 @@ class Pages {
     NestvexaModule.forRoot(
       { views: { root, layout: 'layout' }, live: { enabled: true } },
       {
-        components: [Counter, WorkBoard],
+        components: [Counter, WorkBoard, StartupPanel, DeniedStartupPanel],
         useFactory: () => ({
           origin: `http://127.0.0.1:${port}`,
           resolveIdentity(request: object) {
@@ -180,6 +209,10 @@ class Pages {
             };
           },
           authorize: (_identity, component, action) =>
+            (component === 'startup-panel' &&
+              ['$mount', 'load', 'refresh'].includes(action)) ||
+            (component === 'startup-denied' &&
+              ['$mount', 'refresh'].includes(action)) ||
             (component === 'work-board' &&
               ['$mount', '$sync', 'sort', 'add', 'removeFirst'].includes(
                 action,

@@ -8,7 +8,10 @@ import { parseLoadingDirective, parseLoadingTarget } from './loading.js';
 import type { LoadingDirective } from './loading.js';
 export { LiveClientError, parseIdentifier } from './grammar.js';
 export type LiveDirective =
-  | { readonly kind: 'click' | 'submit' | 'model'; readonly value: string }
+  | {
+      readonly kind: 'click' | 'submit' | 'model' | 'init';
+      readonly value: string;
+    }
   | { readonly kind: 'loading' | 'ignore'; readonly value: '' }
   | { readonly kind: 'ignore'; readonly self: true; readonly value: '' }
   | BindingDirective
@@ -28,7 +31,12 @@ export function parseDirective(name: string, value: string): LiveDirective {
   if (!name.startsWith('nv:'))
     throw new LiveClientError('DIRECTIVE', 'Expected an nv: directive');
   if (kind === 'confirm') return { kind, message: parseConfirmation(value) };
-  if (kind === 'click' || kind === 'submit' || kind === 'model')
+  if (
+    kind === 'click' ||
+    kind === 'submit' ||
+    kind === 'model' ||
+    kind === 'init'
+  )
     return { kind, value: parseIdentifier(value) };
   if (/^nv:(?:click|submit|keydown)(?:\.|$)/.test(name))
     return parseEventDirective(name, value);
