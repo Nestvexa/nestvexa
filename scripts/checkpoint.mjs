@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
+import { sourceFingerprint } from './source-fingerprint.mjs';
 
 const manager = process.env.npm_execpath;
 if (!manager) throw new Error('Run with pnpm checkpoint:check.');
@@ -13,6 +14,7 @@ const report = {
     'Current implemented checkpoint; incomplete master release gates remain blocking',
   passed: false,
   releaseReady: false,
+  sourceSha256: await sourceFingerprint(),
   commands: [],
 };
 const commands = [
@@ -59,6 +61,7 @@ for (const args of commands) {
   if (result.status !== 0 && args[0] !== 'release:check') break;
 }
 report.passed =
+  report.sourceSha256 === (await sourceFingerprint()) &&
   report.commands.length === commands.length &&
   report.commands
     .filter((entry) => entry.command !== 'pnpm release:check')

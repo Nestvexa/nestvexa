@@ -20,6 +20,12 @@ For the cookie-backed Live counter, run `pnpm --filter @nestvexa/example-live-co
 
 For the integrated default setup, run `pnpm --filter @nestvexa/example-starter-live start` and open `http://127.0.0.1:3102`. It uses one HBS engine for MVC and Live, `{{nvScripts}}` in its layout, and automatic CSP Alpine/client startup. See the [default Live guide](docs/guides/default-live-setup.md) for required host session and authorization policies.
 
+Open `/board` in that starter for live search, keyed table sorting and a validated
+form with keyboard submission and isolated Alpine notes. The
+[Phase 3 acceptance review](docs/implementation/phase3-acceptance.md) records its
+executed gate; this does not make the complete project release-ready. Advanced
+manual client entries can opt into [redacted browser timings](docs/guides/client-diagnostics.md).
+
 The starter also demonstrates [keyboard focus after server updates](docs/guides/focus-restoration.md), including controls made disabled or hidden while a response is pending. This is scoped behavior verification; complete accessibility acceptance remains open.
 
 Its [local editable example](docs/guides/focus-restoration.md#local-editable-selection) keeps retained caret/range positions through keyed reordering, without sending draft HTML as Live state. Plugin, cross-editor and replaced-node selections require their own host policy.

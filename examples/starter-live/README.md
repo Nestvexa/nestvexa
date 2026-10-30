@@ -1,5 +1,14 @@
 # Default Live starter
 
+Open `/board` for a real HBS/decorator work table with live search, keyed sorting,
+server-validated keyboard submission, pending/dirty/error states and an ignored
+Alpine notes widget. Its seeded public data is session-bound and limited to 50
+items; it is not a persistent CRUD/auth starter. [Browser scenarios](../../tests/browser/phase3-board.spec.ts)
+exercise real endpoints, negative state writes, accessibility and a rendered
+visual round trip. `/board/ownership` supplies two independent server-mounted
+roots for the explicit nested DOM ownership fixture; it is not the Phase 4
+parent/child lifecycle API.
+
 Build from the repository root with `pnpm install --frozen-lockfile && pnpm build`, then run `pnpm --filter @nestvexa/example-starter-live start` and open <http://127.0.0.1:3102>.
 
 This example imports the server API from `nestvexa`, registers a counter and explicit host policies, shares HBS between MVC and Live, and uses `{{nvScripts}}` for automatic client/Alpine CSP startup. It has no frontend build tool or direct Live/client/Alpine package dependency. Native `/api/health` and `/about` remain ordinary Nest routes. The ignored Alpine widget preserves local state while the counter updates.

@@ -59,6 +59,7 @@ declare global {
       requests: TransportRequest[];
       results: (TaskResult | null)[];
       errors: { code: string | null; message: string }[];
+      diagnostics: import('../packages/client/dist/index.js').LiveDiagnostic[];
       reply(index: number, spec?: Reply): void;
     };
   }
@@ -139,10 +140,11 @@ interface MountOptions {
   second?: boolean;
   nested?: boolean;
   live?: boolean;
+  diagnostics?: 'collect' | 'throw';
 }
 /** Actual Chromium with deliberately controlled fetch/streams; not Nest protocol conformance. */
 async function mount(options: MountOptions = { timeout: 100 }): Promise<void> {
-  await page.evaluate(({ timeout, second, nested, live }) => {
+  await page.evaluate(({ timeout, second, nested, live, diagnostics }) => {
     const html = (name: string) =>
       `<form id="${name}-form" nv:submit="save"><label for="${name}-edit">Query</label><input id="${name}-edit" nv:model${live ? '.live.debounce.25ms' : ''}="query" value="initial"><button type="submit">Save</button></form><button id="${name}-slow" type="button" nv:click="slow" nv:loading.attr="disabled" nv:target="slow">Slow</button><span id="${name}-loading" nv:loading="" nv:target="slow" hidden>Pending</span><output id="${name}-count" nv:text="count">0</output><output id="${name}-query" nv:text="query">initial</output>`;
     const createRoot = (name: string, number: number) => {
@@ -170,8 +172,23 @@ async function mount(options: MountOptions = { timeout: 100 }): Promise<void> {
     const requests: TransportRequest[] = [];
     const results: (TaskResult | null)[] = [];
     const errors: { code: string | null; message: string }[] = [];
+    const samples: import('../packages/client/dist/index.js').LiveDiagnostic[] =
+      [];
     const client = window.nvTransportFixture.createLiveClient({
       ...(timeout === undefined ? {} : { requestTimeoutMs: timeout }),
+      ...(diagnostics
+        ? {
+            onDiagnostic(
+              event: import('../packages/client/dist/index.js').LiveDiagnostic,
+            ) {
+              if (!Object.isFrozen(event))
+                throw new Error('Mutable diagnostic');
+              samples.push(event);
+              if (diagnostics === 'throw')
+                throw new Error('Private sink failure');
+            },
+          }
+        : {}),
       onError(error) {
         errors.push({
           code:
@@ -200,6 +217,7 @@ async function mount(options: MountOptions = { timeout: 100 }): Promise<void> {
       requests,
       results,
       errors,
+      diagnostics: samples,
       reply(index, spec = {}) {
         const request = requests[index];
         if (!request) throw new Error('Missing pending transport request');
@@ -342,6 +360,90 @@ async function metrics() {
 }
 
 describe('bounded browser request lifecycle', () => {
+  it('keeps diagnostics disabled by default', async () => {
+    await mount();
+    const task = await start();
+    await reply(0);
+    expect(await result(task)).toEqual({ ok: true, code: null });
+    expect(
+      await page.evaluate(() => window.nvTransportSession.diagnostics),
+    ).toEqual([]);
+  });
+
+  it('measures separate queued, request and morph phases without private data or sink coupling', async () => {
+    await mount({ timeout: 1000, diagnostics: 'throw' });
+    const first = await start();
+    const second = await start('save');
+    await page.clock.runFor(40);
+    await reply(0);
+    await page.clock.runFor(20);
+    await reply(1);
+    for (const task of [first, second])
+      expect(await result(task)).toEqual({ ok: true, code: null });
+    const samples = await page.evaluate(
+      () => window.nvTransportSession.diagnostics,
+    );
+    expect(samples.map(({ phase, outcome }) => ({ phase, outcome }))).toEqual(
+      [0, 1].flatMap(() =>
+        ['queue', 'request', 'morph'].map((phase) => ({
+          phase,
+          outcome: 'succeeded',
+        })),
+      ),
+    );
+    expect(samples[1]?.milliseconds).toBe(40);
+    expect(samples[3]?.milliseconds).toBe(40);
+    expect(samples[4]?.milliseconds).toBe(20);
+    for (const sample of samples) {
+      expect(Object.keys(sample).sort()).toEqual([
+        'milliseconds',
+        'outcome',
+        'phase',
+      ]);
+      expect(
+        Number.isFinite(sample.milliseconds) && sample.milliseconds >= 0,
+      ).toBe(true);
+    }
+    expect((await metrics()).errors).toEqual([]);
+    expect(await page.locator('#parent').getAttribute('aria-busy')).toBe(
+      'false',
+    );
+  });
+
+  it.each(['rejection', 'invalid-fragment', 'dispose'] as const)(
+    'reports %s with bounded phase outcomes',
+    async (mode) => {
+      await mount({ timeout: 1000, diagnostics: 'collect' });
+      const task = await start();
+      if (mode === 'dispose') {
+        await page.evaluate(() => window.nvTransportSession.client.dispose());
+        await page.clock.runFor(0);
+      } else
+        await reply(
+          0,
+          mode === 'rejection'
+            ? { status: 422 }
+            : { html: '<script>private payload</script>' },
+        );
+      const samples = await page.evaluate(
+        () => window.nvTransportSession.diagnostics,
+      );
+      expect(samples.map(({ phase }) => phase)).toEqual(
+        mode === 'invalid-fragment'
+          ? ['queue', 'request', 'morph']
+          : ['queue', 'request'],
+      );
+      expect(samples.at(-1)?.outcome).toBe(
+        mode === 'dispose' ? 'cancelled' : 'failed',
+      );
+      expect(await result(task)).toEqual(
+        mode === 'dispose'
+          ? { ok: true, code: null }
+          : { ok: false, code: mode === 'rejection' ? 'HTTP' : 'HTML' },
+      );
+    },
+  );
+
   it.each([0, -1, 0.5, NaN, Infinity, 300_001])(
     'rejects invalid request deadline %s',
     async (timeout) => {

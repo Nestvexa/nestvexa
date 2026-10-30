@@ -1,5 +1,7 @@
 # @nestvexa/client
 
+Opt-in `onDiagnostic` emits frozen, redacted queue/request/morph timing samples, with isolated sink failures and no retained buffer. Collection is disabled by default; see [browser timing diagnostics](../../docs/guides/client-diagnostics.md). The protocol and mutation/retry policy are unchanged.
+
 Native multiple selects support bounded flat array models with strict option catalogs, ordered dirty equality, shared aliases and reset. See [array behavior and limits](../../docs/guides/multiple-select.md); checkbox groups, file models and generic programmatic array setters remain unsupported.
 
 Retained local editable hosts preserve a single native caret or forward/backward selection through keyed moves, to the [documented ownership and node-identity limits](../../docs/guides/focus-restoration.md#local-editable-selection). Range restoration precedes focus so host focus handlers keep their final choice. This does not expose editor HTML as model state or add rich-text form support.

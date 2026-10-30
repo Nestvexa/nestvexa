@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "timestamp": "2026-10-30T09:40:24.072Z",
+  "phase": 3,
+  "passed": true,
+  "scope": "Tasks 3.1–3.7 and HBS reactive form/table exit gate on the executed environment; not acceptance of phases 0–2 or 4–17, Linux, the full release matrix or independent security review.",
+  "environment": {
+    "node": "v24.13.0",
+    "platform": "win32"
+  },
+  "checkpointTimestamp": "2026-10-30T09:35:07.311Z",
+  "sourceSha256": "22142c5d79e8fc67bd02b2e83a1247e03bb8be81140491e95dbc8fe604ca3359",
+  "aggregateTests": 929,
+  "browserChecks": 192,
+  "evidence": {
+    "3.1": [
+      "packages/client/src/index.ts",
+      "packages/alpine/src/index.ts",
+      "tests/alpine-start.test.ts",
+      "tests/browser/default-setup.spec.ts"
+    ],
+    "3.2": [
+      "packages/client/src/morph.ts",
+      "packages/client/src/control-state.ts",
+      "packages/client/src/focus.ts",
+      "tests/client-ownership-transitions.test.ts",
+      "tests/browser/phase3-board.spec.ts",
+      "tests/browser/editor-selection.spec.ts"
+    ],
+    "3.3": [
+      "packages/client/src/grammar.ts",
+      "packages/client/src/bindings.ts",
+      "packages/client/src/loading.ts",
+      "packages/client/src/models.ts",
+      "tests/client-bindings-dom.test.ts",
+      "tests/browser/live.spec.ts",
+      "tests/browser/models.spec.ts",
+      "tests/browser/replacement-loading.spec.ts"
+    ],
+    "3.4": [
+      "packages/client/src/events.ts",
+      "packages/client/src/listeners.ts",
+      "tests/client-security.test.ts",
+      "tests/client-events.test.ts",
+      "tests/live-security.test.ts"
+    ],
+    "3.5": [
+      "packages/client/src/transport.ts",
+      "packages/client/src/model-scheduler.ts",
+      "tests/client-transport-lifecycle.test.ts",
+      "tests/browser/request-lifecycle.spec.ts",
+      "tests/browser/events.spec.ts"
+    ],
+    "3.6": [
+      "tests/browser/default-setup.spec.ts",
+      "tests/browser/phase3-board.spec.ts",
+      "tests/browser/form-reset.spec.ts",
+      "tests/browser/multiple-select.spec.ts"
+    ],
+    "3.7": [
+      "scripts/size.mjs",
+      "packages/client/src/index.ts",
+      "tests/client-transport-lifecycle.test.ts",
+      "tests/browser/assets.spec.ts",
+      "docs/guides/client-diagnostics.md"
+    ],
+    "exit": [
+      "examples/starter-live/src/work-board.ts",
+      "examples/starter-live/views/board.hbs",
+      "tests/browser/phase3-board.spec.ts",
+      "docs/implementation/phase3-acceptance.md",
+      "docs/reference/directives.md"
+    ]
+  },
+  "reportSha256": {
+    "artifacts/reports/verification.json": "d9c1af238c5cec0cfa9e02824ee96fddd3563e859dd348aacd8c13aab53f892c",
+    "artifacts/reports/vitest.json": "b0c251396a5ce65abf9993a0fd3016463ef45324ba46bf7d8bc13267cde74d0a",
+    "artifacts/reports/playwright.json": "ac3ebaa597f4789ab76f6d71d085f6fa09fb387f20b1c9c3f430988f38ba6069",
+    "artifacts/reports/pack.json": "4a4a74404fd945fd5f3ea21789db026a82137ae076b1b4d2c4a7d58f62df0171",
+    "artifacts/reports/client-size.json": "11aaf934580f027b2cf92f8aed3ca6446a3d114bf00d8b028e76592c31251ec0"
+  },
+  "failures": []
+}

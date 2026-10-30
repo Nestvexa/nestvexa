@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased: Phase 3 timing diagnostics and reactive work board
+
+Added opt-in frozen queue/request/morph timing samples with no state, identities,
+URLs, action names or retained buffer; instrumentation sink failures cannot
+change mutation semantics. Added a real HBS/decorator search/sort/form example,
+browser security/accessibility/navigation checks, nested DOM ownership coverage
+and visual round-trip fixtures. Phase acceptance depends on recorded verification.
+
 ## Unreleased: bounded multiple-select model arrays
 
 Native multiple selects support unique flat string/number/boolean arrays, ordered dirty equality, shared alias projection, bounded option/state validation and native reset reconciliation. Added real Nest synchronization/action/validation/session scenarios. Public client/Alpine setters remain primitive-only; checkbox groups, file models and complete forms remain unmet. Browser JavaScript emits without source comments while a separate declaration pass preserves API documentation and external maps; the existing size budget is unchanged.

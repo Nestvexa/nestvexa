@@ -1,6 +1,13 @@
 # Implementation status
 
-Checkpoint: **2026-10-29** (Africa/Cairo calendar date). **NOT YET READY — BLOCKERS.** UTC verification timestamps identify individual runs separately.
+Checkpoint: **2026-10-30** (Africa/Cairo calendar date). **NOT YET READY — BLOCKERS.** UTC verification timestamps identify individual runs separately.
+
+Phase 3 tasks 3.1–3.7 and the reactive form/table exit gate are now accepted on
+the executed Windows environment. The [acceptance review](phase3-acceptance.md)
+and [source-bound gate](phase3-acceptance-evidence-2026-10-30.json) record **929
+aggregate/192 three-browser passes**, seven tarballs and four external consumers.
+Full project release, Linux/full matrix and phases 0–2/4–17 remain separate open
+requirements. Phase 4 implementation follows this gate; it is not accepted yet.
 
 The original [master specification](../../NESTVEXA_MASTER_IMPLEMENTATION_PROMPT.md) is preserved. Work started from a directory containing that specification and editor configuration, without an existing Git repository or application manifest.
 
@@ -11,7 +18,7 @@ The repository contains core configuration/registries, view contracts, an HBS en
 | 0     | InProgress | Toolchain and source audit, upstream research, exact dependency selection and requirement extraction underway. Linux clean install, full baseline tooling and reviewed ADRs pending.                          |
 | 1     | InProgress | Core/configuration, views, HBS, umbrella and starter implemented with scoped external consumer/browser checks; complete phase requirements and matrix still pending.                                          |
 | 2     | InProgress | Bounded JSON, opaque owner-bound memory state and generated routes execute in Express/Fastify tests; cookie-session origin/CSRF/replay tests pass in the initial browser slice. Full acceptance remains open. |
-| 3     | InProgress | Directives, ownership, self-ignore, bounded transport and native model reset have scoped checks. Full input, lifecycle, accessibility and phase acceptance remain pending.                                    |
+| 3     | Done       | Tasks 3.1–3.7 and their HBS form/table exit gate passed; see the exact source-bound acceptance review and separate later-phase requirements.                                                                  |
 | 4–17  | Pending    | Complete Live feature breadth, forms, uploads, other engines, Inertia/frameworks, islands/actions, realtime/stores/jobs, extensions, CLI, hardening and release not delivered.                                |
 
 ## Resume and audit
@@ -26,7 +33,7 @@ Local commit `2bb6274` saves the earlier verified MVC/Live/Alpine foundation. Ev
 
 `node scripts/ledger.mjs --self-test` exercises the evidence checker. Ledger validity is bookkeeping integrity, **not** product acceptance. Compound requirements remain pending until every clause is demonstrated. This checkpoint does not report tests that have not run.
 
-The first tracker run extracted 657 units from Sections 4–23. The 2026-10-25 audit expanded coverage to **925 acceptance units** across all numbered Sections 0–31. The latest partial work also links integrated umbrella setup, async policy DI and browser startup: **98 InProgress, 827 Pending, 0 Done**. Compound requirements remain open until every clause passes. See the [tracker validation](tracker-validation.json), [initial audit](checkpoint-audit-2026-10-25.md), and [current release checkpoint](FINAL_RELEASE_REPORT.md). No phase is accepted yet. Saved checkpoint summaries retain their historical ledger snapshots.
+The first tracker run extracted 657 units from Sections 4–23. The audit expanded coverage to **925 acceptance units** across all numbered Sections 0–31. Phase 3 acceptance marks its nine rows Done; broader compound browser/platform/lifecycle requirements stay open under their original IDs. See the [tracker validation](tracker-validation.json), [initial audit](checkpoint-audit-2026-10-25.md), and [current release checkpoint](FINAL_RELEASE_REPORT.md). Saved checkpoint summaries retain their historical ledger snapshots.
 
 The saved foundation runner at `2026-10-26T11:21:25.645Z` passed **195 tests and 24 browser checks**. Its tracked [evidence summary](checkpoint-evidence-2026-10-26.json) preserves those historical command timings and counts. The newer event/lifecycle runner at `2026-10-26T13:55:35.610Z` passed frozen install, formatting, lint, typecheck/build, **235 tests**, selected high-risk coverage, **36 browser checks** across Chromium/Firefox/WebKit, pack consumers, docs, ledger, benchmark and dependency audit. The [event evidence summary](event-checkpoint-evidence-2026-10-26.json) preserves its timings, counts, tarball hashes and additional environment/size observations. Both release checks correctly failed. Current mutable reports are under `artifacts/reports`, including `verification.json`, `vitest.json` and `playwright.json`. Coverage remains **97.18% branches and 98.20% statements across only three selected configuration/protocol/store files**, not project-wide. Browser axe checks passed on the fixtures without excluding rules. Earlier touch-target and formatting/doctype failures were fixed and verified; see [checkpoint history](checkpoint-audit-2026-10-26.md).
 

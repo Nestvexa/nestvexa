@@ -15196,13 +15196,66 @@
       "id": "PHASE-036",
       "priority": "P1",
       "package": "cross-package",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/client/src/index.ts",
+        "packages/alpine/src/index.ts",
+        "packages/client/src/morph.ts",
+        "packages/client/src/control-state.ts",
+        "packages/client/src/focus.ts",
+        "packages/client/src/grammar.ts",
+        "packages/client/src/bindings.ts",
+        "packages/client/src/loading.ts",
+        "packages/client/src/models.ts",
+        "packages/client/src/events.ts",
+        "packages/client/src/listeners.ts",
+        "packages/client/src/transport.ts",
+        "packages/client/src/model-scheduler.ts",
+        "scripts/size.mjs",
+        "examples/starter-live/src/work-board.ts",
+        "examples/starter-live/views/board.hbs"
+      ],
+      "testFiles": [
+        "tests/alpine-start.test.ts",
+        "tests/browser/default-setup.spec.ts",
+        "tests/client-ownership-transitions.test.ts",
+        "tests/browser/phase3-board.spec.ts",
+        "tests/browser/editor-selection.spec.ts",
+        "tests/client-bindings-dom.test.ts",
+        "tests/browser/live.spec.ts",
+        "tests/browser/models.spec.ts",
+        "tests/browser/replacement-loading.spec.ts",
+        "tests/client-security.test.ts",
+        "tests/client-events.test.ts",
+        "tests/live-security.test.ts",
+        "tests/client-transport-lifecycle.test.ts",
+        "tests/browser/request-lifecycle.spec.ts",
+        "tests/browser/events.spec.ts",
+        "tests/browser/form-reset.spec.ts",
+        "tests/browser/multiple-select.spec.ts",
+        "tests/browser/assets.spec.ts"
+      ],
+      "docs": [
+        "docs/implementation/phase3-acceptance.md",
+        "docs/reference/directives.md",
+        "docs/guides/client-diagnostics.md",
+        "packages/client/README.md",
+        "packages/alpine/README.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/src/work-board.ts",
+        "examples/starter-live/views/board.hbs"
+      ],
+      "securityNotes": "Closed data-only directive grammar, explicit host authorization/CSRF/origin, owner-bound revisioned state, bounded transport, escaped HBS and redacted opt-in timings. Nested DOM ownership is distinct from Phase 4 server nesting. No independent security certification or unsupported renderer/platform claim. See phase3-acceptance.md for exact contract and separate outstanding requirement IDs.",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm phase3:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-30T09:40:24.072Z",
+          "report": "docs/implementation/phase3-acceptance-evidence-2026-10-30.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {
@@ -15217,43 +15270,36 @@
       "priority": "P1",
       "package": "cross-package",
       "implementationFiles": [
-        "packages/nestvexa/src/index.ts",
-        "packages/nestvexa/src/mvc.module.ts",
-        "packages/nestvexa/src/browser.module.ts",
-        "packages/live/src/live.module.ts",
+        "packages/client/src/index.ts",
         "packages/alpine/src/index.ts"
       ],
       "testFiles": [
-        "tests/umbrella-live.test.ts",
-        "tests/live-async.test.ts",
         "tests/alpine-start.test.ts",
-        "tests/browser/default-setup.spec.ts",
-        "tests/pack-consumers/assets.ts"
+        "tests/browser/default-setup.spec.ts"
       ],
       "docs": [
-        "docs/guides/default-live-setup.md",
-        "packages/nestvexa/README.md",
-        "packages/alpine/README.md",
-        "packages/live/README.md"
+        "docs/implementation/phase3-acceptance.md",
+        "docs/reference/directives.md",
+        "docs/guides/client-diagnostics.md",
+        "packages/client/README.md",
+        "packages/alpine/README.md"
       ],
       "examples": [
         "examples/starter-live/src/main.ts",
-        "examples/starter-live/views/layout.hbs"
+        "examples/starter-live/src/work-board.ts",
+        "examples/starter-live/views/board.hbs"
       ],
-      "securityNotes": " Integrated Live requires explicit session/identity/CSRF/origin/authorization policies and singleton setup; HBS renderer and browser ownership are application-local. Default startup requires delegated fresh Alpine; failed/disposed documents require reload.",
-      "state": "InProgress",
+      "securityNotes": "Closed data-only directive grammar, explicit host authorization/CSRF/origin, owner-bound revisioned state, bounded transport, escaped HBS and redacted opt-in timings. Nested DOM ownership is distinct from Phase 4 server nesting. No independent security certification or unsupported renderer/platform claim. See phase3-acceptance.md for exact contract and separate outstanding requirement IDs.",
+      "state": "Done",
       "validationEvidence": [
         {
-          "command": "pnpm checkpoint:check",
+          "command": "pnpm phase3:check",
           "exitCode": 0,
-          "executedAt": "2026-10-28T02:59:04.282Z",
-          "report": "docs/implementation/default-setup-checkpoint-evidence-2026-10-28.json",
-          "scope": "801 aggregate and 117 three-browser checks; four external npm/pnpm consumers; both fresh isolated Windows Node versions. Partial evidence, not compound acceptance."
+          "executedAt": "2026-10-30T09:40:24.072Z",
+          "report": "docs/implementation/phase3-acceptance-evidence-2026-10-30.json"
         }
       ],
-      "outstandingIssues": [
-        "Complete compound acceptance, Linux/full compatibility and lifecycle/security review remain open; full Live API and CLI initializer are not implemented."
-      ]
+      "outstandingIssues": []
     },
     {
       "sourceKey": "f1383d7674e75bab4fc1d6d765e9ba9f0dbc39a67ad97577db299517c2d2f0a0",
@@ -15267,110 +15313,39 @@
       "priority": "P1",
       "package": "cross-package",
       "implementationFiles": [
-        "packages/client/src/control-state.ts",
-        "packages/client/src/morph.ts",
         "packages/client/src/index.ts",
-        "packages/client/src/protocol.ts",
-        "packages/client/src/focus.ts",
-        "packages/client/src/bindings.ts",
-        "packages/client/src/loading.ts",
-        "packages/nestvexa/src/asset-catalog.ts",
-        "packages/client/src/models.ts",
-        "packages/client/src/form-reset.ts",
-        "packages/client/package.json"
+        "packages/client/src/morph.ts",
+        "packages/client/src/control-state.ts",
+        "packages/client/src/focus.ts"
       ],
       "testFiles": [
-        "tests/client-native-controls.test.ts",
         "tests/client-ownership-transitions.test.ts",
-        "tests/client-rendering-lifecycle.test.ts",
-        "tests/client-replace.test.ts",
-        "tests/browser/native-controls.spec.ts",
-        "tests/client.test.ts",
-        "tests/client-ignore-self.test.ts",
-        "tests/browser/ignore-self.spec.ts",
-        "tests/browser/focus.spec.ts",
-        "tests/client-focus.test.ts",
-        "tests/client-bindings-dom.test.ts",
-        "tests/client-loading.test.ts",
-        "tests/browser/visibility-focus.spec.ts",
-        "tests/pack-consumers/assets.ts",
-        "tests/browser/editor-selection.spec.ts",
-        "tests/client-models.test.ts",
-        "tests/client-form-reset.test.ts",
-        "tests/contracts.test.ts",
-        "tests/browser/multiple-select.spec.ts"
+        "tests/browser/phase3-board.spec.ts",
+        "tests/browser/editor-selection.spec.ts"
       ],
       "docs": [
-        "docs/guides/native-controls.md",
+        "docs/implementation/phase3-acceptance.md",
         "docs/reference/directives.md",
+        "docs/guides/client-diagnostics.md",
         "packages/client/README.md",
-        "docs/guides/ignore-self.md",
-        "docs/adr/0004-renderers-and-islands.md",
-        "docs/guides/focus-restoration.md",
-        "docs/guides/client-assets.md",
-        "docs/guides/multiple-select.md",
-        "docs/guides/form-reset.md"
+        "packages/alpine/README.md"
       ],
       "examples": [
-        "examples/live-counter/README.md",
-        "examples/live-counter/views/counter.hbs",
         "examples/starter-live/src/main.ts",
-        "examples/starter-live/views/counter.hbs"
+        "examples/starter-live/src/work-board.ts",
+        "examples/starter-live/views/board.hbs"
       ],
-      "securityNotes": "Native values and owned subtree boundaries are snapshotted before mutation. Browser-only state is not added to server payloads, incompatible dirty controls are reconciled, and external marker changes abort work without treating the browser check as server authorization. Effective wrapper attributes are projected before preview, protocol directive validation and form-owner control reconciliation. Attribute ownership is not server authorization; native/editor/root combinations and competing same-node effects are explicitly rejected. Focus restoration is local presentation, never authorization; unavailable targets remain unavailable and host-selected focus is preserved. Reconciliation-owned temporary tabindex/listeners release on blur/release/disposal. Visibility/loading/reconciliation share browser presentation leases, never server state or authorization. Owner cleanup preserves a changed host tabindex and shared ancestor ownership. Asset serving allowlists focus.js. One retained owned inner light-DOM editor can preserve a native directed selection by original node identity. Editor HTML is never automatically exposed as state; replaced/invalid/unavailable or cross-owner endpoints do not restore. Native selection may persist without a framework write. Callback overrides suppress the previous range; final host focus choices remain authoritative. Native multiple-select arrays are bounded unique flat primitives with strict option catalogs and ordered equality; unknown newer selections stay subject to server validation. Aliases share state and reset defaults must agree. Client bounds do not authorize items; the example independently validates count/type/allowlist/session. Public setters remain primitive-only and reject active array fields atomically.",
-      "state": "InProgress",
+      "securityNotes": "Closed data-only directive grammar, explicit host authorization/CSRF/origin, owner-bound revisioned state, bounded transport, escaped HBS and redacted opt-in timings. Nested DOM ownership is distinct from Phase 4 server nesting. No independent security certification or unsupported renderer/platform claim. See phase3-acceptance.md for exact contract and separate outstanding requirement IDs.",
+      "state": "Done",
       "validationEvidence": [
         {
-          "command": "pnpm checkpoint:check",
+          "command": "pnpm phase3:check",
           "exitCode": 0,
-          "executedAt": "2026-10-27T04:31:22.595Z",
-          "report": "docs/implementation/native-checkpoint-evidence-2026-10-27.json",
-          "scope": "Partial native-control and ownership implementation:511 aggregate tests,75 Chromium/Firefox/WebKit checks, seven packed npm/pnpm consumer installs; Node22.23.4/24.22.1 each passed strict compilation and503 aggregate tests. Full compound acceptance remains open; releaseReady is false."
-        },
-        {
-          "command": "pnpm checkpoint:check",
-          "exitCode": 0,
-          "executedAt": "2026-10-27T12:39:50.278Z",
-          "report": "docs/implementation/ignore-self-checkpoint-evidence-2026-10-27.json",
-          "scope": "Partial wrapper-only ignore and effective incoming projection:558 aggregate tests,84 Chromium/Firefox/WebKit checks; seven tarballs passed two npm/pnpm external strict-TypeScript and real Nest consumers. Isolated Windows Node22.23.4 and24.22.1 each passed strict compilation and558 tests. Full compound acceptance remains open; releaseReady is false."
-        },
-        {
-          "command": "pnpm checkpoint:check",
-          "exitCode": 0,
-          "executedAt": "2026-10-28T04:50:41.595Z",
-          "report": "docs/implementation/focus-restoration-checkpoint-evidence-2026-10-28.json",
-          "scope": "814 aggregate/126 three-browser checks; 25 controlled rendering lifecycle cases and nine focused real-server checks; partial acceptance only."
-        },
-        {
-          "command": "pnpm checkpoint:check",
-          "exitCode": 0,
-          "executedAt": "2026-10-28T18:52:07.899Z",
-          "report": "docs/implementation/visibility-focus-checkpoint-evidence-2026-10-28.json",
-          "scope": "841 aggregate/138 three-browser checks,23 controller cases and12 focused real-server checks; partial compound acceptance."
-        },
-        {
-          "command": "pnpm checkpoint:check",
-          "exitCode": 0,
-          "executedAt": "2026-10-29T07:40:17.867Z",
-          "report": "docs/implementation/editor-selection-checkpoint-evidence-2026-10-29.json",
-          "scope": "870 aggregate/162 three-browser checks; 77 controlled focus/rendering cases and 24 real Nest editor checks. Seven tarballs/four full-minimal npm-pnpm consumers; Node22/24 strict and aggregate evidence saved separately. Partial compound acceptance only; full release gates remain blocking."
-        },
-        {
-          "command": "pnpm checkpoint:check",
-          "exitCode": 0,
-          "executedAt": "2026-10-29T08:16:22.385Z",
-          "report": "docs/implementation/multiple-select-checkpoint-evidence-2026-10-29.json",
-          "scope": "924 aggregate/174 three-browser checks,104 model cases/25 array lifecycle cases and12 real Nest multiple-select checks. Seven tarballs/four external full-minimal npm-pnpm consumers; fresh Node22/24 strict and aggregate checks. Partial compound acceptance only."
+          "executedAt": "2026-10-30T09:40:24.072Z",
+          "report": "docs/implementation/phase3-acceptance-evidence-2026-10-30.json"
         }
       ],
-      "outstandingIssues": [
-        "Complete visual regression, browser/input/modifier, scroll/selection and nested-owner acceptance remains open.",
-        "Full nested-server/framework-island/teleport lifecycle support and shared native group isolation remain unmet or unverified.",
-        "Complete input/modifier/renderer/lifecycle/accessibility and platform acceptance remains open; post-morph focus handling does not certify all directive focus policies or screen-reader behavior.",
-        "Complete directive/input/lifecycle/accessibility/security/platform acceptance remains open; duplicate module copies and unsupported editor/shadow/iframe/multi-range selections remain outside this focus slice.",
-        "Selection across replacement nodes, editor/renderer boundaries, plugin editors, editable Live roots, independently focused inherited descendants, shadow DOM/iframes and multiple ranges remains unsupported. Full compound accessibility/lifecycle/platform acceptance is open.",
-        "Complete directive/input/modifier/nested-renderer/accessibility/platform acceptance remains open. Multiple-select arrays do not add generic programmatic array setters, checkbox groups, files, nested paths or complete forms."
-      ]
+      "outstandingIssues": []
     },
     {
       "sourceKey": "6fdad4238d1b0fd9d7287277983a0d16dd14009e54eaf860fb56df6230319b08",
@@ -15385,100 +15360,40 @@
       "package": "cross-package",
       "implementationFiles": [
         "packages/client/src/index.ts",
-        "packages/client/src/models.ts",
-        "packages/client/src/model-scheduler.ts",
-        "packages/client/src/morph.ts",
+        "packages/client/src/grammar.ts",
         "packages/client/src/bindings.ts",
-        "packages/client/src/events.ts",
         "packages/client/src/loading.ts",
-        "packages/client/src/listeners.ts",
-        "packages/client/src/protocol.ts",
-        "packages/live/src/runtime.ts",
-        "packages/client/src/form-reset.ts",
-        "packages/client/package.json"
+        "packages/client/src/models.ts"
       ],
       "testFiles": [
-        "tests/client-models.test.ts",
-        "tests/client-model-scheduler.test.ts",
-        "tests/live-model.test.ts",
-        "tests/browser/models.spec.ts",
-        "tests/client-bindings.test.ts",
         "tests/client-bindings-dom.test.ts",
-        "tests/client-events.test.ts",
-        "tests/client-loading.test.ts",
-        "tests/client-replace.test.ts",
-        "tests/client-rendering-lifecycle.test.ts",
-        "tests/browser/replacement-loading.spec.ts",
         "tests/browser/live.spec.ts",
-        "tests/browser/events.spec.ts",
-        "tests/client.test.ts",
-        "tests/client-ignore-self.test.ts",
-        "tests/browser/ignore-self.spec.ts",
-        "tests/client-form-reset.test.ts",
-        "tests/browser/form-reset.spec.ts",
-        "tests/client-native-controls.test.ts",
-        "tests/contracts.test.ts",
-        "tests/browser/multiple-select.spec.ts"
+        "tests/browser/models.spec.ts",
+        "tests/browser/replacement-loading.spec.ts"
       ],
       "docs": [
+        "docs/implementation/phase3-acceptance.md",
         "docs/reference/directives.md",
+        "docs/guides/client-diagnostics.md",
         "packages/client/README.md",
-        "docs/guides/ignore-self.md",
-        "docs/adr/0004-renderers-and-islands.md",
-        "docs/guides/form-reset.md",
-        "docs/guides/multiple-select.md"
+        "packages/alpine/README.md"
       ],
       "examples": [
-        "examples/live-counter/README.md",
-        "examples/live-counter/views/counter.hbs",
         "examples/starter-live/src/main.ts",
-        "examples/starter-live/views/counter.hbs"
+        "examples/starter-live/src/work-board.ts",
+        "examples/starter-live/views/board.hbs"
       ],
-      "securityNotes": "Owned data directives use a closed grammar with explicit HTML/attribute boundaries. Model writes use a separately authorized synchronization route; no arbitrary directive JavaScript or action-method guard inheritance is assumed. Loading restores original attribute/class baselines and tracks queued work. Explicit replacement cancels removed client resources and cannot replace the component root or claim shared renderer ownership. Effective wrapper attributes are projected before preview, protocol directive validation and form-owner control reconciliation. Attribute ownership is not server authorization; native/editor/root combinations and competing same-node effects are explicitly rejected. Native reset only reconciles active owned primitive fields; canceled resets preserve drafts, defaults are preflighted, and resets do not authorize writes or automatically dispatch synchronization. Native multiple-select arrays are bounded unique flat primitives with strict option catalogs and ordered equality; unknown newer selections stay subject to server validation. Aliases share state and reset defaults must agree. Client bounds do not authorize items; the example independently validates count/type/allowlist/session. Public setters remain primitive-only and reject active array fields atomically.",
-      "state": "InProgress",
+      "securityNotes": "Closed data-only directive grammar, explicit host authorization/CSRF/origin, owner-bound revisioned state, bounded transport, escaped HBS and redacted opt-in timings. Nested DOM ownership is distinct from Phase 4 server nesting. No independent security certification or unsupported renderer/platform claim. See phase3-acceptance.md for exact contract and separate outstanding requirement IDs.",
+      "state": "Done",
       "validationEvidence": [
         {
-          "command": "pnpm checkpoint:check",
+          "command": "pnpm phase3:check",
           "exitCode": 0,
-          "executedAt": "2026-10-26T20:22:16.515Z",
-          "report": "docs/implementation/model-checkpoint-evidence-2026-10-26.json",
-          "scope": "Partial model/state implementation:379 aggregate tests and48 three-browser fixture checks; complete compound acceptance remains open and releaseReady is false."
-        },
-        {
-          "command": "pnpm checkpoint:check",
-          "exitCode": 0,
-          "executedAt": "2026-10-27T03:24:05.203Z",
-          "report": "docs/implementation/rendering-checkpoint-evidence-2026-10-27.json",
-          "scope": "Partial rendering implementation:447 aggregate tests,60 Chromium/Firefox/WebKit checks and seven packed npm/pnpm consumers. Full compound acceptance remains open and releaseReady is false."
-        },
-        {
-          "command": "pnpm checkpoint:check",
-          "exitCode": 0,
-          "executedAt": "2026-10-27T12:39:50.278Z",
-          "report": "docs/implementation/ignore-self-checkpoint-evidence-2026-10-27.json",
-          "scope": "Partial wrapper-only ignore and effective incoming projection:558 aggregate tests,84 Chromium/Firefox/WebKit checks; seven tarballs passed two npm/pnpm external strict-TypeScript and real Nest consumers. Isolated Windows Node22.23.4 and24.22.1 each passed strict compilation and558 tests. Full compound acceptance remains open; releaseReady is false."
-        },
-        {
-          "command": "pnpm checkpoint:check",
-          "exitCode": 0,
-          "executedAt": "2026-10-27T17:54:42.885Z",
-          "report": "docs/implementation/form-reset-checkpoint-evidence-2026-10-27.json",
-          "scope": "Partial native form reset reconciliation:631 aggregate tests including 34 controlled reset cases,102 Chromium/Firefox/WebKit checks, seven tarballs in two external npm/pnpm strict-TypeScript and real Nest consumers. The selected native-button preview regression failed before the task fallback. Full compound acceptance remains open; releaseReady is false. Fresh isolated Windows Node 22.23.4 and 24.22.1 each passed strict compilation and 631 tests, without repeating the full three-browser server or consumer matrix."
-        },
-        {
-          "command": "pnpm checkpoint:check",
-          "exitCode": 0,
-          "executedAt": "2026-10-29T08:16:22.385Z",
-          "report": "docs/implementation/multiple-select-checkpoint-evidence-2026-10-29.json",
-          "scope": "924 aggregate/174 three-browser checks,104 model cases/25 array lifecycle cases and12 real Nest multiple-select checks. Seven tarballs/four external full-minimal npm-pnpm consumers; fresh Node22/24 strict and aggregate checks. Partial compound acceptance only."
+          "executedAt": "2026-10-30T09:40:24.072Z",
+          "report": "docs/implementation/phase3-acceptance-evidence-2026-10-30.json"
         }
       ],
-      "outstandingIssues": [
-        "Initial replacement lifecycle and targeted loading effects have scoped evidence; the complete directive/modifier/input/cleanup/concurrency/accessibility acceptance matrix remains pending.",
-        "Full nested-server and framework-island ownership/hydration support is not implemented; optional loading delays and arbitrary presentation expressions are unsupported.",
-        "Native reset has scoped primitive model evidence; complete forms, input/default/ownership/accessibility and lifecycle matrices remain open.",
-        "Complete directive/input/modifier/nested-renderer/accessibility/platform acceptance remains open. Multiple-select arrays do not add generic programmatic array setters, checkbox groups, files, nested paths or complete forms."
-      ]
+      "outstandingIssues": []
     },
     {
       "sourceKey": "0b163d9858524b986d5bac9077b2b97de3dbd0fbae31d4f87ce905f00a6d2140",
@@ -15492,40 +15407,38 @@
       "priority": "P1",
       "package": "cross-package",
       "implementationFiles": [
-        "packages/client/src/morph.ts",
         "packages/client/src/index.ts",
-        "packages/client/src/protocol.ts"
+        "packages/client/src/events.ts",
+        "packages/client/src/listeners.ts"
       ],
       "testFiles": [
-        "tests/client.test.ts",
-        "tests/client-ignore-self.test.ts",
-        "tests/browser/ignore-self.spec.ts",
-        "tests/client-replace.test.ts"
+        "tests/client-security.test.ts",
+        "tests/client-events.test.ts",
+        "tests/live-security.test.ts"
       ],
       "docs": [
-        "docs/guides/ignore-self.md",
+        "docs/implementation/phase3-acceptance.md",
         "docs/reference/directives.md",
+        "docs/guides/client-diagnostics.md",
         "packages/client/README.md",
-        "docs/adr/0004-renderers-and-islands.md"
+        "packages/alpine/README.md"
       ],
       "examples": [
-        "examples/live-counter/views/counter.hbs",
-        "examples/live-counter/README.md"
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/src/work-board.ts",
+        "examples/starter-live/views/board.hbs"
       ],
-      "securityNotes": " Effective wrapper attributes are projected before preview, protocol directive validation and form-owner control reconciliation. Attribute ownership is not server authorization; native/editor/root combinations and competing same-node effects are explicitly rejected.",
-      "state": "InProgress",
+      "securityNotes": "Closed data-only directive grammar, explicit host authorization/CSRF/origin, owner-bound revisioned state, bounded transport, escaped HBS and redacted opt-in timings. Nested DOM ownership is distinct from Phase 4 server nesting. No independent security certification or unsupported renderer/platform claim. See phase3-acceptance.md for exact contract and separate outstanding requirement IDs.",
+      "state": "Done",
       "validationEvidence": [
         {
-          "command": "pnpm checkpoint:check",
+          "command": "pnpm phase3:check",
           "exitCode": 0,
-          "executedAt": "2026-10-27T12:39:50.278Z",
-          "report": "docs/implementation/ignore-self-checkpoint-evidence-2026-10-27.json",
-          "scope": "Partial wrapper-only ignore and effective incoming projection:558 aggregate tests,84 Chromium/Firefox/WebKit checks; seven tarballs passed two npm/pnpm external strict-TypeScript and real Nest consumers. Isolated Windows Node22.23.4 and24.22.1 each passed strict compilation and558 tests. Full compound acceptance remains open; releaseReady is false."
+          "executedAt": "2026-10-30T09:40:24.072Z",
+          "report": "docs/implementation/phase3-acceptance-evidence-2026-10-30.json"
         }
       ],
-      "outstandingIssues": [
-        "Closed grammar and targeted event handling have scoped implementations; complete directive/modifier/security and compatibility matrix remains open."
-      ]
+      "outstandingIssues": []
     },
     {
       "sourceKey": "4e2d2607ca90e9709db702b9f9fa3431e6812f6ce32d952bdf9c023356be68fe",
@@ -15541,50 +15454,36 @@
       "implementationFiles": [
         "packages/client/src/index.ts",
         "packages/client/src/transport.ts",
-        "packages/client/src/grammar.ts",
-        "packages/client/src/form-reset.ts"
+        "packages/client/src/model-scheduler.ts"
       ],
       "testFiles": [
         "tests/client-transport-lifecycle.test.ts",
         "tests/browser/request-lifecycle.spec.ts",
-        "tests/client-ownership-transitions.test.ts",
-        "tests/client-model-lifecycle.test.ts",
-        "tests/client-form-reset.test.ts",
-        "tests/browser/form-reset.spec.ts"
+        "tests/browser/events.spec.ts"
       ],
       "docs": [
-        "docs/guides/request-lifecycle.md",
-        "packages/client/README.md",
+        "docs/implementation/phase3-acceptance.md",
         "docs/reference/directives.md",
-        "docs/adr/0010-observability-and-performance.md",
-        "docs/guides/form-reset.md"
+        "docs/guides/client-diagnostics.md",
+        "packages/client/README.md",
+        "packages/alpine/README.md"
       ],
       "examples": [
-        "examples/live-counter/src/main.ts",
-        "examples/live-counter/views/counter.hbs"
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/src/work-board.ts",
+        "examples/starter-live/views/board.hbs"
       ],
-      "securityNotes": " Total browser fetch/body deadline and streaming decoded-byte limit precede state application; uncertain outcomes freeze queued/nested transport without replay, retain drafts and prevent native enhanced submits. Server cancellation, auth and durable idempotency remain host-owned. Native reset only reconciles active owned primitive fields; canceled resets preserve drafts, defaults are preflighted, and resets do not authorize writes or automatically dispatch synchronization.",
-      "state": "InProgress",
+      "securityNotes": "Closed data-only directive grammar, explicit host authorization/CSRF/origin, owner-bound revisioned state, bounded transport, escaped HBS and redacted opt-in timings. Nested DOM ownership is distinct from Phase 4 server nesting. No independent security certification or unsupported renderer/platform claim. See phase3-acceptance.md for exact contract and separate outstanding requirement IDs.",
+      "state": "Done",
       "validationEvidence": [
         {
-          "command": "pnpm checkpoint:check",
+          "command": "pnpm phase3:check",
           "exitCode": 0,
-          "executedAt": "2026-10-27T13:12:08.251Z",
-          "report": "docs/implementation/transport-checkpoint-evidence-2026-10-27.json",
-          "scope": "Partial bounded transport and uncertain-outcome suspension:597 aggregate tests and93 Chromium/Firefox/WebKit checks; seven tarballs passed two npm/pnpm external strict-TypeScript and real Nest consumers. Isolated Windows Node22.23.4 and24.22.1 each passed strict compilation and597 tests. The continuation race regression failed before the source guard and passed in the complete corpus. Full compound acceptance remains open; releaseReady is false."
-        },
-        {
-          "command": "pnpm checkpoint:check",
-          "exitCode": 0,
-          "executedAt": "2026-10-27T17:54:42.885Z",
-          "report": "docs/implementation/form-reset-checkpoint-evidence-2026-10-27.json",
-          "scope": "Partial native form reset reconciliation:631 aggregate tests including 34 controlled reset cases,102 Chromium/Firefox/WebKit checks, seven tarballs in two external npm/pnpm strict-TypeScript and real Nest consumers. The selected native-button preview regression failed before the task fallback. Full compound acceptance remains open; releaseReady is false. Fresh isolated Windows Node 22.23.4 and 24.22.1 each passed strict compilation and 631 tests, without repeating the full three-browser server or consumer matrix."
+          "executedAt": "2026-10-30T09:40:24.072Z",
+          "report": "docs/implementation/phase3-acceptance-evidence-2026-10-30.json"
         }
       ],
-      "outstandingIssues": [
-        "Current bounded transport has scoped implementation; full distributed fault, long-memory, progress/streaming UI, safe idempotent retry, bundling and complete compatibility acceptance remain open.",
-        "Native reset has scoped primitive model evidence; complete forms, input/default/ownership/accessibility and lifecycle matrices remain open."
-      ]
+      "outstandingIssues": []
     },
     {
       "sourceKey": "c1bc8a2d3c90183c0b5c7ca35df86927115c9b0d1594aa228d079a2c49a2e026",
@@ -15598,99 +15497,37 @@
       "priority": "P1",
       "package": "cross-package",
       "implementationFiles": [
-        "packages/client/src/index.ts",
-        "packages/client/src/morph.ts",
-        "packages/client/src/control-state.ts",
-        "packages/client/src/focus.ts",
-        "packages/client/src/bindings.ts",
-        "packages/client/src/loading.ts",
-        "packages/nestvexa/src/asset-catalog.ts",
-        "packages/client/src/models.ts",
-        "packages/client/src/form-reset.ts",
-        "packages/client/package.json"
+        "packages/client/src/index.ts"
       ],
       "testFiles": [
-        "tests/client-native-controls.test.ts",
-        "tests/client-ownership-transitions.test.ts",
-        "tests/browser/native-controls.spec.ts",
-        "tests/browser/live.spec.ts",
-        "tests/browser/models.spec.ts",
-        "tests/browser/replacement-loading.spec.ts",
-        "tests/client-rendering-lifecycle.test.ts",
-        "tests/browser/focus.spec.ts",
-        "tests/client-focus.test.ts",
-        "tests/client-bindings-dom.test.ts",
-        "tests/client-loading.test.ts",
-        "tests/browser/visibility-focus.spec.ts",
-        "tests/pack-consumers/assets.ts",
-        "tests/browser/editor-selection.spec.ts",
-        "tests/client-models.test.ts",
-        "tests/client-form-reset.test.ts",
-        "tests/contracts.test.ts",
+        "tests/browser/default-setup.spec.ts",
+        "tests/browser/phase3-board.spec.ts",
+        "tests/browser/form-reset.spec.ts",
         "tests/browser/multiple-select.spec.ts"
       ],
       "docs": [
-        "docs/guides/native-controls.md",
+        "docs/implementation/phase3-acceptance.md",
         "docs/reference/directives.md",
+        "docs/guides/client-diagnostics.md",
         "packages/client/README.md",
-        "docs/guides/focus-restoration.md",
-        "docs/guides/client-assets.md",
-        "docs/adr/0004-renderers-and-islands.md",
-        "docs/guides/multiple-select.md",
-        "docs/guides/form-reset.md"
+        "packages/alpine/README.md"
       ],
       "examples": [
-        "examples/live-counter/README.md",
         "examples/starter-live/src/main.ts",
-        "examples/starter-live/views/counter.hbs"
+        "examples/starter-live/src/work-board.ts",
+        "examples/starter-live/views/board.hbs"
       ],
-      "securityNotes": "Controlled Chromium transport cases are labeled as client lifecycle evidence, not server conformance. Actual Nest browser scenarios are separate. Test presence is not a passed command, full accessibility certification or acceptance of every directive. Focus restoration is local presentation, never authorization; unavailable targets remain unavailable and host-selected focus is preserved. Reconciliation-owned temporary tabindex/listeners release on blur/release/disposal. Visibility/loading/reconciliation share browser presentation leases, never server state or authorization. Owner cleanup preserves a changed host tabindex and shared ancestor ownership. Asset serving allowlists focus.js. One retained owned inner light-DOM editor can preserve a native directed selection by original node identity. Editor HTML is never automatically exposed as state; replaced/invalid/unavailable or cross-owner endpoints do not restore. Native selection may persist without a framework write. Callback overrides suppress the previous range; final host focus choices remain authoritative. Native multiple-select arrays are bounded unique flat primitives with strict option catalogs and ordered equality; unknown newer selections stay subject to server validation. Aliases share state and reset defaults must agree. Client bounds do not authorize items; the example independently validates count/type/allowlist/session. Public setters remain primitive-only and reject active array fields atomically.",
-      "state": "InProgress",
+      "securityNotes": "Closed data-only directive grammar, explicit host authorization/CSRF/origin, owner-bound revisioned state, bounded transport, escaped HBS and redacted opt-in timings. Nested DOM ownership is distinct from Phase 4 server nesting. No independent security certification or unsupported renderer/platform claim. See phase3-acceptance.md for exact contract and separate outstanding requirement IDs.",
+      "state": "Done",
       "validationEvidence": [
         {
-          "command": "pnpm checkpoint:check",
+          "command": "pnpm phase3:check",
           "exitCode": 0,
-          "executedAt": "2026-10-27T04:31:22.595Z",
-          "report": "docs/implementation/native-checkpoint-evidence-2026-10-27.json",
-          "scope": "Partial native-control and ownership implementation:511 aggregate tests,75 Chromium/Firefox/WebKit checks, seven packed npm/pnpm consumer installs; Node22.23.4/24.22.1 each passed strict compilation and503 aggregate tests. Full compound acceptance remains open; releaseReady is false."
-        },
-        {
-          "command": "pnpm checkpoint:check",
-          "exitCode": 0,
-          "executedAt": "2026-10-28T04:50:41.595Z",
-          "report": "docs/implementation/focus-restoration-checkpoint-evidence-2026-10-28.json",
-          "scope": "814 aggregate/126 three-browser checks; 25 controlled rendering lifecycle cases and nine focused real-server checks; partial acceptance only."
-        },
-        {
-          "command": "pnpm checkpoint:check",
-          "exitCode": 0,
-          "executedAt": "2026-10-28T18:52:07.899Z",
-          "report": "docs/implementation/visibility-focus-checkpoint-evidence-2026-10-28.json",
-          "scope": "841 aggregate/138 three-browser checks,23 controller cases and12 focused real-server checks; partial compound acceptance."
-        },
-        {
-          "command": "pnpm checkpoint:check",
-          "exitCode": 0,
-          "executedAt": "2026-10-29T07:40:17.867Z",
-          "report": "docs/implementation/editor-selection-checkpoint-evidence-2026-10-29.json",
-          "scope": "870 aggregate/162 three-browser checks; 77 controlled focus/rendering cases and 24 real Nest editor checks. Seven tarballs/four full-minimal npm-pnpm consumers; Node22/24 strict and aggregate evidence saved separately. Partial compound acceptance only; full release gates remain blocking."
-        },
-        {
-          "command": "pnpm checkpoint:check",
-          "exitCode": 0,
-          "executedAt": "2026-10-29T08:16:22.385Z",
-          "report": "docs/implementation/multiple-select-checkpoint-evidence-2026-10-29.json",
-          "scope": "924 aggregate/174 three-browser checks,104 model cases/25 array lifecycle cases and12 real Nest multiple-select checks. Seven tarballs/four external full-minimal npm-pnpm consumers; fresh Node22/24 strict and aggregate checks. Partial compound acceptance only."
+          "executedAt": "2026-10-30T09:40:24.072Z",
+          "report": "docs/implementation/phase3-acceptance-evidence-2026-10-30.json"
         }
       ],
-      "outstandingIssues": [
-        "The complete directive/modifier/browser back-forward, nested mutation and accessibility matrix remains open; future directives cannot be accepted from existing fixture presence.",
-        "Full nested-server and official framework-island flows remain unimplemented or unverified.",
-        "Complete input/modifier/renderer/lifecycle/accessibility and platform acceptance remains open; post-morph focus handling does not certify all directive focus policies or screen-reader behavior.",
-        "Complete directive/input/lifecycle/accessibility/security/platform acceptance remains open; duplicate module copies and unsupported editor/shadow/iframe/multi-range selections remain outside this focus slice.",
-        "Selection across replacement nodes, editor/renderer boundaries, plugin editors, editable Live roots, independently focused inherited descendants, shadow DOM/iframes and multiple ranges remains unsupported. Full compound accessibility/lifecycle/platform acceptance is open.",
-        "Complete directive/input/modifier/nested-renderer/accessibility/platform acceptance remains open. Multiple-select arrays do not add generic programmatic array setters, checkbox groups, files, nested paths or complete forms."
-      ]
+      "outstandingIssues": []
     },
     {
       "sourceKey": "6e2b4c95e75f2d8100c65fc2991da8cd555dd67638a87c53c563dad3ac0e35c2",
@@ -15703,13 +15540,36 @@
       "id": "PHASE-043",
       "priority": "P1",
       "package": "cross-package",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/client/src/index.ts",
+        "scripts/size.mjs"
+      ],
+      "testFiles": [
+        "tests/client-transport-lifecycle.test.ts",
+        "tests/browser/assets.spec.ts"
+      ],
+      "docs": [
+        "docs/implementation/phase3-acceptance.md",
+        "docs/reference/directives.md",
+        "docs/guides/client-diagnostics.md",
+        "packages/client/README.md",
+        "packages/alpine/README.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/src/work-board.ts",
+        "examples/starter-live/views/board.hbs"
+      ],
+      "securityNotes": "Closed data-only directive grammar, explicit host authorization/CSRF/origin, owner-bound revisioned state, bounded transport, escaped HBS and redacted opt-in timings. Nested DOM ownership is distinct from Phase 4 server nesting. No independent security certification or unsupported renderer/platform claim. See phase3-acceptance.md for exact contract and separate outstanding requirement IDs.",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm phase3:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-30T09:40:24.072Z",
+          "report": "docs/implementation/phase3-acceptance-evidence-2026-10-30.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {
@@ -15723,13 +15583,66 @@
       "id": "PHASE-044",
       "priority": "P1",
       "package": "cross-package",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/client/src/index.ts",
+        "packages/alpine/src/index.ts",
+        "packages/client/src/morph.ts",
+        "packages/client/src/control-state.ts",
+        "packages/client/src/focus.ts",
+        "packages/client/src/grammar.ts",
+        "packages/client/src/bindings.ts",
+        "packages/client/src/loading.ts",
+        "packages/client/src/models.ts",
+        "packages/client/src/events.ts",
+        "packages/client/src/listeners.ts",
+        "packages/client/src/transport.ts",
+        "packages/client/src/model-scheduler.ts",
+        "scripts/size.mjs",
+        "examples/starter-live/src/work-board.ts",
+        "examples/starter-live/views/board.hbs"
+      ],
+      "testFiles": [
+        "tests/alpine-start.test.ts",
+        "tests/browser/default-setup.spec.ts",
+        "tests/client-ownership-transitions.test.ts",
+        "tests/browser/phase3-board.spec.ts",
+        "tests/browser/editor-selection.spec.ts",
+        "tests/client-bindings-dom.test.ts",
+        "tests/browser/live.spec.ts",
+        "tests/browser/models.spec.ts",
+        "tests/browser/replacement-loading.spec.ts",
+        "tests/client-security.test.ts",
+        "tests/client-events.test.ts",
+        "tests/live-security.test.ts",
+        "tests/client-transport-lifecycle.test.ts",
+        "tests/browser/request-lifecycle.spec.ts",
+        "tests/browser/events.spec.ts",
+        "tests/browser/form-reset.spec.ts",
+        "tests/browser/multiple-select.spec.ts",
+        "tests/browser/assets.spec.ts"
+      ],
+      "docs": [
+        "docs/implementation/phase3-acceptance.md",
+        "docs/reference/directives.md",
+        "docs/guides/client-diagnostics.md",
+        "packages/client/README.md",
+        "packages/alpine/README.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/src/work-board.ts",
+        "examples/starter-live/views/board.hbs"
+      ],
+      "securityNotes": "Closed data-only directive grammar, explicit host authorization/CSRF/origin, owner-bound revisioned state, bounded transport, escaped HBS and redacted opt-in timings. Nested DOM ownership is distinct from Phase 4 server nesting. No independent security certification or unsupported renderer/platform claim. See phase3-acceptance.md for exact contract and separate outstanding requirement IDs.",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm phase3:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-30T09:40:24.072Z",
+          "report": "docs/implementation/phase3-acceptance-evidence-2026-10-30.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {

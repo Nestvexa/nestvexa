@@ -58,6 +58,14 @@ export interface LiveClientOptions {
   readonly onError?: (error: Error, component: Element | null) => void;
   /** Total fetch/body deadline per dispatched request: 1–300000ms; default 30000ms. */
   readonly requestTimeoutMs?: number;
+  /** Opt-in timings only; no DOM, identities, tokens, URLs, state or action names. Sink errors are isolated. */
+  readonly onDiagnostic?: (event: LiveDiagnostic) => void;
+}
+/** One bounded timing sample per phase of a dispatched request; no retained buffer. */
+export interface LiveDiagnostic {
+  readonly phase: 'queue' | 'request' | 'morph';
+  readonly outcome: 'succeeded' | 'failed' | 'cancelled';
+  readonly milliseconds: number;
 }
 export interface LiveClient {
   mount(): void;
@@ -669,7 +677,33 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       report(error, null);
     }
   }
-  async function invoke(state: Component, action: string): Promise<void> {
+  function diagnostic(
+    phase: LiveDiagnostic['phase'],
+    outcome: LiveDiagnostic['outcome'],
+    start: number | undefined,
+    end: number | undefined,
+  ): void {
+    if (start === undefined || end === undefined || !options.onDiagnostic)
+      return;
+    const milliseconds = end - start;
+    if (!Number.isFinite(milliseconds)) return;
+    try {
+      options.onDiagnostic(
+        Object.freeze({
+          phase,
+          outcome,
+          milliseconds: Math.max(0, milliseconds),
+        }),
+      );
+    } catch {
+      // An optional instrumentation sink must not change mutation/retry semantics.
+    }
+  }
+  async function invoke(
+    state: Component,
+    action: string,
+    queuedAt?: number,
+  ): Promise<void> {
     flushResets();
     if (!usable(state)) return;
     const failure = failureFor(state);
@@ -697,6 +731,13 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     const requestId = window.crypto.randomUUID();
     const abort = new AbortController();
     state.request = abort;
+    const startedAt = options.onDiagnostic
+      ? window.performance.now()
+      : undefined;
+    let responseAt: number | undefined;
+    let morphAt: number | undefined;
+    let applied = false;
+    let failed = false;
     try {
       const payload = await requestLive(
         transport,
@@ -726,11 +767,13 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         },
         timeout,
       );
+      responseAt = options.onDiagnostic ? window.performance.now() : undefined;
       if (!usable(state)) return;
       // A parent may suspend this registration after the transport race won
       // but before this continuation runs. Never apply that settled response.
       const interrupted = failureFor(state);
       if (interrupted) throw interrupted;
+      morphAt = options.onDiagnostic ? window.performance.now() : undefined;
       const result = parseLiveResponse(payload);
       if (
         result.requestId !== requestId ||
@@ -899,6 +942,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       state.root.setAttribute('data-nv-snapshot', result.snapshot);
       state.root.setAttribute('data-nv-revision', String(state.revision));
       discover();
+      applied = true;
       state.root.dispatchEvent(
         new window.CustomEvent('nestvexa:updated', {
           bubbles: true,
@@ -907,6 +951,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       );
     } catch (error) {
       if (!usable(state)) return;
+      failed = true;
       const previous = failureFor(state);
       if (previous) throw previous;
       const recoverable =
@@ -925,6 +970,25 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       throw error;
     } finally {
       state.request = null;
+      const finishedAt = options.onDiagnostic
+        ? window.performance.now()
+        : undefined;
+      const outcome = applied
+        ? 'succeeded'
+        : failed
+          ? 'failed'
+          : abort.signal.aborted || !state.active || !mounted
+            ? 'cancelled'
+            : 'failed';
+      // Emit after application/cleanup: observers cannot interleave a partial morph.
+      diagnostic('queue', outcome, queuedAt, startedAt);
+      diagnostic(
+        'request',
+        responseAt === undefined ? outcome : 'succeeded',
+        startedAt,
+        responseAt ?? finishedAt,
+      );
+      diagnostic('morph', outcome, morphAt, finishedAt);
     }
   }
   function schedule(
@@ -956,8 +1020,11 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       if (submit) state.submitting = false;
       throw error;
     }
+    const queuedAt = options.onDiagnostic
+      ? window.performance.now()
+      : undefined;
     const task = state.queue
-      .then(() => invoke(state, action))
+      .then(() => invoke(state, action, queuedAt))
       .finally(() => {
         state.pending--;
         const count = (state.pendingActions.get(targetAction) ?? 1) - 1;

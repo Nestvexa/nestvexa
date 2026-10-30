@@ -26,4 +26,15 @@ Failure modes include high-cardinality labels, user-controlled trace metadata, s
 
 ## Evidence and gaps
 
-[The current benchmark script](../../scripts/bench.mjs) measures HBS rendering only. [Lifecycle tests](../../tests/lifecycle.test.ts) exercise current engine cleanup/cache isolation. They are not production load, heap-leak or end-to-end latency evidence. OpenTelemetry integration, redaction corpus, browser bundle measurements, comparison baseline, long-running memory tests, distributed throughput and render-budget diagnostics remain pending. No measured result should be copied from a target in the master specification.
+October 30 amendment: [browser timing diagnostics](../guides/client-diagnostics.md)
+implement optional queue/request/morph samples with a closed three-field payload,
+no identity labels or buffer, and isolated sink failures. The
+[transport regressions](../../tests/client-transport-lifecycle.test.ts) verify
+timing separation and failure/cancellation classification. A cleanup-triggered
+abort must not mislabel an invalid fragment as user cancellation. This additive
+alpha API changes neither wire format nor retry policy. The existing
+[per-module size checker](../../scripts/size.mjs) retains its 35KiB custom-client
+gzip cap and explicit Alpine/maps exclusions. Server/OTel spans and comparative
+production measurements remain later work.
+
+[The current benchmark script](../../scripts/bench.mjs) measures HBS rendering only. [Lifecycle tests](../../tests/lifecycle.test.ts) exercise current engine cleanup/cache isolation. They are not production load, heap-leak or end-to-end latency evidence. Browser timing redaction tests and per-module bundle estimates now exist. OpenTelemetry integration, the broader server redaction corpus, comparison baseline, long-running memory tests, distributed throughput and render-budget diagnostics remain pending. No measured result should be copied from a target in the master specification.

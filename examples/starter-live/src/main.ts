@@ -22,6 +22,7 @@ import {
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import session from 'express-session';
+import { WorkBoard } from './work-board.js';
 
 declare module 'express-session' {
   interface SessionData {
@@ -119,6 +120,37 @@ class Pages {
       widget: await this.live.mount(Counter, request),
     };
   }
+  @Get('board')
+  @Header('Cache-Control', 'no-store')
+  @Header(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+  )
+  @Render('home')
+  async board(@Req() request: SessionRequest) {
+    request.session.csrf ??= randomBytes(32).toString('base64url');
+    return {
+      title: 'Work board',
+      widget: await this.live.mount(WorkBoard, request),
+    };
+  }
+  // Host composition fixture; the client tests move the second independent root
+  // into the board's explicitly ignored slot. No parent/child server API is implied.
+  @Get('board/ownership')
+  @Header('Cache-Control', 'no-store')
+  @Header(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+  )
+  @Render('home')
+  async ownership(@Req() request: SessionRequest) {
+    request.session.csrf ??= randomBytes(32).toString('base64url');
+    return {
+      title: 'Independent component ownership',
+      widget: await this.live.mount(WorkBoard, request),
+      secondary: await this.live.mount(Counter, request),
+    };
+  }
   @Get('about')
   @Render('about')
   about() {
@@ -135,7 +167,7 @@ class Pages {
     NestvexaModule.forRoot(
       { views: { root, layout: 'layout' }, live: { enabled: true } },
       {
-        components: [Counter],
+        components: [Counter, WorkBoard],
         useFactory: () => ({
           origin: `http://127.0.0.1:${port}`,
           resolveIdentity(request: object) {
@@ -148,20 +180,22 @@ class Pages {
             };
           },
           authorize: (_identity, component, action) =>
-            component === 'counter' &&
-            [
-              '$mount',
-              '$sync',
-              'increment',
-              'save',
-              'disableEditor',
-              'hideEditor',
-              'reorderEditor',
-              'saveInterests',
-              'slowInterests',
-              'hidePanel',
-              'slowPanel',
-            ].includes(action),
+            (component === 'work-board' &&
+              ['$mount', '$sync', 'sort', 'add'].includes(action)) ||
+            (component === 'counter' &&
+              [
+                '$mount',
+                '$sync',
+                'increment',
+                'save',
+                'disableEditor',
+                'hideEditor',
+                'reorderEditor',
+                'saveInterests',
+                'slowInterests',
+                'hidePanel',
+                'slowPanel',
+              ].includes(action)),
         }),
       },
     ),

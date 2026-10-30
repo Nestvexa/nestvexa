@@ -1,8 +1,25 @@
-# Release checkpoint report — 2026-10-29
+# Release checkpoint report — 2026-10-30
 
-**A. Status: NOT YET READY — BLOCKERS.** This is an interim report, not Phase 17 acceptance. The [925-unit ledger](feature-ledger.md) records **98 InProgress, 827 Pending and 0 Done**. No complete phase is accepted. The multiple-select checkpoint passed **924 aggregate/174 browser checks** and four full/minimal packed consumers. Retained-editor870/162 remains historical. Visibility/loading841/138 remains historical. Focus restoration814/126 remains historical. Default setup801/117 remains historical. Historical asset703/105, reset631/102, transport597/93, self-ignore558/84, native511/75 and rendering447/60 retain their original scope below. Calendar dates follow Africa/Cairo and verification timestamps use UTC.
+**A. Status: NOT YET READY — BLOCKERS.** This is an interim report, not Phase 17
+acceptance. Phase 3 tasks 3.1–3.7 and their exit gate passed on Windows:
+**929 aggregate tests, 192 browser checks, seven tarballs/four external consumers**.
+The [acceptance review](phase3-acceptance.md) and [saved gate](phase3-acceptance-evidence-2026-10-30.json)
+record the exact scope and source/report hashes. The [925-unit ledger](feature-ledger.md)
+accepts the nine Phase 3 rows; phases 0–2/4–17 and the broader release/platform
+requirements remain unfinished. Earlier checkpoint results below are historical.
+Calendar dates follow Africa/Cairo and verification timestamps use UTC.
 
 ## B. What exists
+
+Fresh isolated Windows Node **22.23.4** at **2026-10-30T09:40:27.942Z** and
+**24.22.1** at **2026-10-30T09:42:32.661Z** each passed strict compilation and all
+**929 aggregate tests**. They did not repeat the complete three-browser server or
+external-consumer matrix. The [Phase 3 snapshot](phase3-checkpoint-evidence-2026-10-30.json)
+preserves command timings, reports/tarball hashes, coverage scope, runtime results
+and the acceptance gate. The cached-HBS-only benchmark at
+**2026-10-30T09:39:59.778Z**, 1,000 iterations, measured p50 **0.1469ms**, p95
+**0.2009ms**, p99 **0.2768ms** on Windows/i7-1165G7/host Node 24.13.0 before the
+isolated runs. It is not a plain-Nest/application comparison or improvement claim.
 
 Seven packages contain source, public types and READMEs: [core](../../packages/core/README.md), [views](../../packages/views/README.md), [engine-hbs](../../packages/engine-hbs/README.md), [nestvexa](../../packages/nestvexa/README.md), [live](../../packages/live/README.md), [client](../../packages/client/README.md) and [alpine](../../packages/alpine/README.md). The [HBS starter](../../examples/starter-hbs/README.md), [cookie-backed Live counter](../../examples/live-counter/README.md) and [integrated default starter](../../examples/starter-live/README.md) run on real Nest servers.
 
@@ -34,7 +51,33 @@ Native multiple-select models now use bounded unique flat string/number/boolean 
 
 ## C. Evidence
 
-### Current multiple-select verification
+### Phase 3 acceptance
+
+The complete checkpoint at **2026-10-30T09:35:07.311Z** passed frozen install,
+format/lint, strict build/typecheck, **929/929 aggregate tests**, selected coverage,
+size, **192/192 Chromium/Firefox/WebKit checks**, seven tarballs in four external
+full/minimal npm/pnpm consumers, docs, ledger, HBS benchmark and dependency audit.
+No skipped/pending/flaky/unexpected browser cases or runner errors were reported.
+`release:check` intentionally exited 1. `pnpm phase3:check` exited 0 at
+**2026-10-30T09:40:24.072Z**, verifying report timing, unchanged source, artifact
+hashes and the six new board scenarios in every browser engine.
+
+Custom client output: **136,680 raw / 33,198 summed per-module gzip bytes across
+14 modules**, under 35,840, excluding Alpine/adapter/maps; not wire compression
+or total startup. Timing diagnostics are disabled by default, bounded/redacted
+and isolated from mutation behavior. No dependency or wire change was introduced.
+Selected coverage still covers only three configuration/protocol/store files;
+it does not establish whole-client/runtime coverage or independent security review.
+
+Initial diagnostics verification found and fixed failure cleanup being reported
+as cancellation; the final 44-case transport suite passed. The first expanded
+board run passed 15/18: the negative HTTP fixture incorrectly resolved a relative
+endpoint against the other example host. Absolute host resolution corrected it;
+all 18 subsequently passed, followed by the full 192-case suite. The visual
+fixture compares and attaches actual within-run initial/restored renders; it is
+not a cross-OS design baseline. No assertions or accessibility rules were disabled.
+
+### Historical multiple-select verification
 
 The Windows/Node 24.13.0 full runner at **2026-10-29T08:16:22.385Z** passed **924/924 aggregate tests** and **174/174 browser checks** across Chromium/Firefox/WebKit, with no pending/skipped/flaky/unexpected cases or browser runner errors. Frozen install, format/lint, strict typecheck/all builds, selected coverage, size, seven tarballs in four external full/minimal npm/pnpm consumers, docs, ledger, benchmark and audit exited 0. Pack timestamp: **2026-10-29T08:21:07.770Z**. Release checking intentionally exited 1; no complete phase is accepted. The [saved snapshot](multiple-select-checkpoint-evidence-2026-10-29.json) preserves report hashes, package inventories and isolated runtime evidence.
 

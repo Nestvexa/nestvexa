@@ -1,0 +1,74 @@
+<section aria-label="Work items" nv:cloak>
+  <p>
+    Search and sort public sample items. Each browser session has its own board.
+  </p>
+  <label for="board-query">Search work items</label>
+  <input
+    id="board-query"
+    nv:model.live.debounce.150ms="query"
+    value="{{query}}"
+    nv:ref="search"
+  />
+  <button type="button" nv:click="sort" nv:loading.attr="disabled">
+    Reverse title order
+  </button>
+  <p>Title order: <span id="board-order">{{sortLabel}}</span></p>
+  <p nv:loading role="status" hidden>Updating work items</p>
+  <table>
+    <caption>
+      Team work items
+    </caption>
+    <thead>
+      <tr>
+        <th scope="col">Title</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each visibleRows}}
+      <tr data-nv-key="work-{{id}}">
+        <td>{{title}}</td>
+      </tr>
+      {{else}}
+      <tr>
+        <td>No matching items</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+  <form nv:submit="add">
+    <label for="board-title">New work item</label>
+    <input
+      id="board-title"
+      nv:model="title"
+      value="{{title}}"
+      maxlength="80"
+      aria-describedby="board-error"
+      nv:bind="title:error"
+      aria-invalid="{{hasError}}"
+    />
+    <button type="submit" nv:loading.attr="disabled" nv:target="add">
+      Add work item
+    </button>
+    <span id="board-dirty" nv:dirty="title" hidden>Unsaved title</span>
+    <p id="board-error" nv:show="hasError" role="alert" hidden>{{error}}</p>
+  </form>
+  <p id="board-status" role="status" nv:text="status">{{status}}</p>
+  <aside nv:ignore x-data="{ clicks: 0 }" aria-label="Local notes">
+    <button type="button" x-on:click="clicks++">Local board click</button>
+    <output id="board-local" x-text="clicks">0</output>
+    <label for="board-note">Local note</label
+    ><input id="board-note" value="Keep this note" />
+  </aside>
+  <p nv:replace>Server item count: {{rows.length}}</p>
+  <aside
+    id="board-child"
+    nv:ignore
+    aria-label="Host-owned component slot"
+  ></aside>
+  <noscript
+    ><p>
+      Live board editing requires JavaScript. The ordinary navigation and API
+      remain available.
+    </p></noscript
+  >
+</section>

@@ -36,7 +36,21 @@ All registry observations above came from actual `pnpm view <package> version en
 - **Vite:** current documentation describes separate development and build paths, backend integration and SSR. Its documented Node minimum is 20.19+/22.12+; Nestvexa targets maintained LTS releases instead of treating the minimum as support policy. Exact Vite/framework plugin selection is deferred until optional adapter implementation. [Vite guide](https://vite.dev/guide/).
 - **Security:** OWASP identifies ASVS **5.0.0**, published 2025-05-30, as the stable standard. A requirement-by-requirement mapping and independent security review remain release blockers. [ASVS](https://asvs.owasp.org/).
 
-## Current multiple-select verification
+## Current Phase 3 acceptance
+
+The full Windows/Node 24.13.0 checkpoint at **2026-10-30T09:35:07.311Z** passed
+**929 aggregate and 192 Chromium/Firefox/WebKit checks**, seven tarballs in four
+external full/minimal npm/pnpm consumers, build/static/docs/size checks and audit.
+Fresh isolated Node **22.23.4 and 24.22.1** each also passed strict compilation and
+the **929-test aggregate**; these did not repeat the whole browser/consumer matrix.
+The [saved checkpoint](../implementation/phase3-checkpoint-evidence-2026-10-30.json)
+and [Phase 3 review](../implementation/phase3-acceptance.md) preserve exact evidence.
+Linux/full release compatibility and independent review remain open. No dependency
+version or supported platform was added. The monotonic browser timing contract was
+checked against [High Resolution Time](https://www.w3.org/TR/hr-time-3/) on October 30;
+that specification is a Working Draft, not a performance certification.
+
+## Historical multiple-select verification
 
 The Windows/Node 24.13.0 full runner at **2026-10-29T08:16:22.385Z** passed **924/924 aggregate tests** and **174/174 browser checks** across Chromium/Firefox/WebKit, with no pending/skipped/flaky/unexpected cases or browser runner errors. Frozen install, format/lint, strict typecheck/all builds, selected coverage, size, seven tarballs in four external full/minimal npm/pnpm consumers, docs, ledger, benchmark and audit exited 0. Pack timestamp: **2026-10-29T08:21:07.770Z**. Release checking intentionally exited 1; no complete phase is accepted.
 
