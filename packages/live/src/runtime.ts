@@ -15,6 +15,7 @@ import type { JsonValue, LiveRequest } from './protocol.js';
 import { MemoryLiveStore } from './store.js';
 import type { ComponentDefinition } from './metadata.js';
 import { INTERNAL_SYNC_ACTION } from './metadata.js';
+import type { LiveLifecycleHooks, LiveUpdateContext } from './lifecycle.js';
 
 export const LIVE_OPTIONS = Symbol('nv:live-options');
 export interface LiveIdentity {
@@ -203,9 +204,18 @@ export class LiveRuntime implements OnApplicationShutdown {
     if (Buffer.byteLength(html) > 1_048_576) fail(413, 'PAYLOAD_TOO_LARGE');
     return html;
   }
-  private async hook(instance: object, name: string): Promise<void> {
+  private async hook(
+    instance: object,
+    name: keyof LiveLifecycleHooks,
+    args: readonly unknown[] = [],
+  ): Promise<void> {
+    if (this.closed) fail(503, 'LIVE_SHUTDOWN');
     const method: unknown = Reflect.get(instance, name);
-    if (typeof method === 'function') await Reflect.apply(method, instance, []);
+    if (method !== undefined && typeof method !== 'function')
+      throw new Error(`Lifecycle hook ${name} must be a method`);
+    if (typeof method === 'function')
+      await Reflect.apply(method, instance, args);
+    if (this.closed) fail(503, 'LIVE_SHUTDOWN');
   }
   /** Mount only from a host route with host-resolved identity; never from a client class name. */
   async mount(type: Type<object>, request: object): Promise<SafeHtml> {
@@ -224,6 +234,7 @@ export class LiveRuntime implements OnApplicationShutdown {
       fail(403, 'COMPONENT_FORBIDDEN');
     if (this.closed) fail(503, 'LIVE_SHUTDOWN');
     const instance = await this.instance(component, request);
+    await this.hook(instance, 'boot');
     await this.hook(instance, 'mount');
     await this.hook(instance, 'dehydrate');
     const html = await this.render(instance, component);
@@ -271,14 +282,24 @@ export class LiveRuntime implements OnApplicationShutdown {
               configurable: true,
             });
           }
+          await this.hook(instance, 'boot');
           await this.hook(instance, 'hydrate');
           for (const [key, value] of Object.entries(updates)) {
+            const previous = snapshot.state[key];
+            if (previous === undefined) fail(409, 'STATE_SCHEMA_CHANGED');
+            const update: LiveUpdateContext = Object.freeze({
+              field: key,
+              previous: freezeJson(structuredClone(previous)),
+              value: freezeJson(structuredClone(value)),
+            });
+            await this.hook(instance, 'beforeUpdate', [update]);
             Object.defineProperty(instance, key, {
               value,
               writable: true,
               enumerable: true,
               configurable: true,
             });
+            await this.hook(instance, 'afterUpdate', [update]);
           }
           if (!synchronization && selected) {
             await this.hook(instance, 'beforeAction');

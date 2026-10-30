@@ -1,4 +1,5 @@
 import { Action, Computed, LiveComponent, State } from 'nestvexa';
+import type { LiveLifecycleHooks, LiveUpdateContext } from 'nestvexa';
 
 interface WorkItem {
   id: number;
@@ -7,7 +8,7 @@ interface WorkItem {
 
 /** Public demonstration data; production hosts inject their own authorized service. */
 @LiveComponent({ name: 'work-board', view: 'board' })
-export class WorkBoard {
+export class WorkBoard implements LiveLifecycleHooks {
   @State({
     writable: true,
     validate: (value) => typeof value === 'string' && value.length <= 80,
@@ -22,6 +23,10 @@ export class WorkBoard {
   @State() error = '';
   @State() hasError = false;
   @State() status = 'Ready';
+  @State() lastUpdated = 'None';
+  afterUpdate(update: LiveUpdateContext): void {
+    this.lastUpdated = update.field;
+  }
   @State() rows: WorkItem[] = [
     { id: 1, title: 'Build accessible forms' },
     { id: 2, title: 'Review security boundaries' },

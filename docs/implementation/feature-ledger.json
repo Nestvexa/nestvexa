@@ -5369,14 +5369,38 @@
       "id": "LIVE-015",
       "priority": "P1",
       "package": "@nestvexa/live",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/live/src/lifecycle.ts",
+        "packages/live/src/runtime.ts",
+        "packages/live/src/metadata.ts",
+        "packages/live/src/index.ts"
+      ],
+      "testFiles": [
+        "tests/live-model.test.ts",
+        "tests/browser/update-hooks.spec.ts"
+      ],
+      "docs": [
+        "docs/guides/live-update-hooks.md",
+        "packages/live/README.md",
+        "docs/adr/0011-live-update-hooks.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/work-board.ts",
+        "examples/starter-live/views/board.hbs"
+      ],
+      "securityNotes": "Hooks execute only after admission, host authorization, Nest guards/pipes and whole-batch state validation. Context values are detached/frozen. Callback failure retains existing token revocation, preventing blind retries. Hook methods are reserved from state/action metadata; shutdown prevents the next stage. External effects are not rolled back.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-30T09:51:23.195Z",
+          "report": "docs/implementation/update-hooks-checkpoint-evidence-2026-10-30.json"
+        }
+      ],
+      "outstandingIssues": [
+        "Verified initial boot/beforeUpdate/afterUpdate slice only. Full Phase4 lifecycle (including render/error/disposal semantics), nested server components/mount keys, computed invalidation, serializers, cancellation/timeouts and other Phase4 tasks remain incomplete. No Phase4 acceptance claim."
+      ]
     },
     {
       "sourceKey": "23507b7e1b6600b5de0efade8c5483db19151ebd28fb1bc2b07dce8e7e10da63",
@@ -15656,14 +15680,38 @@
       "id": "PHASE-045",
       "priority": "P1",
       "package": "cross-package",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/live/src/lifecycle.ts",
+        "packages/live/src/runtime.ts",
+        "packages/live/src/metadata.ts",
+        "packages/live/src/index.ts"
+      ],
+      "testFiles": [
+        "tests/live-model.test.ts",
+        "tests/browser/update-hooks.spec.ts"
+      ],
+      "docs": [
+        "docs/guides/live-update-hooks.md",
+        "packages/live/README.md",
+        "docs/adr/0011-live-update-hooks.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/work-board.ts",
+        "examples/starter-live/views/board.hbs"
+      ],
+      "securityNotes": "Hooks execute only after admission, host authorization, Nest guards/pipes and whole-batch state validation. Context values are detached/frozen. Callback failure retains existing token revocation, preventing blind retries. Hook methods are reserved from state/action metadata; shutdown prevents the next stage. External effects are not rolled back.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-30T09:51:23.195Z",
+          "report": "docs/implementation/update-hooks-checkpoint-evidence-2026-10-30.json"
+        }
+      ],
+      "outstandingIssues": [
+        "Verified initial boot/beforeUpdate/afterUpdate slice only. Full Phase4 lifecycle (including render/error/disposal semantics), nested server components/mount keys, computed invalidation, serializers, cancellation/timeouts and other Phase4 tasks remain incomplete. No Phase4 acceptance claim."
+      ]
     },
     {
       "sourceKey": "043d3aab29036e72827a86b0a30e69a66f2b02e65395ac104c30b8532199c354",
@@ -15696,14 +15744,38 @@
       "id": "PHASE-047",
       "priority": "P1",
       "package": "cross-package",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/live/src/lifecycle.ts",
+        "packages/live/src/runtime.ts",
+        "packages/live/src/metadata.ts",
+        "packages/live/src/index.ts"
+      ],
+      "testFiles": [
+        "tests/live-model.test.ts",
+        "tests/browser/update-hooks.spec.ts"
+      ],
+      "docs": [
+        "docs/guides/live-update-hooks.md",
+        "packages/live/README.md",
+        "docs/adr/0011-live-update-hooks.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/work-board.ts",
+        "examples/starter-live/views/board.hbs"
+      ],
+      "securityNotes": "Hooks execute only after admission, host authorization, Nest guards/pipes and whole-batch state validation. Context values are detached/frozen. Callback failure retains existing token revocation, preventing blind retries. Hook methods are reserved from state/action metadata; shutdown prevents the next stage. External effects are not rolled back.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-30T09:51:23.195Z",
+          "report": "docs/implementation/update-hooks-checkpoint-evidence-2026-10-30.json"
+        }
+      ],
+      "outstandingIssues": [
+        "Verified initial boot/beforeUpdate/afterUpdate slice only. Full Phase4 lifecycle (including render/error/disposal semantics), nested server components/mount keys, computed invalidation, serializers, cancellation/timeouts and other Phase4 tasks remain incomplete. No Phase4 acceptance claim."
+      ]
     },
     {
       "sourceKey": "ee9e37ee31211b304cb630f6adacbc0f314fbd18169cd2a5a94810a4b29e2400",

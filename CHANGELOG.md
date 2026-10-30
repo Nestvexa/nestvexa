@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased: Phase 4 request and update lifecycle
+
+Added awaited `boot`, `beforeUpdate` and `afterUpdate` hooks with typed,
+recursively frozen detached update context, input/guard ordering and shutdown
+checks between stages. Hook names are reserved from client state/action exposure;
+older alpha members using these names must be renamed. No wire protocol change
+or business side-effect rollback is implied. Remaining Phase 4 features stay open.
+
 ## Unreleased: Phase 3 timing diagnostics and reactive work board
 
 Added opt-in frozen queue/request/morph timing samples with no state, identities,

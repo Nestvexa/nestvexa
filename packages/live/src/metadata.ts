@@ -1,6 +1,7 @@
 import { Body } from '@nestjs/common';
 import type { Type, PipeTransform } from '@nestjs/common';
 import type { JsonValue } from './protocol.js';
+import { lifecycleHookNames } from './lifecycle.js';
 
 export const INTERNAL_SYNC_ACTION = '$sync';
 export const INTERNAL_SYNC_PATH = '_sync';
@@ -35,6 +36,7 @@ const ACTIONS = Symbol('nv:actions');
 const INPUT = Symbol('nv:input');
 const ACTION_DECLARED = Symbol('nv:action-declared');
 const reservedMembers = new Set([
+  ...lifecycleHookNames,
   ...Object.getOwnPropertyNames(Object.prototype),
   'prototype',
   'then',
@@ -180,6 +182,11 @@ export function definition(type: Type<object>): ComponentDefinition {
     type,
   );
   if (!options) throw new Error(`Missing @LiveComponent on ${type.name}`);
+  for (const name of lifecycleHookNames) {
+    const declaration = memberDeclaration(type.prototype, name);
+    if (declaration && typeof declaration.descriptor.value !== 'function')
+      throw new Error(`Lifecycle hook ${name} must be a method`);
+  }
   const states: Map<string, StateOptions> = new Map(
     Reflect.getMetadata(STATES, type.prototype),
   );

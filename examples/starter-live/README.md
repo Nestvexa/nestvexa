@@ -9,6 +9,10 @@ visual round trip. `/board/ownership` supplies two independent server-mounted
 roots for the explicit nested DOM ownership fixture; it is not the Phase 4
 parent/child lifecycle API.
 
+The first [Phase 4 hook example](../../docs/guides/live-update-hooks.md) displays
+the last accepted client field via `afterUpdate`, on both model synchronization
+and submission. This does not make the remaining lifecycle or Phase 4 complete.
+
 Build from the repository root with `pnpm install --frozen-lockfile && pnpm build`, then run `pnpm --filter @nestvexa/example-starter-live start` and open <http://127.0.0.1:3102>.
 
 This example imports the server API from `nestvexa`, registers a counter and explicit host policies, shares HBS between MVC and Live, and uses `{{nvScripts}}` for automatic client/Alpine CSP startup. It has no frontend build tool or direct Live/client/Alpine package dependency. Native `/api/health` and `/about` remain ordinary Nest routes. The ignored Alpine widget preserves local state while the counter updates.

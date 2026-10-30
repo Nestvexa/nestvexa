@@ -59,9 +59,10 @@ represented as implemented here. No independent security audit is claimed.
 
 Compatibility is additive: diagnostic collection is disabled by default, no
 wire/schema version changes, no new dependency/module asset and no new package.
-The existing client size cap remains unchanged. The complete checkpoint must
-rebuild, run all aggregate/browser/security checks, pack all seven packages and
-exercise the external npm/pnpm consumers before this review can be accepted.
+The existing client size cap remains unchanged. Acceptance required the complete
+checkpoint to rebuild, run all aggregate/browser/security checks, pack all seven
+packages and exercise the external npm/pnpm consumers; those checks passed as
+recorded above.
 
 The earlier generic Phase 3 outstanding notes also named later requirements;
 those have not disappeared. BROW-010/013 retain full renderer/teleport ownership,

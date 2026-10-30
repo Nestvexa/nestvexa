@@ -1,5 +1,11 @@
 # @nestvexa/live
 
+Phase 4 begins with awaited `boot`, `beforeUpdate` and `afterUpdate` hooks and
+exported `LiveLifecycleHooks`, `LiveUpdateContext` and `ReadonlyLiveValue` types.
+All input validation precedes execution; update context is detached/frozen. See
+[ordering, failure boundaries and reserved-name migration](../../docs/guides/live-update-hooks.md).
+This does not complete Phase 4 lifecycle/nesting or later features.
+
 Experimental Nest-native Live components. This first slice has explicit component/action registration, JSON state, computed getters, opaque server-side snapshots, host identity/CSRF/origin/authorization checks and generated Nest controller routes. It is not the full Live feature set.
 
 ## Install and setup

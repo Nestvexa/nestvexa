@@ -19,9 +19,18 @@ The repository contains core configuration/registries, view contracts, an HBS en
 | 1     | InProgress | Core/configuration, views, HBS, umbrella and starter implemented with scoped external consumer/browser checks; complete phase requirements and matrix still pending.                                          |
 | 2     | InProgress | Bounded JSON, opaque owner-bound memory state and generated routes execute in Express/Fastify tests; cookie-session origin/CSRF/replay tests pass in the initial browser slice. Full acceptance remains open. |
 | 3     | Done       | Tasks 3.1–3.7 and their HBS form/table exit gate passed; see the exact source-bound acceptance review and separate later-phase requirements.                                                                  |
-| 4–17  | Pending    | Complete Live feature breadth, forms, uploads, other engines, Inertia/frameworks, islands/actions, realtime/stores/jobs, extensions, CLI, hardening and release not delivered.                                |
+| 4     | InProgress | Started after Phase 3 gate: awaited boot/update hooks, frozen context, metadata restrictions and shutdown checks; full Phase 4 remains incomplete.                                                            |
+| 5–17  | Pending    | Forms, uploads, other engines, Inertia/frameworks, islands/actions, realtime/stores/jobs, extensions, CLI, hardening and release not delivered.                                                               |
 
 ## Resume and audit
+
+Phase 4 began after Phase 3 commit `4571055` with implemented, awaited
+`boot`/`beforeUpdate`/`afterUpdate` hooks, immutable detached context, reserved
+metadata and shutdown checks. The full **2026-10-30T09:51:23.195Z** checkpoint
+passed **947 aggregate tests and 195 three-browser checks**, all seven tarballs
+and four external consumers, static/docs/size checks and audit. The remaining
+Phase 4 tasks stay open; see [the hook guide](../guides/live-update-hooks.md),
+[ADR 0011](../adr/0011-live-update-hooks.md) and [release report](FINAL_RELEASE_REPORT.md).
 
 Local commit `2bb6274` saves the earlier verified MVC/Live/Alpine foundation. Event modifiers, keyboard action filters, direct `.stop` listeners and scheduled-event cleanup are integrated with unit/lifecycle tests and [four event browser scenarios](../../tests/browser/events.spec.ts). That historical runner passed **235 tests and 36 browser checks** on Windows/Node 24.13.0. An initial WebKit timer-removal fixture raced its short debounce; it now removes the element in the same event turn after scheduling, and the complete three-browser rerun passed. The newer model work is recorded separately below.
 

@@ -9,6 +9,11 @@ export {
   type LiveHostOptions,
   type LiveIdentity,
 } from './runtime.js';
+export type {
+  LiveLifecycleHooks,
+  LiveUpdateContext,
+  ReadonlyLiveValue,
+} from './lifecycle.js';
 export {
   LiveComponent,
   State,

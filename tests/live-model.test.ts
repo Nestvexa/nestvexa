@@ -37,6 +37,7 @@ import {
   LiveRuntime,
   State,
 } from '../packages/live/dist/index.js';
+import type { LiveUpdateContext } from '../packages/live/dist/index.js';
 
 const origin = 'http://localhost:3100';
 const csrf = 'host-generated-model-csrf-01234567890123456789';
@@ -45,6 +46,38 @@ const resources: {
   root: string;
   renderer: HbsEngine;
 }[] = [];
+
+it.each(['boot', 'beforeUpdate', 'afterUpdate'])(
+  'reserves lifecycle name %s from state/action exposure',
+  (name) => {
+    const prototype = {};
+    expect(() => State()(prototype, name)).toThrow('Reserved or unsafe');
+    expect(() => Action()(prototype, name, { value: () => undefined })).toThrow(
+      'Reserved or unsafe',
+    );
+  },
+);
+
+it('rejects lifecycle accessors at registration without invoking them', () => {
+  let called = 0;
+  @LiveComponent({ name: 'invalid-hook', view: 'unused' })
+  class InvalidHook {
+    get boot() {
+      called++;
+      return () => undefined;
+    }
+  }
+  expect(() =>
+    LiveModule.register({
+      origin,
+      renderer: new HbsEngine({ root: process.cwd() }),
+      components: [InvalidHook],
+      resolveIdentity: () => ({ binding: 'fixture', csrfToken: csrf }),
+      authorize: () => true,
+    }),
+  ).toThrow('Lifecycle hook boot must be a method');
+  expect(called).toBe(0);
+});
 afterEach(async () => {
   for (const { app, root, renderer } of resources.splice(0)) {
     await app.close();
@@ -137,6 +170,10 @@ async function fixture(platform: 'express' | 'fastify') {
   const traces: string[][] = [];
   const hooks: string[] = [];
   const policies: string[] = [];
+  const contexts: LiveUpdateContext[] = [];
+  let updateHooks = false;
+  let hookFailure: 'boot' | 'beforeUpdate' | 'afterUpdate' | undefined;
+  let updateGate: { entered: () => void; wait: Promise<void> } | undefined;
   let validationGate: { entered: () => void; wait: Promise<void> } | undefined;
   @Injectable({ scope: Scope.REQUEST })
   class Info {
@@ -233,6 +270,52 @@ async function fixture(platform: 'express' | 'fastify') {
     label = 'initial';
     @State() count = 0;
     @State() scopeId = '';
+    @State() bootCount = 0;
+    @State({
+      writable: true,
+      validate: (value) => {
+        if (
+          typeof value !== 'object' ||
+          value === null ||
+          Array.isArray(value) ||
+          Object.keys(value).length !== 1
+        )
+          return false;
+        const tags = value['tags'];
+        return (
+          Array.isArray(tags) &&
+          tags.length <= 2 &&
+          tags.every((tag) => typeof tag === 'string' && tag.length <= 8)
+        );
+      },
+    })
+    details = { tags: ['initial'] };
+    async boot(): Promise<void> {
+      this.bootCount++;
+      if (updateHooks) {
+        hooks.push('boot');
+        if (hookFailure === 'boot') throw new Error('Private boot failure');
+      }
+    }
+    async beforeUpdate(update: LiveUpdateContext): Promise<void> {
+      if (!updateHooks) return;
+      hooks.push(`beforeUpdate:${update.field}`);
+      contexts.push(update);
+      if (updateGate) {
+        updateGate.entered();
+        await updateGate.wait;
+      }
+      if (hookFailure === 'beforeUpdate')
+        throw new Error('Private beforeUpdate failure');
+    }
+    async afterUpdate(update: LiveUpdateContext): Promise<void> {
+      if (!updateHooks) return;
+      hooks.push(`afterUpdate:${update.field}`);
+      if (hookFailure === 'afterUpdate')
+        throw new Error('Private afterUpdate failure');
+      // Context values are detached; trusted component state remains mutable.
+      if (update.field === 'details') this.details.tags.push('server');
+    }
     mount(): void {
       hooks.push('mount');
     }
@@ -336,6 +419,16 @@ async function fixture(platform: 'express' | 'fastify') {
     traces,
     hooks,
     policies,
+    contexts,
+    enableUpdateHooks: () => {
+      updateHooks = true;
+    },
+    failHook: (value: typeof hookFailure) => {
+      hookFailure = value;
+    },
+    updateGate: (value: typeof updateGate) => {
+      updateGate = value;
+    },
     denySync: () => {
       allowSync = false;
     },
@@ -348,6 +441,173 @@ async function fixture(platform: 'express' | 'fastify') {
 describe.each(['express', 'fastify'] as const)(
   'Live model synchronization: %s',
   (platform) => {
+    it('boots each fresh request and awaits field hooks in action and synchronization order', async () => {
+      const host = await fixture(platform);
+      host.enableUpdateHooks();
+      expect(
+        host.runtime.store.peek(
+          host.initial.snapshot,
+          'tenant-a/session-alice/principal-alice',
+        ).state['bootCount'],
+      ).toBe(1);
+      const entered = deferred();
+      const release = deferred();
+      host.updateGate({ entered: entered.resolve, wait: release.promise });
+      const pending = host.post(
+        host.initial,
+        { label: 'next' },
+        { action: 'increment' },
+      );
+      try {
+        await waitForGate(entered.promise, pending);
+        expect(host.hooks).toEqual(['boot', 'hydrate', 'beforeUpdate:label']);
+      } finally {
+        release.resolve();
+      }
+      const response = await pending;
+      expect(response.status).toBe(201);
+      const result = (await response.json()) as Reply;
+      expect(result.state).toMatchObject({
+        label: 'next',
+        count: 1,
+        bootCount: 2,
+      });
+      expect(host.hooks).toEqual([
+        'boot',
+        'hydrate',
+        'beforeUpdate:label',
+        'afterUpdate:label',
+        'beforeAction',
+        'afterAction',
+        'dehydrate',
+      ]);
+      expect(host.contexts).toEqual([
+        { field: 'label', previous: 'initial', value: 'next' },
+      ]);
+      host.hooks.length = 0;
+      host.updateGate(undefined);
+      const sync = await host.post(
+        { snapshot: result.snapshot, revision: result.component.revision },
+        { label: 'sync' },
+      );
+      expect(sync.status).toBe(201);
+      expect(host.hooks).toEqual([
+        'boot',
+        'hydrate',
+        'beforeUpdate:label',
+        'afterUpdate:label',
+        'dehydrate',
+      ]);
+    });
+
+    it('freezes detached nested update context without freezing component-owned data', async () => {
+      const host = await fixture(platform);
+      host.enableUpdateHooks();
+      const response = await host.post(host.initial, {
+        details: { tags: ['next'] },
+      });
+      expect(response.status).toBe(201);
+      expect(
+        ((await response.json()) as { state: { details: unknown } }).state
+          .details,
+      ).toEqual({ tags: ['next', 'server'] });
+      const context = host.contexts[0];
+      expect(context).toEqual({
+        field: 'details',
+        previous: { tags: ['initial'] },
+        value: { tags: ['next'] },
+      });
+      if (
+        !context ||
+        typeof context.value !== 'object' ||
+        context.value === null ||
+        Array.isArray(context.value)
+      )
+        throw new Error('Missing object context');
+      expect(Object.isFrozen(context)).toBe(true);
+      expect(Object.isFrozen(context.previous)).toBe(true);
+      expect(Object.isFrozen(context.value)).toBe(true);
+      expect(Object.isFrozen(Reflect.get(context.value, 'tags'))).toBe(true);
+      expect(Reflect.set(context.value, 'tags', ['forged'])).toBe(false);
+    });
+
+    it.each(['boot', 'beforeUpdate', 'afterUpdate'] as const)(
+      'revokes the token and does not invoke actions after a failed %s hook',
+      async (name) => {
+        const host = await fixture(platform);
+        host.enableUpdateHooks();
+        host.failHook(name);
+        const response = await host.post(
+          host.initial,
+          { label: 'next' },
+          { action: 'increment' },
+        );
+        expect(response.status).toBe(500);
+        expect(await response.text()).not.toContain('Private');
+        expect(host.hooks).not.toContain('beforeAction');
+        expect(() =>
+          host.runtime.store.peek(
+            host.initial.snapshot,
+            'tenant-a/session-alice/principal-alice',
+          ),
+        ).toThrow('Live state is unavailable');
+        expect(host.runtime.store.size).toBe(0);
+        const hookCount = host.hooks.length;
+        host.failHook(undefined);
+        const corrected = await host.post(host.initial, { label: 'next' });
+        expect(corrected.status).toBe(410);
+        expect(host.hooks).toHaveLength(hookCount);
+      },
+    );
+
+    it('validates the entire update batch and authorization before any boot/update hook', async () => {
+      const host = await fixture(platform);
+      host.enableUpdateHooks();
+      expect(
+        (await host.post(host.initial, { label: 'valid', count: 42 })).status,
+      ).toBe(422);
+      expect(
+        (await host.post(host.initial, { label: 'oversized' })).status,
+      ).toBe(422);
+      expect(
+        (
+          await host.post(
+            host.initial,
+            { label: 'valid' },
+            { headers: { 'x-deny-global': 'yes' } },
+          )
+        ).status,
+      ).toBe(403);
+      expect(host.hooks).toEqual([]);
+      expect(host.contexts).toEqual([]);
+      for (const action of ['boot', 'beforeUpdate', 'afterUpdate'])
+        expect((await host.post(host.initial, {}, { action })).status).toBe(
+          404,
+        );
+      expect(host.hooks).toEqual([]);
+    });
+
+    it('stops before assignment/action when shutdown occurs during an awaited update hook', async () => {
+      const host = await fixture(platform);
+      host.enableUpdateHooks();
+      const entered = deferred();
+      const release = deferred();
+      host.updateGate({ entered: entered.resolve, wait: release.promise });
+      const pending = host.post(
+        host.initial,
+        { label: 'next' },
+        { action: 'increment' },
+      );
+      try {
+        await waitForGate(entered.promise, pending);
+        host.runtime.onApplicationShutdown();
+      } finally {
+        release.resolve();
+      }
+      expect((await pending).status).toBe(503);
+      expect(host.hooks).toEqual(['boot', 'hydrate', 'beforeUpdate:label']);
+    });
+
     it('uses global/class Nest pipeline and request DI without invoking action guards or hooks', async () => {
       const host = await fixture(platform);
       const first = await host.post(host.initial, { label: '<b>' });

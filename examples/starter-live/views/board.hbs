@@ -53,6 +53,10 @@
     <p id="board-error" nv:show="hasError" role="alert" hidden>{{error}}</p>
   </form>
   <p id="board-status" role="status" nv:text="status">{{status}}</p>
+  <p>
+    Last accepted field:
+    <output id="board-last-updated">{{lastUpdated}}</output>
+  </p>
   <aside nv:ignore x-data="{ clicks: 0 }" aria-label="Local notes">
     <button type="button" x-on:click="clicks++">Local board click</button>
     <output id="board-local" x-text="clicks">0</output>

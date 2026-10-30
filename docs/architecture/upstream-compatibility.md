@@ -38,6 +38,15 @@ All registry observations above came from actual `pnpm view <package> version en
 
 ## Current Phase 3 acceptance
 
+The subsequent first-Phase-4 lifecycle checkpoint at
+**2026-10-30T09:51:23.195Z** passed **947 aggregate/195 three-browser checks**,
+seven tarballs/four consumers and all implemented-checkpoint gates. Isolated
+Windows Node **22.23.4** at **09:56:39.934Z** and **24.22.1** at **09:58:39.184Z**
+also passed strict compilation and all **947 tests** on October 30; no full
+browser/consumer matrix under both binaries is inferred. See the
+[saved lifecycle evidence](../implementation/update-hooks-checkpoint-evidence-2026-10-30.json).
+Dependency versions and platform claims are unchanged. Phase 4 remains InProgress.
+
 The full Windows/Node 24.13.0 checkpoint at **2026-10-30T09:35:07.311Z** passed
 **929 aggregate and 192 Chromium/Firefox/WebKit checks**, seven tarballs in four
 external full/minimal npm/pnpm consumers, build/static/docs/size checks and audit.

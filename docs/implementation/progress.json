@@ -13,13 +13,13 @@
       "id": 1,
       "state": "InProgress",
       "scope": "Core, views, HBS, integrated umbrella Live/Alpine startup and three runnable examples",
-      "remaining": "Multiple-select checkpoint:924 aggregate/174 three-browser checks; seven tarballs/four full-minimal npm-pnpm consumers and fresh Windows Node22/24 strict+aggregate passes. Complete phase/directive/input/lifecycle/accessibility/security/platform acceptance remains open. Phase4 Pending."
+      "remaining": "Current implemented checkpoint passes947 aggregate/195 three-browser checks,7tarballs/4externalconsumers and isolatedWindowsNode22/24 strict+aggregate. Complete phase-specific and Linux/full compatibility acceptance remain open; Phase3 accepted separately,Phase4 InProgress."
     },
     {
       "id": 2,
       "state": "InProgress",
       "scope": "Live protocol, opaque state store, generated routes, registration ownership, authorized model synchronization and pure writable-state validation",
-      "remaining": "Multiple-select checkpoint:924 aggregate/174 three-browser checks; seven tarballs/four full-minimal npm-pnpm consumers and fresh Windows Node22/24 strict+aggregate passes. Complete phase/directive/input/lifecycle/accessibility/security/platform acceptance remains open. Phase4 Pending."
+      "remaining": "Current implemented checkpoint passes947 aggregate/195 three-browser checks,7tarballs/4externalconsumers and isolatedWindowsNode22/24 strict+aggregate. Complete phase-specific and Linux/full compatibility acceptance remain open; Phase3 accepted separately,Phase4 InProgress."
     },
     {
       "id": 3,
@@ -30,7 +30,10 @@
     },
     {
       "id": 4,
-      "state": "Pending"
+      "state": "InProgress",
+      "scope": "Started only after Phase3 acceptance: awaited boot/beforeUpdate/afterUpdate hooks, immutable typed context, reserved metadata, shutdown boundaries and real HBS hook sample.",
+      "remaining": "First hook slice verified by full947/195 checkpoint,7tarballs/4consumers and isolatedNode22/24 strict+aggregate. Full lifecycle/nesting/keys/computed/serializers; URL/session/reactive/modelable/events; remaining directives,lazy/defer/batching/progressive,navigation/optimistic behavior and all Phase4 acceptance remain open.",
+      "evidence": "docs/implementation/update-hooks-checkpoint-evidence-2026-10-30.json"
     },
     {
       "id": 5,

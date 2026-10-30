@@ -26,6 +26,10 @@ form with keyboard submission and isolated Alpine notes. The
 executed gate; this does not make the complete project release-ready. Advanced
 manual client entries can opt into [redacted browser timings](docs/guides/client-diagnostics.md).
 
+Phase 4 has begun with [awaited request/update hooks](docs/guides/live-update-hooks.md);
+the work board displays the last accepted field through `afterUpdate`. The rest
+of Phase 4 remains incomplete.
+
 The starter also demonstrates [keyboard focus after server updates](docs/guides/focus-restoration.md), including controls made disabled or hidden while a response is pending. This is scoped behavior verification; complete accessibility acceptance remains open.
 
 Its [local editable example](docs/guides/focus-restoration.md#local-editable-selection) keeps retained caret/range positions through keyed reordering, without sending draft HTML as Live state. Plugin, cross-editor and replaced-node selections require their own host policy.

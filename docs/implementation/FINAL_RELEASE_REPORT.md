@@ -1,7 +1,9 @@
 # Release checkpoint report — 2026-10-30
 
 **A. Status: NOT YET READY — BLOCKERS.** This is an interim report, not Phase 17
-acceptance. Phase 3 tasks 3.1–3.7 and their exit gate passed on Windows:
+acceptance. The latest first-Phase-4 lifecycle checkpoint passed **947 aggregate
+tests and 195 browser checks**; Phase 4 is **InProgress**, with the rest of its
+scope still incomplete. Phase 3 tasks 3.1–3.7 and their exit gate passed first on Windows:
 **929 aggregate tests, 192 browser checks, seven tarballs/four external consumers**.
 The [acceptance review](phase3-acceptance.md) and [saved gate](phase3-acceptance-evidence-2026-10-30.json)
 record the exact scope and source/report hashes. The [925-unit ledger](feature-ledger.md)
@@ -50,6 +52,52 @@ The retained editor slice preserves original native anchor/focus points through 
 Native multiple-select models now use bounded unique flat string/number/boolean arrays, strict all-option catalogs, shared alias projection and ordered dirty equality. Empty selection is valid. Native reset records newer array versions, compares alias defaults structurally and cancels timers without an automatic request. Shape/cast changes discard incompatible older drafts before response projection. Public client/Alpine setters stay primitive-only and reject incompatible array-field writes atomically. Server item validation and authorization remain authoritative; see the [multiple-select guide](../guides/multiple-select.md).
 
 ## C. Evidence
+
+### Current Phase 4 lifecycle checkpoint
+
+The full Windows/host Node 24.13.0 checkpoint at **2026-10-30T09:51:23.195Z**
+passed frozen install, formatting/lint, strict build/typecheck, **947/947 aggregate
+tests**, selected coverage, unchanged browser size budget, **195/195 browser
+checks** across Chromium/Firefox/WebKit, seven tarballs/four full-minimal external
+npm/pnpm consumers, docs, ledger, benchmark and audit. No pending/skipped/flaky/
+unexpected cases or browser errors were reported. Audit output: **no known
+vulnerabilities found**. `release:check` correctly exited 1. The Phase 3 regression
+gate also passed against this newer source at **2026-10-30T09:56:36.690Z**.
+
+The first new focused server run passed 99/105; six tests incorrectly assumed
+failed callbacks retained a reusable token. The existing store intentionally
+revokes it because effects may already have committed. Tests/docs were corrected
+to assert revocation, no action execution and rejection of further requests;
+no store policy was weakened. The focused rerun passed all 105, and all 21
+combined board/hook checks passed before the full 947/195 checkpoint. The new
+hook flow uses real Nest endpoints in all three browsers.
+
+The implemented [typed lifecycle](../../packages/live/src/lifecycle.ts),
+[ordering/migration guide](../guides/live-update-hooks.md) and
+[ADR 0011](../adr/0011-live-update-hooks.md) describe the executed boot/update
+contract, frozen context, authorization/validation order, revocation and shutdown
+boundaries. Full lifecycle/nesting, keys, computed invalidation, serializers,
+URL/session/reactive/modelable/events and remaining Phase 4 directives/UX remain
+unfinished. No Phase 4 row is marked Done.
+
+Fresh isolated Windows Node **22.23.4** at **2026-10-30T09:56:39.934Z** and
+**24.22.1** at **2026-10-30T09:58:39.184Z** each passed strict compilation and all
+**947 aggregate tests**. These runs include real HTTP and controlled Chromium
+fixtures, without repeating the complete three-browser server/consumer matrix.
+The [saved lifecycle checkpoint](update-hooks-checkpoint-evidence-2026-10-30.json)
+records the tested source hash, command timings, report/tarball hashes, runtime
+results, coverage scope and Phase 3 regression gate. Ledger: **95 InProgress,
+821 Pending, 9 Done**; the Done rows are Phase 3 only. Linux/full release matrix
+and independent review remain open.
+
+Client output remains **136,680 raw / 33,198 summed per-module gzip bytes across
+14 modules**, excluding Alpine/adapter/maps, under 35,840. Selected coverage
+remains **97.18% branches / 98.20% statements across only three config/protocol/store
+files**, excluding lifecycle/runtime/client and most project code. The HBS-only
+microbenchmark at **2026-10-30T09:56:06.797Z**, 1,000 iterations before isolated
+runtime checks, measured p50 **0.1464ms**, p95 **0.1968ms**, p99 **0.2389ms** on
+Windows/i7-1165G7/host Node 24.13.0. It establishes no application comparison or
+performance improvement.
 
 ### Phase 3 acceptance
 
