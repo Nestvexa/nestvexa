@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased: confirmed browser actions
+
+Added plain-text `nv:confirm`, native dialog defaults and a typed asynchronous
+host callback with abort signals, bounded deadlines/capacity, duplicate suppression
+and late-approval rejection after configuration, ownership or lifecycle changes.
+Confirmation is presentation only; real Nest authorization/CSRF/session checks
+remain required. The work-board example adds a confirmed seed-data removal action
+and safely adds items after the list becomes empty. Wire protocol is unchanged.
+
 ## Unreleased: Phase 4 request and update lifecycle
 
 Added awaited `boot`, `beforeUpdate` and `afterUpdate` hooks with typed,

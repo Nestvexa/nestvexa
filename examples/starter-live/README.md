@@ -1,5 +1,11 @@
 # Default Live starter
 
+The work-board removal button demonstrates [`nv:confirm`](../../docs/reference/nv-confirm.md)
+with a native prompt, keyboard cancellation/approval and a real session-bound Nest
+action. Empty lists can add new items again. This changes public seed data only;
+a UI prompt is not authorization or proof of consent. See [browser cases](../../tests/browser/confirmation.spec.ts)
+for direct-request, cross-session and CSRF coverage.
+
 Open `/board` for a real HBS/decorator work table with live search, keyed sorting,
 server-validated keyboard submission, pending/dirty/error states and an ignored
 Alpine notes widget. Its seeded public data is session-bound and limited to 50

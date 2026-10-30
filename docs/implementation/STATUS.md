@@ -24,6 +24,16 @@ The repository contains core configuration/registries, view contracts, an HBS en
 
 ## Resume and audit
 
+The current [confirmation checkpoint](confirmation-checkpoint-evidence-2026-10-30.json)
+at **2026-10-30T14:49:10.016Z** passed **990 aggregate tests and 204 three-browser
+checks**, seven tarballs/four external consumers and all implemented-checkpoint
+gates; isolated Node22/24 strict+990 checks also passed. `nv:confirm` now has a
+native default, typed async host override, bounded approval/cancellation and real
+security/accessibility scenarios. DIR-012 is Done; PHASE-048 and Phase 4 remain
+InProgress. See the [reference](../reference/nv-confirm.md) and
+[ADR 0012](../adr/0012-confirmation-lifecycle.md). Current ledger: **96 InProgress,
+819 Pending, 10 Done**. Later phase and release/platform gaps remain tracked.
+
 Phase 4 began after Phase 3 commit `4571055` with implemented, awaited
 `boot`/`beforeUpdate`/`afterUpdate` hooks, immutable detached context, reserved
 metadata and shutdown checks. The full **2026-10-30T09:51:23.195Z** checkpoint

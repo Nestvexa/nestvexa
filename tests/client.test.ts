@@ -86,4 +86,29 @@ describe('browser protocol boundary', () => {
       parseLiveResponse({ ...result, state: JSON.parse('{"__proto__":{}}') }),
     ).toThrow();
   });
+  it.each([
+    'Delete this item?',
+    '<script>alert(1)</script>',
+    'تأكيد الحذف؟',
+    'Line one\nLine two',
+  ])('treats confirmation %s as literal text', (message) => {
+    expect(parseDirective('nv:confirm', message)).toEqual({
+      kind: 'confirm',
+      message,
+    });
+  });
+  it.each(['', '   ', 'x'.repeat(1025), 'a\0b', 'a\u007fb'])(
+    'rejects malformed confirmation text',
+    (message) => {
+      expect(() => parseDirective('nv:confirm', message)).toThrow();
+    },
+  );
+  it.each([
+    'nv:confirm.once',
+    'nv:confirm.html',
+    'nv:confirm.prompt',
+    'nv:confirm.unknown',
+  ])('rejects executable or unsupported confirmation modifiers %s', (name) => {
+    expect(() => parseDirective(name, 'Continue?')).toThrow();
+  });
 });

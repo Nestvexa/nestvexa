@@ -13,13 +13,13 @@
       "id": 1,
       "state": "InProgress",
       "scope": "Core, views, HBS, integrated umbrella Live/Alpine startup and three runnable examples",
-      "remaining": "Current implemented checkpoint passes947 aggregate/195 three-browser checks,7tarballs/4externalconsumers and isolatedWindowsNode22/24 strict+aggregate. Complete phase-specific and Linux/full compatibility acceptance remain open; Phase3 accepted separately,Phase4 InProgress."
+      "remaining": "Current implemented checkpoint passes990 aggregate/204 three-browser checks,7tarballs/4externalconsumers and isolatedWindowsNode22/24 strict+aggregate. Complete phase-specific and Linux/full compatibility acceptance remain open; Phase3 accepted separately,Phase4 InProgress."
     },
     {
       "id": 2,
       "state": "InProgress",
       "scope": "Live protocol, opaque state store, generated routes, registration ownership, authorized model synchronization and pure writable-state validation",
-      "remaining": "Current implemented checkpoint passes947 aggregate/195 three-browser checks,7tarballs/4externalconsumers and isolatedWindowsNode22/24 strict+aggregate. Complete phase-specific and Linux/full compatibility acceptance remain open; Phase3 accepted separately,Phase4 InProgress."
+      "remaining": "Current implemented checkpoint passes990 aggregate/204 three-browser checks,7tarballs/4externalconsumers and isolatedWindowsNode22/24 strict+aggregate. Complete phase-specific and Linux/full compatibility acceptance remain open; Phase3 accepted separately,Phase4 InProgress."
     },
     {
       "id": 3,
@@ -31,9 +31,9 @@
     {
       "id": 4,
       "state": "InProgress",
-      "scope": "Started only after Phase3 acceptance: awaited boot/beforeUpdate/afterUpdate hooks, immutable typed context, reserved metadata, shutdown boundaries and real HBS hook sample.",
-      "remaining": "First hook slice verified by full947/195 checkpoint,7tarballs/4consumers and isolatedNode22/24 strict+aggregate. Full lifecycle/nesting/keys/computed/serializers; URL/session/reactive/modelable/events; remaining directives,lazy/defer/batching/progressive,navigation/optimistic behavior and all Phase4 acceptance remain open.",
-      "evidence": "docs/implementation/update-hooks-checkpoint-evidence-2026-10-30.json"
+      "scope": "Awaited boot/beforeUpdate/afterUpdate hooks plus bounded nv:confirm with native and async host dialog, cancellation, ownership and real-server tests. Phase3 gate was accepted before Phase4 started.",
+      "remaining": "Hook and confirmation slices verified. Full lifecycle/nesting/keys/computed/serializers, URL/session/reactive/modelable/events, remaining directives, lazy/defer/batching/progressive, navigation/optimistic behavior and all Phase4 acceptance remain open.",
+      "evidence": "docs/implementation/confirmation-checkpoint-evidence-2026-10-30.json"
     },
     {
       "id": 5,

@@ -181,7 +181,9 @@ class Pages {
           },
           authorize: (_identity, component, action) =>
             (component === 'work-board' &&
-              ['$mount', '$sync', 'sort', 'add'].includes(action)) ||
+              ['$mount', '$sync', 'sort', 'add', 'removeFirst'].includes(
+                action,
+              )) ||
             (component === 'counter' &&
               [
                 '$mount',

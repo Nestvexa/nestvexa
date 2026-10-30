@@ -6438,13 +6438,36 @@
       "id": "DIR-012",
       "priority": "P1",
       "package": "@nestvexa/client",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/client/src/events.ts",
+        "packages/client/src/index.ts",
+        "packages/client/src/protocol.ts"
+      ],
+      "testFiles": [
+        "tests/client.test.ts",
+        "tests/client-confirmation.test.ts",
+        "tests/browser/confirmation.spec.ts"
+      ],
+      "docs": [
+        "docs/reference/nv-confirm.md",
+        "docs/adr/0012-confirmation-lifecycle.md",
+        "packages/client/README.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/work-board.ts",
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/board.hbs"
+      ],
+      "securityNotes": "Plain-text approval is presentation only. True-only callback result, bounded deadline/capacity, ownership/configuration recheck and abort/disposal cleanup. Server CSRF, session ownership, authorization and revisions remain authoritative; native UI cannot be force-closed by browser timers.",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-30T14:49:10.016Z",
+          "report": "docs/implementation/confirmation-checkpoint-evidence-2026-10-30.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {
@@ -15788,14 +15811,39 @@
       "id": "PHASE-048",
       "priority": "P1",
       "package": "cross-package",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/client/src/events.ts",
+        "packages/client/src/index.ts",
+        "packages/client/src/protocol.ts"
+      ],
+      "testFiles": [
+        "tests/client.test.ts",
+        "tests/client-confirmation.test.ts",
+        "tests/browser/confirmation.spec.ts"
+      ],
+      "docs": [
+        "docs/reference/nv-confirm.md",
+        "docs/adr/0012-confirmation-lifecycle.md",
+        "packages/client/README.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/work-board.ts",
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/board.hbs"
+      ],
+      "securityNotes": "Plain-text approval is presentation only. True-only callback result, bounded deadline/capacity, ownership/configuration recheck and abort/disposal cleanup. Server CSRF, session ownership, authorization and revisions remain authoritative; native UI cannot be force-closed by browser timers.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-30T14:49:10.016Z",
+          "report": "docs/implementation/confirmation-checkpoint-evidence-2026-10-30.json"
+        }
+      ],
+      "outstandingIssues": [
+        "Confirmation accepted only. init/poll/intersect/offline/transition/sort/current/stream/navigate and complete modifier/browser acceptance remain unfinished; no Phase4 completion claim."
+      ]
     },
     {
       "sourceKey": "d3184e6fa19b24365135286c7561eec8f0100ae1e3d43be08cde76026683e144",

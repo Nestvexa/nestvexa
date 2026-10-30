@@ -30,6 +30,11 @@ Phase 4 has begun with [awaited request/update hooks](docs/guides/live-update-ho
 the work board displays the last accepted field through `afterUpdate`. The rest
 of Phase 4 remains incomplete.
 
+The board now includes [confirmed browser actions](docs/reference/nv-confirm.md):
+native confirmation by default, with an optional typed asynchronous host dialog.
+Cancellation/deadline/ownership cleanup is client presentation; the server still
+authorizes every mutation. This example removes only session-bound public seeds.
+
 The starter also demonstrates [keyboard focus after server updates](docs/guides/focus-restoration.md), including controls made disabled or hidden while a response is pending. This is scoped behavior verification; complete accessibility acceptance remains open.
 
 Its [local editable example](docs/guides/focus-restoration.md#local-editable-selection) keeps retained caret/range positions through keyed reordering, without sending draft HTML as Live state. Plugin, cross-editor and replaced-node selections require their own host policy.

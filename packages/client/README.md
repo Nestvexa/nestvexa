@@ -1,5 +1,11 @@
 # @nestvexa/client
 
+`nv:confirm` adds plain-text native confirmation to event actions. Advanced manual
+entries can supply `confirm: LiveConfirm` and `confirmationTimeoutMs`; the exported
+`LiveConfirmation` context includes an abort signal. See [the individual directive
+reference](../../docs/reference/nv-confirm.md) for limits, cancellation, keyboard
+and accessibility integration, `.once` semantics and security boundaries.
+
 Opt-in `onDiagnostic` emits frozen, redacted queue/request/morph timing samples, with isolated sink failures and no retained buffer. Collection is disabled by default; see [browser timing diagnostics](../../docs/guides/client-diagnostics.md). The protocol and mutation/retry policy are unchanged.
 
 Native multiple selects support bounded flat array models with strict option catalogs, ordered dirty equality, shared aliases and reset. See [array behavior and limits](../../docs/guides/multiple-select.md); checkbox groups, file models and generic programmatic array setters remain unsupported.

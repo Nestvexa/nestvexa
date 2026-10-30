@@ -1,13 +1,13 @@
 # Release checkpoint report — 2026-10-30
 
 **A. Status: NOT YET READY — BLOCKERS.** This is an interim report, not Phase 17
-acceptance. The latest first-Phase-4 lifecycle checkpoint passed **947 aggregate
-tests and 195 browser checks**; Phase 4 is **InProgress**, with the rest of its
+acceptance. The latest Phase 4 confirmation checkpoint passed **990 aggregate
+tests and 204 browser checks**; Phase 4 is **InProgress**, with the rest of its
 scope still incomplete. Phase 3 tasks 3.1–3.7 and their exit gate passed first on Windows:
 **929 aggregate tests, 192 browser checks, seven tarballs/four external consumers**.
 The [acceptance review](phase3-acceptance.md) and [saved gate](phase3-acceptance-evidence-2026-10-30.json)
 record the exact scope and source/report hashes. The [925-unit ledger](feature-ledger.md)
-accepts the nine Phase 3 rows; phases 0–2/4–17 and the broader release/platform
+accepts the nine Phase 3 rows and DIR-012 confirmation; phases 0–2/4–17 and the broader release/platform
 requirements remain unfinished. Earlier checkpoint results below are historical.
 Calendar dates follow Africa/Cairo and verification timestamps use UTC.
 
@@ -53,7 +53,62 @@ Native multiple-select models now use bounded unique flat string/number/boolean 
 
 ## C. Evidence
 
-### Current Phase 4 lifecycle checkpoint
+### Current confirmation checkpoint
+
+The full Windows/host Node 24.13.0 runner at **2026-10-30T14:49:10.016Z** passed
+frozen install, format/lint, strict build/typecheck, **990/990 aggregate tests**,
+selected coverage, size, **204/204 Chromium/Firefox/WebKit checks**, seven tarballs
+in four full/minimal external npm/pnpm consumers, docs, ledger, benchmark and audit.
+There were no pending/skipped/unexpected/flaky results or browser runner errors.
+Pack timestamp: **2026-10-30T14:54:26.982Z**. Audit reported **no known
+vulnerabilities**. `release:check` intentionally exited 1; the master is incomplete.
+The Phase 3 regression gate passed at **2026-10-30T14:56:32.423Z**.
+
+The **30 controlled Chromium confirmation cases** and **13 added parser cases**
+cover async/dialog approval, literal text, keyboard/Escape/focus and axe, duplicate
+submits, draft preservation, cancellation across owner/config/marker/dispose/remount,
+uncertain transport, deadlines, capacity, malformed providers and `.once` native
+navigation prevention. Nine new real Nest checks cover native prompts, an actual
+authorized mutation, empty-list re-add, direct requests, CSRF and cross-session
+denial. The server receives no confirmation claim and still enforces its policies.
+
+An initial expanded custom-dialog fixture failed because axe requires an explicit
+browser context rather than the browser's convenience page; it now uses a context
+and all checks pass without disabling any accessibility rules. Strict checks caught
+a deliberately invalid callback fixture and an un-narrowed DOM test element; the
+fixtures now model the JavaScript contract violation explicitly and narrow the
+actual button before invocation. Lint caught control-regex and timer style issues;
+the source uses explicit character checks and a const timer, without rule disables.
+The full checkpoint was rerun after corrections. No unrun old-source regression
+or independent security certification is claimed.
+
+Fresh isolated Windows Node **22.23.4** at **2026-10-30T14:56:36.766Z** and
+**24.22.1** at **2026-10-30T14:58:26.249Z** each passed strict compilation and all
+**990 aggregate tests**. They did not repeat the full three-browser server/consumer
+matrix. The [saved confirmation checkpoint](confirmation-checkpoint-evidence-2026-10-30.json)
+preserves source/report/ledger/tarball hashes, timings, versions and exact scope.
+Ledger: **96 InProgress, 819 Pending, 10 Done**. Only DIR-012 joins the nine Phase 3
+Done rows; PHASE-048 and Phase 4 remain InProgress.
+
+Custom client: **143,539 raw / 34,613 summed per-module gzip bytes across 14 modules**,
+below the unchanged 35,840-byte cap, excluding Alpine/adapter/maps. There is no new
+dependency, asset module or Live wire field. This is not HTTP transfer compression
+or total startup cost. Coverage remains **97.18% branches / 98.20% statements over
+only three configuration/protocol/store files**, excluding most code, including
+confirmation/lifecycle/client modules. The cached-HBS-only 1,000-iteration benchmark
+at **2026-10-30T14:55:59.302Z**, before isolated runtime runs, recorded p50
+**0.2044ms**, p95 **0.2755ms**, p99 **0.3134ms** on Windows/i7-1165G7/host Node
+24.13.0; it is not an application comparison or performance-improvement claim.
+
+The [individual reference](../reference/nv-confirm.md),
+[ADR 0012](../adr/0012-confirmation-lifecycle.md) and sample document the 16-pending
+limit, 30-second default approval deadline, true-only result, callback abort/cleanup,
+native dialog blocking/suppression and explicit server trust boundary. The full
+custom-dialog TypeScript snippet was also strict-compiled against the built public
+client API. Manual screen-reader/native browser-chrome acceptance, Linux/full matrix,
+remaining Phase 4 features and the overall release remain open.
+
+### Historical first Phase 4 lifecycle checkpoint
 
 The full Windows/host Node 24.13.0 checkpoint at **2026-10-30T09:51:23.195Z**
 passed frozen install, formatting/lint, strict build/typecheck, **947/947 aggregate

@@ -13,6 +13,14 @@
     Reverse title order
   </button>
   <p>Title order: <span id="board-order">{{sortLabel}}</span></p>
+  <button
+    type="button"
+    nv:click="removeFirst"
+    nv:confirm="Remove the first visible sample work item?"
+    nv:loading.attr="disabled"
+  >
+    Remove first visible item
+  </button>
   <p nv:loading role="status" hidden>Updating work items</p>
   <table>
     <caption>

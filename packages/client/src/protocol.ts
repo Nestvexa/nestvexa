@@ -1,7 +1,7 @@
 import { LiveClientError, parseIdentifier } from './grammar.js';
 import { parseBindingDirective } from './bindings.js';
 import type { BindingDirective } from './bindings.js';
-import { parseEventDirective } from './events.js';
+import { parseConfirmation, parseEventDirective } from './events.js';
 import type { EventDirective } from './events.js';
 import { parseModelDirective } from './models.js';
 import { parseLoadingDirective, parseLoadingTarget } from './loading.js';
@@ -15,6 +15,7 @@ export type LiveDirective =
   | EventDirective
   | LoadingDirective
   | ReplacementDirective
+  | { readonly kind: 'confirm'; readonly message: string }
   | { readonly kind: 'target'; readonly actions: readonly string[] };
 // Additional directives remain data-only configuration.
 export type ReplacementDirective = {
@@ -26,6 +27,7 @@ export function parseDirective(name: string, value: string): LiveDirective {
   const kind = name.slice(3);
   if (!name.startsWith('nv:'))
     throw new LiveClientError('DIRECTIVE', 'Expected an nv: directive');
+  if (kind === 'confirm') return { kind, message: parseConfirmation(value) };
   if (kind === 'click' || kind === 'submit' || kind === 'model')
     return { kind, value: parseIdentifier(value) };
   if (/^nv:(?:click|submit|keydown)(?:\.|$)/.test(name))

@@ -38,6 +38,18 @@ All registry observations above came from actual `pnpm view <package> version en
 
 ## Current Phase 3 acceptance
 
+The latest confirmation checkpoint at **2026-10-30T14:49:10.016Z** passed
+**990 aggregate/204 three-browser checks** and seven tarballs/four external consumers.
+Isolated Windows Node **22.23.4** at **14:56:36.766Z** and **24.22.1** at
+**14:58:26.249Z** each passed strict compilation and the **990-test aggregate** on
+October 30, without repeating the full browser/consumer matrix under both binaries.
+The [saved evidence](../implementation/confirmation-checkpoint-evidence-2026-10-30.json)
+records the actual scope. Native prompt behavior was checked against the
+[HTML user-prompt contract](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#dom-confirm-dev)
+and custom dialog semantics against the [WAI alert-dialog pattern](https://www.w3.org/WAI/ARIA/apg/patterns/alertdialog/).
+No dependency, wire version or platform claim changed; Linux/full release and the
+rest of Phase 4 remain open.
+
 The subsequent first-Phase-4 lifecycle checkpoint at
 **2026-10-30T09:51:23.195Z** passed **947 aggregate/195 three-browser checks**,
 seven tarballs/four consumers and all implemented-checkpoint gates. Isolated

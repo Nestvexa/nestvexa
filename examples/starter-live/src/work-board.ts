@@ -48,6 +48,15 @@ export class WorkBoard implements LiveLifecycleHooks {
   @Action() sort(): void {
     this.descending = !this.descending;
   }
+  @Action() removeFirst(): void {
+    const first = this.visibleRows[0];
+    if (!first) {
+      this.status = 'No matching work item to remove';
+      return;
+    }
+    this.rows = this.rows.filter((row) => row.id !== first.id);
+    this.status = 'Work item removed';
+  }
   @Action() add(): void {
     const title = this.title.trim();
     this.error = !title
@@ -59,7 +68,7 @@ export class WorkBoard implements LiveLifecycleHooks {
     if (this.hasError) return;
     this.rows = [
       ...this.rows,
-      { id: Math.max(...this.rows.map((row) => row.id)) + 1, title },
+      { id: Math.max(0, ...this.rows.map((row) => row.id)) + 1, title },
     ];
     this.title = '';
     this.status = 'Work item added';

@@ -1,5 +1,147 @@
 import { LiveClientError, parseIdentifier } from './grammar.js';
 
+/** Trusted dialog host context. This is presentation data, never authorization. */
+export interface LiveConfirmation {
+  readonly element: Element;
+  readonly action: string;
+  readonly message: string;
+  readonly signal: AbortSignal;
+}
+export type LiveConfirm = (
+  context: LiveConfirmation,
+) => boolean | Promise<boolean>;
+
+/** Static plain text only; no interpolation, HTML interpretation or executable modifiers. */
+export function parseConfirmation(message: string): string {
+  if (
+    !message.trim() ||
+    message.length > 1024 ||
+    [...message].some((character) => {
+      const code = character.charCodeAt(0);
+      return (
+        (code < 32 && code !== 9 && code !== 10 && code !== 13) || code === 127
+      );
+    })
+  )
+    throw new LiveClientError(
+      'DIRECTIVE',
+      'Confirmation requires 1–1024 characters of plain text',
+    );
+  return message;
+}
+
+interface ConfirmationRecord {
+  readonly element: Element;
+  readonly current: () => boolean;
+  cancel(): void;
+}
+/** Bounded approval lifecycle; an uncooperative custom dialog cannot retain an unresolved operation. */
+export function createConfirmationController(options: {
+  readonly confirm: LiveConfirm;
+  readonly timeoutMs?: number;
+  readonly now: () => number;
+  readonly setTimeout: (callback: () => void, milliseconds: number) => number;
+  readonly clearTimeout: (id: number) => void;
+}) {
+  const timeout = options.timeoutMs ?? 30_000;
+  if (typeof options.confirm !== 'function')
+    throw new LiveClientError(
+      'DIRECTIVE',
+      'Confirmation handler must be a function',
+    );
+  if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > 300_000)
+    throw new LiveClientError(
+      'DIRECTIVE',
+      'Confirmation timeout must be an integer from 1 through 300000ms',
+    );
+  const active = new Map<Element, ConfirmationRecord>();
+  let disposed = false;
+  return {
+    approve(
+      element: Element,
+      action: string,
+      message: string,
+      current: () => boolean,
+    ): Promise<boolean> {
+      const isCurrent = () => {
+        try {
+          return current() === true;
+        } catch {
+          return false;
+        }
+      };
+      if (disposed || active.has(element) || !isCurrent())
+        return Promise.resolve(false);
+      if (active.size >= 16)
+        return Promise.reject(
+          new LiveClientError('DIRECTIVE', 'Confirmation capacity reached'),
+        );
+      return new Promise<boolean>((resolve, reject) => {
+        const abort = new AbortController();
+        const started = options.now();
+        let done = false;
+        function finish(approved: boolean, error?: Error): void {
+          if (done) return;
+          done = true;
+          active.delete(element);
+          options.clearTimeout(timer);
+          if (!approved) abort.abort();
+          if (error) reject(error);
+          else resolve(approved);
+        }
+        active.set(element, {
+          element,
+          current: isCurrent,
+          cancel: () => finish(false),
+        });
+        const timer = options.setTimeout(() => finish(false), timeout);
+        const failed = () =>
+          finish(
+            false,
+            new LiveClientError('DIRECTIVE', 'Live confirmation failed'),
+          );
+        try {
+          void Promise.resolve(
+            options.confirm(
+              Object.freeze({ element, action, message, signal: abort.signal }),
+            ),
+          ).then((approved) => {
+            if (done) return;
+            if (typeof approved !== 'boolean') {
+              failed();
+              return;
+            }
+            const elapsed = options.now() - started;
+            finish(
+              approved &&
+                !disposed &&
+                isCurrent() &&
+                Number.isFinite(elapsed) &&
+                elapsed >= 0 &&
+                elapsed < timeout,
+            );
+          }, failed);
+        } catch {
+          failed();
+        }
+      });
+    },
+    prune(): void {
+      for (const record of active.values())
+        if (!record.current()) record.cancel();
+    },
+    cancel(root: Element): void {
+      for (const record of active.values())
+        if (root === record.element || root.contains(record.element))
+          record.cancel();
+    },
+    dispose(): void {
+      disposed = true;
+      for (const record of active.values()) record.cancel();
+    },
+  };
+}
+
 export interface EventDirective {
   readonly kind: 'click' | 'submit' | 'keydown';
   readonly action: string;
@@ -102,6 +244,8 @@ export function parseEventDirective(
 export interface EventDispatcherOptions {
   readonly invoke: (element: Element, action: string) => Promise<void>;
   readonly onError?: (error: Error, element: Element) => void;
+  /** Prevent native defaults for matching confirmation bindings, including suppressed repeats. */
+  readonly preventDefault?: (element: Element) => boolean;
 }
 export interface EventDispatcher {
   /** True means this event was accepted, possibly scheduled for later execution. */
@@ -239,6 +383,7 @@ export function createEventDispatcher(
         element.getAttribute(attribute) !== directive.action
       )
         return false;
+      if (options.preventDefault?.(element)) event.preventDefault();
       prune();
       const id = signature(directive);
       let entries = records.get(element);

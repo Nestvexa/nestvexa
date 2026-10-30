@@ -5,8 +5,13 @@ import {
   validateIgnore,
 } from './morph.js';
 import { applyBindings, queryRefs } from './bindings.js';
-import { createEventDispatcher, parseEventDirective } from './events.js';
-import type { EventDispatcher, EventDirective } from './events.js';
+import {
+  createConfirmationController,
+  createEventDispatcher,
+  parseEventDirective,
+} from './events.js';
+import type { EventDispatcher, EventDirective, LiveConfirm } from './events.js';
+export type { LiveConfirmation, LiveConfirm } from './events.js';
 import { createDirectEventListeners } from './listeners.js';
 import type { DirectEventBinding } from './listeners.js';
 import { getModelDirective, readModelValue } from './models.js';
@@ -60,6 +65,10 @@ export interface LiveClientOptions {
   readonly requestTimeoutMs?: number;
   /** Opt-in timings only; no DOM, identities, tokens, URLs, state or action names. Sink errors are isolated. */
   readonly onDiagnostic?: (event: LiveDiagnostic) => void;
+  /** Trusted custom dialog. Default: native window.confirm; only literal true approves. */
+  readonly confirm?: LiveConfirm;
+  /** Approval deadline, 1–300000ms; default 30000ms. No request is sent on expiry. */
+  readonly confirmationTimeoutMs?: number;
 }
 /** One bounded timing sample per phase of a dispatched request; no retained buffer. */
 export interface LiveDiagnostic {
@@ -153,6 +162,16 @@ function validateDirectives(component: Element): void {
     for (const attribute of element.attributes)
       if (attribute.name.startsWith('nv:')) {
         const directive = parseDirective(attribute.name, attribute.value);
+        if (
+          directive.kind === 'confirm' &&
+          ![...element.attributes].some((item) =>
+            /^nv:(?:click|submit|keydown)(?:\.|$)/.test(item.name),
+          )
+        )
+          throw new LiveClientError(
+            'DIRECTIVE',
+            'nv:confirm requires a same-element action binding',
+          );
         if (directive.kind === 'submit' && element.tagName !== 'FORM')
           throw new LiveClientError('DIRECTIVE', 'nv:submit requires a form');
       }
@@ -276,6 +295,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   let dispatcher: EventDispatcher | undefined;
   let composing = new WeakSet<Element>();
   let models = makeModels();
+  let confirmations = makeConfirmations();
   let loading = createLoadingController(focus);
   let generation = 0;
   let resetTimer: number | undefined;
@@ -461,6 +481,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       componentOwners.delete(state.root);
   }
   function cancelSubtree(node: Element): void {
+    confirmations.cancel(node);
     focus.release(node);
     dispatcher?.cancel(node);
     direct.remove(node);
@@ -561,6 +582,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       );
   }
   function discover(): void {
+    confirmations.prune();
     focus.prune();
     dispatcher?.prune(root);
     models.prune(root);
@@ -1193,6 +1215,64 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       );
     return state;
   }
+  function makeConfirmations(): ReturnType<
+    typeof createConfirmationController
+  > {
+    return createConfirmationController({
+      confirm:
+        options.confirm ?? ((context) => window.confirm(context.message)),
+      ...(options.confirmationTimeoutMs === undefined
+        ? {}
+        : { timeoutMs: options.confirmationTimeoutMs }),
+      now: () => window.performance.now(),
+      setTimeout: (callback, milliseconds) =>
+        window.setTimeout(callback, milliseconds),
+      clearTimeout: (id) => window.clearTimeout(id),
+    });
+  }
+  function confirmationSignature(element: Element): string {
+    return JSON.stringify(
+      [...element.attributes]
+        .filter((attribute) =>
+          /^nv:(?:click|submit|keydown|confirm)(?:\.|$)/.test(attribute.name),
+        )
+        .map(({ name, value }) => [name, value])
+        .sort(),
+    );
+  }
+  function invokeEvent(element: Element, action: string): Promise<void> {
+    const state = componentFor(element);
+    const invoke = () =>
+      schedule(state, action, element.tagName === 'FORM').catch(
+        () => undefined,
+      );
+    const declarations = [...element.attributes].filter((attribute) =>
+      /^nv:confirm(?:\.|$)/.test(attribute.name),
+    );
+    if (!declarations.length) return invoke();
+    const declaration = declarations[0];
+    if (declarations.length !== 1 || declaration?.name !== 'nv:confirm')
+      throw new LiveClientError(
+        'DIRECTIVE',
+        'Use one unmodified nv:confirm declaration',
+      );
+    const message = declaration.value;
+    parseDirective('nv:confirm', message);
+    if (failureFor(state) || state.submitting) return Promise.resolve();
+    const signature = confirmationSignature(element);
+    const current = () =>
+      registeredScope(element) === state &&
+      !failureFor(state) &&
+      !ignored(element, state.root) &&
+      !element.matches(':disabled') &&
+      !element.closest('[hidden],[inert]') &&
+      confirmationSignature(element) === signature;
+    return confirmations
+      .approve(element, action, message, current)
+      .then((approved) => {
+        if (approved && current()) return invoke();
+      });
+  }
   function refreshBindings(state: Component): void {
     const differs = (field: string): boolean =>
       [...state.invalid.values()].includes(field) ||
@@ -1276,18 +1356,18 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     mount(): void {
       if (mounted) return;
       models = makeModels();
+      confirmations = makeConfirmations();
       focus = createFocusController();
       loading = createLoadingController(focus);
       mounted = true;
       generation++;
       dispatcher = createEventDispatcher({
-        invoke: (element, action) =>
-          // The component queue reports transport errors once and suppresses released work.
-          schedule(
-            componentFor(element),
-            action,
-            element.tagName === 'FORM',
-          ).catch(() => undefined),
+        // The component queue reports transport errors once and suppresses released work.
+        invoke: invokeEvent,
+        preventDefault: (element) =>
+          [...element.attributes].some((attribute) =>
+            /^nv:confirm(?:\.|$)/.test(attribute.name),
+          ),
         onError: (error, element) => report(error, element),
       });
       discover();
@@ -1301,6 +1381,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       root.addEventListener('compositionend', composition);
       doc.addEventListener('reset', reset, true);
       observer = new window.MutationObserver((mutations) => {
+        if (mounted) confirmations.prune();
         if (
           mounted &&
           mutations.some(
@@ -1332,6 +1413,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       dispatcher = undefined;
       direct.dispose();
       models.dispose();
+      confirmations.dispose();
       loading.dispose();
       focus.dispose();
       composing = new WeakSet<Element>();
