@@ -37,7 +37,8 @@ for (const args of commands) {
   const start = performance.now();
   const result = spawnSync(process.execPath, args, {
     encoding: 'utf8',
-    timeout: 180000,
+    // The aggregate includes real browser fixtures with bounded worker concurrency.
+    timeout: 300000,
     maxBuffer: 16 * 1024 * 1024,
   });
   const log = `artifacts/reports/node${major}-${report.commands.length}.log`;

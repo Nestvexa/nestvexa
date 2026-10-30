@@ -19,12 +19,24 @@ The repository contains core configuration/registries, view contracts, an HBS en
 | 1     | InProgress | Core/configuration, views, HBS, umbrella and starter implemented with scoped external consumer/browser checks; complete phase requirements and matrix still pending.                                          |
 | 2     | InProgress | Bounded JSON, opaque owner-bound memory state and generated routes execute in Express/Fastify tests; cookie-session origin/CSRF/replay tests pass in the initial browser slice. Full acceptance remains open. |
 | 3     | Done       | Tasks 3.1–3.7 and their HBS form/table exit gate passed; see the exact source-bound acceptance review and separate later-phase requirements.                                                                  |
-| 4     | InProgress | Started after Phase 3 gate: awaited boot/update hooks, frozen context, metadata restrictions and shutdown checks; full Phase 4 remains incomplete.                                                            |
+| 4     | InProgress | Awaited hooks, confirmed actions, eager initialization and async computed values verified; server nesting, full lifecycle and remaining Phase 4 work stay incomplete.                                         |
 | 5–17  | Pending    | Forms, uploads, other engines, Inertia/frameworks, islands/actions, realtime/stores/jobs, extensions, CLI, hardening and release not delivered.                                                               |
 
 ## Resume and audit
 
-The latest [initialization checkpoint](initialization-checkpoint-evidence-2026-10-30.json)
+The latest [computed checkpoint](computed-checkpoint-evidence-2026-10-30.json) at
+**2026-10-30T19:54:55.677Z** passed **1,118 aggregate / 228 three-browser
+checks**, seven tarballs/four consumers, static/coverage/size/docs/benchmark/audit
+checks and the source-bound Phase 3 regression gate. Isolated Node22/24 each passed
+strict compilation and the aggregate. Explicit async computed methods and
+instance/stage-local memoization are verified; **LIVE-006/LIVE-020 are Done**.
+Ledger: **96 InProgress, 817 Pending, 12 Done**. Full Phase 4 remains
+InProgress. See [the guide](../guides/computed-values.md),
+[ADR 0014](../adr/0014-computed-evaluation.md) and the release report for the
+authorization/signed-zero fixes, fixture failures and exact scope. No release
+readiness or complete Linux/platform matrix is claimed.
+
+The earlier [initialization checkpoint](initialization-checkpoint-evidence-2026-10-30.json)
 at **2026-10-30T16:29:56.204Z** passed **1,028 aggregate tests and 219 three-browser
 checks**, seven tarballs/four external consumers, static checks, selected coverage,
 size, docs, benchmark and audit. The source-bound Phase 3 regression gate passed.

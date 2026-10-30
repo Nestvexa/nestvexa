@@ -38,7 +38,18 @@ All registry observations above came from actual `pnpm view <package> version en
 
 ## Current Phase 3 acceptance
 
-The latest eager-initialization checkpoint at **2026-10-30T16:29:56.204Z** passed
+The latest computed checkpoint at **2026-10-30T19:54:55.677Z** passed
+**1,118 aggregate/228 three-browser checks**, seven tarballs/four consumers,
+and the Phase 3 regression gate. Node **v22.23.4** at **2026-10-30T20:02:51.231Z** and Node **v24.22.1** at **2026-10-30T20:05:46.729Z** each passed strict compilation and
+the full aggregate on Windows. These isolated runs do not repeat the complete
+three-browser/consumer matrix under both binaries. See
+[saved evidence](../implementation/computed-checkpoint-evidence-2026-10-30.json).
+The implementation retains legacy TypeScript/Nest decorators and uses the native
+monotonic performance clock and cross-realm Promise recognition. No dependency
+or browser protocol version changed; Node26, Linux/full matrix and remaining
+Phase 4 features are not implied by upstream documentation links.
+
+The earlier eager-initialization checkpoint at **2026-10-30T16:29:56.204Z** passed
 **1,028 aggregate/219 three-browser checks**, seven tarballs/four external consumers
 and the source-bound Phase 3 regression gate. See the
 [saved evidence](../implementation/initialization-checkpoint-evidence-2026-10-30.json)

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased: async computed values and request-local memoization
+
+Added explicit async computed methods, public `ComputedOptions`, state dependency
+keys, stage invalidation, TTL, bounded async waits and detached JSON results.
+Managed getters now cache by default; use `cache:false` to evaluate on every read.
+Computed overrides must be decorated explicitly. Derived names cannot be actions
+or writable state. Added real Nest/browser and packed-consumer coverage, without
+a Live protocol change or new browser module.
+Computed methods reject ineffective Nest route/parameter/policy decorators rather
+than implying guard execution. Cross-realm rejected getter Promises are handled
+before the unsupported synchronous read fails.
+
 ## Unreleased: bounded eager initialization
 
 Added `nv:init` with one registered-action attempt per component registration,

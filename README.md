@@ -39,6 +39,11 @@ Open `/init` for [eager initialization](docs/reference/nv-init.md) with loading
 and retained Alpine state. `/init/denied` shows server denial without automatic
 retry. Lazy/deferred initialization remains unfinished Phase 4 work.
 
+[Computed values](docs/guides/computed-values.md) support synchronous getters and
+explicit async methods, with request/stage-local caching, state dependency keys,
+TTL and bounded async waits. The startup panel renders its activity summary from
+an async computed method; derived values remain outside writable state and actions.
+
 The starter also demonstrates [keyboard focus after server updates](docs/guides/focus-restoration.md), including controls made disabled or hidden while a response is pending. This is scoped behavior verification; complete accessibility acceptance remains open.
 
 Its [local editable example](docs/guides/focus-restoration.md#local-editable-selection) keeps retained caret/range positions through keyed reordering, without sending draft HTML as Live state. Plugin, cross-editor and replaced-node selections require their own host policy.

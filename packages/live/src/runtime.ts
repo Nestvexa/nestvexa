@@ -16,6 +16,7 @@ import { MemoryLiveStore } from './store.js';
 import type { ComponentDefinition } from './metadata.js';
 import { INTERNAL_SYNC_ACTION } from './metadata.js';
 import type { LiveLifecycleHooks, LiveUpdateContext } from './lifecycle.js';
+import { prepareComputed } from './computed.js';
 
 export const LIVE_OPTIONS = Symbol('nv:live-options');
 export interface LiveIdentity {
@@ -84,6 +85,7 @@ export class LiveRuntime implements OnApplicationShutdown {
   readonly store: MemoryLiveStore;
   readonly #admissions = new WeakMap<object, Admission>();
   readonly #rate = new Map<string, { start: number; count: number }>();
+  readonly #computed = new WeakMap<object, () => void>();
   constructor(
     @Inject(LIVE_OPTIONS) private readonly options: RuntimeOptions,
     @Inject(ModuleRef) private readonly moduleRef: ModuleRef,
@@ -168,7 +170,15 @@ export class LiveRuntime implements OnApplicationShutdown {
   ): Promise<object> {
     const context = this.registry.context(request);
     this.moduleRef.registerRequestByContextId(request, context);
-    return this.moduleRef.resolve(component.type, context, { strict: true });
+    const instance = await this.moduleRef.resolve<object>(
+      component.type,
+      context,
+      { strict: true },
+    );
+    const clear = this.#computed.get(instance);
+    if (clear) clear();
+    else this.#computed.set(instance, prepareComputed(instance, component));
+    return instance;
   }
   private state(
     instance: object,
@@ -191,8 +201,16 @@ export class LiveRuntime implements OnApplicationShutdown {
     component: ComponentDefinition,
   ): Promise<string> {
     const model: Record<string, unknown> = this.state(instance, component);
-    for (const name of component.computed)
-      model[name] = Reflect.get(instance, name);
+    this.#computed.get(instance)?.();
+    for (const [name, entry] of component.computed) {
+      const value: unknown = Reflect.get(instance, name);
+      if (entry.async) {
+        if (typeof value !== 'function')
+          throw new Error('Computed method is not callable');
+        model[name] = await Reflect.apply(value, instance, []);
+      } else model[name] = value;
+      if (this.closed) fail(503, 'LIVE_SHUTDOWN');
+    }
     const html = await this.options.renderer.render(
       component.view,
       cloneState(model),
@@ -210,11 +228,16 @@ export class LiveRuntime implements OnApplicationShutdown {
     args: readonly unknown[] = [],
   ): Promise<void> {
     if (this.closed) fail(503, 'LIVE_SHUTDOWN');
+    this.#computed.get(instance)?.();
     const method: unknown = Reflect.get(instance, name);
     if (method !== undefined && typeof method !== 'function')
       throw new Error(`Lifecycle hook ${name} must be a method`);
-    if (typeof method === 'function')
-      await Reflect.apply(method, instance, args);
+    try {
+      if (typeof method === 'function')
+        await Reflect.apply(method, instance, args);
+    } finally {
+      this.#computed.get(instance)?.();
+    }
     if (this.closed) fail(503, 'LIVE_SHUTDOWN');
   }
   /** Mount only from a host route with host-resolved identity; never from a client class name. */

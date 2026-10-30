@@ -105,7 +105,9 @@ beforeEach(async () => {
   await page.waitForFunction(() =>
     Reflect.has(window, 'nvModelLifecycleFixture'),
   );
-  await page.clock.install();
+  await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
+  // Installation alone leaves time running across automation calls.
+  await page.clock.pauseAt(new Date('2026-01-01T01:00:00Z'));
 });
 afterEach(async () => {
   if (page) await page.close();

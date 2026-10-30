@@ -14,9 +14,11 @@ import {
 import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { HbsEngine, NestvexaModule, configureNestvexa } from 'nestvexa';
+import type { ComputedOptions } from 'nestvexa';
 import {
   Action,
   ActionInput,
+  Computed,
   LiveComponent,
   LiveModule,
   LiveRuntime,
@@ -77,6 +79,11 @@ class ActionGuard implements CanActivate {
 let actionGuardCalls = 0;
 let componentGuardCalls = 0;
 let syncAllowed = true;
+const computedOptions: ComputedOptions = {
+  async: true,
+  dependencies: ['count'],
+  ttl: 100,
+};
 @Injectable()
 class ComponentGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
@@ -100,6 +107,10 @@ class Counter {
     validate: (value) => typeof value === 'string' && value.length <= 16,
   })
   label = '';
+  @Computed(computedOptions)
+  async doubled(): Promise<number> {
+    return this.count * 2;
+  }
   @Action()
   @UseGuards(ActionGuard)
   increment(): void {
@@ -163,6 +174,7 @@ try {
   assert.equal(response.status, 200);
   assert.ok(html.startsWith('<h1>&lt;safe&gt;</h1>'));
   assert.ok(html.includes('<output>0</output>'));
+  assert.ok(html.includes('<b>0</b>'));
   assert.ok(!html.includes('fixture-service-data-not-public'));
   const snapshot = /data-nv-snapshot="([^"]+)"/.exec(html)?.[1];
   assert.ok(snapshot);
@@ -196,7 +208,7 @@ try {
   const result = record(await allowed.json());
   assert.equal(record(result['state'])['count'], 2);
   assert.equal(record(result['component'])['revision'], 1);
-  assert.equal(result['html'], '<output>2</output>');
+  assert.equal(result['html'], '<output>2</output><b>4</b>');
   const updated = await fetch(`${base}/_nestvexa/live/packed-counter/set`, {
     method: 'POST',
     headers,

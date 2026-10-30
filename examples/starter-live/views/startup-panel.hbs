@@ -2,6 +2,7 @@
   <p id="startup-message" role="status">{{message}}</p>
   <p>Load actions: <output id="startup-loads">{{loads}}</output></p>
   <p>Refresh actions: <output id="startup-refreshes">{{refreshes}}</output></p>
+  <p id="startup-summary">{{activitySummary}}</p>
   <p nv:loading nv:target="load" role="status" hidden>Loading content</p>
   <button type="button" nv:click="refresh" nv:loading.attr="disabled">
     Refresh startup panel

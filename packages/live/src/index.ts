@@ -24,6 +24,7 @@ export {
   type ComponentOptions,
   type StateOptions,
   type ActionOptions,
+  type ComputedOptions,
 } from './metadata.js';
 export {
   parseLiveRequest,

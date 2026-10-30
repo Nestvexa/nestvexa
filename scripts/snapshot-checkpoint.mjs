@@ -140,7 +140,7 @@ const snapshot = {
     total: coverage.total,
     files: Object.keys(coverage).filter((key) => key !== 'total'),
     scope:
-      'Only selected configuration/protocol/store files; excludes runtime/action/client and most project code',
+      'Only selected configuration/protocol/store/computed evaluation files; excludes metadata/runtime/action/client and most project code',
   },
   additionalRuntimes: runtimes,
   ledger: { total: ledger.features.length, states },

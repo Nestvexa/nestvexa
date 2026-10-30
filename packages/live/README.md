@@ -1,5 +1,17 @@
 # @nestvexa/live
 
+`ComputedOptions` now supports synchronous getters and explicit `async: true`
+zero-argument methods, with instance/stage-local memoization, state dependencies,
+TTL and async evaluation deadlines. Returned JSON is detached; computed names
+remain outside writable state and action routes. See
+[computed values](../../docs/guides/computed-values.md) for defaults, invalidation,
+resource bounds, failure handling and alpha migration changes.
+
+Computed methods reject Nest route/parameter/policy decorators such as method-level
+`@UseGuards`: they are not route invocations, so that metadata would not execute.
+Authorize sensitive reads in host routes and services. Normal Live action guards
+and component policies retain their existing execution pipeline.
+
 Phase 4 begins with awaited `boot`, `beforeUpdate` and `afterUpdate` hooks and
 exported `LiveLifecycleHooks`, `LiveUpdateContext` and `ReadonlyLiveValue` types.
 All input validation precedes execution; update context is detached/frozen. See
@@ -37,7 +49,7 @@ The host owns the supplied renderer lifecycle: initialize it before requests and
 
 ## Contracts and limits
 
-`@State({writable:true})` explicitly allows top-level JSON updates; default state is locked against client writes. `@Locked()` is an equivalent readable state declaration. `@Computed()` supports synchronous getters. `@Action({id?})` exposes only registered methods. A single argument may use `@ActionInput(...pipes)`; normal Nest parameter pipes perform transformation and validation. No arbitrary service or class selection is accepted.
+`@State({writable:true})` explicitly allows top-level JSON updates; default state is locked against client writes. `@Locked()` is an equivalent readable state declaration. `@Computed()` supports synchronous getters; `@Computed({async:true})` supports awaited zero-argument methods. `@Action({id?})` exposes only registered methods. A single argument may use `@ActionInput(...pipes)`; normal Nest parameter pipes perform transformation and validation. No arbitrary service or class selection is accepted.
 
 Writable state can supply a pure `validate(value)` callback returning `boolean` or `Promise<boolean>`:
 
@@ -55,7 +67,7 @@ Class/method guards, pipes, interceptors and filters execute on generated Nest r
 
 Each registered component also has `POST <endpoint>/<component>/_sync` for model synchronization. The reserved path cannot name a public action. The host authorizes it as `$sync`, with the normal origin/CSRF/identity/ownership/rate/payload/revision checks. It uses component/global Nest route policies, interceptors and filters; there is no selected action method or action input, so action-method guards, pipes, interceptors and filters are not copied onto it. Policies required for all writable state must therefore live at component/global scope or in `authorize`. Synchronization accepts absent/null `input` only and does not call any action.
 
-Hooks in this slice: initial `mount → dehydrate → render`; action update `hydrate → apply writable updates → beforeAction → action → afterAction → dehydrate → render`; synchronization `hydrate → apply writable updates → dehydrate → render`. These async hooks receive no arguments. Only decorated public state is stored. Dates, BigInt, classes, URL/session decorators, nesting, async computed methods and custom serializers are not supported yet.
+Hooks in this slice: initial `boot → mount → dehydrate → render`; action update `boot → hydrate → field update hooks → beforeAction → action → afterAction → dehydrate → render`; synchronization omits action hooks. Field hooks receive the typed detached update context; other current hooks receive no arguments. Computed caches clear around hooks and before rendering. Only decorated public state is stored. Dates, BigInt, classes, URL/session decorators, server nesting and custom serializers are not supported yet.
 
 Read [protocol](../../docs/guides/live-protocol.md) for the64KiB/depth/node limits, token binding, 15-minute fixed expiry, capacity1000, revision conflicts and failure invalidation. Default rate limit is60 requests/minute per binding. Configure host body parser limits before parsing. In-memory state is single-process; no distributed or exactly-once guarantee. Failed callbacks invalidate state because external side effects may already have happened. The browser never retries automatically. The host must revoke the binding on logout. Host policies and handlers need their own external-operation timeouts.
 

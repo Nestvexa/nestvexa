@@ -85,9 +85,11 @@ afterEach(async () => {
 afterAll(async () => {
   if (browser) await browser.close();
   if (server)
-    await new Promise<void>((resolve, reject) =>
-      server.close((error) => (error ? reject(error) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+      // Only test assets are served; all pages have closed before socket cleanup.
+      server.closeAllConnections();
+    });
 });
 
 async function mount(markup: string): Promise<void> {

@@ -1,13 +1,13 @@
 # Release checkpoint report — 2026-10-30
 
 **A. Status: NOT YET READY — BLOCKERS.** This is an interim report, not Phase 17
-acceptance. The latest Phase 4 initialization checkpoint passed **1,028 aggregate
-tests and 219 browser checks**; Phase 4 is **InProgress**, with the rest of its
+acceptance. The latest Phase 4 computed checkpoint passed **1,118 aggregate
+tests and 228 browser checks**; Phase 4 is **InProgress**, with the rest of its
 scope still incomplete. Phase 3 tasks 3.1–3.7 and their exit gate passed first on Windows:
 **929 aggregate tests, 192 browser checks, seven tarballs/four external consumers**.
 The [acceptance review](phase3-acceptance.md) and [saved gate](phase3-acceptance-evidence-2026-10-30.json)
 record the exact scope and source/report hashes. The [925-unit ledger](feature-ledger.md)
-accepts the nine Phase 3 rows and DIR-012 confirmation; phases 0–2/4–17 and the broader release/platform
+accepts the nine Phase 3 rows, DIR-012 confirmation and LIVE-006/LIVE-020 computed values; phases 0–2/4–17 and the broader release/platform
 requirements remain unfinished. Earlier checkpoint results below are historical.
 Calendar dates follow Africa/Cairo and verification timestamps use UTC.
 
@@ -53,7 +53,83 @@ Native multiple-select models now use bounded unique flat string/number/boolean 
 
 ## C. Evidence
 
-### Current eager initialization checkpoint
+### Current computed checkpoint
+
+The full Windows/host Node v24.13.0 runner at **2026-10-30T19:54:55.677Z**
+passed frozen installation, format/lint/boundaries, strict build/typecheck,
+**1,118/1,118 aggregate tests**, selected coverage, size, **228/228
+Chromium/Firefox/WebKit checks**, seven tarballs in four full/minimal external
+npm/pnpm consumers, docs, ledger, benchmark and audit. There were no pending,
+skipped, unexpected or flaky results or browser runner errors. Pack timestamp:
+**2026-10-30T20:01:01.862Z**. Audit reported no known vulnerabilities. The Phase 3
+source-bound regression gate passed at **2026-10-30T20:02:51.633Z**.
+The release check intentionally exited 1 because the master remains unfinished.
+See the [saved evidence](computed-checkpoint-evidence-2026-10-30.json) for exact
+command timings, source/report/ledger/tarball hashes and feature acceptance.
+
+Node **v22.23.4** at **2026-10-30T20:02:51.231Z** and Node **v24.22.1** at **2026-10-30T20:05:46.729Z**
+each passed strict compilation and all **1,118 aggregate tests**. These isolated
+runs do not repeat the complete three-browser server/consumer matrix under both
+binaries. The full npm/pnpm consumers strict-compile public umbrella
+ComputedOptions and render an async computed value from packed packages. Minimal
+umbrella consumers still verify default assets, HBS/Live and native REST.
+
+The added corpus has **71 computed unit cases**, **19
+integration cases** (18 real Express/Fastify HTTP cases and one registration
+rejection), and **9 real Nest checks across three browsers**. It verifies explicit
+async methods, default/disabled caching, TTL, state keys/deep changes, detached
+JSON, pending coalescing, late results, failure eviction, deadlines, inherited
+metadata, input/route rejection, request scopes, guards/CSRF/ownership, output
+escaping, no-JavaScript HTML, token revocation and shutdown.
+
+Review reproduced a real authorization trap: method-level Nest policy/route
+metadata was accepted on computed methods even though those reads are not Nest
+route calls. Twelve new negative tests failed before registration rejection was
+implemented; all pass now. Unrelated custom metadata stays allowed without
+implying policy execution. Host routes/component policies and service-level read
+authorization remain authoritative. A separate signed-zero regression failed
+before internal keys distinguished -0 from 0 and marker-like strings; the corrected
+nested-state regression passes. Cross-realm rejected Promise getters are handled
+before the unsupported synchronous read fails. The immutable evidence preserves
+the before-fix counts and finding summaries; no independent security certification
+is claimed.
+
+An intervening aggregate run passed 1,115/1,117 assertions but had two model
+debounce failures and two asset-server teardown hook timeouts. Installing a test
+clock had left it running across automation calls. Those fixtures now pause time
+before mounting and explicitly advance it; fixture-only connections close after
+page/browser teardown. Aggregate workers are bounded to two; the isolated runner
+allows five minutes per command while individual test/hook limits remain 15/30
+seconds. All 106 affected scoped checks and the complete final checkpoint pass
+without skipped tests, automatic retries or disabled rules. See
+[fixture scheduling](../testing/browser-fixtures.md).
+
+Selected coverage is **96.93% branches / 98.25% statements**
+over only four configuration/protocol/store/computed-evaluation files. The computed
+evaluator itself reaches **93.75% branches / 98.43% statements**.
+Metadata, full runtime/actions/client and most project code remain outside this
+coverage gate. An early new-file report was 0% because unit tests imported built
+output; source-level unit imports now measure the evaluator while real integration
+tests continue consuming compiled packages. No threshold was lowered.
+
+The browser runtime remains **146,232 raw / 35,049
+summed per-module gzip bytes across 14 modules**, below the unchanged 35,840-byte
+cap excluding Alpine/adapter/maps. This is not measured HTTP compression or total
+startup cost. The cached-HBS-only benchmark at **2026-10-30T20:02:30.305Z**,
+1,000 iterations on the recorded Windows/i7 host, measured p50
+**0.1863ms**, p95 **0.2452ms**, p99 **0.2852ms** before
+isolated runtime checks. No plain-Nest/end-to-end comparison or improvement is claimed.
+
+The [computed guide](../guides/computed-values.md) and
+[ADR 0014](../adr/0014-computed-evaluation.md) document cache scope, resource bounds,
+alpha migration changes and the limits of timeout/cancellation. **LIVE-006 and
+LIVE-020 are Done** for this verified contract; PHASE-047 and Phase 4 remain
+InProgress. Ledger: **96 InProgress, 817 Pending, 12 Done**.
+Server nesting, full lifecycle, serializers, URL/session/reactive/modelable/events,
+remaining directives, lazy/defer/navigation/progressive features, Linux/full matrix
+and the wider release gates remain unfinished.
+
+### Earlier eager initialization checkpoint
 
 The full Windows/host Node 24.13.0 runner at **2026-10-30T16:29:56.204Z** passed
 frozen install, formatting/lint, strict build/typecheck, **1,028/1,028 aggregate

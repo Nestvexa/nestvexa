@@ -5179,24 +5179,37 @@
       "priority": "P1",
       "package": "@nestvexa/live",
       "implementationFiles": [
+        "packages/live/src/computed.ts",
         "packages/live/src/metadata.ts",
-        "packages/live/src/runtime.ts"
+        "packages/live/src/runtime.ts",
+        "packages/live/src/index.ts"
       ],
       "testFiles": [
-        "tests/live.test.ts"
+        "tests/live-computed.test.ts",
+        "tests/live-computed-integration.test.ts",
+        "tests/browser/computed.spec.ts",
+        "tests/pack-consumers/consumer.ts"
       ],
       "docs": [
+        "docs/guides/computed-values.md",
+        "docs/adr/0014-computed-evaluation.md",
         "packages/live/README.md"
       ],
       "examples": [
-        "examples/live-counter/README.md"
+        "examples/starter-live/src/startup-panel.ts",
+        "examples/starter-live/views/startup-panel.hbs"
       ],
-      "securityNotes": "Only declared synchronous getters enter computed public view data.",
-      "state": "InProgress",
-      "validationEvidence": [],
-      "outstandingIssues": [
-        "Async computed APIs and caching TTL/dependency semantics are not implemented."
-      ]
+      "securityNotes": "Instance/stage-only bounded caches, detached JSON, explicit state dependency keys, deadline/late-result isolation and failure eviction. Computed members are neither state nor action routes. Host policy/guards/CSRF/ownership remain authoritative; trusted read failures revoke consumed tokens and do not roll back external effects.",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-30T19:54:55.677Z",
+          "report": "docs/implementation/computed-checkpoint-evidence-2026-10-30.json"
+        }
+      ],
+      "outstandingIssues": []
     },
     {
       "sourceKey": "7e3122ff213d090ae19d2a414a80d2ec851fbfd54d4098a89a862454a13932b6",
@@ -5493,13 +5506,37 @@
       "id": "LIVE-020",
       "priority": "P1",
       "package": "@nestvexa/live",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/live/src/computed.ts",
+        "packages/live/src/metadata.ts",
+        "packages/live/src/runtime.ts",
+        "packages/live/src/index.ts"
+      ],
+      "testFiles": [
+        "tests/live-computed.test.ts",
+        "tests/live-computed-integration.test.ts",
+        "tests/browser/computed.spec.ts",
+        "tests/pack-consumers/consumer.ts"
+      ],
+      "docs": [
+        "docs/guides/computed-values.md",
+        "docs/adr/0014-computed-evaluation.md",
+        "packages/live/README.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/startup-panel.ts",
+        "examples/starter-live/views/startup-panel.hbs"
+      ],
+      "securityNotes": "Instance/stage-only bounded caches, detached JSON, explicit state dependency keys, deadline/late-result isolation and failure eviction. Computed members are neither state nor action routes. Host policy/guards/CSRF/ownership remain authoritative; trusted read failures revoke consumed tokens and do not roll back external effects.",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-30T19:54:55.677Z",
+          "report": "docs/implementation/computed-checkpoint-evidence-2026-10-30.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {
@@ -15795,20 +15832,29 @@
         "packages/live/src/lifecycle.ts",
         "packages/live/src/runtime.ts",
         "packages/live/src/metadata.ts",
-        "packages/live/src/index.ts"
+        "packages/live/src/index.ts",
+        "packages/live/src/computed.ts"
       ],
       "testFiles": [
         "tests/live-model.test.ts",
-        "tests/browser/update-hooks.spec.ts"
+        "tests/browser/update-hooks.spec.ts",
+        "tests/live-computed.test.ts",
+        "tests/live-computed-integration.test.ts",
+        "tests/browser/computed.spec.ts",
+        "tests/pack-consumers/consumer.ts"
       ],
       "docs": [
         "docs/guides/live-update-hooks.md",
         "packages/live/README.md",
-        "docs/adr/0011-live-update-hooks.md"
+        "docs/adr/0011-live-update-hooks.md",
+        "docs/guides/computed-values.md",
+        "docs/adr/0014-computed-evaluation.md"
       ],
       "examples": [
         "examples/starter-live/src/work-board.ts",
-        "examples/starter-live/views/board.hbs"
+        "examples/starter-live/views/board.hbs",
+        "examples/starter-live/src/startup-panel.ts",
+        "examples/starter-live/views/startup-panel.hbs"
       ],
       "securityNotes": "Hooks execute only after admission, host authorization, Nest guards/pipes and whole-batch state validation. Context values are detached/frozen. Callback failure retains existing token revocation, preventing blind retries. Hook methods are reserved from state/action metadata; shutdown prevents the next stage. External effects are not rolled back.",
       "state": "InProgress",
@@ -15816,12 +15862,12 @@
         {
           "command": "pnpm checkpoint:check",
           "exitCode": 0,
-          "executedAt": "2026-10-30T09:51:23.195Z",
-          "report": "docs/implementation/update-hooks-checkpoint-evidence-2026-10-30.json"
+          "executedAt": "2026-10-30T19:54:55.677Z",
+          "report": "docs/implementation/computed-checkpoint-evidence-2026-10-30.json"
         }
       ],
       "outstandingIssues": [
-        "Verified initial boot/beforeUpdate/afterUpdate slice only. Full Phase4 lifecycle (including render/error/disposal semantics), nested server components/mount keys, computed invalidation, serializers, cancellation/timeouts and other Phase4 tasks remain incomplete. No Phase4 acceptance claim."
+        "Computed memoization/async methods and boot/update hooks implemented. Full Phase4 lifecycle render/error/disposal semantics, server nesting/mount keys, serializers and complete cancellation remain incomplete; no Phase4 acceptance claim."
       ]
     },
     {

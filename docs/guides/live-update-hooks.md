@@ -78,3 +78,7 @@ redaction, failed-hook token revocation, validation/guard ordering, reserved
 route exposure and shutdown. Remaining lifecycle error/render/dispose semantics,
 server nesting, session/URL state, custom serializers and the rest of Phase 4
 remain tracked rather than represented as complete.
+
+[Computed values](computed-values.md) now use instance-local caches cleared before
+and after each hook and before rendering. Async computed methods are explicitly
+awaited; this does not add new lifecycle hooks or alter writable field authority.

@@ -6,6 +6,12 @@ without automatic retry. The initial HTML remains available without JavaScript;
 this is not a lazy-hydration or progressive-action example. See the
 [real-server browser cases](../../tests/browser/initialization.spec.ts).
 
+The activity summary demonstrates an explicit async
+[computed method](../../docs/guides/computed-values.md), rendered on initial HTML
+and recomputed after authorized actions. It derives public sample counters; it
+does not pretend to query a database or external service. Real request-scoped
+service/deadline behavior is exercised in the Nest integration suite.
+
 The work-board removal button demonstrates [`nv:confirm`](../../docs/reference/nv-confirm.md)
 with a native prompt, keyboard cancellation/approval and a real session-bound Nest
 action. Empty lists can add new items again. This changes public seed data only;

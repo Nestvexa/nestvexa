@@ -189,7 +189,7 @@ async function consume(manager, profile) {
   );
   await writeFile(
     join(consumer, 'views/counter.hbs'),
-    '<output>{{count}}</output>',
+    '<output>{{count}}</output><b>{{doubled}}</b>',
   );
   if (profile === 'minimal') {
     await writeFile(

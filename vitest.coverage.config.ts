@@ -3,7 +3,12 @@ import { defineConfig } from 'vitest/config';
 /** This deliberately scoped gate does not replace the complete test or release suites. */
 export default defineConfig({
   test: {
-    include: ['tests/live-protocol.test.ts', 'tests/core.test.ts'],
+    include: [
+      'tests/live-protocol.test.ts',
+      'tests/core.test.ts',
+      'tests/live-computed.test.ts',
+      'tests/live-computed-integration.test.ts',
+    ],
     testTimeout: 15000,
     hookTimeout: 30000,
     reporters: ['default', 'json'],
@@ -11,7 +16,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: [
-        'packages/{live/src/protocol,live/src/store,core/src/config}.ts',
+        'packages/{live/src/protocol,live/src/store,live/src/computed,core/src/config}.ts',
       ],
       reportsDirectory: 'artifacts/reports/coverage/high-risk',
       reporter: ['text', 'json', 'json-summary', 'html', 'lcov'],

@@ -1,4 +1,4 @@
-import { Action, LiveComponent, State } from 'nestvexa';
+import { Action, Computed, LiveComponent, State } from 'nestvexa';
 
 /** Public seed content; real hosts inject an authorized request-scoped service. */
 @LiveComponent({ name: 'startup-panel', view: 'startup-panel' })
@@ -7,6 +7,10 @@ export class StartupPanel {
   @State() loads = 0;
   @State() refreshes = 0;
   @State() message = 'Waiting for the authorized initialization request';
+  @Computed({ async: true, dependencies: ['loads', 'refreshes'] })
+  async activitySummary(): Promise<string> {
+    return `${this.loads} loads and ${this.refreshes} refreshes`;
+  }
   @Action() load(): void {
     this.loaded = true;
     this.loads++;

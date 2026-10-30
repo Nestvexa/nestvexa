@@ -1,5 +1,22 @@
 import { Body } from '@nestjs/common';
+import {
+  EXCEPTION_FILTERS_METADATA,
+  GUARDS_METADATA,
+  HEADERS_METADATA,
+  HTTP_CODE_METADATA,
+  INTERCEPTORS_METADATA,
+  METHOD_METADATA,
+  PATH_METADATA,
+  PIPES_METADATA,
+  REDIRECT_METADATA,
+  RENDER_METADATA,
+  ROUTE_ARGS_METADATA,
+  SSE_METADATA,
+  SSE_OPTIONS_METADATA,
+  VERSION_METADATA,
+} from '@nestjs/common/constants';
 import type { Type, PipeTransform } from '@nestjs/common';
+import { cloneState } from './protocol.js';
 import type { JsonValue } from './protocol.js';
 import { lifecycleHookNames } from './lifecycle.js';
 
@@ -18,12 +35,33 @@ export interface StateOptions {
 export interface ActionOptions {
   readonly id?: string;
 }
+/** Derived JSON values; caches never survive the current component request/stage. */
+export interface ComputedOptions {
+  /** Explicitly opt a zero-argument method into asynchronous evaluation. Getters stay synchronous. */
+  readonly async?: boolean;
+  /** Default true; false evaluates on every read. */
+  readonly cache?: boolean;
+  /** Optional cache lifetime in milliseconds, 1–60000, bounded by the current lifecycle stage. */
+  readonly ttl?: number;
+  /** Public state fields used as the cache key; default is all declared state. */
+  readonly dependencies?: readonly string[];
+  /** Async evaluation deadline in milliseconds, 1–300000; default 30000. Does not undo server work. */
+  readonly timeoutMs?: number;
+}
+export interface ComputedDefinition {
+  readonly async: boolean;
+  readonly cache: boolean;
+  readonly ttl?: number;
+  readonly dependencies?: readonly string[];
+  readonly timeoutMs: number;
+  readonly read: (this: object) => unknown;
+}
 export interface ComponentDefinition {
   readonly type: Type<object>;
   readonly name: string;
   readonly view: string;
   readonly states: ReadonlyMap<string, StateOptions>;
-  readonly computed: ReadonlySet<string>;
+  readonly computed: ReadonlyMap<string, ComputedDefinition>;
   readonly actions: ReadonlyMap<
     string,
     { readonly method: string; readonly input: boolean }
@@ -32,6 +70,7 @@ export interface ComponentDefinition {
 const COMPONENT = Symbol('nv:component');
 const STATES = Symbol('nv:states');
 const COMPUTED = Symbol('nv:computed');
+const COMPUTED_DECLARED = Symbol('nv:computed-declared');
 const ACTIONS = Symbol('nv:actions');
 const INPUT = Symbol('nv:input');
 const ACTION_DECLARED = Symbol('nv:action-declared');
@@ -80,6 +119,9 @@ function memberDeclaration(
   }
   return undefined;
 }
+function callable(value: unknown): value is (this: object) => unknown {
+  return typeof value === 'function';
+}
 /** Register explicitly through LiveModule.register; this decorator never scans other services. */
 export function LiveComponent(options: ComponentOptions): ClassDecorator {
   if (!/^[a-z][a-z0-9-]{0,63}$/.test(options.name))
@@ -127,17 +169,94 @@ export function State(options: StateOptions = {}): PropertyDecorator {
 export function Locked(): PropertyDecorator {
   return State({ writable: false });
 }
-export function Computed(): MethodDecorator {
+/** A synchronous getter, or an explicit async:true zero-argument method, rendered as derived JSON. */
+export function Computed(options: ComputedOptions = {}): MethodDecorator {
+  if (!options || typeof options !== 'object' || Array.isArray(options))
+    throw new Error('Invalid computed options');
+  const prototype: unknown = Object.getPrototypeOf(options);
+  if (prototype !== Object.prototype && prototype !== null)
+    throw new Error('Invalid computed options');
+  for (const key of Reflect.ownKeys(options)) {
+    const descriptor = Object.getOwnPropertyDescriptor(options, key);
+    if (
+      typeof key !== 'string' ||
+      !['async', 'cache', 'ttl', 'dependencies', 'timeoutMs'].includes(key) ||
+      !descriptor ||
+      !('value' in descriptor)
+    )
+      throw new Error('Computed options must use known own data properties');
+  }
+  const selected = { ...options };
+  Object.setPrototypeOf(selected, null);
+  if (
+    (selected.async !== undefined && typeof selected.async !== 'boolean') ||
+    (selected.cache !== undefined && typeof selected.cache !== 'boolean')
+  )
+    throw new Error('Computed async/cache options must be booleans');
+  for (const [name, maximum] of [
+    ['ttl', 60_000],
+    ['timeoutMs', 300_000],
+  ] as const) {
+    const value = selected[name];
+    if (
+      value !== undefined &&
+      (!Number.isSafeInteger(value) || value < 1 || value > maximum)
+    )
+      throw new Error(`Invalid computed ${name}`);
+  }
+  if (selected.timeoutMs !== undefined && selected.async !== true)
+    throw new Error('Computed timeoutMs requires async:true');
+  if (
+    selected.cache === false &&
+    (selected.ttl !== undefined || selected.dependencies !== undefined)
+  )
+    throw new Error('Computed ttl/dependencies require caching');
+  let dependencies: string[] | undefined;
+  if (selected.dependencies !== undefined) {
+    const values = cloneState({ dependencies: selected.dependencies })[
+      'dependencies'
+    ];
+    if (
+      !Array.isArray(values) ||
+      values.length > 64 ||
+      new Set(values).size !== values.length
+    )
+      throw new Error('Invalid computed dependencies');
+    dependencies = [];
+    for (const name of values) {
+      if (typeof name !== 'string')
+        throw new Error('Invalid computed dependency');
+      property(name);
+      dependencies.push(name);
+    }
+  }
+  const normalized = Object.freeze({
+    async: selected.async ?? false,
+    cache: selected.cache ?? true,
+    timeoutMs: selected.timeoutMs ?? 30_000,
+    ...(selected.ttl === undefined ? {} : { ttl: selected.ttl }),
+    ...(dependencies === undefined
+      ? {}
+      : { dependencies: Object.freeze([...dependencies]) }),
+  });
   return (target, key, descriptor) => {
-    if (!descriptor.get)
-      throw new Error('@Computed requires a synchronous getter');
-    const prior: Set<string> | undefined = Reflect.getMetadata(
-      COMPUTED,
-      target,
-    );
-    const names = new Set(prior);
-    names.add(property(key));
+    const name = property(key);
+    const read: unknown = normalized.async ? descriptor.value : descriptor.get;
+    if (
+      !callable(read) ||
+      read.length !== 0 ||
+      descriptor.set !== undefined ||
+      (normalized.async && descriptor.get !== undefined)
+    )
+      throw new Error(
+        '@Computed requires a synchronous getter or async:true zero-argument method',
+      );
+    const prior: Map<string, ComputedDefinition> | undefined =
+      Reflect.getMetadata(COMPUTED, target);
+    const names = new Map(prior);
+    names.set(name, Object.freeze({ ...normalized, read }));
     Reflect.defineMetadata(COMPUTED, names, target);
+    Reflect.defineMetadata(COMPUTED_DECLARED, true, target, key);
   };
 }
 export function Action(options: ActionOptions = {}): MethodDecorator {
@@ -190,7 +309,7 @@ export function definition(type: Type<object>): ComponentDefinition {
   const states: Map<string, StateOptions> = new Map(
     Reflect.getMetadata(STATES, type.prototype),
   );
-  const computed: Set<string> = new Set(
+  const computed: Map<string, ComputedDefinition> = new Map(
     Reflect.getMetadata(COMPUTED, type.prototype),
   );
   const methods: Map<string, string> = new Map(
@@ -219,11 +338,47 @@ export function definition(type: Type<object>): ComponentDefinition {
   for (const name of states.keys())
     if (computed.has(name) || [...methods.values()].includes(name))
       throw new Error(`Duplicate live member ${name}`);
-  for (const name of computed)
+  if (computed.size > 64)
+    throw new Error('At most 64 computed members per component');
+  for (const [name, entry] of computed) {
+    const declaration = memberDeclaration(type.prototype, name);
     if (
-      typeof memberDeclaration(type.prototype, name)?.descriptor.get !==
-      'function'
+      !declaration ||
+      Reflect.getOwnMetadata(COMPUTED_DECLARED, declaration.owner, name) !==
+        true ||
+      (entry.async
+        ? declaration.descriptor.value
+        : declaration.descriptor.get) !== entry.read
     )
-      throw new Error(`Computed ${name} must remain a getter`);
+      throw new Error(`Computed ${name} overrides a member without @Computed`);
+    if ([...methods.values()].includes(name) || methods.has(name))
+      throw new Error(`Duplicate live member ${name}`);
+    if (
+      [
+        GUARDS_METADATA,
+        PIPES_METADATA,
+        INTERCEPTORS_METADATA,
+        EXCEPTION_FILTERS_METADATA,
+        METHOD_METADATA,
+        PATH_METADATA,
+        HEADERS_METADATA,
+        HTTP_CODE_METADATA,
+        REDIRECT_METADATA,
+        RENDER_METADATA,
+        SSE_METADATA,
+        SSE_OPTIONS_METADATA,
+        VERSION_METADATA,
+      ].some((key) => Reflect.hasMetadata(key, entry.read)) ||
+      Reflect.hasMetadata(ROUTE_ARGS_METADATA, type, name)
+    )
+      throw new Error(
+        `Computed ${name} cannot use Nest route/parameter/enhancer decorators; authorize the host route or service instead`,
+      );
+    for (const field of entry.dependencies ?? [])
+      if (!states.has(field))
+        throw new Error(
+          `Computed ${name} dependency ${field} must be declared state`,
+        );
+  }
   return Object.freeze({ type, ...options, states, computed, actions });
 }
