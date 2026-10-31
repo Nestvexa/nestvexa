@@ -141,171 +141,176 @@ interface MountOptions {
   nested?: boolean;
   live?: boolean;
   diagnostics?: 'collect' | 'throw';
+  offline?: boolean;
 }
 /** Actual Chromium with deliberately controlled fetch/streams; not Nest protocol conformance. */
 async function mount(options: MountOptions = { timeout: 100 }): Promise<void> {
-  await page.evaluate(({ timeout, second, nested, live, diagnostics }) => {
-    const html = (name: string) =>
-      `<form id="${name}-form" nv:submit="save"><label for="${name}-edit">Query</label><input id="${name}-edit" nv:model${live ? '.live.debounce.25ms' : ''}="query" value="initial"><button type="submit">Save</button></form><button id="${name}-slow" type="button" nv:click="slow" nv:loading.attr="disabled" nv:target="slow">Slow</button><span id="${name}-loading" nv:loading="" nv:target="slow" hidden>Pending</span><output id="${name}-count" nv:text="count">0</output><output id="${name}-query" nv:text="query">initial</output>`;
-    const createRoot = (name: string, number: number) => {
-      const element = document.createElement('section');
-      element.id = name;
-      for (const [key, value] of Object.entries({
-        'data-nv-component': `${number}1111111-1111-4111-8111-111111111111`,
-        'data-nv-name': name,
-        'data-nv-snapshot': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
-        'data-nv-revision': '0',
-        'data-nv-endpoint': `/live/${name}`,
-        'data-nv-csrf': 'fixture-csrf-012345678901234567890123456789',
-        'data-nv-state': JSON.stringify({ query: 'initial', count: 0 }),
-      }))
-        element.setAttribute(key, value);
-      element.innerHTML = html(name);
-      return element;
-    };
-    const parent = createRoot('parent', 1);
-    document.querySelector('main')?.append(parent);
-    if (second || nested) {
-      const other = createRoot('other', 2);
-      (nested ? parent : document.querySelector('main'))?.append(other);
-    }
-    const requests: TransportRequest[] = [];
-    const results: (TaskResult | null)[] = [];
-    const errors: { code: string | null; message: string }[] = [];
-    const samples: import('../packages/client/dist/index.js').LiveDiagnostic[] =
-      [];
-    const client = window.nvTransportFixture.createLiveClient({
-      ...(timeout === undefined ? {} : { requestTimeoutMs: timeout }),
-      ...(diagnostics
-        ? {
-            onDiagnostic(
-              event: import('../packages/client/dist/index.js').LiveDiagnostic,
-            ) {
-              if (!Object.isFrozen(event))
-                throw new Error('Mutable diagnostic');
-              samples.push(event);
-              if (diagnostics === 'throw')
-                throw new Error('Private sink failure');
-            },
-          }
-        : {}),
-      onError(error) {
-        errors.push({
-          code:
-            typeof Reflect.get(error, 'code') === 'string'
-              ? String(Reflect.get(error, 'code'))
-              : null,
-          message: error.message,
-        });
-      },
-      fetch(url, init) {
-        return new Promise<Response>((resolve, reject) => {
-          requests.push({
-            url: String(url),
-            body: JSON.parse(String(init?.body)) as RequestBody,
-            signal: init?.signal ?? null,
-            resolve,
-            reject,
-            cancelled: 0,
+  await page.evaluate(
+    ({ timeout, second, nested, live, diagnostics, offline }) => {
+      const html = (name: string) =>
+        `<form id="${name}-form" nv:submit="save"><label for="${name}-edit">Query</label><input id="${name}-edit" nv:model${live ? '.live.debounce.25ms' : ''}="query" value="initial"><button type="submit">Save</button></form><button id="${name}-slow" type="button" nv:click="slow" nv:loading.attr="disabled" nv:target="slow">Slow</button><span id="${name}-loading" nv:loading="" nv:target="slow" hidden>Pending</span><output id="${name}-count" nv:text="count">0</output><output id="${name}-query" nv:text="query">initial</output>${offline ? `<p id="${name}-offline" nv:offline="" hidden role="status">Connection may be unavailable</p>` : ''}`;
+      const createRoot = (name: string, number: number) => {
+        const element = document.createElement('section');
+        element.id = name;
+        for (const [key, value] of Object.entries({
+          'data-nv-component': `${number}1111111-1111-4111-8111-111111111111`,
+          'data-nv-name': name,
+          'data-nv-snapshot': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+          'data-nv-revision': '0',
+          'data-nv-endpoint': `/live/${name}`,
+          'data-nv-csrf': 'fixture-csrf-012345678901234567890123456789',
+          'data-nv-state': JSON.stringify({ query: 'initial', count: 0 }),
+        }))
+          element.setAttribute(key, value);
+        element.innerHTML = html(name);
+        return element;
+      };
+      const parent = createRoot('parent', 1);
+      document.querySelector('main')?.append(parent);
+      if (second || nested) {
+        const other = createRoot('other', 2);
+        (nested ? parent : document.querySelector('main'))?.append(other);
+      }
+      const requests: TransportRequest[] = [];
+      const results: (TaskResult | null)[] = [];
+      const errors: { code: string | null; message: string }[] = [];
+      const samples: import('../packages/client/dist/index.js').LiveDiagnostic[] =
+        [];
+      const client = window.nvTransportFixture.createLiveClient({
+        ...(timeout === undefined ? {} : { requestTimeoutMs: timeout }),
+        ...(diagnostics
+          ? {
+              onDiagnostic(
+                event: import('../packages/client/dist/index.js').LiveDiagnostic,
+              ) {
+                if (!Object.isFrozen(event))
+                  throw new Error('Mutable diagnostic');
+                samples.push(event);
+                if (diagnostics === 'throw')
+                  throw new Error('Private sink failure');
+              },
+            }
+          : {}),
+        onError(error) {
+          errors.push({
+            code:
+              typeof Reflect.get(error, 'code') === 'string'
+                ? String(Reflect.get(error, 'code'))
+                : null,
+            message: error.message,
           });
-          // Deliberately ignore abort here: the client deadline must settle independently.
-        });
-      },
-    });
-    window.nvTransportSession = {
-      client,
-      requests,
-      results,
-      errors,
-      diagnostics: samples,
-      reply(index, spec = {}) {
-        const request = requests[index];
-        if (!request) throw new Error('Missing pending transport request');
-        const name = new URL(request.url, location.href).pathname
-          .split('/')
-          .at(-2);
-        const root = name ? document.getElementById(name) : null;
-        if (!root || !name) throw new Error('Missing response owner');
-        const envelope = {
-          protocol: 'nestvexa-live/1',
-          requestId: request.body.requestId,
-          component: {
-            id: root.getAttribute('data-nv-component'),
-            name,
-            revision: request.body.revision + 1,
-          },
-          snapshot: request.body.snapshot,
-          state: spec.state ?? {
-            query: 'server',
-            count: request.body.revision + 1,
-          },
-          html: spec.html ?? html(name),
-          padding: '',
-        };
-        const encoder = new TextEncoder();
-        if (spec.mode === 'unicode-overflow')
-          envelope.padding = '€'.repeat(1_000_000);
-        if (spec.mode === 'ascii-overflow')
-          envelope.padding = 'x'.repeat(3_000_000);
-        if (spec.mode === 'exact-limit')
-          envelope.padding = 'x'.repeat(
-            2_097_152 - encoder.encode(JSON.stringify(envelope)).length,
-          );
-        let bytes = encoder.encode(spec.raw ?? JSON.stringify(envelope));
-        if (spec.mode === 'split-unicode') {
-          envelope.state = {
-            query: 'مرحبا € 😀',
-            count: request.body.revision + 1,
+        },
+        fetch(url, init) {
+          return new Promise<Response>((resolve, reject) => {
+            requests.push({
+              url: String(url),
+              body: JSON.parse(String(init?.body)) as RequestBody,
+              signal: init?.signal ?? null,
+              resolve,
+              reject,
+              cancelled: 0,
+            });
+            // Deliberately ignore abort here: the client deadline must settle independently.
+          });
+        },
+      });
+      window.nvTransportSession = {
+        client,
+        requests,
+        results,
+        errors,
+        diagnostics: samples,
+        reply(index, spec = {}) {
+          const request = requests[index];
+          if (!request) throw new Error('Missing pending transport request');
+          const name = new URL(request.url, location.href).pathname
+            .split('/')
+            .at(-2);
+          const root = name ? document.getElementById(name) : null;
+          if (!root || !name) throw new Error('Missing response owner');
+          const envelope = {
+            protocol: 'nestvexa-live/1',
+            requestId: request.body.requestId,
+            component: {
+              id: root.getAttribute('data-nv-component'),
+              name,
+              revision: request.body.revision + 1,
+            },
+            snapshot: request.body.snapshot,
+            state: spec.state ?? {
+              query: 'server',
+              count: request.body.revision + 1,
+            },
+            html: spec.html ?? html(name),
+            padding: '',
           };
-          bytes = encoder.encode(JSON.stringify(envelope));
-        }
-        const headers = new Headers();
-        if (spec.mime !== null)
-          headers.set(
-            'content-type',
-            spec.mime ?? 'application/json; charset=utf-8',
-          );
-        if (spec.declaredLength !== undefined)
-          headers.set('content-length', spec.declaredLength);
-        if (spec.mode === 'empty') {
+          const encoder = new TextEncoder();
+          if (spec.mode === 'unicode-overflow')
+            envelope.padding = '€'.repeat(1_000_000);
+          if (spec.mode === 'ascii-overflow')
+            envelope.padding = 'x'.repeat(3_000_000);
+          if (spec.mode === 'exact-limit')
+            envelope.padding = 'x'.repeat(
+              2_097_152 - encoder.encode(JSON.stringify(envelope)).length,
+            );
+          let bytes = encoder.encode(spec.raw ?? JSON.stringify(envelope));
+          if (spec.mode === 'split-unicode') {
+            envelope.state = {
+              query: 'مرحبا € 😀',
+              count: request.body.revision + 1,
+            };
+            bytes = encoder.encode(JSON.stringify(envelope));
+          }
+          const headers = new Headers();
+          if (spec.mime !== null)
+            headers.set(
+              'content-type',
+              spec.mime ?? 'application/json; charset=utf-8',
+            );
+          if (spec.declaredLength !== undefined)
+            headers.set('content-length', spec.declaredLength);
+          if (spec.mode === 'empty') {
+            request.resolve(
+              new Response(null, { status: spec.status ?? 200, headers }),
+            );
+            return;
+          }
+          const stream = new ReadableStream<Uint8Array>({
+            start(controller) {
+              if (spec.mode === 'reader-error') {
+                controller.error(new Error('private reader debug'));
+                return;
+              }
+              if (spec.mode === 'hang' || spec.mode === 'hang-cancel') {
+                controller.enqueue(encoder.encode('{"protocol":'));
+                return;
+              }
+              if (spec.mode === 'invalid-utf8')
+                controller.enqueue(new Uint8Array([0xc3, 0x28]));
+              else if (spec.mode === 'split-unicode') {
+                for (const byte of bytes)
+                  controller.enqueue(new Uint8Array([byte]));
+              } else {
+                for (let offset = 0; offset < bytes.length; offset += 65_536)
+                  controller.enqueue(bytes.subarray(offset, offset + 65_536));
+              }
+              controller.close();
+            },
+            cancel(): void | Promise<void> {
+              request.cancelled++;
+              if (spec.mode === 'hang-cancel')
+                return new Promise<void>(() => {});
+            },
+          });
           request.resolve(
-            new Response(null, { status: spec.status ?? 200, headers }),
+            new Response(stream, { status: spec.status ?? 200, headers }),
           );
-          return;
-        }
-        const stream = new ReadableStream<Uint8Array>({
-          start(controller) {
-            if (spec.mode === 'reader-error') {
-              controller.error(new Error('private reader debug'));
-              return;
-            }
-            if (spec.mode === 'hang' || spec.mode === 'hang-cancel') {
-              controller.enqueue(encoder.encode('{"protocol":'));
-              return;
-            }
-            if (spec.mode === 'invalid-utf8')
-              controller.enqueue(new Uint8Array([0xc3, 0x28]));
-            else if (spec.mode === 'split-unicode') {
-              for (const byte of bytes)
-                controller.enqueue(new Uint8Array([byte]));
-            } else {
-              for (let offset = 0; offset < bytes.length; offset += 65_536)
-                controller.enqueue(bytes.subarray(offset, offset + 65_536));
-            }
-            controller.close();
-          },
-          cancel(): void | Promise<void> {
-            request.cancelled++;
-            if (spec.mode === 'hang-cancel') return new Promise<void>(() => {});
-          },
-        });
-        request.resolve(
-          new Response(stream, { status: spec.status ?? 200, headers }),
-        );
-      },
-    };
-    client.mount();
-  }, options);
+        },
+      };
+      client.mount();
+    },
+    options,
+  );
 }
 async function start(action = 'slow', selector = '#parent'): Promise<number> {
   return page.evaluate(
@@ -360,6 +365,91 @@ async function metrics() {
 }
 
 describe('bounded browser request lifecycle', () => {
+  it.each([
+    { code: 'HTTP', spec: { status: 422 } },
+    { code: 'RESPONSE', spec: { raw: '{' } },
+    { code: 'HTML', spec: { html: '<script>invalid</script>' } },
+    {
+      code: 'DIRECTIVE',
+      spec: {
+        html: '<a href="/safe" nv:current.unsupported="active">Invalid</a>',
+      },
+    },
+  ])(
+    'does not report $code errors as lost connectivity',
+    async ({ code, spec }) => {
+      await mount({ timeout: 1000, offline: true });
+      expect(await page.locator('#parent-offline').isVisible()).toBe(false);
+      const task = await start();
+      await reply(0, spec);
+      expect(await result(task)).toEqual({ ok: false, code });
+      expect(await page.locator('#parent-offline').isVisible()).toBe(false);
+      if (code === 'HTTP') {
+        const retry = await start();
+        await reply(1);
+        expect(await result(retry)).toEqual({ ok: true, code: null });
+        expect(await page.locator('#parent-offline').isVisible()).toBe(false);
+      } else {
+        const suspended = await start();
+        await page.clock.runFor(0);
+        expect(await result(suspended)).toEqual({ ok: false, code });
+        expect((await metrics()).requests).toHaveLength(1);
+      }
+    },
+  );
+
+  it.each(['NETWORK', 'TIMEOUT'] as const)(
+    'shows $0 connectivity failure while preserving uncertain-state suspension',
+    async (code) => {
+      await mount({ timeout: 100, offline: true, second: true });
+      const failed = await start();
+      if (code === 'NETWORK') {
+        await page.evaluate(() =>
+          window.nvTransportSession.requests[0]?.reject(
+            new Error('Private transport failure'),
+          ),
+        );
+        await page.clock.runFor(0);
+      } else await page.clock.runFor(101);
+      expect(await result(failed)).toEqual({ ok: false, code });
+      expect(await page.locator('#parent-offline').isVisible()).toBe(true);
+      await page.evaluate(() => window.dispatchEvent(new Event('online')));
+      expect(await page.locator('#parent-offline').isVisible()).toBe(true);
+      const sibling = await start('slow', '#other');
+      await reply(1);
+      expect(await result(sibling)).toEqual({ ok: true, code: null });
+      expect(await page.locator('#other-offline').isVisible()).toBe(false);
+      expect(await page.locator('#parent-offline').isVisible()).toBe(true);
+      const suspended = await start();
+      await page.clock.runFor(0);
+      expect(await result(suspended)).toEqual({ ok: false, code });
+      expect((await metrics()).requests).toHaveLength(2);
+      // Simulate a host replacing uncertain state with an authoritative fresh
+      // server render. There is no automatic retry of the uncertain mutation.
+      await page.evaluate(() => {
+        const old = document.querySelector('#parent');
+        if (!old) throw new Error('Missing parent');
+        const fresh = old.cloneNode(true);
+        if (!(fresh instanceof Element)) throw new Error('Missing fresh root');
+        fresh.setAttribute(
+          'data-nv-snapshot',
+          'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+        );
+        fresh.setAttribute('data-nv-revision', '1');
+        fresh.setAttribute(
+          'data-nv-state',
+          JSON.stringify({ query: 'reconciled', count: 1 }),
+        );
+        old.replaceWith(fresh);
+      });
+      await page.clock.runFor(0);
+      const reconciled = await start();
+      await reply(2);
+      expect(await result(reconciled)).toEqual({ ok: true, code: null });
+      expect(await page.locator('#parent-offline').isVisible()).toBe(false);
+    },
+  );
+
   it('keeps diagnostics disabled by default', async () => {
     await mount();
     const task = await start();

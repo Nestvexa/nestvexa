@@ -1,5 +1,12 @@
 # @nestvexa/live
 
+`@Url` and `@Session` pair with explicit public `@State` fields. URL values use
+typed primitive validation; session values use the host-owned session object,
+authoritative identity binding, component/field namespace and TTL. See
+[URL/session state](../../docs/guides/url-session-state.md). Neither decorator
+supplies authentication or a production session store. The [activity example](../../examples/starter-live/src/activity-panel.ts)
+exercises URL history, independent sessions and protected background actions.
+
 `ComputedOptions` now supports synchronous getters and explicit `async: true`
 zero-argument methods, with instance/stage-local memoization, state dependencies,
 TTL and async evaluation deadlines. Returned JSON is detached; computed names
@@ -16,7 +23,7 @@ Phase 4 begins with awaited `boot`, `beforeUpdate` and `afterUpdate` hooks and
 exported `LiveLifecycleHooks`, `LiveUpdateContext` and `ReadonlyLiveValue` types.
 All input validation precedes execution; update context is detached/frozen. See
 [ordering, failure boundaries and reserved-name migration](../../docs/guides/live-update-hooks.md).
-This does not complete Phase 4 lifecycle/nesting or later features.
+Awaited `beforeRender`, `afterRender`, `onError` and request `dispose` hooks are now implemented; see [the lifecycle guide](../../docs/guides/live-lifecycle.md). Server nesting and whole Phase 4 acceptance remain open.
 
 Experimental Nest-native Live components. This first slice has explicit component/action registration, JSON state, computed getters, opaque server-side snapshots, host identity/CSRF/origin/authorization checks and generated Nest controller routes. It is not the full Live feature set.
 
@@ -67,7 +74,7 @@ Class/method guards, pipes, interceptors and filters execute on generated Nest r
 
 Each registered component also has `POST <endpoint>/<component>/_sync` for model synchronization. The reserved path cannot name a public action. The host authorizes it as `$sync`, with the normal origin/CSRF/identity/ownership/rate/payload/revision checks. It uses component/global Nest route policies, interceptors and filters; there is no selected action method or action input, so action-method guards, pipes, interceptors and filters are not copied onto it. Policies required for all writable state must therefore live at component/global scope or in `authorize`. Synchronization accepts absent/null `input` only and does not call any action.
 
-Hooks in this slice: initial `boot → mount → dehydrate → render`; action update `boot → hydrate → field update hooks → beforeAction → action → afterAction → dehydrate → render`; synchronization omits action hooks. Field hooks receive the typed detached update context; other current hooks receive no arguments. Computed caches clear around hooks and before rendering. Only decorated public state is stored. Dates, BigInt, classes, URL/session decorators, server nesting and custom serializers are not supported yet.
+Hooks include boot/mount/hydrate, field updates, action hooks, dehydrate, beforeRender/afterRender, onError and request disposal. See [exact ordering and failure rules](../../docs/guides/live-lifecycle.md). Computed caches clear around hooks and before rendering. Only decorated public state is stored. Dates, BigInt, classes, server nesting and custom serializers remain unsupported.
 
 Read [protocol](../../docs/guides/live-protocol.md) for the64KiB/depth/node limits, token binding, 15-minute fixed expiry, capacity1000, revision conflicts and failure invalidation. Default rate limit is60 requests/minute per binding. Configure host body parser limits before parsing. In-memory state is single-process; no distributed or exactly-once guarantee. Failed callbacks invalidate state because external side effects may already have happened. The browser never retries automatically. The host must revoke the binding on logout. Host policies and handlers need their own external-operation timeouts.
 

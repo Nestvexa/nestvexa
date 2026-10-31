@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased: Phase 4 context, background directives and request cleanup
+
+Added validated `@Url` and identity-namespaced `@Session` state, optional query
+history effects, awaited render/error/disposal hooks, polling/intersection,
+visible/idle initialization, offline/current indicators and CSS transitions.
+The activity starter has protected real actions and an ordinary GET fallback.
+Request cleanup precedes snapshot/session commit; uncertain actions are never
+retried automatically. Independent admitted roots retain ownership inside parent
+ignore slots. New hook names are reserved in this alpha.
+
+The canonical client entry is now one minified ESM bundle. Private implementation
+JavaScript is excluded from package files and the default asset catalog. Linked
+source maps and documented declarations remain packaged; maps are not served by
+the default asset route. The existing 35KiB custom-runtime gzip budget is retained.
+Full Phase 4 and Phase 5 acceptance remain outstanding.
+
 ## Unreleased: async computed values and request-local memoization
 
 Added explicit async computed methods, public `ComputedOptions`, state dependency

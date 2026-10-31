@@ -1,10 +1,9 @@
-import { readdir, readFile, mkdir, writeFile } from 'node:fs/promises';
+import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { gzipSync } from 'node:zlib';
 import { join } from 'node:path';
 
 const files = [];
-for (const file of (await readdir('packages/client/dist')).sort()) {
-  if (!file.endsWith('.js')) continue;
+for (const file of ['index.js']) {
   const content = await readFile(join('packages/client/dist', file));
   files.push({
     file,
@@ -18,7 +17,7 @@ const report = {
   timestamp: new Date().toISOString(),
   node: process.version,
   scope:
-    'Emitted custom Live ES modules only, excluding Alpine and sourcemaps. Per-module gzip estimate; example server does not automatically enable HTTP compression.',
+    'Canonical bundled public Live entry, including all reachable custom runtime code. Excludes Alpine, its adapter and sourcemaps. Private per-module test outputs are not published or served. Gzip estimate; example server does not automatically enable HTTP compression.',
   files,
   bytes: files.reduce((sum, file) => sum + file.bytes, 0),
   gzipBytes: files.reduce((sum, file) => sum + file.gzipBytes, 0),

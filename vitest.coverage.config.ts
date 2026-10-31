@@ -8,6 +8,8 @@ export default defineConfig({
       'tests/core.test.ts',
       'tests/live-computed.test.ts',
       'tests/live-computed-integration.test.ts',
+      'tests/live-state-context.test.ts',
+      'tests/live-state-context-integration.test.ts',
     ],
     testTimeout: 15000,
     hookTimeout: 30000,
@@ -16,7 +18,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: [
-        'packages/{live/src/protocol,live/src/store,live/src/computed,core/src/config}.ts',
+        'packages/{live/src/protocol,live/src/store,live/src/computed,live/src/state-context,core/src/config}.ts',
       ],
       reportsDirectory: 'artifacts/reports/coverage/high-risk',
       reporter: ['text', 'json', 'json-summary', 'html', 'lcov'],

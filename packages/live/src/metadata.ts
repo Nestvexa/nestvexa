@@ -19,6 +19,8 @@ import type { Type, PipeTransform } from '@nestjs/common';
 import { cloneState } from './protocol.js';
 import type { JsonValue } from './protocol.js';
 import { lifecycleHookNames } from './lifecycle.js';
+import { collectStateContext } from './state-context.js';
+import type { StateContextDefinition } from './state-context.js';
 
 export const INTERNAL_SYNC_ACTION = '$sync';
 export const INTERNAL_SYNC_PATH = '_sync';
@@ -62,6 +64,7 @@ export interface ComponentDefinition {
   readonly view: string;
   readonly states: ReadonlyMap<string, StateOptions>;
   readonly computed: ReadonlyMap<string, ComputedDefinition>;
+  readonly stateContext: StateContextDefinition;
   readonly actions: ReadonlyMap<
     string,
     { readonly method: string; readonly input: boolean }
@@ -121,6 +124,31 @@ function memberDeclaration(
 }
 function callable(value: unknown): value is (this: object) => unknown {
   return typeof value === 'function';
+}
+const nestInvocationMetadata = [
+  GUARDS_METADATA,
+  PIPES_METADATA,
+  INTERCEPTORS_METADATA,
+  EXCEPTION_FILTERS_METADATA,
+  METHOD_METADATA,
+  PATH_METADATA,
+  HEADERS_METADATA,
+  HTTP_CODE_METADATA,
+  REDIRECT_METADATA,
+  RENDER_METADATA,
+  SSE_METADATA,
+  SSE_OPTIONS_METADATA,
+  VERSION_METADATA,
+] as const;
+function hasInvocationMetadata(
+  type: Type<object>,
+  name: string,
+  method: object,
+): boolean {
+  return (
+    nestInvocationMetadata.some((key) => Reflect.hasMetadata(key, method)) ||
+    Reflect.hasMetadata(ROUTE_ARGS_METADATA, type, name)
+  );
 }
 /** Register explicitly through LiveModule.register; this decorator never scans other services. */
 export function LiveComponent(options: ComponentOptions): ClassDecorator {
@@ -303,8 +331,24 @@ export function definition(type: Type<object>): ComponentDefinition {
   if (!options) throw new Error(`Missing @LiveComponent on ${type.name}`);
   for (const name of lifecycleHookNames) {
     const declaration = memberDeclaration(type.prototype, name);
-    if (declaration && typeof declaration.descriptor.value !== 'function')
+    if (!declaration) continue;
+    const method: unknown = declaration.descriptor.value;
+    if (typeof method !== 'function')
       throw new Error(`Lifecycle hook ${name} must be a method`);
+    const argumentsAllowed = [
+      'beforeUpdate',
+      'afterUpdate',
+      'afterRender',
+      'onError',
+    ].includes(name)
+      ? 1
+      : 0;
+    if (method.length > argumentsAllowed)
+      throw new Error(`Lifecycle hook ${name} has unsupported arguments`);
+    if (hasInvocationMetadata(type, name, method))
+      throw new Error(
+        `Lifecycle hook ${name} cannot use Nest route/parameter/enhancer decorators; authorize the host route or action instead`,
+      );
   }
   const states: Map<string, StateOptions> = new Map(
     Reflect.getMetadata(STATES, type.prototype),
@@ -353,24 +397,7 @@ export function definition(type: Type<object>): ComponentDefinition {
       throw new Error(`Computed ${name} overrides a member without @Computed`);
     if ([...methods.values()].includes(name) || methods.has(name))
       throw new Error(`Duplicate live member ${name}`);
-    if (
-      [
-        GUARDS_METADATA,
-        PIPES_METADATA,
-        INTERCEPTORS_METADATA,
-        EXCEPTION_FILTERS_METADATA,
-        METHOD_METADATA,
-        PATH_METADATA,
-        HEADERS_METADATA,
-        HTTP_CODE_METADATA,
-        REDIRECT_METADATA,
-        RENDER_METADATA,
-        SSE_METADATA,
-        SSE_OPTIONS_METADATA,
-        VERSION_METADATA,
-      ].some((key) => Reflect.hasMetadata(key, entry.read)) ||
-      Reflect.hasMetadata(ROUTE_ARGS_METADATA, type, name)
-    )
+    if (hasInvocationMetadata(type, name, entry.read))
       throw new Error(
         `Computed ${name} cannot use Nest route/parameter/enhancer decorators; authorize the host route or service instead`,
       );
@@ -380,5 +407,13 @@ export function definition(type: Type<object>): ComponentDefinition {
           `Computed ${name} dependency ${field} must be declared state`,
         );
   }
-  return Object.freeze({ type, ...options, states, computed, actions });
+  const stateContext = collectStateContext(type, states);
+  return Object.freeze({
+    type,
+    ...options,
+    states,
+    computed,
+    actions,
+    stateContext,
+  });
 }

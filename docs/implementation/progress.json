@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "checkpointDate": "2026-10-30",
+  "checkpointDate": "2026-10-31",
   "releaseStatus": "NOT YET READY — BLOCKERS",
   "phases": [
     {
@@ -13,13 +13,13 @@
       "id": 1,
       "state": "InProgress",
       "scope": "Core, views, HBS, integrated umbrella Live/Alpine startup and three runnable examples",
-      "remaining": "Current implemented checkpoint passes 1118 aggregate / 228 three-browser checks, seven tarballs/four external consumers and isolated Windows Node22/24 strict+aggregate. Complete phase-specific and Linux/full compatibility acceptance remain open; Phase3 accepted separately, Phase4 InProgress."
+      "remaining": "Current implemented checkpoint passes 1387 aggregate / 246 three-browser checks, seven tarballs/four external consumers and isolated Windows Node22/24 strict+aggregate. Complete phase-specific and Linux/full matrix acceptance remain open; Phase3 accepted separately, Phase4 InProgress."
     },
     {
       "id": 2,
       "state": "InProgress",
       "scope": "Live protocol, opaque state store, generated routes, registration ownership, authorized model synchronization and pure writable-state validation",
-      "remaining": "Current implemented checkpoint passes 1118 aggregate / 228 three-browser checks, seven tarballs/four external consumers and isolated Windows Node22/24 strict+aggregate. Complete phase-specific and Linux/full compatibility acceptance remain open; Phase3 accepted separately, Phase4 InProgress."
+      "remaining": "Current implemented checkpoint passes 1387 aggregate / 246 three-browser checks, seven tarballs/four external consumers and isolated Windows Node22/24 strict+aggregate. Complete phase-specific and Linux/full matrix acceptance remain open; Phase3 accepted separately, Phase4 InProgress."
     },
     {
       "id": 3,
@@ -31,9 +31,9 @@
     {
       "id": 4,
       "state": "InProgress",
-      "scope": "Awaited boot/update hooks, bounded confirmation and eager initialization, plus async computed values and instance/stage-local memoization. Phase3 accepted before Phase4 started.",
-      "remaining": "Hook, confirmation, eager initialization and computed slices verified. Lazy/deferred initialization, full lifecycle render/error/disposal semantics, server nesting/mount keys, serializers, URL/session/reactive/modelable/events, remaining directives, batching/progressive/navigation/optimistic behavior and all Phase4 acceptance remain open.",
-      "evidence": "docs/implementation/computed-checkpoint-evidence-2026-10-30.json"
+      "scope": "URL/session state, render/error/request disposal, visible/idle initialization, polling/intersection, offline/current/transition directives and a canonical minified client bundle, in addition to prior hooks/confirmation/computed.",
+      "remaining": "Eight URL/session/directive requirements accepted on this checkpoint. Server nesting/mount keys, reactive/modelable/events, serializers, sort/stream/navigation, server lazy/deferred placeholders, batching/isolation/renderless, complete progressive mutation/effect flows, optimistic rollback and full CRUD acceptance remain open. Phase5 stays Pending until Phase4 exit.",
+      "evidence": "docs/implementation/context-and-observers-hardened-checkpoint-evidence-2026-10-31.json"
     },
     {
       "id": 5,

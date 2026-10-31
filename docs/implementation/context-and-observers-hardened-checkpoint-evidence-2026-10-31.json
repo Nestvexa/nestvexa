@@ -1,0 +1,741 @@
+{
+  "schemaVersion": 1,
+  "checkpointDate": "2026-10-31",
+  "scope": "Phase4 context and directives with scoped development-tool security overrides; not whole phase acceptance",
+  "verificationTimestamp": "2026-10-31T06:58:56.404Z",
+  "environment": {
+    "node": "v24.13.0",
+    "platform": "win32"
+  },
+  "implementedCheckpointPassed": true,
+  "releaseReady": false,
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exitCode": 0,
+      "milliseconds": 775,
+      "log": "artifacts/reports/commands/install.log"
+    },
+    {
+      "command": "pnpm format:check",
+      "exitCode": 0,
+      "milliseconds": 4732,
+      "log": "artifacts/reports/commands/format-check.log"
+    },
+    {
+      "command": "pnpm lint",
+      "exitCode": 0,
+      "milliseconds": 4510,
+      "log": "artifacts/reports/commands/lint.log"
+    },
+    {
+      "command": "pnpm typecheck",
+      "exitCode": 0,
+      "milliseconds": 21348,
+      "log": "artifacts/reports/commands/typecheck.log"
+    },
+    {
+      "command": "pnpm test",
+      "exitCode": 0,
+      "milliseconds": 88115,
+      "log": "artifacts/reports/commands/test.log"
+    },
+    {
+      "command": "pnpm test:coverage",
+      "exitCode": 0,
+      "milliseconds": 9093,
+      "log": "artifacts/reports/commands/test-coverage.log"
+    },
+    {
+      "command": "pnpm size:check",
+      "exitCode": 0,
+      "milliseconds": 1479,
+      "log": "artifacts/reports/commands/size-check.log"
+    },
+    {
+      "command": "pnpm test:e2e",
+      "exitCode": 0,
+      "milliseconds": 450939,
+      "log": "artifacts/reports/commands/test-e2e.log"
+    },
+    {
+      "command": "pnpm test:pack",
+      "exitCode": 0,
+      "milliseconds": 138576,
+      "log": "artifacts/reports/commands/test-pack.log"
+    },
+    {
+      "command": "pnpm docs:build",
+      "exitCode": 0,
+      "milliseconds": 1036,
+      "log": "artifacts/reports/commands/docs-build.log"
+    },
+    {
+      "command": "pnpm ledger:check",
+      "exitCode": 0,
+      "milliseconds": 1004,
+      "log": "artifacts/reports/commands/ledger-check.log"
+    },
+    {
+      "command": "pnpm bench",
+      "exitCode": 0,
+      "milliseconds": 780,
+      "log": "artifacts/reports/commands/bench.log"
+    },
+    {
+      "command": "pnpm audit --audit-level high",
+      "exitCode": 0,
+      "milliseconds": 1009,
+      "log": "artifacts/reports/commands/audit.log"
+    },
+    {
+      "command": "pnpm release:check",
+      "exitCode": 1,
+      "milliseconds": 950,
+      "log": "artifacts/reports/commands/release-check.log"
+    }
+  ],
+  "tests": {
+    "total": 1387,
+    "passed": 1387,
+    "failed": 0,
+    "pending": 0
+  },
+  "browser": {
+    "startTime": "2026-10-31T07:01:08.870Z",
+    "duration": 448335.848,
+    "expected": 246,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "pack": {
+    "timestamp": "2026-10-31T07:08:39.048Z",
+    "node": "v24.13.0",
+    "platform": "win32",
+    "passed": true,
+    "packages": [
+      {
+        "name": "@nestvexa/alpine",
+        "version": "0.1.0-alpha.0",
+        "entryPoints": ["@nestvexa/alpine"],
+        "tarball": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-alpine-0.1.0-alpha.0.tgz",
+        "sha256": "660d6ef0fe17e2bc40d67295187fc765ed9d7283604c7dfb58b5f3d95d42243b",
+        "contents": [
+          "package/LICENSE",
+          "package/dist/index.js",
+          "package/package.json",
+          "package/dist/index.d.ts.map",
+          "package/dist/index.js.map",
+          "package/README.md",
+          "package/dist/index.d.ts"
+        ]
+      },
+      {
+        "name": "@nestvexa/client",
+        "version": "0.1.0-alpha.0",
+        "entryPoints": ["@nestvexa/client"],
+        "tarball": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-client-0.1.0-alpha.0.tgz",
+        "sha256": "57ff8a243b075cc45bea345475f77488ecfe9f7363ec68a56ea0c0e392197999",
+        "contents": [
+          "package/LICENSE",
+          "package/dist/index.js",
+          "package/package.json",
+          "package/dist/bindings.d.ts.map",
+          "package/dist/control-state.d.ts.map",
+          "package/dist/events.d.ts.map",
+          "package/dist/focus.d.ts.map",
+          "package/dist/form-reset.d.ts.map",
+          "package/dist/grammar.d.ts.map",
+          "package/dist/index.d.ts.map",
+          "package/dist/index.js.map",
+          "package/dist/initialization.d.ts.map",
+          "package/dist/listeners.d.ts.map",
+          "package/dist/loading.d.ts.map",
+          "package/dist/model-scheduler.d.ts.map",
+          "package/dist/models.d.ts.map",
+          "package/dist/morph.d.ts.map",
+          "package/dist/observers.d.ts.map",
+          "package/dist/presentation.d.ts.map",
+          "package/dist/protocol.d.ts.map",
+          "package/dist/transport.d.ts.map",
+          "package/dist/url-state.d.ts.map",
+          "package/README.md",
+          "package/dist/bindings.d.ts",
+          "package/dist/control-state.d.ts",
+          "package/dist/events.d.ts",
+          "package/dist/focus.d.ts",
+          "package/dist/form-reset.d.ts",
+          "package/dist/grammar.d.ts",
+          "package/dist/index.d.ts",
+          "package/dist/initialization.d.ts",
+          "package/dist/listeners.d.ts",
+          "package/dist/loading.d.ts",
+          "package/dist/model-scheduler.d.ts",
+          "package/dist/models.d.ts",
+          "package/dist/morph.d.ts",
+          "package/dist/observers.d.ts",
+          "package/dist/presentation.d.ts",
+          "package/dist/protocol.d.ts",
+          "package/dist/transport.d.ts",
+          "package/dist/url-state.d.ts"
+        ]
+      },
+      {
+        "name": "@nestvexa/core",
+        "version": "0.1.0-alpha.0",
+        "entryPoints": ["@nestvexa/core"],
+        "tarball": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-core-0.1.0-alpha.0.tgz",
+        "sha256": "83f9309a51abac8bf144fc22811ab1089fa1f362c09ee58066fedad2dc06c0ad",
+        "contents": [
+          "package/LICENSE",
+          "package/dist/config.js",
+          "package/dist/core.module.js",
+          "package/dist/errors.js",
+          "package/dist/index.js",
+          "package/dist/registry.js",
+          "package/package.json",
+          "package/dist/config.d.ts.map",
+          "package/dist/config.js.map",
+          "package/dist/core.module.d.ts.map",
+          "package/dist/core.module.js.map",
+          "package/dist/errors.d.ts.map",
+          "package/dist/errors.js.map",
+          "package/dist/index.d.ts.map",
+          "package/dist/index.js.map",
+          "package/dist/registry.d.ts.map",
+          "package/dist/registry.js.map",
+          "package/README.md",
+          "package/dist/config.d.ts",
+          "package/dist/core.module.d.ts",
+          "package/dist/errors.d.ts",
+          "package/dist/index.d.ts",
+          "package/dist/registry.d.ts"
+        ]
+      },
+      {
+        "name": "@nestvexa/engine-hbs",
+        "version": "0.1.0-alpha.0",
+        "entryPoints": ["@nestvexa/engine-hbs"],
+        "tarball": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-engine-hbs-0.1.0-alpha.0.tgz",
+        "sha256": "957754f47aaa63fe82bae6ce2c5fb80969a3fab8e18352ae21dc9c11451a7196",
+        "contents": [
+          "package/LICENSE",
+          "package/dist/index.js",
+          "package/package.json",
+          "package/dist/index.d.ts.map",
+          "package/dist/index.js.map",
+          "package/README.md",
+          "package/dist/index.d.ts"
+        ]
+      },
+      {
+        "name": "@nestvexa/live",
+        "version": "0.1.0-alpha.0",
+        "entryPoints": ["@nestvexa/live"],
+        "tarball": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-live-0.1.0-alpha.0.tgz",
+        "sha256": "bb97ef413b800c47b4d87b4f593320aa1e00b7a31feb99cc7a15876ed09d048c",
+        "contents": [
+          "package/LICENSE",
+          "package/dist/computed.js",
+          "package/dist/index.js",
+          "package/dist/lifecycle.js",
+          "package/dist/live.module.js",
+          "package/dist/metadata.js",
+          "package/dist/protocol.js",
+          "package/dist/registration.js",
+          "package/dist/runtime.js",
+          "package/dist/state-context.js",
+          "package/dist/store.js",
+          "package/package.json",
+          "package/dist/computed.d.ts.map",
+          "package/dist/computed.js.map",
+          "package/dist/index.d.ts.map",
+          "package/dist/index.js.map",
+          "package/dist/lifecycle.d.ts.map",
+          "package/dist/lifecycle.js.map",
+          "package/dist/live.module.d.ts.map",
+          "package/dist/live.module.js.map",
+          "package/dist/metadata.d.ts.map",
+          "package/dist/metadata.js.map",
+          "package/dist/protocol.d.ts.map",
+          "package/dist/protocol.js.map",
+          "package/dist/registration.d.ts.map",
+          "package/dist/registration.js.map",
+          "package/dist/runtime.d.ts.map",
+          "package/dist/runtime.js.map",
+          "package/dist/state-context.d.ts.map",
+          "package/dist/state-context.js.map",
+          "package/dist/store.d.ts.map",
+          "package/dist/store.js.map",
+          "package/README.md",
+          "package/dist/computed.d.ts",
+          "package/dist/index.d.ts",
+          "package/dist/lifecycle.d.ts",
+          "package/dist/live.module.d.ts",
+          "package/dist/metadata.d.ts",
+          "package/dist/protocol.d.ts",
+          "package/dist/registration.d.ts",
+          "package/dist/runtime.d.ts",
+          "package/dist/state-context.d.ts",
+          "package/dist/store.d.ts"
+        ]
+      },
+      {
+        "name": "nestvexa",
+        "version": "0.1.0-alpha.0",
+        "entryPoints": ["nestvexa", "nestvexa/assets"],
+        "tarball": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-0.1.0-alpha.0.tgz",
+        "sha256": "424da39ad311c8659977f1dd99944f2f221c09f5a99a1c3c2d4c4adb77431a71",
+        "contents": [
+          "package/LICENSE",
+          "package/dist/asset-catalog.js",
+          "package/dist/assets.js",
+          "package/dist/browser.module.js",
+          "package/dist/index.js",
+          "package/dist/mvc.module.js",
+          "package/package.json",
+          "package/dist/asset-catalog.d.ts.map",
+          "package/dist/asset-catalog.js.map",
+          "package/dist/assets.d.ts.map",
+          "package/dist/assets.js.map",
+          "package/dist/browser.module.d.ts.map",
+          "package/dist/browser.module.js.map",
+          "package/dist/index.d.ts.map",
+          "package/dist/index.js.map",
+          "package/dist/mvc.module.d.ts.map",
+          "package/dist/mvc.module.js.map",
+          "package/README.md",
+          "package/THIRD_PARTY_NOTICES.md",
+          "package/dist/asset-catalog.d.ts",
+          "package/dist/assets.d.ts",
+          "package/dist/browser.module.d.ts",
+          "package/dist/index.d.ts",
+          "package/dist/mvc.module.d.ts"
+        ]
+      },
+      {
+        "name": "@nestvexa/views",
+        "version": "0.1.0-alpha.0",
+        "entryPoints": ["@nestvexa/views"],
+        "tarball": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-views-0.1.0-alpha.0.tgz",
+        "sha256": "183c558960631607a77770f790f9fd0df128c72d58fa930fb91724f1fb732ce9",
+        "contents": [
+          "package/LICENSE",
+          "package/dist/index.js",
+          "package/package.json",
+          "package/dist/index.d.ts.map",
+          "package/dist/index.js.map",
+          "package/README.md",
+          "package/dist/index.d.ts"
+        ]
+      }
+    ],
+    "consumers": [
+      {
+        "manager": "pnpm",
+        "profile": "full",
+        "directory": "C:\\Users\\eslam\\AppData\\Local\\Temp\\nestvexa-pnpm-full-consumer-0uDOnf",
+        "passed": true,
+        "commands": [
+          {
+            "command": "pnpm install --ignore-scripts",
+            "exitCode": 0,
+            "milliseconds": 22251
+          },
+          {
+            "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+            "exitCode": 0
+          },
+          {
+            "command": "node dist/consumer.js",
+            "exitCode": 0
+          },
+          {
+            "command": "node imports.mjs",
+            "exitCode": 0
+          }
+        ]
+      },
+      {
+        "manager": "pnpm",
+        "profile": "minimal",
+        "directory": "C:\\Users\\eslam\\AppData\\Local\\Temp\\nestvexa-pnpm-minimal-consumer-CgLgtp",
+        "passed": true,
+        "commands": [
+          {
+            "command": "pnpm install --ignore-scripts",
+            "exitCode": 0,
+            "milliseconds": 10241
+          },
+          {
+            "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+            "exitCode": 0
+          },
+          {
+            "command": "node dist/consumer.js",
+            "exitCode": 0
+          },
+          {
+            "command": "node imports.mjs",
+            "exitCode": 0
+          }
+        ]
+      },
+      {
+        "manager": "npm",
+        "profile": "full",
+        "directory": "C:\\Users\\eslam\\AppData\\Local\\Temp\\nestvexa-npm-full-consumer-uMHUFS",
+        "passed": true,
+        "commands": [
+          {
+            "command": "pnpm exec npm install --ignore-scripts --no-fund --no-audit",
+            "exitCode": 0,
+            "milliseconds": 33628
+          },
+          {
+            "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+            "exitCode": 0
+          },
+          {
+            "command": "node dist/consumer.js",
+            "exitCode": 0
+          },
+          {
+            "command": "node imports.mjs",
+            "exitCode": 0
+          }
+        ]
+      },
+      {
+        "manager": "npm",
+        "profile": "minimal",
+        "directory": "C:\\Users\\eslam\\AppData\\Local\\Temp\\nestvexa-npm-minimal-consumer-EFzQSh",
+        "passed": true,
+        "commands": [
+          {
+            "command": "pnpm exec npm install --ignore-scripts --no-fund --no-audit",
+            "exitCode": 0,
+            "milliseconds": 24260
+          },
+          {
+            "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+            "exitCode": 0
+          },
+          {
+            "command": "node dist/consumer.js",
+            "exitCode": 0
+          },
+          {
+            "command": "node imports.mjs",
+            "exitCode": 0
+          }
+        ]
+      }
+    ]
+  },
+  "clientSize": {
+    "timestamp": "2026-10-31T07:01:06.456Z",
+    "node": "v24.13.0",
+    "scope": "Canonical bundled public Live entry, including all reachable custom runtime code. Excludes Alpine, its adapter and sourcemaps. Private per-module test outputs are not published or served. Gzip estimate; example server does not automatically enable HTTP compression.",
+    "files": [
+      {
+        "file": "index.js",
+        "bytes": 87150,
+        "gzipBytes": 28561
+      }
+    ],
+    "bytes": 87150,
+    "gzipBytes": 28561,
+    "gzipBudget": 35840,
+    "passed": true
+  },
+  "benchmark": {
+    "timestamp": "2026-10-31T07:10:58.799Z",
+    "node": "v24.13.0",
+    "platform": "win32 10.0.26200",
+    "cpu": "11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz",
+    "iterations": 1000,
+    "scope": "cached HBS adapter only; not end-to-end or a plain-Nest comparison",
+    "milliseconds": {
+      "p50": 0.18880000000001473,
+      "p95": 0.26300000000003365,
+      "p99": 0.29820000000000846
+    }
+  },
+  "highRiskCoverage": {
+    "total": {
+      "lines": {
+        "total": 422,
+        "covered": 418,
+        "skipped": 0,
+        "pct": 99.05
+      },
+      "statements": {
+        "total": 462,
+        "covered": 453,
+        "skipped": 0,
+        "pct": 98.05
+      },
+      "functions": {
+        "total": 73,
+        "covered": 73,
+        "skipped": 0,
+        "pct": 100
+      },
+      "branches": {
+        "total": 445,
+        "covered": 430,
+        "skipped": 0,
+        "pct": 96.62
+      },
+      "branchesTrue": {
+        "total": 0,
+        "covered": 0,
+        "skipped": 0,
+        "pct": 100
+      }
+    },
+    "files": [
+      "C:\\Users\\eslam\\Desktop\\Nestvexa\\packages\\core\\src\\config.ts",
+      "C:\\Users\\eslam\\Desktop\\Nestvexa\\packages\\live\\src\\computed.ts",
+      "C:\\Users\\eslam\\Desktop\\Nestvexa\\packages\\live\\src\\protocol.ts",
+      "C:\\Users\\eslam\\Desktop\\Nestvexa\\packages\\live\\src\\state-context.ts",
+      "C:\\Users\\eslam\\Desktop\\Nestvexa\\packages\\live\\src\\store.ts"
+    ],
+    "scope": "Only five selected config/protocol/store/computed/state-context files; excludes metadata/full runtime/action/client and most project code"
+  },
+  "additionalRuntimes": [
+    {
+      "timestamp": "2026-10-31T11:35:12.882Z",
+      "node": "v22.23.4",
+      "platform": "win32",
+      "passed": true,
+      "scope": "Strict test compilation and current aggregate unit/real HTTP/browser DOM suites; not Linux or a full release matrix",
+      "commands": [
+        {
+          "task": "strict compilation",
+          "exitCode": 0,
+          "milliseconds": 22475,
+          "log": "artifacts/reports/node22-0.log"
+        },
+        {
+          "task": "current aggregate suite",
+          "exitCode": 0,
+          "milliseconds": 127281,
+          "log": "artifacts/reports/node22-1.log"
+        }
+      ],
+      "aggregate": {
+        "total": 1387,
+        "passed": 1387,
+        "failed": 0,
+        "pending": 0
+      }
+    },
+    {
+      "timestamp": "2026-10-31T11:38:17.716Z",
+      "node": "v24.22.1",
+      "platform": "win32",
+      "passed": true,
+      "scope": "Strict test compilation and current aggregate unit/real HTTP/browser DOM suites; not Linux or a full release matrix",
+      "commands": [
+        {
+          "task": "strict compilation",
+          "exitCode": 0,
+          "milliseconds": 8659,
+          "log": "artifacts/reports/node24-0.log"
+        },
+        {
+          "task": "current aggregate suite",
+          "exitCode": 0,
+          "milliseconds": 84469,
+          "log": "artifacts/reports/node24-1.log"
+        }
+      ],
+      "aggregate": {
+        "total": 1387,
+        "passed": 1387,
+        "failed": 0,
+        "pending": 0
+      }
+    }
+  ],
+  "ledger": {
+    "total": 925,
+    "states": {
+      "Pending": 809,
+      "InProgress": 96,
+      "Done": 20
+    }
+  },
+  "reportSha256": {
+    "artifacts/reports/verification.json": "891243e579b6a9669f353994faf8d1578c1220e813ba8163c125361de4ffc224",
+    "artifacts/reports/vitest.json": "5df179afe0fdf3460707c63b6fa985153f80448c937c6b72d31c70f0c349c421",
+    "artifacts/reports/playwright.json": "cd64a8ad3bb23ad4af69c037fd1092db6f13eddd04f3ce31ee6f92814238812f",
+    "artifacts/reports/pack.json": "a270410a1e466c11dcf804a706b6f3523fa66887bef247789c4ba99a6b590104",
+    "artifacts/reports/client-size.json": "2fcccda6f619bd8ccb530981063a3b6579cbfdecdd0da2f9457a2e046ae6b610",
+    "artifacts/reports/benchmark.json": "82f659751fa3486d889cfd302b864bc2ae8fa96e24e5db562ea6ba0cbc76cbf4",
+    "artifacts/reports/coverage/high-risk/coverage-summary.json": "dfb4bc62e32a27921701ce594710263706600ee71712077aac153ca80919717b",
+    "docs/implementation/feature-ledger.json": "c9b93d5406d85bff44b3e972bcd17ae0135ec7905918085106d484712c7f1d83",
+    "artifacts/reports/node22-compatibility.json": "99b5fbeb054cc46e774e13281cf96c520476cd9f8da34d994680ae653a0ed9cb",
+    "artifacts/reports/node22-tests.json": "c6930ba17053971fed0a39f3fa98072867ee4fe20389e7e4d7c44e2e742d1e73",
+    "artifacts/reports/node24-compatibility.json": "3a698eb589ee0855590a927a7871f22f4e00f417ca0da34a47e1c9535163a9bc",
+    "artifacts/reports/node24-tests.json": "456d1bbf05c1a1f7b267dd84a5e75bdbaa9be7cd171042dd3568e4c0da18967e",
+    "artifacts/reports/tooling-audit.json": "1a996f3047d53b0b06edc51d8f5ca5057d84673268eb6c05401f03f11521f75c",
+    "artifacts/reports/eslint-before-override.json": "5fbbd13b7655fa44bb7b8db260b0c872b04a69825275e17f0c73fc0b0f0d2dbe",
+    "artifacts/reports/eslint-after-override.json": "0b688017fc3d9b4109b734710312707d72982e28222d10787fcfaee5b33624f2"
+  },
+  "limitations": [
+    "Phase3 accepted on executed Windows scope and regression-checked; eight individual context/directive requirements accepted here, whole Phase4 and phases0–2/5–17 remain open",
+    "Windows execution only; Linux and full release matrix remain unverified",
+    "Controlled browser transport fixtures are not server conformance evidence",
+    "No independent security certification, publication, remote push, SBOM or provenance attestation"
+  ],
+  "sourceSha256": "1dbb67627e01461a759b5e589e3106683cd9e2525ef57bc5238227c440580a26",
+  "phase3Regression": {
+    "schemaVersion": 1,
+    "timestamp": "2026-10-31T11:35:08.763Z",
+    "phase": 3,
+    "passed": true,
+    "scope": "Tasks 3.1–3.7 and HBS reactive form/table exit gate on the executed environment; not acceptance of phases 0–2 or 4–17, Linux, the full release matrix or independent security review.",
+    "environment": {
+      "node": "v24.13.0",
+      "platform": "win32"
+    },
+    "checkpointTimestamp": "2026-10-31T06:58:56.404Z",
+    "sourceSha256": "1dbb67627e01461a759b5e589e3106683cd9e2525ef57bc5238227c440580a26",
+    "aggregateTests": 1387,
+    "browserChecks": 246,
+    "evidence": {
+      "3.1": [
+        "packages/client/src/index.ts",
+        "packages/alpine/src/index.ts",
+        "tests/alpine-start.test.ts",
+        "tests/browser/default-setup.spec.ts"
+      ],
+      "3.2": [
+        "packages/client/src/morph.ts",
+        "packages/client/src/control-state.ts",
+        "packages/client/src/focus.ts",
+        "tests/client-ownership-transitions.test.ts",
+        "tests/browser/phase3-board.spec.ts",
+        "tests/browser/editor-selection.spec.ts"
+      ],
+      "3.3": [
+        "packages/client/src/grammar.ts",
+        "packages/client/src/bindings.ts",
+        "packages/client/src/loading.ts",
+        "packages/client/src/models.ts",
+        "tests/client-bindings-dom.test.ts",
+        "tests/browser/live.spec.ts",
+        "tests/browser/models.spec.ts",
+        "tests/browser/replacement-loading.spec.ts"
+      ],
+      "3.4": [
+        "packages/client/src/events.ts",
+        "packages/client/src/listeners.ts",
+        "tests/client-security.test.ts",
+        "tests/client-events.test.ts",
+        "tests/live-security.test.ts"
+      ],
+      "3.5": [
+        "packages/client/src/transport.ts",
+        "packages/client/src/model-scheduler.ts",
+        "tests/client-transport-lifecycle.test.ts",
+        "tests/browser/request-lifecycle.spec.ts",
+        "tests/browser/events.spec.ts"
+      ],
+      "3.6": [
+        "tests/browser/default-setup.spec.ts",
+        "tests/browser/phase3-board.spec.ts",
+        "tests/browser/form-reset.spec.ts",
+        "tests/browser/multiple-select.spec.ts"
+      ],
+      "3.7": [
+        "scripts/size.mjs",
+        "packages/client/src/index.ts",
+        "tests/client-transport-lifecycle.test.ts",
+        "tests/browser/assets.spec.ts",
+        "docs/guides/client-diagnostics.md"
+      ],
+      "exit": [
+        "examples/starter-live/src/work-board.ts",
+        "examples/starter-live/views/board.hbs",
+        "tests/browser/phase3-board.spec.ts",
+        "docs/implementation/phase3-acceptance.md",
+        "docs/reference/directives.md"
+      ]
+    },
+    "reportSha256": {
+      "artifacts/reports/verification.json": "891243e579b6a9669f353994faf8d1578c1220e813ba8163c125361de4ffc224",
+      "artifacts/reports/vitest.json": "5df179afe0fdf3460707c63b6fa985153f80448c937c6b72d31c70f0c349c421",
+      "artifacts/reports/playwright.json": "cd64a8ad3bb23ad4af69c037fd1092db6f13eddd04f3ce31ee6f92814238812f",
+      "artifacts/reports/pack.json": "a270410a1e466c11dcf804a706b6f3523fa66887bef247789c4ba99a6b590104",
+      "artifacts/reports/client-size.json": "2fcccda6f619bd8ccb530981063a3b6579cbfdecdd0da2f9457a2e046ae6b610"
+    },
+    "failures": [],
+    "report": "artifacts/reports/phase3-acceptance.json",
+    "sha256": "1363f9abc57fe88b3810caa0bf7e0bab952000ae4ba18118d45e9afb407b81a6"
+  },
+  "phase4Context": {
+    "acceptedFeatures": [
+      "LIVE-008",
+      "LIVE-009",
+      "DIR-009",
+      "DIR-010",
+      "DIR-013",
+      "DIR-014",
+      "DIR-018",
+      "DIR-023"
+    ],
+    "featureTestCounts": {
+      "live-state-context.test.ts": 70,
+      "live-state-context-integration.test.ts": 24,
+      "live-lifecycle-hooks.test.ts": 45,
+      "client-observers.test.ts": 37,
+      "client-presentation.test.ts": 44,
+      "client-lifecycle.test.ts": 61,
+      "client-url-state.test.ts": 16
+    },
+    "activityThreeBrowserChecks": 18,
+    "scope": "Primitive URL state/history, identity-namespaced host session JSON/TTL, awaited render/error/request disposal, bounded poll/intersection, visible/idle initialization, offline/current and CSS transitions; canonical minified ESM entry",
+    "boundaries": [
+      "Host owns identity, session store/auth middleware and durable side effects",
+      "Independent components must choose distinct document-wide URL aliases",
+      "Request disposal is not browser unmount; arbitrary hook I/O deadlines/cancellation remain open",
+      "Synchronous morph removal does not await leave animation; retained visibility and explicit host phases do",
+      "No server nesting, serializers, sort/stream/navigation, batching, optimistic rollback or whole Phase4 acceptance"
+    ]
+  },
+  "toolingHardening": {
+    "advisory": "GHSA-g3hv-75wg-m249",
+    "severityBefore": "moderate",
+    "minimatchAfter": "11.0.3",
+    "overrides": [
+      "eslint>minimatch",
+      "@eslint/config-array>minimatch",
+      "@typescript-eslint/typescript-estree>minimatch"
+    ],
+    "scope": "Development tools only, no published application runtime dependency or global override",
+    "selectedFilesBefore": 131,
+    "selectedFilesAfter": 131,
+    "selectionIdentical": true,
+    "lintErrors": 0,
+    "lintWarnings": 0,
+    "audit": {
+      "timestamp": "2026-10-31T11:34:49.312Z",
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0
+      },
+      "muted": [],
+      "command": "pnpm audit --json",
+      "exitCode": 0
+    },
+    "documentation": "docs/adr/0016-tooling-glob-security-override.md"
+  }
+}

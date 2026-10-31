@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 import session from 'express-session';
 import { WorkBoard } from './work-board.js';
 import { StartupPanel, DeniedStartupPanel } from './startup-panel.js';
+import { ActivityPanel } from './activity-panel.js';
 
 declare module 'express-session' {
   interface SessionData {
@@ -189,6 +190,25 @@ class Pages {
   health() {
     return { status: 'ok' };
   }
+  @Get('activity.css')
+  @Header('Content-Type', 'text/css; charset=utf-8')
+  activityStyles() {
+    return '.activity-fade{transition:opacity .15s ease}.activity-fade-start{opacity:0}.activity-fade-end{opacity:1}.active{font-weight:bold}@media(prefers-reduced-motion:reduce){.activity-fade{transition:none}}';
+  }
+  @Get('activity')
+  @Header('Cache-Control', 'no-store')
+  @Header(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+  )
+  @Render('home')
+  async activity(@Req() request: SessionRequest) {
+    request.session.csrf ??= randomBytes(32).toString('base64url');
+    return {
+      title: 'Activity preferences',
+      widget: await this.live.mount(ActivityPanel, request),
+    };
+  }
 }
 
 @Module({
@@ -196,7 +216,13 @@ class Pages {
     NestvexaModule.forRoot(
       { views: { root, layout: 'layout' }, live: { enabled: true } },
       {
-        components: [Counter, WorkBoard, StartupPanel, DeniedStartupPanel],
+        components: [
+          Counter,
+          WorkBoard,
+          StartupPanel,
+          DeniedStartupPanel,
+          ActivityPanel,
+        ],
         useFactory: () => ({
           origin: `http://127.0.0.1:${port}`,
           resolveIdentity(request: object) {
@@ -209,6 +235,15 @@ class Pages {
             };
           },
           authorize: (_identity, component, action) =>
+            (component === 'activity-panel' &&
+              [
+                '$mount',
+                '$sync',
+                'remember',
+                'refresh',
+                'appear',
+                'toggle',
+              ].includes(action)) ||
             (component === 'startup-panel' &&
               ['$mount', 'load', 'refresh'].includes(action)) ||
             (component === 'startup-denied' &&

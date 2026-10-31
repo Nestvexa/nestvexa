@@ -2,6 +2,14 @@
 
 This alpha implements the following configuration grammar. Names identify registered actions or top-level public state. Expressions, dotted paths, executable JavaScript and unrecognized modifiers are rejected explicitly. The complete directive matrix in the master plan remains unmet.
 
+Additional implemented references: [poll](nv-poll.md), [intersect](nv-intersect.md),
+[offline](nv-offline.md), [current](nv-current.md), [transition](nv-transition.md)
+and visible/idle [initialization](nv-init.md). `nv:sort`, `nv:stream` and
+`nv:navigate` are not implemented and are rejected. CSS transitions cover retained
+visibility changes and host-awaited phases; synchronous morph removals tear down
+immediately. Public URL-state effects update query keys only; historical visits
+reload through the host route rather than replaying an old action snapshot.
+
 | Directive                   | Current behavior                                                                                    |
 | --------------------------- | --------------------------------------------------------------------------------------------------- |
 | `nv:click="increment"`      | Calls a registered action; disabled controls are ignored                                            |

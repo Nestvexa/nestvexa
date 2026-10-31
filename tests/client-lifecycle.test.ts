@@ -193,6 +193,7 @@ beforeAll(async () => {
   const assets = new Map(
     [
       'index',
+      'initialization',
       'protocol',
       'grammar',
       'morph',
@@ -206,6 +207,9 @@ beforeAll(async () => {
       'transport',
       'form-reset',
       'focus',
+      'observers',
+      'presentation',
+      'url-state',
     ].map((name) => [
       `/${name}.js`,
       new URL(`../packages/client/dist/${name}.js`, import.meta.url),
@@ -414,6 +418,213 @@ describe('automatic initialization in actual Chromium with controlled transport'
     );
     await initReply(1);
     expect((await initState()).actions).toEqual(['load', 'load']);
+  });
+});
+
+describe('visible and idle initialization in actual Chromium', () => {
+  const visibleHtml = initHtml
+    .replace('nv:init="load"', 'nv:init.visible="load"')
+    .replace(
+      '<section ',
+      '<section style="position:absolute;top:2000px;width:200px;height:100px" ',
+    );
+  const idleHtml = initHtml.replace('nv:init="load"', 'nv:init.idle="load"');
+  it('waits for actual viewport entry and preserves its attempt after morphing', async () => {
+    await mountInit({ html: visibleHtml });
+    expect((await initState()).actions).toEqual([]);
+    await page.locator('#initializer').scrollIntoViewIfNeeded();
+    await page.waitForFunction(
+      () => window.nvInitSession.requests.length === 1,
+    );
+    expect((await initState()).actions).toEqual(['load']);
+    expect(
+      await page.evaluate(() => window.nvInitSession.requests[0]?.hostReady),
+    ).toBe(true);
+    await initReply(0, 200, visibleHtml);
+    await page.locator('#initializer').scrollIntoViewIfNeeded();
+    await page.evaluate(() => window.nvInitSession.client.mount());
+    expect((await initState()).actions).toEqual(['load']);
+  });
+  it('does not initialize a geometrically intersecting element until its document becomes visible', async () => {
+    await page.evaluate(() =>
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        value: 'hidden',
+      }),
+    );
+    await mountInit({
+      html: initHtml.replace('nv:init="load"', 'nv:init.visible="load"'),
+    });
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          const target = document.getElementById('initializer');
+          if (!target) throw new Error('Missing visible initializer');
+          const observer = new IntersectionObserver((entries) => {
+            if (entries.some((entry) => entry.isIntersecting)) {
+              observer.disconnect();
+              resolve();
+            }
+          });
+          observer.observe(target);
+        }),
+    );
+    expect((await initState()).actions).toEqual([]);
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        value: 'visible',
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await page.waitForFunction(
+      () => window.nvInitSession.requests.length === 1,
+    );
+    expect((await initState()).actions).toEqual(['load']);
+  });
+  it.each([
+    'dispose',
+    'remove',
+    'ignore',
+    'action',
+    'modifier',
+    'duplicate',
+    'marker',
+    'island',
+  ] as const)(
+    'cancels pending visibility work after %s without reclaiming the attempt',
+    async (after) => {
+      await mountInit({ html: visibleHtml, after });
+      await page.evaluate(() =>
+        document
+          .getElementById('initializer')
+          ?.setAttribute(
+            'style',
+            'position:absolute;top:10px;width:200px;height:100px',
+          ),
+      );
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          ),
+      );
+      expect((await initState()).actions).toEqual([]);
+    },
+  );
+  it('does not restore a removed visible attempt when later markup declares it again', async () => {
+    await mountInit({ html: visibleHtml, after: 'remove' });
+    await page.evaluate(() => {
+      const root = document.getElementById('parent');
+      if (!root) throw new Error('Missing initialization root');
+      void window.nvInitSession.client.call(root, 'refresh');
+    });
+    await initReply(0, 200, visibleHtml);
+    await page.locator('#initializer').scrollIntoViewIfNeeded();
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+    expect((await initState()).actions).toEqual(['refresh']);
+  });
+  it('uses the native idle callback after synchronous host mounting', async () => {
+    await mountInit({ html: idleHtml });
+    await page.waitForFunction(
+      () => window.nvInitSession.requests.length === 1,
+    );
+    expect((await initState()).actions).toEqual(['load']);
+    expect(
+      await page.evaluate(() => window.nvInitSession.requests[0]?.hostReady),
+    ).toBe(true);
+    await initReply(0, 200, idleHtml);
+    expect((await initState()).actions).toEqual(['load']);
+  });
+  it('falls back to a bounded 100ms timer when idle callbacks are unavailable', async () => {
+    await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
+    await page.clock.pauseAt(new Date('2026-01-01T01:00:00Z'));
+    await page.evaluate(() =>
+      Object.defineProperty(window, 'requestIdleCallback', {
+        configurable: true,
+        value: undefined,
+      }),
+    );
+    await mountInit({ html: idleHtml });
+    expect((await initState()).actions).toEqual([]);
+    await page.clock.runFor(99);
+    expect((await initState()).actions).toEqual([]);
+    await page.clock.runFor(1);
+    expect((await initState()).actions).toEqual(['load']);
+    expect(
+      await page.evaluate(() => window.nvInitSession.requests[0]?.hostReady),
+    ).toBe(true);
+  });
+  it.each([
+    'dispose',
+    'remove',
+    'ignore',
+    'action',
+    'modifier',
+    'duplicate',
+    'marker',
+    'island',
+  ] as const)('cancels pending idle fallback work after %s', async (after) => {
+    await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
+    await page.clock.pauseAt(new Date('2026-01-01T01:00:00Z'));
+    await page.evaluate(() =>
+      Object.defineProperty(window, 'requestIdleCallback', {
+        configurable: true,
+        value: undefined,
+      }),
+    );
+    await mountInit({ html: idleHtml, after });
+    await page.clock.runFor(1000);
+    expect((await initState()).actions).toEqual([]);
+  });
+  it('counts all initialization timing variants against one shared component limit', async () => {
+    await mountInit({ html: visibleHtml, count: 3, limit: 2 });
+    expect((await initState()).actions).toEqual([]);
+    expect((await initState()).errors).toEqual([
+      'Automatic initialization capacity reached',
+    ]);
+    await page.evaluate(() => {
+      for (const target of document.querySelectorAll('[nv\\:init\\.visible]'))
+        target.setAttribute(
+          'style',
+          'position:absolute;top:10px;width:200px;height:100px',
+        );
+    });
+    await page.waitForFunction(
+      () => window.nvInitSession.requests.length === 2,
+    );
+    expect((await initState()).actions).toEqual(['load', 'load']);
+  });
+  it.each([
+    '<section nv:init="load" nv:init.visible="load"></section>',
+    '<section nv:init.visible="load"><p nv:init.idle="load"></p></section>',
+    '<button nv:init.visible="load" nv:click="refresh" nv:confirm="Continue?">Bad combination</button>',
+    '<section nv:init.visible.idle="load"></section>',
+  ])(
+    'rejects multiple timings, unsupported modifiers and confirmation bypasses',
+    async (html) => {
+      await mountInit({ html });
+      expect((await initState()).actions).toEqual([]);
+      expect((await initState()).errors).toHaveLength(1);
+    },
+  );
+  it('fails explicitly when visible initialization has no native observer capability', async () => {
+    await page.evaluate(() =>
+      Object.defineProperty(window, 'IntersectionObserver', {
+        configurable: true,
+        value: undefined,
+      }),
+    );
+    await mountInit({ html: visibleHtml });
+    expect((await initState()).actions).toEqual([]);
+    expect((await initState()).errors).toEqual([
+      'nv:init.visible requires IntersectionObserver support',
+    ]);
   });
 });
 

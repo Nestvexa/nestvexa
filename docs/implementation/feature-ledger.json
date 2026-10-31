@@ -5242,13 +5242,35 @@
       "id": "LIVE-008",
       "priority": "P1",
       "package": "@nestvexa/live",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/live/src/state-context.ts",
+        "packages/live/src/runtime.ts",
+        "packages/client/src/url-state.ts"
+      ],
+      "testFiles": [
+        "tests/live-state-context.test.ts",
+        "tests/live-state-context-integration.test.ts",
+        "tests/client-url-state.test.ts",
+        "tests/browser/activity.spec.ts",
+        "tests/pack-consumers/consumer.ts"
+      ],
+      "docs": [
+        "docs/guides/url-session-state.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/activity-panel.ts",
+        "examples/starter-live/views/activity-panel.hbs"
+      ],
+      "securityNotes": "Explicit public state only; validated query primitives; host session capability and authoritative binding namespace/TTL; no authentication supplied; session persistence failure revokes uncertain token. URL aliases are document-wide; use distinct aliases for independent roots.",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-31T06:58:56.404Z",
+          "report": "docs/implementation/context-and-observers-hardened-checkpoint-evidence-2026-10-31.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {
@@ -5262,13 +5284,35 @@
       "id": "LIVE-009",
       "priority": "P1",
       "package": "@nestvexa/live",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/live/src/state-context.ts",
+        "packages/live/src/runtime.ts",
+        "packages/client/src/url-state.ts"
+      ],
+      "testFiles": [
+        "tests/live-state-context.test.ts",
+        "tests/live-state-context-integration.test.ts",
+        "tests/client-url-state.test.ts",
+        "tests/browser/activity.spec.ts",
+        "tests/pack-consumers/consumer.ts"
+      ],
+      "docs": [
+        "docs/guides/url-session-state.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/activity-panel.ts",
+        "examples/starter-live/views/activity-panel.hbs"
+      ],
+      "securityNotes": "Explicit public state only; validated query primitives; host session capability and authoritative binding namespace/TTL; no authentication supplied; session persistence failure revokes uncertain token. URL aliases are document-wide; use distinct aliases for independent roots.",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-31T06:58:56.404Z",
+          "report": "docs/implementation/context-and-observers-hardened-checkpoint-evidence-2026-10-31.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {
@@ -5390,29 +5434,35 @@
       ],
       "testFiles": [
         "tests/live-model.test.ts",
-        "tests/browser/update-hooks.spec.ts"
+        "tests/browser/update-hooks.spec.ts",
+        "tests/live-lifecycle-hooks.test.ts",
+        "tests/live.test.ts",
+        "tests/pack-consumers/consumer.ts"
       ],
       "docs": [
         "docs/guides/live-update-hooks.md",
         "packages/live/README.md",
-        "docs/adr/0011-live-update-hooks.md"
+        "docs/adr/0011-live-update-hooks.md",
+        "docs/guides/live-lifecycle.md"
       ],
       "examples": [
         "examples/starter-live/src/work-board.ts",
-        "examples/starter-live/views/board.hbs"
+        "examples/starter-live/views/board.hbs",
+        "examples/starter-live/src/activity-panel.ts",
+        "examples/starter-live/views/activity-panel.hbs"
       ],
-      "securityNotes": "Hooks execute only after admission, host authorization, Nest guards/pipes and whole-batch state validation. Context values are detached/frozen. Callback failure retains existing token revocation, preventing blind retries. Hook methods are reserved from state/action metadata; shutdown prevents the next stage. External effects are not rolled back.",
+      "securityNotes": "Closed data-only grammar; ownership boundaries, bounded lifecycle/scheduling and cleanup; host authorization/CSRF/revision checks remain authoritative. No automatic retry of uncertain mutations.",
       "state": "InProgress",
       "validationEvidence": [
         {
           "command": "pnpm checkpoint:check",
           "exitCode": 0,
-          "executedAt": "2026-10-30T09:51:23.195Z",
-          "report": "docs/implementation/update-hooks-checkpoint-evidence-2026-10-30.json"
+          "executedAt": "2026-10-31T06:58:56.404Z",
+          "report": "docs/implementation/context-and-observers-hardened-checkpoint-evidence-2026-10-31.json"
         }
       ],
       "outstandingIssues": [
-        "Verified initial boot/beforeUpdate/afterUpdate slice only. Full Phase4 lifecycle (including render/error/disposal semantics), nested server components/mount keys, computed invalidation, serializers, cancellation/timeouts and other Phase4 tasks remain incomplete. No Phase4 acceptance claim."
+        "Server nesting/parent-child ordering and arbitrary hook I/O cancellation/deadlines remain unimplemented; no browser-unmount inference."
       ]
     },
     {
@@ -6415,13 +6465,32 @@
       "id": "DIR-009",
       "priority": "P1",
       "package": "@nestvexa/client",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/client/src/observers.ts",
+        "packages/client/src/index.ts",
+        "packages/client/src/protocol.ts"
+      ],
+      "testFiles": [
+        "tests/client-observers.test.ts",
+        "tests/browser/activity.spec.ts"
+      ],
+      "docs": [
+        "docs/reference/nv-poll.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/activity-panel.ts",
+        "examples/starter-live/views/activity-panel.hbs"
+      ],
+      "securityNotes": "Closed data-only grammar; ownership boundaries, bounded lifecycle/scheduling and cleanup; host authorization/CSRF/revision checks remain authoritative. No automatic retry of uncertain mutations.",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-31T06:58:56.404Z",
+          "report": "docs/implementation/context-and-observers-hardened-checkpoint-evidence-2026-10-31.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {
@@ -6437,7 +6506,8 @@
       "package": "@nestvexa/client",
       "implementationFiles": [
         "packages/client/src/index.ts",
-        "packages/client/src/protocol.ts"
+        "packages/client/src/protocol.ts",
+        "packages/client/src/initialization.ts"
       ],
       "testFiles": [
         "tests/client.test.ts",
@@ -6452,21 +6522,21 @@
       "examples": [
         "examples/starter-live/src/startup-panel.ts",
         "examples/starter-live/views/startup-panel.hbs",
-        "examples/starter-live/src/main.ts"
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/src/activity-panel.ts",
+        "examples/starter-live/views/activity-panel.hbs"
       ],
-      "securityNotes": "One consumed attempt per registration; bounded automatic capacity, strict identifiers and ownership/marker/directive revalidation before the ordinary authorized Nest action queue. No retries or privileged server lifecycle claim. Important effects require host idempotency.",
-      "state": "InProgress",
+      "securityNotes": "Closed data-only grammar; ownership boundaries, bounded lifecycle/scheduling and cleanup; host authorization/CSRF/revision checks remain authoritative. No automatic retry of uncertain mutations.",
+      "state": "Done",
       "validationEvidence": [
         {
           "command": "pnpm checkpoint:check",
           "exitCode": 0,
-          "executedAt": "2026-10-30T16:29:56.204Z",
-          "report": "docs/implementation/initialization-checkpoint-evidence-2026-10-30.json"
+          "executedAt": "2026-10-31T06:58:56.404Z",
+          "report": "docs/implementation/context-and-observers-hardened-checkpoint-evidence-2026-10-31.json"
         }
       ],
-      "outstandingIssues": [
-        "Eager timing only. Lazy/deferred component timing and complete hydration reset integration remain unfinished; do not mark the full requirement Done."
-      ]
+      "outstandingIssues": []
     },
     {
       "sourceKey": "b82344d59ecc74e038ca7a3076711d4259f783844c025db60aca26d0bd4deb31",
@@ -6542,13 +6612,33 @@
       "id": "DIR-013",
       "priority": "P1",
       "package": "@nestvexa/client",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/client/src/presentation.ts",
+        "packages/client/src/index.ts",
+        "packages/client/src/bindings.ts"
+      ],
+      "testFiles": [
+        "tests/client-presentation.test.ts",
+        "tests/client-transport-lifecycle.test.ts",
+        "tests/browser/activity.spec.ts"
+      ],
+      "docs": [
+        "docs/reference/nv-offline.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/activity-panel.ts",
+        "examples/starter-live/views/activity-panel.hbs"
+      ],
+      "securityNotes": "Closed data-only grammar; ownership boundaries, bounded lifecycle/scheduling and cleanup; host authorization/CSRF/revision checks remain authoritative. No automatic retry of uncertain mutations.",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-31T06:58:56.404Z",
+          "report": "docs/implementation/context-and-observers-hardened-checkpoint-evidence-2026-10-31.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {
@@ -6562,13 +6652,33 @@
       "id": "DIR-014",
       "priority": "P1",
       "package": "@nestvexa/client",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/client/src/presentation.ts",
+        "packages/client/src/index.ts",
+        "packages/client/src/bindings.ts"
+      ],
+      "testFiles": [
+        "tests/client-presentation.test.ts",
+        "tests/client-transport-lifecycle.test.ts",
+        "tests/browser/activity.spec.ts"
+      ],
+      "docs": [
+        "docs/reference/nv-transition.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/activity-panel.ts",
+        "examples/starter-live/views/activity-panel.hbs"
+      ],
+      "securityNotes": "Closed data-only grammar; ownership boundaries, bounded lifecycle/scheduling and cleanup; host authorization/CSRF/revision checks remain authoritative. No automatic retry of uncertain mutations.",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-31T06:58:56.404Z",
+          "report": "docs/implementation/context-and-observers-hardened-checkpoint-evidence-2026-10-31.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {
@@ -6677,13 +6787,32 @@
       "id": "DIR-018",
       "priority": "P1",
       "package": "@nestvexa/client",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/client/src/observers.ts",
+        "packages/client/src/index.ts",
+        "packages/client/src/protocol.ts"
+      ],
+      "testFiles": [
+        "tests/client-observers.test.ts",
+        "tests/browser/activity.spec.ts"
+      ],
+      "docs": [
+        "docs/reference/nv-intersect.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/activity-panel.ts",
+        "examples/starter-live/views/activity-panel.hbs"
+      ],
+      "securityNotes": "Closed data-only grammar; ownership boundaries, bounded lifecycle/scheduling and cleanup; host authorization/CSRF/revision checks remain authoritative. No automatic retry of uncertain mutations.",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-31T06:58:56.404Z",
+          "report": "docs/implementation/context-and-observers-hardened-checkpoint-evidence-2026-10-31.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {
@@ -6859,13 +6988,33 @@
       "id": "DIR-023",
       "priority": "P1",
       "package": "@nestvexa/client",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/client/src/presentation.ts",
+        "packages/client/src/index.ts",
+        "packages/client/src/bindings.ts"
+      ],
+      "testFiles": [
+        "tests/client-presentation.test.ts",
+        "tests/client-transport-lifecycle.test.ts",
+        "tests/browser/activity.spec.ts"
+      ],
+      "docs": [
+        "docs/reference/nv-current.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/activity-panel.ts",
+        "examples/starter-live/views/activity-panel.hbs"
+      ],
+      "securityNotes": "Closed data-only grammar; ownership boundaries, bounded lifecycle/scheduling and cleanup; host authorization/CSRF/revision checks remain authoritative. No automatic retry of uncertain mutations.",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-31T06:58:56.404Z",
+          "report": "docs/implementation/context-and-observers-hardened-checkpoint-evidence-2026-10-31.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {
@@ -15768,16 +15917,41 @@
         "packages/live/src/lifecycle.ts",
         "packages/live/src/runtime.ts",
         "packages/live/src/metadata.ts",
-        "packages/live/src/index.ts"
+        "packages/live/src/index.ts",
+        "packages/live/src/state-context.ts",
+        "packages/client/src/url-state.ts",
+        "packages/client/src/observers.ts",
+        "packages/client/src/index.ts",
+        "packages/client/src/protocol.ts",
+        "packages/client/src/presentation.ts",
+        "packages/client/src/bindings.ts",
+        "packages/client/src/initialization.ts"
       ],
       "testFiles": [
         "tests/live-model.test.ts",
-        "tests/browser/update-hooks.spec.ts"
+        "tests/browser/update-hooks.spec.ts",
+        "tests/live-state-context.test.ts",
+        "tests/live-state-context-integration.test.ts",
+        "tests/client-url-state.test.ts",
+        "tests/browser/activity.spec.ts",
+        "tests/pack-consumers/consumer.ts",
+        "tests/client-observers.test.ts",
+        "tests/client-presentation.test.ts",
+        "tests/client-transport-lifecycle.test.ts",
+        "tests/client-lifecycle.test.ts",
+        "tests/client.test.ts",
+        "tests/browser/initialization.spec.ts",
+        "tests/live-lifecycle-hooks.test.ts",
+        "tests/live.test.ts"
       ],
       "docs": [
         "docs/guides/live-update-hooks.md",
         "packages/live/README.md",
-        "docs/adr/0011-live-update-hooks.md"
+        "docs/adr/0011-live-update-hooks.md",
+        "docs/guides/live-lifecycle.md",
+        "docs/guides/url-session-state.md",
+        "docs/reference/nv-poll.md",
+        "docs/adr/0015-production-client-bundle.md"
       ],
       "examples": [
         "examples/starter-live/src/work-board.ts",
@@ -15789,12 +15963,12 @@
         {
           "command": "pnpm checkpoint:check",
           "exitCode": 0,
-          "executedAt": "2026-10-30T09:51:23.195Z",
-          "report": "docs/implementation/update-hooks-checkpoint-evidence-2026-10-30.json"
+          "executedAt": "2026-10-31T06:58:56.404Z",
+          "report": "docs/implementation/context-and-observers-hardened-checkpoint-evidence-2026-10-31.json"
         }
       ],
       "outstandingIssues": [
-        "Verified initial boot/beforeUpdate/afterUpdate slice only. Full Phase4 lifecycle (including render/error/disposal semantics), nested server components/mount keys, computed invalidation, serializers, cancellation/timeouts and other Phase4 tasks remain incomplete. No Phase4 acceptance claim."
+        "Phase4 remains incomplete: reactive/modelable children/events, server nesting/mount keys/synthesizers, sort/stream/navigation, lazy server placeholders/batching/renderless, complete progressive mutations/effects, optimistic rollback and full CRUD exit gate."
       ]
     },
     {
@@ -15808,14 +15982,54 @@
       "id": "PHASE-046",
       "priority": "P1",
       "package": "cross-package",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
+      "implementationFiles": [
+        "packages/live/src/state-context.ts",
+        "packages/live/src/runtime.ts",
+        "packages/client/src/url-state.ts",
+        "packages/client/src/observers.ts",
+        "packages/client/src/index.ts",
+        "packages/client/src/protocol.ts",
+        "packages/client/src/presentation.ts",
+        "packages/client/src/bindings.ts",
+        "packages/client/src/initialization.ts",
+        "packages/live/src/lifecycle.ts",
+        "packages/live/src/metadata.ts"
+      ],
+      "testFiles": [
+        "tests/live-state-context.test.ts",
+        "tests/live-state-context-integration.test.ts",
+        "tests/client-url-state.test.ts",
+        "tests/browser/activity.spec.ts",
+        "tests/pack-consumers/consumer.ts",
+        "tests/client-observers.test.ts",
+        "tests/client-presentation.test.ts",
+        "tests/client-transport-lifecycle.test.ts",
+        "tests/client-lifecycle.test.ts",
+        "tests/client.test.ts",
+        "tests/browser/initialization.spec.ts",
+        "tests/live-lifecycle-hooks.test.ts",
+        "tests/live.test.ts"
+      ],
+      "docs": [
+        "docs/guides/live-lifecycle.md",
+        "docs/guides/url-session-state.md",
+        "docs/reference/nv-poll.md",
+        "docs/adr/0015-production-client-bundle.md"
+      ],
       "examples": [],
       "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-10-31T06:58:56.404Z",
+          "report": "docs/implementation/context-and-observers-hardened-checkpoint-evidence-2026-10-31.json"
+        }
+      ],
+      "outstandingIssues": [
+        "Phase4 remains incomplete: reactive/modelable children/events, server nesting/mount keys/synthesizers, sort/stream/navigation, lazy server placeholders/batching/renderless, complete progressive mutations/effects, optimistic rollback and full CRUD exit gate."
+      ]
     },
     {
       "sourceKey": "bfd7fd495bb81ed9f21f9cfca3d0944a9caf064277d7887552351e497c81e010",
@@ -15833,7 +16047,15 @@
         "packages/live/src/runtime.ts",
         "packages/live/src/metadata.ts",
         "packages/live/src/index.ts",
-        "packages/live/src/computed.ts"
+        "packages/live/src/computed.ts",
+        "packages/live/src/state-context.ts",
+        "packages/client/src/url-state.ts",
+        "packages/client/src/observers.ts",
+        "packages/client/src/index.ts",
+        "packages/client/src/protocol.ts",
+        "packages/client/src/presentation.ts",
+        "packages/client/src/bindings.ts",
+        "packages/client/src/initialization.ts"
       ],
       "testFiles": [
         "tests/live-model.test.ts",
@@ -15841,14 +16063,30 @@
         "tests/live-computed.test.ts",
         "tests/live-computed-integration.test.ts",
         "tests/browser/computed.spec.ts",
-        "tests/pack-consumers/consumer.ts"
+        "tests/pack-consumers/consumer.ts",
+        "tests/live-state-context.test.ts",
+        "tests/live-state-context-integration.test.ts",
+        "tests/client-url-state.test.ts",
+        "tests/browser/activity.spec.ts",
+        "tests/client-observers.test.ts",
+        "tests/client-presentation.test.ts",
+        "tests/client-transport-lifecycle.test.ts",
+        "tests/client-lifecycle.test.ts",
+        "tests/client.test.ts",
+        "tests/browser/initialization.spec.ts",
+        "tests/live-lifecycle-hooks.test.ts",
+        "tests/live.test.ts"
       ],
       "docs": [
         "docs/guides/live-update-hooks.md",
         "packages/live/README.md",
         "docs/adr/0011-live-update-hooks.md",
         "docs/guides/computed-values.md",
-        "docs/adr/0014-computed-evaluation.md"
+        "docs/adr/0014-computed-evaluation.md",
+        "docs/guides/live-lifecycle.md",
+        "docs/guides/url-session-state.md",
+        "docs/reference/nv-poll.md",
+        "docs/adr/0015-production-client-bundle.md"
       ],
       "examples": [
         "examples/starter-live/src/work-board.ts",
@@ -15862,12 +16100,12 @@
         {
           "command": "pnpm checkpoint:check",
           "exitCode": 0,
-          "executedAt": "2026-10-30T19:54:55.677Z",
-          "report": "docs/implementation/computed-checkpoint-evidence-2026-10-30.json"
+          "executedAt": "2026-10-31T06:58:56.404Z",
+          "report": "docs/implementation/context-and-observers-hardened-checkpoint-evidence-2026-10-31.json"
         }
       ],
       "outstandingIssues": [
-        "Computed memoization/async methods and boot/update hooks implemented. Full Phase4 lifecycle render/error/disposal semantics, server nesting/mount keys, serializers and complete cancellation remain incomplete; no Phase4 acceptance claim."
+        "Phase4 remains incomplete: reactive/modelable children/events, server nesting/mount keys/synthesizers, sort/stream/navigation, lazy server placeholders/batching/renderless, complete progressive mutations/effects, optimistic rollback and full CRUD exit gate."
       ]
     },
     {
@@ -15884,21 +16122,44 @@
       "implementationFiles": [
         "packages/client/src/events.ts",
         "packages/client/src/index.ts",
-        "packages/client/src/protocol.ts"
+        "packages/client/src/protocol.ts",
+        "packages/live/src/state-context.ts",
+        "packages/live/src/runtime.ts",
+        "packages/client/src/url-state.ts",
+        "packages/client/src/observers.ts",
+        "packages/client/src/presentation.ts",
+        "packages/client/src/bindings.ts",
+        "packages/client/src/initialization.ts",
+        "packages/live/src/lifecycle.ts",
+        "packages/live/src/metadata.ts"
       ],
       "testFiles": [
         "tests/client.test.ts",
         "tests/client-confirmation.test.ts",
         "tests/browser/confirmation.spec.ts",
         "tests/client-lifecycle.test.ts",
-        "tests/browser/initialization.spec.ts"
+        "tests/browser/initialization.spec.ts",
+        "tests/live-state-context.test.ts",
+        "tests/live-state-context-integration.test.ts",
+        "tests/client-url-state.test.ts",
+        "tests/browser/activity.spec.ts",
+        "tests/pack-consumers/consumer.ts",
+        "tests/client-observers.test.ts",
+        "tests/client-presentation.test.ts",
+        "tests/client-transport-lifecycle.test.ts",
+        "tests/live-lifecycle-hooks.test.ts",
+        "tests/live.test.ts"
       ],
       "docs": [
         "docs/reference/nv-confirm.md",
         "docs/adr/0012-confirmation-lifecycle.md",
         "packages/client/README.md",
         "docs/reference/nv-init.md",
-        "docs/adr/0013-initialization-lifecycle.md"
+        "docs/adr/0013-initialization-lifecycle.md",
+        "docs/guides/live-lifecycle.md",
+        "docs/guides/url-session-state.md",
+        "docs/reference/nv-poll.md",
+        "docs/adr/0015-production-client-bundle.md"
       ],
       "examples": [
         "examples/starter-live/src/work-board.ts",
@@ -15913,12 +16174,12 @@
         {
           "command": "pnpm checkpoint:check",
           "exitCode": 0,
-          "executedAt": "2026-10-30T16:29:56.204Z",
-          "report": "docs/implementation/initialization-checkpoint-evidence-2026-10-30.json"
+          "executedAt": "2026-10-31T06:58:56.404Z",
+          "report": "docs/implementation/context-and-observers-hardened-checkpoint-evidence-2026-10-31.json"
         }
       ],
       "outstandingIssues": [
-        "Confirmation and eager initialization implemented. Lazy initialization timing, poll/intersect/offline/transition/sort/current/stream/navigate and complete modifier/browser acceptance remain unfinished; no Phase4 completion claim."
+        "Phase4 remains incomplete: reactive/modelable children/events, server nesting/mount keys/synthesizers, sort/stream/navigation, lazy server placeholders/batching/renderless, complete progressive mutations/effects, optimistic rollback and full CRUD exit gate."
       ]
     },
     {

@@ -16,7 +16,7 @@ import { Test } from '@nestjs/testing';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
 import { request } from 'node:http';
 import type { IncomingHttpHeaders } from 'node:http';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import {
@@ -308,11 +308,45 @@ describe('asset catalog and configuration boundaries', () => {
       '"2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"',
     );
   });
-  it('keeps the approved client module list complete for the actual emitted build', async () => {
-    const files = (
-      await readdir(new URL('../packages/client/dist/', import.meta.url))
-    ).filter((file) => file.endsWith('.js'));
-    expect([...CLIENT_MODULES].sort()).toEqual(files.sort());
+  it('serves the complete self-contained canonical entry and excludes private test outputs', async () => {
+    const manifest = JSON.parse(
+      await readFile(
+        new URL('../packages/client/package.json', import.meta.url),
+        'utf8',
+      ),
+    ) as { files: string[] };
+    const runtime = manifest.files
+      .filter((file) => file.endsWith('.js'))
+      .map((file) => file.replace('dist/', ''));
+    expect([...CLIENT_MODULES]).toEqual(runtime);
+    const source = await readFile(
+      new URL('../packages/client/dist/index.js', import.meta.url),
+      'utf8',
+    );
+    const ts = await import('typescript');
+    const ast = ts.createSourceFile(
+      'index.js',
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.JS,
+    );
+    const dependencies: string[] = [];
+    const inspect = (node: import('typescript').Node): void => {
+      if (
+        ts.isImportDeclaration(node) ||
+        (ts.isExportDeclaration(node) && node.moduleSpecifier)
+      )
+        dependencies.push(node.getText(ast));
+      if (
+        ts.isCallExpression(node) &&
+        node.expression.kind === ts.SyntaxKind.ImportKeyword
+      )
+        dependencies.push(node.getText(ast));
+      ts.forEachChild(node, inspect);
+    };
+    inspect(ast);
+    expect(dependencies).toEqual([]);
     expect(new Set(CLIENT_MODULES).size).toBe(CLIENT_MODULES.length);
   });
 });

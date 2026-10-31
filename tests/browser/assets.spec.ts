@@ -27,24 +27,7 @@ test('content-addressed modules boot Live and Alpine under the host CSP', async 
   const version = [...versions][0];
   expect(version).toMatch(/^[a-f0-9]{64}$/);
   expect(new Set(assets.map((path) => path.split('/').at(-1)))).toEqual(
-    new Set([
-      'index.js',
-      'bindings.js',
-      'control-state.js',
-      'events.js',
-      'focus.js',
-      'form-reset.js',
-      'grammar.js',
-      'listeners.js',
-      'loading.js',
-      'model-scheduler.js',
-      'models.js',
-      'morph.js',
-      'protocol.js',
-      'transport.js',
-      'alpine-adapter.js',
-      'alpine.js',
-    ]),
+    new Set(['index.js', 'alpine-adapter.js', 'alpine.js']),
   );
   const boot = await page.request.get('/assets/boot.js');
   expect(boot.headers()['cache-control']).toBe('no-store');

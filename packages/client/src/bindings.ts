@@ -203,6 +203,7 @@ export function applyBindings(
   read: (field: string) => unknown,
   isDirty: (field?: string) => boolean,
   focus: FocusController = createFocusController(),
+  visibility?: (element: Element, shown: boolean, apply: () => void) => void,
 ): void {
   const operations: Operation[] = [];
   const cloaked: Element[] = [];
@@ -257,8 +258,12 @@ export function applyBindings(
       case 'dirty': {
         const shown = value === true;
         if (!shown) focus.beforeHiding(root, element);
-        element.toggleAttribute('hidden', !shown);
-        element.setAttribute('aria-hidden', shown ? 'false' : 'true');
+        const apply = (): void => {
+          element.toggleAttribute('hidden', !shown);
+          element.setAttribute('aria-hidden', shown ? 'false' : 'true');
+        };
+        if (visibility) visibility(element, shown, apply);
+        else apply();
         break;
       }
       case 'bind':

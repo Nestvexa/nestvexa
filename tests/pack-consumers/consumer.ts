@@ -14,7 +14,12 @@ import {
 import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { HbsEngine, NestvexaModule, configureNestvexa } from 'nestvexa';
-import type { ComputedOptions } from 'nestvexa';
+import type {
+  ComputedOptions,
+  UrlOptions,
+  SessionOptions,
+  LiveRenderContext,
+} from 'nestvexa';
 import {
   Action,
   ActionInput,
@@ -23,6 +28,8 @@ import {
   LiveModule,
   LiveRuntime,
   State,
+  Url,
+  Session,
 } from '@nestvexa/live';
 import {
   createLiveClient,
@@ -58,6 +65,22 @@ assert.deepEqual(parseLoadingTarget('increment, $sync'), [
   '$sync',
 ]);
 assert.throws(() => parseLoadingDirective('nv:loading.attr', 'onclick'));
+assert.deepEqual(parseDirective('nv:poll.2s', 'refresh'), {
+  kind: 'poll',
+  value: 'refresh',
+  intervalMs: 2000,
+});
+assert.deepEqual(parseDirective('nv:init.visible', 'load'), {
+  kind: 'init',
+  value: 'load',
+  timing: 'visible',
+});
+assert.equal(typeof Url({ key: 'q' } satisfies UrlOptions), 'function');
+assert.equal(
+  typeof Session({ ttl: 1000 } satisfies SessionOptions),
+  'function',
+);
+const renderedContexts: string[] = [];
 
 @Injectable()
 class CounterService {
@@ -107,6 +130,9 @@ class Counter {
     validate: (value) => typeof value === 'string' && value.length <= 16,
   })
   label = '';
+  afterRender(context: LiveRenderContext): void {
+    renderedContexts.push(context.html);
+  }
   @Computed(computedOptions)
   async doubled(): Promise<number> {
     return this.count * 2;
@@ -175,6 +201,7 @@ try {
   assert.ok(html.startsWith('<h1>&lt;safe&gt;</h1>'));
   assert.ok(html.includes('<output>0</output>'));
   assert.ok(html.includes('<b>0</b>'));
+  assert.equal(renderedContexts.length, 1);
   assert.ok(!html.includes('fixture-service-data-not-public'));
   const snapshot = /data-nv-snapshot="([^"]+)"/.exec(html)?.[1];
   assert.ok(snapshot);

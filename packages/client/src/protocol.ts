@@ -6,17 +6,31 @@ import type { EventDirective } from './events.js';
 import { parseModelDirective } from './models.js';
 import { parseLoadingDirective, parseLoadingTarget } from './loading.js';
 import type { LoadingDirective } from './loading.js';
+import { parseUrlEffects } from './url-state.js';
+import type { UrlStateEffect } from './url-state.js';
+import { parseObserverDirective } from './observers.js';
+import type { ObserverDirective } from './observers.js';
+import { parsePresentationDirective } from './presentation.js';
+import type { PresentationDirective } from './presentation.js';
+import type { InitializationTiming } from './initialization.js';
 export { LiveClientError, parseIdentifier } from './grammar.js';
 export type LiveDirective =
   | {
-      readonly kind: 'click' | 'submit' | 'model' | 'init';
+      readonly kind: 'click' | 'submit' | 'model';
       readonly value: string;
+    }
+  | {
+      readonly kind: 'init';
+      readonly value: string;
+      readonly timing?: InitializationTiming;
     }
   | { readonly kind: 'loading' | 'ignore'; readonly value: '' }
   | { readonly kind: 'ignore'; readonly self: true; readonly value: '' }
   | BindingDirective
   | EventDirective
   | LoadingDirective
+  | ObserverDirective
+  | PresentationDirective
   | ReplacementDirective
   | { readonly kind: 'confirm'; readonly message: string }
   | { readonly kind: 'target'; readonly actions: readonly string[] };
@@ -31,12 +45,24 @@ export function parseDirective(name: string, value: string): LiveDirective {
   if (!name.startsWith('nv:'))
     throw new LiveClientError('DIRECTIVE', 'Expected an nv: directive');
   if (kind === 'confirm') return { kind, message: parseConfirmation(value) };
-  if (
-    kind === 'click' ||
-    kind === 'submit' ||
-    kind === 'model' ||
-    kind === 'init'
-  )
+  if (/^nv:(?:poll|intersect)(?:\.|$)/.test(name))
+    return parseObserverDirective(name, value);
+  if (/^nv:(?:offline|current|transition)(?:\.|$)/.test(name))
+    return parsePresentationDirective(name, value);
+  if (/^nv:init(?:\.(visible|idle))?$/.test(name)) {
+    const timing =
+      name === 'nv:init.visible'
+        ? 'visible'
+        : name === 'nv:init.idle'
+          ? 'idle'
+          : undefined;
+    return {
+      kind: 'init',
+      value: parseIdentifier(value),
+      ...(timing === undefined ? {} : { timing }),
+    };
+  }
+  if (kind === 'click' || kind === 'submit' || kind === 'model')
     return { kind, value: parseIdentifier(value) };
   if (/^nv:(?:click|submit|keydown)(?:\.|$)/.test(name))
     return parseEventDirective(name, value);
@@ -69,6 +95,7 @@ export interface LiveResponse {
   readonly snapshot: string;
   readonly state: Readonly<Record<string, unknown>>;
   readonly html: string;
+  readonly url?: readonly UrlStateEffect[];
 }
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -119,5 +146,8 @@ export function parseLiveResponse(value: unknown): LiveResponse {
     snapshot: value['snapshot'],
     state: value['state'],
     html: value['html'],
+    ...(value['url'] === undefined
+      ? {}
+      : { url: parseUrlEffects(value['url']) }),
   };
 }

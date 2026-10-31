@@ -43,6 +43,7 @@ beforeAll(async () => {
   const assets = new Map(
     [
       'index',
+      'initialization',
       'protocol',
       'grammar',
       'morph',
@@ -56,6 +57,9 @@ beforeAll(async () => {
       'transport',
       'form-reset',
       'focus',
+      'observers',
+      'presentation',
+      'url-state',
     ].map((name) => [
       `/${name}.js`,
       new URL(`../packages/client/dist/${name}.js`, import.meta.url),

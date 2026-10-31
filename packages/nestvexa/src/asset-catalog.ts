@@ -10,22 +10,8 @@ export interface AssetOptions {
   readonly path: string;
   readonly basePath: string;
 }
-export const CLIENT_MODULES = [
-  'index.js',
-  'bindings.js',
-  'control-state.js',
-  'events.js',
-  'focus.js',
-  'form-reset.js',
-  'grammar.js',
-  'listeners.js',
-  'loading.js',
-  'model-scheduler.js',
-  'models.js',
-  'morph.js',
-  'protocol.js',
-  'transport.js',
-] as const;
+/** One canonical bundled client identity; private implementation outputs are not public assets. */
+export const CLIENT_MODULES = ['index.js'] as const;
 
 export interface ClientAsset {
   readonly content: string;

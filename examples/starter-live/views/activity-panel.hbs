@@ -1,0 +1,45 @@
+<section aria-label="Activity preferences">
+  <form method="get" action="/activity" nv:submit="remember">
+    <label
+      >Activity query
+      <input name="q" nv:model="query" value="{{query}}" maxlength="80"
+    /></label>
+    <button type="submit">Remember activity view</button>
+  </form>
+  <p>Query: <output id="activity-query">{{query}}</output></p>
+  <p>Remembered: <output id="activity-remembered">{{remembered}}</output></p>
+  <p nv:poll.30s="refresh">
+    Refreshes: <output id="activity-refreshes">{{refreshes}}</output>
+  </p>
+  <p nv:intersect.once="appear">
+    Appearances: <output id="activity-appearances">{{appearances}}</output>
+  </p>
+  <p hidden nv:offline role="status">
+    Connection unavailable. Reconnect and reload before retrying uncertain
+    actions.
+  </p>
+  <a href="/activity" nv:current.exact="active" id="activity-link"
+    >Activity preferences</a
+  >
+  <button type="button" nv:click="toggle">Toggle activity detail</button>
+  <div
+    nv:show="panelVisible"
+    nv:transition.enter="activity-fade"
+    nv:transition.enter-start="activity-fade-start"
+    nv:transition.enter-end="activity-fade-end"
+    nv:transition.leave="activity-fade"
+    nv:transition.leave-start="activity-fade-end"
+    nv:transition.leave-end="activity-fade-start"
+  >
+    <p>
+      Each browser session keeps its own remembered count. URL query values are
+      public.
+    </p>
+  </div>
+  <noscript
+    ><p>
+      The form filters this page using an ordinary GET request. Remembering a
+      view and automatic updates require JavaScript.
+    </p></noscript
+  >
+</section>

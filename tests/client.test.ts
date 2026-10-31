@@ -23,7 +23,7 @@ describe('browser protocol boundary', () => {
     'nv:init.once',
     'nv:init.lazy',
     'nv:init.debounce.100ms',
-    'nv:init.visible',
+    'nv:init.visible.idle',
   ])('rejects unsupported initialization modifiers %s', (name) => {
     expect(() => parseDirective(name, 'load')).toThrow();
   });
@@ -59,7 +59,11 @@ describe('browser protocol boundary', () => {
       kind: 'model',
       value: 'name',
     });
-    expect(() => parseDirective('nv:poll', 'refresh')).toThrow();
+    expect(parseDirective('nv:poll', 'refresh')).toEqual({
+      kind: 'poll',
+      value: 'refresh',
+      intervalMs: 2500,
+    });
     expect(() => parseDirective('nv:ignore', 'expression')).toThrow();
     expect(parseDirective('nv:replace', '')).toEqual({
       kind: 'replace',

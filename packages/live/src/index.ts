@@ -12,8 +12,16 @@ export {
 export type {
   LiveLifecycleHooks,
   LiveUpdateContext,
+  LiveRenderContext,
   ReadonlyLiveValue,
 } from './lifecycle.js';
+export {
+  Url,
+  Session,
+  type UrlOptions,
+  type SessionOptions,
+  type UrlStateEffect,
+} from './state-context.js';
 export {
   LiveComponent,
   State,

@@ -1,3 +1,68 @@
+# Release checkpoint report — 2026-10-31
+
+**A. Status: NOT YET READY — BLOCKERS.** This is an implemented-feature checkpoint, not Phase4 or Phase17 acceptance. Phase3 remains accepted on its recorded Windows scope. Phase4 is InProgress; Phase5 has not started. The [context and observers checkpoint](context-and-observers-hardened-checkpoint-evidence-2026-10-31.json) records unchanged source, command/report hashes, tarballs and tests at **2026-10-31T06:58:56.404Z**.
+
+## B. What exists
+
+Seven unpublished ESM packages remain version0.1.0-alpha.0: core, views, engine-hbs, live, client, alpine and nestvexa. New behavior: primitive URL history state, identity-namespaced host-session JSON/TTL, awaited beforeRender/afterRender/onError/request-dispose hooks, polling/intersection, visible/idle initialization, offline/current indicators and CSS transitions. HBS/Live/Alpine and native Nest routes work together; optional engines, Inertia clients, framework islands and later ecosystem packages are not implemented.
+
+Installed versions: host Node24.13.0, isolated22.23.4/24.22.1, pnpm10.26.1, Nest12.2.0, TypeScript6.0.3, HBS4.7.10, AlpineCSP3.17.5, Vitest5.0.5, Playwright1.64.1, axe4.14.0. Development-only minimatch11.0.3 overrides on ESLint/config-array/typescript-estree address GHSA-g3hv-75wg-m249. Before/after probes select the same131 files with zero lint findings, and the detailed audit reports zero findings at every severity; see [ADR0016](../adr/0016-tooling-glob-security-override.md). New build-only dependency esbuild0.28.2 was verified through registry metadata and official API documentation before installation; no runtime builder or SPA dependency is introduced. Run the default starter with `pnpm --filter @nestvexa/example-starter-live start` and open /activity for the new flow.
+
+## C. Evidence
+
+**1,387/1,387 aggregate tests**, **246/246 Chromium/Firefox/WebKit checks**, no pending/skipped/flaky/unexpected results. Seven inspected tarballs pass four actual external full/minimal npm/pnpm consumers. Node **v22.23.4** at **2026-10-31T11:35:12.882Z** and Node **v24.22.1** at **2026-10-31T11:38:17.716Z** each pass strict compilation plus the complete aggregate; these isolated runs do not repeat the full browser/pack matrix under both binaries. Linux/Node26/full release permutations remain unverified.
+
+Selected coverage: **96.62% branches / 98.05% statements across five config/protocol/store/computed/state-context files**. This excludes metadata/full runtime/actions/client and most code. No project-wide coverage or mutation-test completion claim. The audit command passed with no known vulnerabilities reported; no independent security certification is implied. Activity-page automated accessibility checks pass; manual assistive-technology review remains open.
+
+Canonical custom Live bundle: **87150 raw / 28561 gzip-estimate bytes**, budget35840. This includes all reachable custom client code; excludes Alpine, its adapter, maps and framing. Private implementation JavaScript is excluded from tarballs/default assets. The example does not automatically enable HTTP compression. This is not a comparison against the earlier per-module metric or an observed startup-transfer total.
+
+Cached-HBS-only benchmark at **2026-10-31T07:10:58.799Z** is included in saved evidence. It measures one local rendering fixture, not plain-Nest/action/SSR throughput or a before/after performance improvement. The benchmark ran before isolated-runtime checks.
+
+| Actual command                 | Exit | ms     |
+| ------------------------------ | ---- | ------ |
+| pnpm install --frozen-lockfile | 0    | 775    |
+| pnpm format:check              | 0    | 4732   |
+| pnpm lint                      | 0    | 4510   |
+| pnpm typecheck                 | 0    | 21348  |
+| pnpm test                      | 0    | 88115  |
+| pnpm test:coverage             | 0    | 9093   |
+| pnpm size:check                | 0    | 1479   |
+| pnpm test:e2e                  | 0    | 450939 |
+| pnpm test:pack                 | 0    | 138576 |
+| pnpm docs:build                | 0    | 1036   |
+| pnpm ledger:check              | 0    | 1004   |
+| pnpm bench                     | 0    | 780    |
+| pnpm audit --audit-level high  | 0    | 1009   |
+| pnpm release:check             | 1    | 950    |
+
+Release-check exit1 is intentional: unmet master requirements block publication. The first pack attempt caught an incorrect fixture expectation (mode instead of timing); all final checks were rerun on the corrected source. Other local regressions found and fixed included connectivity-indicator teardown and independently admitted roots inside parent ignore slots. No test was skipped or weakened to hide a runtime failure.
+
+## D. Documentation
+
+[Root README](../../README.md), package READMEs under packages/, [URL/session state](../guides/url-session-state.md), [request lifecycle](../guides/live-lifecycle.md), individual directive references and [bundle ADR0015](../adr/0015-production-client-bundle.md) describe actual APIs and limits. Changelog/Changeset and the [925-item ledger](feature-ledger.md) are updated. Ledger: 20Done, 96InProgress, 809Pending. Eight requirements accepted here: LIVE-008, LIVE-009, DIR-009, DIR-010, DIR-013, DIR-014, DIR-018, DIR-023; whole Phase4 remains open.
+
+## E. Artifacts
+
+Seven version0.1.0-alpha.0 tarballs live in artifacts/packages/ with paths, contents and SHA256 recorded in saved evidence. Generated docs snapshots live in artifacts/docs/; reports/logs in artifacts/reports/. The client archive contains one runtime JavaScript entry, documented declaration dependencies and linked maps; default serving exposes the bundle/Alpine/adapter and rejects maps. No SBOM, provenance attestation or public release was produced.
+
+## F. Known issues and unmet work
+
+**Release blockers:** Server nesting/mount keys, reactive/modelable children/events, typed synthesizers, sort/stream/navigation, server lazy/deferred placeholders, request batching/isolation/renderless actions, complete progressive mutation/effect flows, optimistic rollback and the full CRUD exit gate remain open. Full Linux/platform matrix, broader source coverage/fuzz/mutation evidence, independent security review, performance comparisons and the remaining phases also remain unmet. Host identity, production auth/session persistence, session-store atomicity/quotas and durable business side effects stay host-owned. Independent components must choose distinct page-wide URL aliases. Request disposal does not infer browser unmount or cancel arbitrary external I/O. Synchronous morph removal does not await a leave transition; retained visibility and explicit host-awaited phases are supported.
+
+## G. Owner release steps
+
+No publication or push occurred. Before any future release, complete all technical gates, confirm nestvexa and @nestvexa ownership/trademark clearance, supply real repository/maintainer URLs, review license/security reports, configure trusted npm publishing and approve version/tag and publication. Credentials alone do not resolve unfinished engineering requirements.
+
+## H. Maintenance
+
+Keep protocol/API changes versioned with Changesets and migration notes, run security/compatibility/pack gates on dependency updates, and preserve source-bound evidence. Continue Phase4 before Phase5; unfinished mandatory features are not delegated to future contributors as completed work.
+
+---
+
+# Historical checkpoint record (before 2026-10-31)
+
+The following retained record describes earlier sources and dates; its old support limits/counts are historical, superseded by the current checkpoint above.
+
 # Release checkpoint report — 2026-10-30
 
 **A. Status: NOT YET READY — BLOCKERS.** This is an interim report, not Phase 17

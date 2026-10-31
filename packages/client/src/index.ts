@@ -26,6 +26,17 @@ import { createLoadingController, validateLoading } from './loading.js';
 import { LiveHttpError, requestLive, requestTimeout } from './transport.js';
 import { planFormReset, resetSignature, resetValue } from './form-reset.js';
 import type { ResetField } from './form-reset.js';
+import { createObserverController, validateObservers } from './observers.js';
+import {
+  createPresentationController,
+  validatePresentation,
+} from './presentation.js';
+import { applyUrlEffects } from './url-state.js';
+import { createInitializationScheduler } from './initialization.js';
+export { parseObserverDirective } from './observers.js';
+export type { ObserverDirective } from './observers.js';
+export { parsePresentationDirective } from './presentation.js';
+export type { PresentationDirective } from './presentation.js';
 import {
   availableForFocus,
   captureEditorSelection,
@@ -71,6 +82,8 @@ export interface LiveClientOptions {
   readonly confirmationTimeoutMs?: number;
   /** Automatic init attempts per mount lifecycle: 1–1000; default 64. Server quotas still apply. */
   readonly maxInitializations?: number;
+  /** Total polling/intersection bindings per client: 1–1000; default 256. */
+  readonly maxObservers?: number;
 }
 /** One bounded timing sample per phase of a dispatched request; no retained buffer. */
 export interface LiveDiagnostic {
@@ -85,6 +98,8 @@ export interface LiveClient {
   get(element: Element, name: string): unknown;
   set(element: Element, name: string, value: string | number | boolean): void;
   refs(element: Element): ReadonlyMap<string, Element>;
+  /** Await a trusted CSS enter/leave phase before host-managed removal. */
+  transition(element: Element, phase: 'enter' | 'leave'): Promise<boolean>;
 }
 type Field = ModelValue;
 const componentOwners = new WeakMap<Element, symbol>();
@@ -148,6 +163,8 @@ function validateDirectives(component: Element): void {
       'nv:ignore cannot own the Live component root',
     );
   validateLoading(component);
+  validateObservers(component);
+  validatePresentation(component);
   validateReplacement(component, component);
   for (const element of owned(component)) {
     getModelDirective(element);
@@ -307,6 +324,16 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       'maxInitializations must be an integer from 1 through 1000',
     );
   let initializations = 0;
+  const observerLimit = options.maxObservers ?? 256;
+  if (
+    !Number.isSafeInteger(observerLimit) ||
+    observerLimit < 1 ||
+    observerLimit > 1000
+  )
+    throw new LiveClientError(
+      'DIRECTIVE',
+      'maxObservers must be an integer from 1 through 1000',
+    );
   const components = new Map<Element, Component>();
   let focus = createFocusController();
   let mounted = false;
@@ -316,6 +343,17 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   let models = makeModels();
   let confirmations = makeConfirmations();
   let loading = createLoadingController(focus);
+  let background: ReturnType<typeof createObserverController> | undefined;
+  let presentation: ReturnType<typeof createPresentationController> | undefined;
+  let initialization:
+    ReturnType<typeof createInitializationScheduler> | undefined;
+  const reportedBackground = new WeakSet<object>();
+  let urlHistory = false;
+  const restoreUrl = (): void => {
+    // Historical snapshots are not replayed: revisit the host route and hydrate
+    // authoritative URL state under its normal guards and identity resolver.
+    if (mounted && urlHistory) window.location.reload();
+  };
   let generation = 0;
   let resetTimer: number | undefined;
   const resets = new Map<
@@ -493,6 +531,9 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     state.active = false;
     state.request?.abort();
     loading.restore(state.root);
+    background?.remove(state.root);
+    initialization?.remove(state.root);
+    presentation?.restore(state.root);
     state.root.removeAttribute('aria-busy');
     focus.release(state.root);
     components.delete(state.root);
@@ -500,6 +541,9 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       componentOwners.delete(state.root);
   }
   function cancelSubtree(node: Element): void {
+    initialization?.remove(node);
+    background?.remove(node);
+    presentation?.remove(node);
     confirmations.cancel(node);
     focus.release(node);
     dispatcher?.cancel(node);
@@ -595,12 +639,17 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     );
   }
   function afterInsert(node: Node): void {
-    if (node instanceof window.Element)
+    if (node instanceof window.Element) {
       node.dispatchEvent(
         new window.CustomEvent('nestvexa:after-insert', { bubbles: true }),
       );
+      void presentation
+        ?.enter(node)
+        .catch((error: unknown) => report(error, owner(node)));
+    }
   }
   function discover(): void {
+    initialization?.prune();
     confirmations.prune();
     focus.prune();
     dispatcher?.prune(root);
@@ -715,56 +764,75 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       }
     try {
       syncDirectListeners();
+      background?.refresh(root);
+      for (const state of components.values())
+        if (usable(state)) presentation?.refresh(state.root);
     } catch (error) {
       report(error, null);
     }
-    const initializers = new Map<Component, Element[]>();
-    const targets = [...root.querySelectorAll('[nv\\:init]')];
-    if (root.nodeType === 1 && (root as Element).hasAttribute('nv:init'))
-      targets.unshift(root as Element);
-    for (const target of targets) {
-      const state = registeredScope(target);
-      if (state && !state.initialized && !ignored(target, state.root)) {
-        const entries = initializers.get(state) ?? [];
-        entries.push(target);
-        initializers.set(state, entries);
-      }
+    const initializers = new Map<
+      Component,
+      { target: Element; attribute: string; value: string }[]
+    >();
+    for (const state of components.values()) {
+      if (state.initialized || !usable(state)) continue;
+      const entries: { target: Element; attribute: string; value: string }[] =
+        [];
+      for (const target of owned(state.root))
+        for (const attribute of target.attributes)
+          if (/^nv:init(?:\.|$)/.test(attribute.name))
+            entries.push({
+              target,
+              attribute: attribute.name,
+              value: attribute.value,
+            });
+      if (entries.length) initializers.set(state, entries);
     }
     for (const [state, targets] of initializers) {
       state.initialized = true;
       try {
-        const target = targets[0];
+        const entry = targets[0];
         if (
-          !target ||
+          !entry ||
           targets.length !== 1 ||
-          target.hasAttribute('nv:confirm')
+          entry.target.hasAttribute('nv:confirm')
         )
           throw new LiveClientError(
             'DIRECTIVE',
             'Use one owned nv:init per component, separate from nv:confirm',
           );
-        const action = parseIdentifier(target.getAttribute('nv:init') ?? '');
+        const { target, attribute, value } = entry;
+        const directive = parseDirective(attribute, value);
+        if (directive.kind !== 'init')
+          throw new LiveClientError(
+            'DIRECTIVE',
+            'Expected an initialization directive',
+          );
+        const action = directive.value;
         if (++initializations > initLimit)
           throw new LiveClientError(
             'DIRECTIVE',
             'Automatic initialization capacity reached',
           );
-        window.queueMicrotask(() => {
-          try {
+        initialization?.schedule(
+          target,
+          directive.timing ?? 'eager',
+          () => {
+            void schedule(state, action, false).catch(() => undefined);
+          },
+          () => {
             if (
               registeredScope(target) !== state ||
               failureFor(state) ||
               ignored(target, state.root) ||
-              target.getAttribute('nv:init') !== action ||
+              target.getAttribute(attribute) !== value ||
               target.hasAttribute('nv:confirm')
             )
-              return;
+              return false;
             validateDirectives(state.root);
-            void schedule(state, action, false).catch(() => undefined);
-          } catch (error) {
-            report(error, state.root);
-          }
-        });
+            return true;
+          },
+        );
       } catch (error) {
         report(error, state.root);
       }
@@ -958,6 +1026,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         }
       }
       loading.restore(state.root);
+      presentation?.restore(state.root);
       morphChildren(state.root, incoming, dirty, {
         beforeRemove(node): void {
           if (editorSelection)
@@ -1035,6 +1104,13 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       state.root.setAttribute('data-nv-snapshot', result.snapshot);
       state.root.setAttribute('data-nv-revision', String(state.revision));
       discover();
+      presentation?.setNetworkFailure(state.root, false);
+      if (result.url?.length) {
+        applyUrlEffects(window, result.url);
+        urlHistory = true;
+        for (const item of components.values())
+          presentation?.refresh(item.root);
+      }
       applied = true;
       state.root.dispatchEvent(
         new window.CustomEvent('nestvexa:updated', {
@@ -1045,6 +1121,9 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     } catch (error) {
       if (!usable(state)) return;
       failed = true;
+      const networkFailure =
+        error instanceof LiveClientError &&
+        (error.code === 'NETWORK' || error.code === 'TIMEOUT');
       const previous = failureFor(state);
       if (previous) throw previous;
       const recoverable =
@@ -1060,6 +1139,10 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
                 'Live response could not be applied; reconcile server state before further actions',
               ),
         );
+      if (networkFailure)
+        for (const child of components.values())
+          if (child === state || state.root.contains(child.root))
+            presentation?.setNetworkFailure(child.root, true);
       throw error;
     } finally {
       state.request = null;
@@ -1362,6 +1445,10 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           ? [...state.dirty.keys()].some(differs)
           : differs(field),
       focus,
+      (element, shown, apply) => {
+        if (presentation) presentation.show(element, shown, apply);
+        else apply();
+      },
     );
     for (const apply of selections) apply();
   }
@@ -1424,12 +1511,69 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       state.dirty.set(key, { value, version: ++state.fieldVersion });
       refreshBindings(state);
     },
+    transition(element: Element, phase: 'enter' | 'leave'): Promise<boolean> {
+      try {
+        const state = componentFor(element);
+        if (
+          ignored(element, state.root) ||
+          !presentation ||
+          (phase !== 'enter' && phase !== 'leave')
+        )
+          throw new LiveClientError(
+            'DIRECTIVE',
+            'Transition requires an owned element and enter/leave phase',
+          );
+        return presentation[phase](element);
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    },
     mount(): void {
       if (mounted) return;
       models = makeModels();
       confirmations = makeConfirmations();
       focus = createFocusController();
       loading = createLoadingController(focus);
+      presentation = createPresentationController({
+        window,
+        focus,
+        onError: report,
+      });
+      initialization = createInitializationScheduler({
+        window,
+        onError: (error, element) => report(error, owner(element)),
+      });
+      background = createObserverController({
+        window,
+        maxRegistrations: observerLimit,
+        usable: (element) => {
+          const state = registeredScope(element);
+          return (
+            state !== undefined &&
+            !failureFor(state) &&
+            !ignored(element, state.root)
+          );
+        },
+        invoke: async (element, action) => {
+          const task = schedule(componentFor(element), action, false);
+          try {
+            await task;
+          } catch (error) {
+            if (error && typeof error === 'object')
+              reportedBackground.add(error);
+            throw error;
+          }
+        },
+        onError: (error, element) => {
+          if (
+            error &&
+            typeof error === 'object' &&
+            reportedBackground.has(error)
+          )
+            return;
+          report(error, owner(element));
+        },
+      });
       mounted = true;
       generation++;
       initializations = 0;
@@ -1452,6 +1596,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       root.addEventListener('compositionstart', composition);
       root.addEventListener('compositionend', composition);
       doc.addEventListener('reset', reset, true);
+      window.addEventListener('popstate', restoreUrl);
       observer = new window.MutationObserver((mutations) => {
         if (mounted) confirmations.prune();
         if (
@@ -1487,6 +1632,12 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       models.dispose();
       confirmations.dispose();
       loading.dispose();
+      background?.dispose();
+      initialization?.dispose();
+      initialization = undefined;
+      background = undefined;
+      presentation?.dispose();
+      presentation = undefined;
       focus.dispose();
       composing = new WeakSet<Element>();
       root.removeEventListener('click', action);
@@ -1498,6 +1649,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       root.removeEventListener('compositionstart', composition);
       root.removeEventListener('compositionend', composition);
       doc.removeEventListener('reset', reset, true);
+      window.removeEventListener('popstate', restoreUrl);
+      urlHistory = false;
       for (const state of components.values()) {
         state.active = false;
         state.request?.abort();

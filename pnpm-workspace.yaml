@@ -6,3 +6,7 @@ onlyBuiltDependencies:
   - esbuild
 overrides:
   multer: 2.5.0
+  # GHSA-g3hv-75wg-m249: development-only ESLint glob matcher. See ADR0016.
+  eslint>minimatch: 11.0.3
+  '@eslint/config-array>minimatch': 11.0.3
+  '@typescript-eslint/typescript-estree>minimatch': 11.0.3

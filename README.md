@@ -1,5 +1,13 @@
 # Nestvexa
 
+Phase 4 now includes URL/session state, request render/error/disposal hooks,
+polling/intersection, visible/idle initialization and offline/current/transition
+directives. Run the default Live starter and open `/activity` for a real flow.
+See [URL/session state](docs/guides/url-session-state.md) and
+[lifecycle order](docs/guides/live-lifecycle.md). Phase 4 remains in progress;
+Phase 5 has not started. The public browser entry is now one minified ESM bundle;
+[ADR 0015](docs/adr/0015-production-client-bundle.md) explains packaging and size.
+
 Build full-stack. Stay in Nest.
 
 Nestvexa is an in-development, TypeScript-first application layer for NestJS. This repository implements MVC, an initial secure Live slice and an isolated Alpine bridge from the [master specification](NESTVEXA_MASTER_IMPLEMENTATION_PROMPT.md). It is **not release-ready**. Full Live parity, Inertia, framework islands, universal actions, uploads, realtime, and CLI generators remain unmet requirements. No packages have been published by this project.
@@ -37,7 +45,7 @@ authorizes every mutation. This example removes only session-bound public seeds.
 
 Open `/init` for [eager initialization](docs/reference/nv-init.md) with loading
 and retained Alpine state. `/init/denied` shows server denial without automatic
-retry. Lazy/deferred initialization remains unfinished Phase 4 work.
+retry. Initialization also supports `.visible` and `.idle`; server-side deferred component creation remains unfinished Phase 4 work.
 
 [Computed values](docs/guides/computed-values.md) support synchronous getters and
 explicit async methods, with request/stage-local caching, state dependency keys,

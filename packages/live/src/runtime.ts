@@ -17,6 +17,12 @@ import type { ComponentDefinition } from './metadata.js';
 import { INTERNAL_SYNC_ACTION } from './metadata.js';
 import type { LiveLifecycleHooks, LiveUpdateContext } from './lifecycle.js';
 import { prepareComputed } from './computed.js';
+import {
+  hydrateStateContext,
+  persistStateContext,
+  urlStateEffects,
+} from './state-context.js';
+import type { UrlStateEffect } from './state-context.js';
 
 export const LIVE_OPTIONS = Symbol('nv:live-options');
 export interface LiveIdentity {
@@ -175,10 +181,44 @@ export class LiveRuntime implements OnApplicationShutdown {
       context,
       { strict: true },
     );
-    const clear = this.#computed.get(instance);
-    if (clear) clear();
-    else this.#computed.set(instance, prepareComputed(instance, component));
     return instance;
+  }
+  private async operation<T>(
+    instance: object,
+    component: ComponentDefinition,
+    execute: () => Promise<T>,
+  ): Promise<T> {
+    let outcome:
+      | { readonly ok: true; readonly value: T }
+      | { readonly ok: false; readonly error: unknown };
+    try {
+      const clear = this.#computed.get(instance);
+      if (clear) clear();
+      else this.#computed.set(instance, prepareComputed(instance, component));
+      outcome = { ok: true, value: await execute() };
+    } catch (error) {
+      outcome = { ok: false, error };
+      await this.observeError(instance, error);
+    }
+    try {
+      await this.hook(instance, 'dispose', [], true);
+    } catch (error) {
+      if (outcome.ok) {
+        outcome = { ok: false, error };
+        await this.observeError(instance, error);
+      }
+      // Preserve the original operation failure; cleanup must not mask it.
+    }
+    if (!outcome.ok) throw outcome.error;
+    return outcome.value;
+  }
+  private async observeError(instance: object, error: unknown): Promise<void> {
+    try {
+      await this.hook(instance, 'onError', [error], true);
+    } catch {
+      // A diagnostic hook is secondary to the original failure. Never log its
+      // raw error or replace the original exception/filter semantics.
+    }
   }
   private state(
     instance: object,
@@ -199,7 +239,12 @@ export class LiveRuntime implements OnApplicationShutdown {
   private async render(
     instance: object,
     component: ComponentDefinition,
-  ): Promise<string> {
+  ): Promise<{
+    html: string;
+    state: Record<string, JsonValue>;
+    url: readonly UrlStateEffect[];
+  }> {
+    await this.hook(instance, 'beforeRender');
     const model: Record<string, unknown> = this.state(instance, component);
     this.#computed.get(instance)?.();
     for (const [name, entry] of component.computed) {
@@ -220,14 +265,18 @@ export class LiveRuntime implements OnApplicationShutdown {
     );
     if (this.closed) fail(503, 'LIVE_SHUTDOWN');
     if (Buffer.byteLength(html) > 1_048_576) fail(413, 'PAYLOAD_TOO_LARGE');
-    return html;
+    const state = this.state(instance, component);
+    const url = urlStateEffects(instance, component.stateContext);
+    await this.hook(instance, 'afterRender', [Object.freeze({ html })]);
+    return { html, state, url };
   }
   private async hook(
     instance: object,
     name: keyof LiveLifecycleHooks,
     args: readonly unknown[] = [],
+    cleanup = false,
   ): Promise<void> {
-    if (this.closed) fail(503, 'LIVE_SHUTDOWN');
+    if (this.closed && !cleanup) fail(503, 'LIVE_SHUTDOWN');
     this.#computed.get(instance)?.();
     const method: unknown = Reflect.get(instance, name);
     if (method !== undefined && typeof method !== 'function')
@@ -238,7 +287,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     } finally {
       this.#computed.get(instance)?.();
     }
-    if (this.closed) fail(503, 'LIVE_SHUTDOWN');
+    if (this.closed && !cleanup) fail(503, 'LIVE_SHUTDOWN');
   }
   /** Mount only from a host route with host-resolved identity; never from a client class name. */
   async mount(type: Type<object>, request: object): Promise<SafeHtml> {
@@ -257,18 +306,47 @@ export class LiveRuntime implements OnApplicationShutdown {
       fail(403, 'COMPONENT_FORBIDDEN');
     if (this.closed) fail(503, 'LIVE_SHUTDOWN');
     const instance = await this.instance(component, request);
-    await this.hook(instance, 'boot');
-    await this.hook(instance, 'mount');
-    await this.hook(instance, 'dehydrate');
-    const html = await this.render(instance, component);
-    const snapshot = this.store.create(
-      component.name,
-      identity.binding,
-      this.state(instance, component),
-    );
+    let captured: Awaited<ReturnType<LiveRuntime['render']>>;
+    try {
+      captured = await this.operation(instance, component, async () => {
+        await this.hook(instance, 'boot');
+        await hydrateStateContext(
+          instance,
+          component.name,
+          component.stateContext,
+          component.states,
+          request,
+          identity.binding,
+        );
+        await this.hook(instance, 'mount');
+        await this.hook(instance, 'dehydrate');
+        return this.render(instance, component);
+      });
+    } catch (error) {
+      mapped(error);
+    }
+    let snapshot: ReturnType<MemoryLiveStore['create']> | undefined;
+    try {
+      snapshot = this.store.create(
+        component.name,
+        identity.binding,
+        captured.state,
+      );
+      persistStateContext(
+        captured.state,
+        component.name,
+        component.stateContext,
+        request,
+        identity.binding,
+      );
+    } catch (error) {
+      if (snapshot) this.store.delete(snapshot.snapshot);
+      await this.observeError(instance, error);
+      mapped(error);
+    }
     const endpoint = `${this.options.basePath ?? ''}${this.options.endpoint ?? '/_nestvexa/live'}/${component.name}`;
     return SafeHtml.trusted(
-      `<div data-nv-component="${escapeAttribute(snapshot.id)}" data-nv-name="${component.name}" data-nv-snapshot="${escapeAttribute(snapshot.snapshot)}" data-nv-state="${escapeAttribute(JSON.stringify(snapshot.state))}" data-nv-revision="0" data-nv-endpoint="${escapeAttribute(endpoint)}" data-nv-csrf="${escapeAttribute(identity.csrfToken)}">${html}</div>`,
+      `<div data-nv-component="${escapeAttribute(snapshot.id)}" data-nv-name="${component.name}" data-nv-snapshot="${escapeAttribute(snapshot.snapshot)}" data-nv-state="${escapeAttribute(JSON.stringify(snapshot.state))}" data-nv-revision="0" data-nv-endpoint="${escapeAttribute(endpoint)}" data-nv-csrf="${escapeAttribute(identity.csrfToken)}">${captured.html}</div>`,
     );
   }
   async execute(request: object, input: unknown): Promise<unknown> {
@@ -276,6 +354,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     const admitted = this.#admissions.get(request);
     if (!admitted) fail(403, 'ADMISSION_REQUIRED');
     const { identity, payload, component, action } = admitted;
+    let completed: object | undefined;
     try {
       const synchronization = action === INTERNAL_SYNC_ACTION;
       const selected = component.actions.get(action);
@@ -287,60 +366,88 @@ export class LiveRuntime implements OnApplicationShutdown {
       )
         fail(400, 'UNEXPECTED_INPUT');
       const updates = await this.validatedUpdates(component, identity, payload);
+      let url: readonly UrlStateEffect[] = [];
+      let persist: (() => void) | undefined;
       const result = await this.store.transaction(
         payload.snapshot,
         identity.binding,
         payload.revision,
         async (snapshot) => {
           const instance = await this.instance(component, request);
-          if (this.closed) fail(503, 'LIVE_SHUTDOWN');
-          for (const [key, value] of Object.entries(
-            cloneState(snapshot.state),
-          )) {
-            if (!component.states.has(key)) fail(409, 'STATE_SCHEMA_CHANGED');
-            Object.defineProperty(instance, key, {
-              value,
-              writable: true,
-              enumerable: true,
-              configurable: true,
-            });
-          }
-          await this.hook(instance, 'boot');
-          await this.hook(instance, 'hydrate');
-          for (const [key, value] of Object.entries(updates)) {
-            const previous = snapshot.state[key];
-            if (previous === undefined) fail(409, 'STATE_SCHEMA_CHANGED');
-            const update: LiveUpdateContext = Object.freeze({
-              field: key,
-              previous: freezeJson(structuredClone(previous)),
-              value: freezeJson(structuredClone(value)),
-            });
-            await this.hook(instance, 'beforeUpdate', [update]);
-            Object.defineProperty(instance, key, {
-              value,
-              writable: true,
-              enumerable: true,
-              configurable: true,
-            });
-            await this.hook(instance, 'afterUpdate', [update]);
-          }
-          if (!synchronization && selected) {
-            await this.hook(instance, 'beforeAction');
-            const method: unknown = Reflect.get(instance, selected.method);
-            if (typeof method !== 'function')
-              throw new Error('Registered action is not callable');
-            await Reflect.apply(
-              method,
-              instance,
-              selected.input ? [input] : [],
-            );
-            await this.hook(instance, 'afterAction');
-          }
-          await this.hook(instance, 'dehydrate');
-          const html = await this.render(instance, component);
-          return { state: this.state(instance, component), html };
+          const capturedOperation = await this.operation(
+            instance,
+            component,
+            async () => {
+              if (this.closed) fail(503, 'LIVE_SHUTDOWN');
+              for (const [key, value] of Object.entries(
+                cloneState(snapshot.state),
+              )) {
+                if (!component.states.has(key))
+                  fail(409, 'STATE_SCHEMA_CHANGED');
+                Object.defineProperty(instance, key, {
+                  value,
+                  writable: true,
+                  enumerable: true,
+                  configurable: true,
+                });
+              }
+              await this.hook(instance, 'boot');
+              await this.hook(instance, 'hydrate');
+              for (const [key, value] of Object.entries(updates)) {
+                const previous = snapshot.state[key];
+                if (previous === undefined) fail(409, 'STATE_SCHEMA_CHANGED');
+                const update: LiveUpdateContext = Object.freeze({
+                  field: key,
+                  previous: freezeJson(structuredClone(previous)),
+                  value: freezeJson(structuredClone(value)),
+                });
+                await this.hook(instance, 'beforeUpdate', [update]);
+                Object.defineProperty(instance, key, {
+                  value,
+                  writable: true,
+                  enumerable: true,
+                  configurable: true,
+                });
+                await this.hook(instance, 'afterUpdate', [update]);
+              }
+              if (!synchronization && selected) {
+                await this.hook(instance, 'beforeAction');
+                const method: unknown = Reflect.get(instance, selected.method);
+                if (typeof method !== 'function')
+                  throw new Error('Registered action is not callable');
+                await Reflect.apply(
+                  method,
+                  instance,
+                  selected.input ? [input] : [],
+                );
+                await this.hook(instance, 'afterAction');
+              }
+              await this.hook(instance, 'dehydrate');
+              const captured = await this.render(instance, component);
+              url = captured.url;
+              persist = () =>
+                persistStateContext(
+                  captured.state,
+                  component.name,
+                  component.stateContext,
+                  request,
+                  identity.binding,
+                );
+              return { state: captured.state, html: captured.html };
+            },
+          );
+          completed = instance;
+          return capturedOperation;
         },
       );
+      try {
+        persist?.();
+      } catch (error) {
+        // The action may have performed effects. Revoke the advanced token rather
+        // than returning a retryable response for an uncommitted host session.
+        this.store.delete(result.snapshot);
+        throw error;
+      }
       return {
         protocol: 'nestvexa-live/1',
         requestId: payload.requestId,
@@ -352,8 +459,10 @@ export class LiveRuntime implements OnApplicationShutdown {
         snapshot: result.snapshot,
         state: result.state,
         html: result.html,
+        ...(url.length ? { url } : {}),
       };
     } catch (error) {
+      if (completed) await this.observeError(completed, error);
       mapped(error);
     } finally {
       this.#admissions.delete(request);

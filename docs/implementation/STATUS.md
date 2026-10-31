@@ -1,6 +1,14 @@
 # Implementation status
 
-Checkpoint: **2026-10-30** (Africa/Cairo calendar date). **NOT YET READY — BLOCKERS.** UTC verification timestamps identify individual runs separately.
+Checkpoint: **2026-10-31** (Africa/Cairo calendar date). **NOT YET READY — BLOCKERS.** UTC verification timestamps identify individual runs separately.
+
+The [context and observers checkpoint](context-and-observers-hardened-checkpoint-evidence-2026-10-31.json) at **2026-10-31T06:58:56.404Z** passed **1,387 aggregate / 246 three-browser checks**, seven tarballs/four external consumers, frozen install/static/coverage/size/docs/ledger/benchmark/audit gates and the Phase3 regression check. Node **v22.23.4** at **2026-10-31T11:35:12.882Z** and Node **v24.22.1** at **2026-10-31T11:38:17.716Z** each passed strict compilation and the full aggregate on Windows. Eight individual URL/session/directive requirements are accepted; the request lifecycle slice still has broader open requirements. Earlier evidence below is historical.
+
+Phase 4 is **InProgress**, Phase 5 **Pending**. Remaining Phase 4 requirements:
+server nesting/mount keys, reactive/modelable children/events, typed synthesizers,
+sort/stream/navigation, deferred server placeholders, batching/isolation/renderless
+actions, complete progressive mutations/effects, optimistic rollback and the full
+CRUD exit gate. No completed lifecycle/directive slice accepts the whole phase.
 
 Phase 3 tasks 3.1–3.7 and the reactive form/table exit gate are now accepted on
 the executed Windows environment. The [acceptance review](phase3-acceptance.md)
@@ -19,12 +27,16 @@ The repository contains core configuration/registries, view contracts, an HBS en
 | 1     | InProgress | Core/configuration, views, HBS, umbrella and starter implemented with scoped external consumer/browser checks; complete phase requirements and matrix still pending.                                          |
 | 2     | InProgress | Bounded JSON, opaque owner-bound memory state and generated routes execute in Express/Fastify tests; cookie-session origin/CSRF/replay tests pass in the initial browser slice. Full acceptance remains open. |
 | 3     | Done       | Tasks 3.1–3.7 and their HBS form/table exit gate passed; see the exact source-bound acceptance review and separate later-phase requirements.                                                                  |
-| 4     | InProgress | Awaited hooks, confirmed actions, eager initialization and async computed values verified; server nesting, full lifecycle and remaining Phase 4 work stay incomplete.                                         |
+| 4     | InProgress | Prior hooks/confirmation/computed plus URL/session state, background/presentation directives, lazy initialization timing and request cleanup verified; nesting and remaining Phase4 work stay incomplete.     |
 | 5–17  | Pending    | Forms, uploads, other engines, Inertia/frameworks, islands/actions, realtime/stores/jobs, extensions, CLI, hardening and release not delivered.                                                               |
 
 ## Resume and audit
 
-The latest [computed checkpoint](computed-checkpoint-evidence-2026-10-30.json) at
+Latest ledger: **20 Done / 96 InProgress / 809 Pending** across 925 requirements. Phase4 **InProgress**, Phase5 **Pending**. Server nesting/mount keys, reactive/modelable children/events, typed synthesizers, sort/stream/navigation, server lazy/deferred placeholders, request batching/isolation/renderless actions, complete progressive mutation/effect flows, optimistic rollback and the full CRUD exit gate remain open.
+
+The canonical bundled client measured **87150 raw / 28561 gzip-estimate bytes**, under the unchanged 35840-byte budget, excluding Alpine/adapter/maps. Selected coverage is **96.62% branches / 98.05% statements across five files only**. Full runtime/action/client/metadata coverage and independent security review remain open. The package test fixture initially used the wrong initialization property name; correction and a fresh full run passed. The offline indicator is hidden in initial/no-JavaScript HTML.
+
+The previous [computed checkpoint](computed-checkpoint-evidence-2026-10-30.json) at
 **2026-10-30T19:54:55.677Z** passed **1,118 aggregate / 228 three-browser
 checks**, seven tarballs/four consumers, static/coverage/size/docs/benchmark/audit
 checks and the source-bound Phase 3 regression gate. Isolated Node22/24 each passed

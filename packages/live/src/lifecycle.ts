@@ -14,6 +14,11 @@ export interface LiveUpdateContext {
   readonly value: ReadonlyLiveValue;
 }
 
+/** A server-only observation of the HTML already rendered; it cannot replace rendered output. */
+export interface LiveRenderContext {
+  readonly html: string;
+}
+
 /** Implemented request lifecycle. Hooks are application code, never remotely callable actions. */
 export interface LiveLifecycleHooks {
   /** Every authorized instance: before mount initially, after state restoration before hydrate subsequently. */
@@ -27,6 +32,14 @@ export interface LiveLifecycleHooks {
   beforeAction?(): void | Promise<void>;
   afterAction?(): void | Promise<void>;
   dehydrate?(): void | Promise<void>;
+  /** After dehydrate, before reading the view model or invoking the renderer. */
+  beforeRender?(): void | Promise<void>;
+  /** Observation only; output, public state and URL effects have already been captured. */
+  afterRender?(render: LiveRenderContext): void | Promise<void>;
+  /** Server-only diagnostic; throwing here never replaces the primary failure. */
+  onError?(error: unknown): void | Promise<void>;
+  /** Once per resolved request operation, including errors; this is not browser unmount. */
+  dispose?(): void | Promise<void>;
 }
 
 export const lifecycleHookNames = [
@@ -38,4 +51,8 @@ export const lifecycleHookNames = [
   'beforeAction',
   'afterAction',
   'dehydrate',
+  'beforeRender',
+  'afterRender',
+  'onError',
+  'dispose',
 ] as const satisfies readonly (keyof LiveLifecycleHooks)[];
