@@ -1,0 +1,29 @@
+{
+  "name": "A rescued deferred prop failure is omitted from props and listed in rescuedProps",
+  "source": [
+    "https://inertiajs.com/docs/v3/core-concepts/the-protocol#rescued-deferred-props (Inertia docs v3, fetched 2026-11-01)",
+    "https://inertiajs.com/docs/v3/data-props/deferred-props#error-handling"
+  ],
+  "serverVersion": "6b16b94d7c51cbe5b1fa42aac98241d5",
+  "request": {
+    "method": "GET",
+    "path": "/users",
+    "headers": {
+      "x-inertia": "true",
+      "x-requested-with": "XMLHttpRequest",
+      "x-inertia-version": "6b16b94d7c51cbe5b1fa42aac98241d5",
+      "x-inertia-partial-component": "Users/Index",
+      "x-inertia-partial-data": "permissions"
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "component": "Users/Index",
+      "props": { "errors": {} },
+      "url": "/users",
+      "version": "6b16b94d7c51cbe5b1fa42aac98241d5",
+      "rescuedProps": ["permissions"]
+    }
+  }
+}

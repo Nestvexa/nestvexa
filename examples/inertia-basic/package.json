@@ -1,0 +1,30 @@
+{
+  "name": "@nestvexa/example-inertia-basic",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p client/tsconfig.json && node build-client.mjs",
+    "dev": "tsx src/main.ts",
+    "start": "node dist/main.js",
+    "start:e2e": "node dist/main.js --test-controls"
+  },
+  "dependencies": {
+    "@nestjs/common": "12.2.0",
+    "@nestjs/core": "12.2.0",
+    "@nestjs/platform-express": "12.2.0",
+    "@nestvexa/inertia": "workspace:*",
+    "express-session": "1.19.0",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@inertiajs/core": "3.10.0",
+    "@inertiajs/react": "3.10.0",
+    "@types/express-session": "1.19.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "esbuild": "0.28.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  }
+}

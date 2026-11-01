@@ -38,6 +38,37 @@ async function sources(path) {
   }
 }
 await sources('packages/core/src');
+
+// Renderer-neutral packages must never import an adapter or a client framework.
+async function forbid(path, pattern, label) {
+  for (const entry of await readdir(path, { withFileTypes: true })) {
+    const file = join(path, entry.name);
+    if (entry.isDirectory()) await forbid(file, pattern, label);
+    else if (
+      entry.name.endsWith('.ts') &&
+      pattern.test(await readFile(file, 'utf8'))
+    )
+      throw new Error(`${label}: ${file}`);
+  }
+}
+await forbid(
+  'packages/views/src',
+  /from\s+['"](?:react|vue|svelte|@inertiajs\/|@nestvexa\/(?:inertia|live|client))/,
+  'View contract imports an adapter or client framework',
+);
+// The Inertia server adapter speaks the wire protocol only; client packages stay
+// devDependencies of examples and are never runtime dependencies.
+await forbid(
+  'packages/inertia/src',
+  /from\s+['"](?:react|react-dom|vue|svelte|@inertiajs\/|@nestvexa\/(?:live|client|engine-hbs))/,
+  'Inertia server adapter imports a client framework',
+);
+const inertia = manifests.get('@nestvexa/inertia');
+for (const field of ['dependencies', 'peerDependencies']) {
+  for (const name of Object.keys(inertia?.[field] ?? {}))
+    if (/^(?:react|react-dom|vue|svelte|@inertiajs\/)/.test(name))
+      throw new Error(`@nestvexa/inertia must not depend on ${name}`);
+}
 console.log(
-  `Dependency graph checked: ${manifests.size} packages; core runtime boundary intact.`,
+  `Dependency graph checked: ${manifests.size} packages; core, view and Inertia adapter boundaries intact.`,
 );

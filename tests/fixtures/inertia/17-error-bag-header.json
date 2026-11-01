@@ -1,0 +1,36 @@
+{
+  "name": "Default-bag validation errors are scoped under X-Inertia-Error-Bag",
+  "source": [
+    "inertia-laravel v3.6.0 tests/MiddlewareTest.php test_validation_errors_are_scoped_to_error_bag_header",
+    "https://inertiajs.com/docs/v3/the-basics/validation#error-bags"
+  ],
+  "notes": "The harness first POSTs /users/invalid (which throws InertiaValidationException and is redirected back with errors stored in the host session), then issues this request with the same session.",
+  "serverVersion": "6b16b94d7c51cbe5b1fa42aac98241d5",
+  "prime": { "method": "POST", "path": "/users/invalid" },
+  "request": {
+    "method": "GET",
+    "path": "/users/create",
+    "headers": {
+      "x-inertia": "true",
+      "x-requested-with": "XMLHttpRequest",
+      "x-inertia-version": "6b16b94d7c51cbe5b1fa42aac98241d5",
+      "x-inertia-error-bag": "example"
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "component": "Users/Create",
+      "props": {
+        "errors": {
+          "example": {
+            "name": "The name field is required.",
+            "email": "Not a valid email address."
+          }
+        }
+      },
+      "url": "/users/create",
+      "version": "6b16b94d7c51cbe5b1fa42aac98241d5"
+    }
+  }
+}

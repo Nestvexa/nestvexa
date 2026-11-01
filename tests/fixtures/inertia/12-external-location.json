@@ -1,0 +1,24 @@
+{
+  "name": "External redirect on an Inertia request is a 409 with X-Inertia-Location",
+  "source": [
+    "https://inertiajs.com/docs/v3/the-basics/redirects#external-redirects (Inertia docs v3, fetched 2026-11-01)",
+    "inertia-laravel v3.6.0 src/ResponseFactory.php location()"
+  ],
+  "notes": "https://billing.example.com is explicitly allowlisted in the golden app; unlisted origins are rejected (see tests/inertia-security.test.ts).",
+  "serverVersion": "6b16b94d7c51cbe5b1fa42aac98241d5",
+  "request": {
+    "method": "GET",
+    "path": "/billing/portal",
+    "headers": {
+      "x-inertia": "true",
+      "x-requested-with": "XMLHttpRequest",
+      "x-inertia-version": "6b16b94d7c51cbe5b1fa42aac98241d5"
+    }
+  },
+  "response": {
+    "status": 409,
+    "headers": { "x-inertia-location": "https://billing.example.com/portal" },
+    "absentHeaders": ["x-inertia", "location"],
+    "body": ""
+  }
+}

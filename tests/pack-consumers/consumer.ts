@@ -37,6 +37,7 @@ import {
   parseLoadingDirective,
   parseLoadingTarget,
 } from '@nestvexa/client';
+import { InertiaModule, InertiaPage, defer } from '@nestvexa/inertia';
 import type {
   LiveDirective,
   LoadingDirective,
@@ -313,4 +314,50 @@ try {
 } finally {
   await app.close();
   await renderer.dispose();
+}
+
+// The Inertia server adapter from its own packed tarball, on a real Nest app.
+@Controller()
+class PackedInertiaController {
+  @Get('inertia')
+  @InertiaPage('Packed/Page')
+  page() {
+    return { message: '</script><b>', later: defer(() => 'deferred') };
+  }
+}
+@Module({
+  imports: [InertiaModule.forRoot({ version: 'packed-1' })],
+  controllers: [PackedInertiaController],
+})
+class PackedInertiaApp {}
+const inertiaApp = await NestFactory.create(PackedInertiaApp, {
+  logger: false,
+});
+try {
+  await inertiaApp.listen(0, '127.0.0.1');
+  const base = await inertiaApp.getUrl();
+  const document = await fetch(`${base}/inertia`);
+  const html = await document.text();
+  assert.equal(document.status, 200);
+  assert.match(html, /<script data-page="app" type="application\/json">/);
+  assert.ok(html.includes('\\u003c\\/script\\u003e'));
+  assert.equal(html.match(/<\/script>/g)?.length, 1);
+  const visit = await fetch(`${base}/inertia`, {
+    headers: { 'X-Inertia': 'true', 'X-Inertia-Version': 'packed-1' },
+  });
+  assert.equal(visit.headers.get('x-inertia'), 'true');
+  assert.match(visit.headers.get('vary') ?? '', /X-Inertia/);
+  const page = record(await visit.json());
+  assert.deepEqual(page['deferredProps'], { default: ['later'] });
+  assert.deepEqual(page['props'], { errors: {}, message: '</script><b>' });
+  const stale = await fetch(`${base}/inertia`, {
+    headers: { 'X-Inertia': 'true', 'X-Inertia-Version': 'old' },
+  });
+  assert.equal(stale.status, 409);
+  assert.equal(stale.headers.get('x-inertia-location'), '/inertia');
+  console.log(
+    'Packed Inertia adapter passed: escaped initial page, JSON visit, deferred props and version 409.',
+  );
+} finally {
+  await inertiaApp.close();
 }

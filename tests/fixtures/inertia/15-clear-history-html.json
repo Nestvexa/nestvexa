@@ -1,0 +1,16 @@
+{
+  "name": "clearHistory survives a redirect and is emitted once, with sharedProps errors",
+  "source": [
+    "inertia-laravel v3.6.0 tests/HistoryTest.php (exact assertContent at line 157)",
+    "https://inertiajs.com/docs/v3/security/history-encryption#clearing-history"
+  ],
+  "notes": "Runs in the golden app variant that keeps the default exposeSharedPropKeys: true and an empty version, matching the upstream test configuration. The harness first calls /users/clear (which calls clearHistory and redirects) with the same session.",
+  "app": "shared-keys",
+  "serverVersion": "",
+  "prime": { "method": "POST", "path": "/users/clear" },
+  "request": { "method": "GET", "path": "/users", "headers": {} },
+  "response": {
+    "status": 200,
+    "body": "<script data-page=\"app\" type=\"application/json\">{\"component\":\"User\\/Edit\",\"props\":{\"errors\":{}},\"url\":\"\\/users\",\"version\":\"\",\"sharedProps\":[\"errors\"],\"clearHistory\":true}</script><div id=\"app\"></div>"
+  }
+}

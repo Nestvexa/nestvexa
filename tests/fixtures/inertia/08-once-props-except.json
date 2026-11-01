@@ -1,0 +1,29 @@
+{
+  "name": "Once props already held by the client are skipped but still described",
+  "source": [
+    "https://inertiajs.com/docs/v3/core-concepts/the-protocol#once-props (Inertia docs v3, fetched 2026-11-01)",
+    "@inertiajs/core 3.10.0 dist/index.js getHeaders(): X-Inertia-Except-Once-Props built from non-expired page.onceProps"
+  ],
+  "serverVersion": "6b16b94d7c51cbe5b1fa42aac98241d5",
+  "request": {
+    "method": "GET",
+    "path": "/billing/upgrade",
+    "headers": {
+      "accept": "text/html, application/xhtml+xml",
+      "x-requested-with": "XMLHttpRequest",
+      "x-inertia": "true",
+      "x-inertia-version": "6b16b94d7c51cbe5b1fa42aac98241d5",
+      "x-inertia-except-once-props": "plans"
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "component": "Billing/Upgrade",
+      "props": { "errors": {}, "currentPlan": { "id": 1, "name": "Basic" } },
+      "url": "/billing/upgrade",
+      "version": "6b16b94d7c51cbe5b1fa42aac98241d5",
+      "onceProps": { "plans": { "prop": "plans", "expiresAt": null } }
+    }
+  }
+}

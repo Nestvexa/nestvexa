@@ -1,0 +1,13 @@
+{
+  "name": "Nested append/prepend merge paths with match keys",
+  "source": [
+    "inertia-laravel v3.6.0 tests/ResponseTest.php (assertSame at line 360)"
+  ],
+  "notes": "Identical to the upstream vector except for the adapter-shared errors prop: the upstream unit test renders a Response without the middleware, while every page object from this adapter includes errors as the protocol requires.",
+  "serverVersion": "123",
+  "request": { "method": "GET", "path": "/user/123", "headers": {} },
+  "response": {
+    "status": 200,
+    "body": "<script data-page=\"app\" type=\"application/json\">{\"component\":\"User\\/Edit\",\"props\":{\"errors\":{},\"user\":{\"name\":\"Jonathan\"},\"foo\":{\"data\":[{\"id\":1},{\"id\":2}]},\"bar\":{\"data\":{\"items\":[{\"uuid\":1},{\"uuid\":2}]}}},\"url\":\"\\/user\\/123\",\"version\":\"123\",\"mergeProps\":[\"foo.data\"],\"prependProps\":[\"bar.data.items\"],\"matchPropsOn\":[\"foo.data.id\",\"bar.data.items.uuid\"]}</script><div id=\"app\"></div>"
+  }
+}

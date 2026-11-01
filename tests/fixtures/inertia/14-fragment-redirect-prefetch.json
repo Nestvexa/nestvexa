@@ -1,0 +1,24 @@
+{
+  "name": "Fragment redirects are not intercepted for prefetch requests",
+  "source": [
+    "inertia-laravel v3.6.0 tests/MiddlewareTest.php test_redirect_with_hash_fragment_is_not_intercepted_for_prefetch_requests",
+    "https://inertiajs.com/docs/v3/core-concepts/the-protocol#request-headers (Purpose: prefetch)"
+  ],
+  "serverVersion": "6b16b94d7c51cbe5b1fa42aac98241d5",
+  "request": {
+    "method": "GET",
+    "path": "/action",
+    "headers": {
+      "x-inertia": "true",
+      "x-requested-with": "XMLHttpRequest",
+      "x-inertia-version": "6b16b94d7c51cbe5b1fa42aac98241d5",
+      "purpose": "prefetch"
+    }
+  },
+  "response": {
+    "status": 302,
+    "headers": { "location": "/article#section" },
+    "absentHeaders": ["x-inertia-redirect"],
+    "body": ""
+  }
+}

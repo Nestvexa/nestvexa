@@ -1,0 +1,28 @@
+{
+  "name": "Asset version mismatch on GET returns 409 with X-Inertia-Location and the current version",
+  "source": [
+    "https://inertiajs.com/docs/v3/core-concepts/the-protocol#asset-versioning (Inertia docs v3, fetched 2026-11-01)",
+    "inertia-laravel v3.6.0 tests/MiddlewareTest.php test_it_will_instruct_inertia_to_reload_on_a_version_mismatch"
+  ],
+  "notes": "Upstream emits an absolute URL; this adapter emits the request path (never derived from the spoofable Host header). @inertiajs/core resolves it with hrefToUrl against window.location, verified in tests/browser/inertia.spec.ts.",
+  "serverVersion": "2f8a1c9e4b7d0a3f6c5e8b1d4a7f0c2e",
+  "request": {
+    "method": "GET",
+    "path": "/events/80",
+    "headers": {
+      "accept": "text/html, application/xhtml+xml",
+      "x-requested-with": "XMLHttpRequest",
+      "x-inertia": "true",
+      "x-inertia-version": "6b16b94d7c51cbe5b1fa42aac98241d5"
+    }
+  },
+  "response": {
+    "status": 409,
+    "headers": {
+      "x-inertia-location": "/events/80",
+      "x-inertia-version": "2f8a1c9e4b7d0a3f6c5e8b1d4a7f0c2e"
+    },
+    "absentHeaders": ["x-inertia"],
+    "body": ""
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "Initial full-page visit embeds the page object in a slash-escaped script element",
+  "source": [
+    "https://inertiajs.com/docs/v3/core-concepts/the-protocol#html-responses (Inertia docs v3, fetched 2026-11-01)",
+    "@inertiajs/core 3.10.0 dist/index.js getInitialPageFromDOM: document.querySelector('script[data-page=\"${id}\"][type=\"application/json\"]')"
+  ],
+  "notes": "Byte-for-byte page script and mount element from the upstream example. sharedProps is disabled in the golden app because the documentation example omits it.",
+  "serverVersion": "c32b8e4965f418ad16eaebba1d4e960f",
+  "request": {
+    "method": "GET",
+    "path": "/events/80",
+    "headers": { "accept": "text/html, application/xhtml+xml" }
+  },
+  "response": {
+    "status": 200,
+    "headerPrefixes": { "content-type": "text/html", "vary": "X-Inertia" },
+    "absentHeaders": ["x-inertia"],
+    "bodyIncludes": "<script data-page=\"app\" type=\"application/json\">{\"component\":\"Event\",\"props\":{\"errors\":{},\"event\":{\"id\":80,\"title\":\"Birthday party\",\"start_date\":\"2019-06-02\",\"description\":\"Come out and celebrate Jonathan's 36th birthday party!\"}},\"url\":\"\\/events\\/80\",\"version\":\"c32b8e4965f418ad16eaebba1d4e960f\"}</script><div id=\"app\"></div>"
+  }
+}

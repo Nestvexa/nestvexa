@@ -1,0 +1,32 @@
+{
+  "name": "Once props are resolved and described in onceProps",
+  "source": [
+    "https://inertiajs.com/docs/v3/core-concepts/the-protocol#once-props (Inertia docs v3, fetched 2026-11-01)"
+  ],
+  "serverVersion": "6b16b94d7c51cbe5b1fa42aac98241d5",
+  "request": {
+    "method": "GET",
+    "path": "/billing/plans",
+    "headers": {
+      "x-inertia": "true",
+      "x-requested-with": "XMLHttpRequest",
+      "x-inertia-version": "6b16b94d7c51cbe5b1fa42aac98241d5"
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "component": "Billing/Plans",
+      "props": {
+        "errors": {},
+        "plans": [
+          { "id": 1, "name": "Basic" },
+          { "id": 2, "name": "Pro" }
+        ]
+      },
+      "url": "/billing/plans",
+      "version": "6b16b94d7c51cbe5b1fa42aac98241d5",
+      "onceProps": { "plans": { "prop": "plans", "expiresAt": null } }
+    }
+  }
+}
