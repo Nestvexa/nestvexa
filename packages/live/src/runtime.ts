@@ -61,6 +61,23 @@ export interface LiveHostOptions {
    * @nestvexa/realtime). Receives the channels a component declares and returns a
    * subscription token for those the identity may read, or undefined.
    */
+  /**
+   * Optional tracing hook (see @nestvexa/observability). Receives span names
+   * `nestvexa.live.mount`, `nestvexa.live.action` and `nestvexa.live.render` with
+   * component/action names, revisions and sizes only — never state, identities,
+   * tokens or HTML.
+   */
+  readonly instrumentation?: {
+    start(
+      name: string,
+      attributes: Readonly<Record<string, string | number | boolean>>,
+    ): {
+      end(
+        outcome: 'ok' | 'error',
+        attributes?: Readonly<Record<string, string | number | boolean>>,
+      ): void;
+    };
+  };
   readonly realtime?: {
     sign(
       identity: LiveIdentity,
@@ -472,7 +489,21 @@ export class LiveRuntime implements OnApplicationShutdown {
     }
     return cloneState(result);
   }
-  private async render(
+  private render(
+    instance: object,
+    component: ComponentDefinition,
+    context: RenderContext,
+  ): Promise<Rendered> {
+    return this.traced(
+      'nestvexa.live.render',
+      { 'nestvexa.component': component.name, 'nestvexa.depth': context.depth },
+      () => this.renderUntraced(instance, component, context),
+      (rendered) => ({
+        'nestvexa.html_bytes': Buffer.byteLength(rendered.html),
+      }),
+    );
+  }
+  private async renderUntraced(
     instance: object,
     component: ComponentDefinition,
     context: RenderContext,
@@ -545,6 +576,43 @@ export class LiveRuntime implements OnApplicationShutdown {
         ? {}
         : { children: composed.children }),
     };
+  }
+  /** Run work inside an instrumentation span; instrumentation failures never break requests. */
+  private async traced<T>(
+    name: string,
+    attributes: Readonly<Record<string, string | number | boolean>>,
+    work: () => Promise<T>,
+    finish?: (value: T) => Readonly<Record<string, string | number | boolean>>,
+  ): Promise<T> {
+    const hook = this.options.instrumentation;
+    if (!hook) return work();
+    let span:
+      | ReturnType<NonNullable<LiveHostOptions['instrumentation']>['start']>
+      | undefined;
+    try {
+      span = hook.start(name, attributes);
+    } catch {
+      span = undefined;
+    }
+    try {
+      const value = await work();
+      try {
+        span?.end('ok', finish?.(value));
+      } catch {
+        // Telemetry is best effort.
+      }
+      return value;
+    } catch (error) {
+      try {
+        span?.end(
+          'error',
+          error instanceof HttpException ? { status: error.getStatus() } : {},
+        );
+      } catch {
+        // Telemetry is best effort.
+      }
+      throw error;
+    }
   }
   /** Ask the host signer for a subscription token covering declared channels. */
   private async realtimeToken(
@@ -921,6 +989,20 @@ export class LiveRuntime implements OnApplicationShutdown {
   }
   /** Mount only from a host route with host-resolved identity; never from a client class name. */
   async mount(type: Type<object>, request: object): Promise<SafeHtml> {
+    const definition = this.options.definitions.find(
+      (entry) => entry.type === type,
+    );
+    if (!definition) return this.mountUntraced(type, request);
+    return this.traced(
+      'nestvexa.live.mount',
+      { 'nestvexa.component': definition.name },
+      () => this.mountUntraced(type, request),
+    );
+  }
+  private async mountUntraced(
+    type: Type<object>,
+    request: object,
+  ): Promise<SafeHtml> {
     if (this.closed) fail(503, 'LIVE_SHUTDOWN');
     const component = this.options.definitions.find(
       (entry) => entry.type === type,
@@ -995,6 +1077,23 @@ export class LiveRuntime implements OnApplicationShutdown {
     );
   }
   async execute(request: object, input: unknown): Promise<unknown> {
+    const admitted = this.#admissions.get(request);
+    if (!admitted || !this.options.instrumentation)
+      return this.executeUntraced(request, input);
+    return this.traced(
+      'nestvexa.live.action',
+      {
+        'nestvexa.component': admitted.component.name,
+        'nestvexa.action': admitted.action,
+        'nestvexa.revision': admitted.payload.revision,
+      },
+      () => this.executeUntraced(request, input),
+    );
+  }
+  private async executeUntraced(
+    request: object,
+    input: unknown,
+  ): Promise<unknown> {
     if (this.closed) fail(503, 'LIVE_SHUTDOWN');
     const admitted = this.#admissions.get(request);
     if (!admitted) fail(403, 'ADMISSION_REQUIRED');

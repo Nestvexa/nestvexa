@@ -160,6 +160,7 @@ function factoryOptions(
     'store',
     'maxRequestsPerMinute',
     'realtime',
+    'instrumentation',
   ]);
   for (const key of Reflect.ownKeys(options)) {
     if (typeof key !== 'string' || !allowed.has(key))
@@ -207,6 +208,9 @@ function factoryOptions(
       ? {}
       : { maxRequestsPerMinute: snapshot.maxRequestsPerMinute }),
     ...(snapshot.realtime === undefined ? {} : { realtime: snapshot.realtime }),
+    ...(snapshot.instrumentation === undefined
+      ? {}
+      : { instrumentation: snapshot.instrumentation }),
   });
 }
 

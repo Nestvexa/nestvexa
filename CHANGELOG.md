@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased: observability
+
+Live emits `nestvexa.live.mount/action/render` spans through an optional
+`instrumentation` policy. `@nestvexa/observability` adds an OpenTelemetry bridge,
+in-memory metrics, redacted logging and a development-only devtools panel.
+
 ## Unreleased: CLI, cache and CommonJS hosts
 
 Added the `nestvexa` CLI (`@nestvexa/cli`) and `@nestvexa/cache`. All packages now
