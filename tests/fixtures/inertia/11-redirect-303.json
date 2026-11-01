@@ -1,0 +1,23 @@
+{
+  "name": "A redirect after PUT is sent as 303 See Other",
+  "source": [
+    "https://inertiajs.com/docs/v3/core-concepts/the-protocol#redirects (Inertia docs v3, fetched 2026-11-01)",
+    "https://inertiajs.com/docs/v3/the-basics/redirects#303-response-code",
+    "inertia-laravel v3.6.0 src/Middleware.php handle(): 302 after PUT/PATCH/DELETE becomes 303"
+  ],
+  "serverVersion": "6b16b94d7c51cbe5b1fa42aac98241d5",
+  "request": {
+    "method": "PUT",
+    "path": "/users/1",
+    "headers": {
+      "x-inertia": "true",
+      "x-requested-with": "XMLHttpRequest",
+      "x-inertia-version": "6b16b94d7c51cbe5b1fa42aac98241d5"
+    }
+  },
+  "response": {
+    "status": 303,
+    "headers": { "location": "/users", "vary": "X-Inertia" },
+    "body": ""
+  }
+}

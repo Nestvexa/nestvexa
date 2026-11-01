@@ -1,0 +1,30 @@
+{
+  "name": "Deferred props are announced by group and never resolved on the full visit",
+  "source": [
+    "https://inertiajs.com/docs/v3/core-concepts/the-protocol#deferred-and-optional-props (Inertia docs v3, fetched 2026-11-01)",
+    "https://inertiajs.com/docs/v3/data-props/deferred-props#grouping-requests"
+  ],
+  "serverVersion": "6b16b94d7c51cbe5b1fa42aac98241d5",
+  "request": {
+    "method": "GET",
+    "path": "/posts",
+    "headers": {
+      "x-inertia": "true",
+      "x-requested-with": "XMLHttpRequest",
+      "x-inertia-version": "6b16b94d7c51cbe5b1fa42aac98241d5"
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "component": "Posts/Index",
+      "props": { "errors": {}, "user": { "name": "Jonathan" } },
+      "url": "/posts",
+      "version": "6b16b94d7c51cbe5b1fa42aac98241d5",
+      "deferredProps": {
+        "default": ["comments", "analytics"],
+        "sidebar": ["relatedPosts"]
+      }
+    }
+  }
+}

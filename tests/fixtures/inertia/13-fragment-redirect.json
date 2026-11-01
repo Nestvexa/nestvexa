@@ -1,0 +1,24 @@
+{
+  "name": "A redirect whose target has a fragment is a 409 with X-Inertia-Redirect",
+  "source": [
+    "https://inertiajs.com/docs/v3/core-concepts/the-protocol#redirects (Inertia docs v3, fetched 2026-11-01)",
+    "inertia-laravel v3.6.0 tests/MiddlewareTest.php test_post_redirect_with_hash_fragment_returns_409_for_inertia_requests"
+  ],
+  "notes": "Upstream generates absolute URLs; this adapter keeps the relative target the handler supplied.",
+  "serverVersion": "6b16b94d7c51cbe5b1fa42aac98241d5",
+  "request": {
+    "method": "POST",
+    "path": "/action",
+    "headers": {
+      "x-inertia": "true",
+      "x-requested-with": "XMLHttpRequest",
+      "x-inertia-version": "6b16b94d7c51cbe5b1fa42aac98241d5"
+    }
+  },
+  "response": {
+    "status": 409,
+    "headers": { "x-inertia-redirect": "/article#section" },
+    "absentHeaders": ["x-inertia", "location"],
+    "body": ""
+  }
+}
