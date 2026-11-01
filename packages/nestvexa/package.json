@@ -11,11 +11,13 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./assets": {
       "types": "./dist/assets.d.ts",
-      "import": "./dist/assets.js"
+      "import": "./dist/assets.js",
+      "default": "./dist/assets.js"
     }
   },
   "types": "./dist/index.d.ts",
@@ -43,6 +45,18 @@
     "@nestjs/common": "^12.0.0",
     "@nestjs/core": "^12.0.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "@nestvexa/cli": "0.1.0-alpha.0"
+  },
+  "bin": {
+    "nestvexa": "./dist/bin.js"
+  },
+  "peerDependenciesMeta": {
+    "@nestvexa/cli": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@nestvexa/cli": "workspace:*"
   }
 }

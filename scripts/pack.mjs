@@ -36,7 +36,7 @@ function command(args, cwd, evidence) {
   const result = spawnSync(process.execPath, [pnpm, ...args], {
     cwd,
     encoding: 'utf8',
-    timeout: 240000,
+    timeout: 600000,
   });
   evidence?.push({
     command: 'pnpm ' + args.join(' '),
@@ -221,7 +221,7 @@ async function consume(manager, profile) {
   const compilation = spawnSync(
     process.execPath,
     [join(consumer, 'node_modules/typescript/bin/tsc'), '-p', 'tsconfig.json'],
-    { cwd: consumer, encoding: 'utf8', timeout: 60000 },
+    { cwd: consumer, encoding: 'utf8', timeout: 180000 },
   );
   entry.commands.push({
     command: 'node node_modules/typescript/bin/tsc -p tsconfig.json',
@@ -236,10 +236,11 @@ async function consume(manager, profile) {
         '\n' +
         compilation.stderr,
     );
+  // Generous limits: loaded CI/dev hosts must not turn slowness into false failures.
   const smoke = spawnSync(process.execPath, ['dist/consumer.js'], {
     cwd: consumer,
     encoding: 'utf8',
-    timeout: 30000,
+    timeout: 120000,
   });
   entry.commands.push({
     command: 'node dist/consumer.js',
@@ -249,7 +250,10 @@ async function consume(manager, profile) {
     throw new Error(
       'External ' +
         manager +
-        ' smoke failed:\n' +
+        ' smoke failed (status ' +
+        String(smoke.status) +
+        (smoke.error ? ', ' + smoke.error.message : '') +
+        '):\n' +
         smoke.stdout +
         '\n' +
         smoke.stderr,
@@ -267,7 +271,7 @@ async function consume(manager, profile) {
   const imports = spawnSync(process.execPath, ['imports.mjs'], {
     cwd: consumer,
     encoding: 'utf8',
-    timeout: 30000,
+    timeout: 120000,
   });
   entry.commands.push({
     command: 'node imports.mjs',

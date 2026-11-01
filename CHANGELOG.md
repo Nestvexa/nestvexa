@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased: CLI, cache and CommonJS hosts
+
+Added the `nestvexa` CLI (`@nestvexa/cli`) and `@nestvexa/cache`. All packages now
+declare a `default` export condition so CommonJS Nest apps load them via
+`require(esm)` on Node 22.12+.
+
 ## Unreleased: realtime invalidation, Inertia adapter
 
 Added `@nestvexa/realtime` (SSE/poll/WebSocket, identity-bound tokens with key

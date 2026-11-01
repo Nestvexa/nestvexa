@@ -236,6 +236,12 @@ importers:
 
   packages/cache: {}
 
+  packages/cli:
+    dependencies:
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
   packages/client: {}
 
   packages/core:
@@ -330,6 +336,10 @@ importers:
       rxjs:
         specifier: ^7.8.2
         version: 7.8.2
+    devDependencies:
+      '@nestvexa/cli':
+        specifier: workspace:*
+        version: link:../cli
 
   packages/realtime:
     dependencies:

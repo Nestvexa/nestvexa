@@ -1,0 +1,34 @@
+{
+  "name": "@nestvexa/cli",
+  "version": "0.1.0-alpha.0",
+  "description": "Nestvexa command line: init, doctor, add, make:*, inspect and safe removal",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": "^22.13.0 || ^24.0.0"
+  },
+  "bin": {
+    "nestvexa": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "typescript": "6.0.3"
+  }
+}
