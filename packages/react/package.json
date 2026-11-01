@@ -1,0 +1,57 @@
+{
+  "name": "@nestvexa/react",
+  "version": "0.1.0-alpha.0",
+  "description": "Official @inertiajs/react client and SSR entry helpers for Nestvexa Inertia hosts built with Vite",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": "^22.13.0 || ^24.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./ssr": {
+      "types": "./dist/ssr.d.ts",
+      "import": "./dist/ssr.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run ../../tests/react-adapter.test.ts",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@nestvexa/vite": "workspace:*"
+  },
+  "peerDependencies": {
+    "@inertiajs/core": "^3.10.0",
+    "@inertiajs/react": "^3.10.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@inertiajs/core": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@inertiajs/core": "3.10.0",
+    "@inertiajs/react": "3.10.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
