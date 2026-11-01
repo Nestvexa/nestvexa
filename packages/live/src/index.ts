@@ -34,6 +34,8 @@ export {
   Modelable,
   OnEvent,
   RealtimeChannels,
+  describeLiveState,
+  type LiveStateDescription,
   type PropMode,
   type ComponentOptions,
   type StateOptions,

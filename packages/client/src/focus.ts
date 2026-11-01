@@ -23,6 +23,37 @@ export function focusMoved(document: Document, previous: Element): boolean {
   );
 }
 
+/**
+ * After an `nv:submit` response: focus the first available control marked
+ * `aria-invalid="true"` inside the submitted form, unless focus moved elsewhere
+ * during the request (`previous` is the element focused at submit time;
+ * `fallback` is the component root the client may refocus after a morph).
+ */
+export function focusFirstInvalid(
+  form: Element,
+  previous: Element | null,
+  fallback: Element,
+  owns: (element: Element) => boolean,
+): boolean {
+  if (!form.isConnected) return false;
+  const document = form.ownerDocument;
+  const active = document.activeElement;
+  if (active !== fallback && previous && focusMoved(document, previous))
+    return false;
+  const view = document.defaultView;
+  if (!view) return false;
+  for (const candidate of form.querySelectorAll('[aria-invalid="true"]'))
+    if (
+      candidate instanceof view.HTMLElement &&
+      owns(candidate) &&
+      availableForFocus(candidate)
+    ) {
+      candidate.focus();
+      return document.activeElement === candidate;
+    }
+  return false;
+}
+
 interface SelectionPoints {
   readonly anchor: Node;
   readonly anchorOffset: number;

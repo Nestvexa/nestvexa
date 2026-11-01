@@ -53,6 +53,42 @@ import type { FinalizedUpload } from '@nestvexa/uploads';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import {
+  FormInputError,
+  customAdapter,
+  errorSummary,
+  fieldView,
+  hardenInput,
+  parseFormBody,
+  submitForm,
+} from '@nestvexa/forms';
+import type { FormErrors, SchemaAdapter } from '@nestvexa/forms';
+import { validateLive } from '@nestvexa/forms/live';
+
+// Forms resolve without the optional Zod/class-validator peers installed.
+const packedLogin: SchemaAdapter<{ email: string }> = customAdapter(
+  (input, issues) => {
+    const email = typeof input['email'] === 'string' ? input['email'] : '';
+    if (!email.includes('@')) issues.issue('email', 'email', 'Enter an email.');
+    return { email };
+  },
+);
+assert.deepEqual(await packedLogin.validate({ email: 'x' }), {
+  ok: false,
+  errors: { email: ['Enter an email.'] },
+});
+assert.throws(
+  () => hardenInput(JSON.parse('{"__proto__":{"admin":true}}')),
+  FormInputError,
+);
+assert.deepEqual(parseFormBody({ 'items[0][name]': 'Lamp', _csrf: 'x' }), {
+  items: [{ name: 'Lamp' }],
+});
+const packedErrors: FormErrors = { email: ['Enter an email.'] };
+assert.equal(fieldView(packedErrors, 'email').ariaInvalid, 'true');
+assert.equal(errorSummary(packedErrors).count, 1);
+assert.equal(typeof submitForm, 'function');
+assert.equal(typeof validateLive, 'function');
 
 // Importing a browser entry in Node must not initialize a document or a global runtime.
 assert.equal(typeof createLiveClient, 'function');

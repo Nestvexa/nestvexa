@@ -1,0 +1,87 @@
+<section aria-labelledby="profile-heading">
+  <h2 id="profile-heading">Edit your profile</h2>
+  <p id="profile-status" role="status">{{status}}</p>
+  {{#if summary.hasErrors}}
+  <div
+    class="summary"
+    id="profile-summary"
+    role="group"
+    aria-labelledby="profile-summary-title"
+  >
+    <h3 id="profile-summary-title">{{summary.title}}</h3>
+    <ul>
+      {{#each summary.items}}
+      <li>
+        {{#if href}}<a href="{{href}}">{{label}}: {{message}}</a
+        >{{else}}{{message}}{{/if}}
+      </li>
+      {{/each}}
+    </ul>
+  </div>
+  {{/if}}
+  <form
+    id="profile-form"
+    method="post"
+    action="/profile"
+    nv:submit="save"
+    novalidate
+  >
+    <input type="hidden" name="_csrf" value="{{csrf}}" />
+    <input type="hidden" name="version" value="{{version}}" />
+
+    <label for="{{fields.displayName.id}}">Display name</label>
+    <input
+      id="{{fields.displayName.id}}"
+      name="displayName"
+      value="{{displayName}}"
+      autocomplete="name"
+      maxlength="60"
+      nv:model.blur="displayName"
+      aria-invalid="{{fields.displayName.ariaInvalid}}"
+      aria-describedby="{{fields.displayName.errorId}}"
+    />
+    <p class="error" id="{{fields.displayName.errorId}}" role="alert">
+      {{fields.displayName.message}}
+    </p>
+
+    <label for="{{fields.email.id}}">Email</label>
+    <input
+      id="{{fields.email.id}}"
+      name="email"
+      type="email"
+      value="{{email}}"
+      autocomplete="email"
+      maxlength="254"
+      nv:model.blur="email"
+      aria-invalid="{{fields.email.ariaInvalid}}"
+      aria-describedby="{{fields.email.errorId}}"
+    />
+    <p class="error" id="{{fields.email.errorId}}" role="alert">
+      {{fields.email.message}}
+    </p>
+
+    <label for="{{fields.bio.id}}">Bio</label>
+    <textarea
+      id="{{fields.bio.id}}"
+      name="bio"
+      rows="4"
+      maxlength="280"
+      nv:model.blur="bio"
+      aria-invalid="{{fields.bio.ariaInvalid}}"
+      aria-describedby="profile-bio-hint {{fields.bio.errorId}}"
+    >
+{{bio}}</textarea>
+    <p class="hint" id="profile-bio-hint">
+      Optional, up to 280 characters ({{bioRemaining}} left).
+    </p>
+    <p class="error" id="{{fields.bio.errorId}}" role="alert">
+      {{fields.bio.message}}
+    </p>
+
+    <!-- Only the save request disables the button: a blur synchronization
+         must not swallow the click that caused it. -->
+    <button type="submit" nv:loading.attr="disabled" nv:target="save">
+      Save profile
+    </button>
+  </form>
+</section>
