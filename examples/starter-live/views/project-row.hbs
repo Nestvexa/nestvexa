@@ -1,0 +1,27 @@
+<article aria-labelledby="project-name-{{projectId}}">
+  <span id="project-name-{{projectId}}">{{name}}</span>
+  —
+  <span id="project-status-{{projectId}}">{{status}}</span>
+  <button
+    type="button"
+    nv:click="toggleStar"
+    nv:optimistic.toggle="starred"
+    aria-label="Star {{name}}"
+  >
+    Star
+  </button>
+  <span
+    >Starred:
+    <output id="project-starred-{{projectId}}" nv:text="starred"
+      >{{starred}}</output
+    ></span
+  >
+  <button
+    type="button"
+    nv:click="remove"
+    nv:confirm="Delete {{name}}?"
+    aria-label="Delete {{name}}"
+  >
+    Delete
+  </button>
+</article>

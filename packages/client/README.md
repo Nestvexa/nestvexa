@@ -93,3 +93,11 @@ Render only trusted application templates. The client rejects active document ta
 See the [cookie-backed example](../../examples/live-counter/README.md), [protocol](../../docs/guides/live-protocol.md), [changelog](../../CHANGELOG.md). Run `pnpm test` / `pnpm test:e2e` at root. No maintainer/repository identity is invented while owner details remain pending.
 
 TypeScript emits documented declarations; esbuild creates one minified canonical ESM bundle with linked original-source maps. Private per-module JavaScript is used only by implementation tests and is excluded from published files and served assets. The 35KiB gzip budget measures the complete public custom runtime bundle. See [the build decision](../../docs/adr/0015-production-client-bundle.md). The estimate excludes Alpine and maps and is not observed HTTP transfer compression. Deployed map exposure remains a host policy.
+
+## Nested components and events
+
+Server-mounted child roots are independent components. Empty `data-nv-stub` roots keep the existing child DOM; `data-nv-refresh` roots replace it; unmatched stubs are rejected before any DOM change. Responses may carry bounded `events` (delivered to `@OnEvent` listener actions and as a window `nestvexa:event`) and an application-relative `redirect`. `client.dispatch(name, payload)` delivers browser events. Lazy roots (`data-nv-lazy`) load through `$sync`. See the [nested components guide](../../docs/guides/nested-components.md).
+
+## Navigation and optimistic updates
+
+`nv:navigate` links swap same-origin documents with full-load fallback ([reference](../../docs/reference/nv-navigate.md)); `client.navigate(url)` visits programmatically. `nv:optimistic.toggle|set|increment|decrement` projects display bindings until an action settles and emits `nestvexa:rollback` on failure ([reference](../../docs/reference/nv-optimistic.md)). Responses with `download` trigger a single-use attachment.

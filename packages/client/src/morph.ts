@@ -189,6 +189,60 @@ function pairChildren(
   }
   return pairs;
 }
+/** An explicitly refreshed child root replaces the retained one; others keep it. */
+function refreshesComponent(current: Element, incoming: Element): boolean {
+  return (
+    current.hasAttribute('data-nv-component') &&
+    incoming.hasAttribute('data-nv-component') &&
+    incoming.hasAttribute('data-nv-refresh') &&
+    !incoming.hasAttribute('data-nv-stub')
+  );
+}
+function stubId(node: Node): string | undefined {
+  if (node.nodeType !== 1) return undefined;
+  const element = node as Element;
+  if (!element.hasAttribute('data-nv-stub')) return undefined;
+  return element.getAttribute('data-nv-component') ?? undefined;
+}
+/** Existing nested component roots by identity, for stubs whose position moved. */
+function componentRoots(
+  parent: Element | DocumentFragment,
+): Map<string, Element> {
+  const roots = new Map<string, Element>();
+  for (const element of parent.querySelectorAll('[data-nv-component]')) {
+    const id = element.getAttribute('data-nv-component');
+    if (id) roots.set(id, element);
+  }
+  return roots;
+}
+function validateStubs(
+  parent: Element | DocumentFragment,
+  incoming: Element | DocumentFragment,
+): void {
+  const roots = componentRoots(parent);
+  const seen = new Set<string>();
+  for (const stub of incoming.querySelectorAll('[data-nv-stub]')) {
+    const id = stub.getAttribute('data-nv-component');
+    if (!id || stub.childNodes.length || seen.has(id) || !roots.has(id))
+      throw new LiveClientError(
+        'RESPONSE',
+        'A retained child component is missing or duplicated; reload the page',
+      );
+    seen.add(id);
+  }
+}
+/** Replace stubs inside a cloned subtree with the retained roots they name. */
+function graftStubs(node: Node, roots: ReadonlyMap<string, Element>): Node {
+  const own = roots.get(stubId(node) ?? '');
+  if (own) return own;
+  if (node.nodeType !== 1 && node.nodeType !== 11) return node;
+  const container = node as Element | DocumentFragment;
+  for (const stub of [...container.querySelectorAll('[data-nv-stub]')]) {
+    const retained = roots.get(stub.getAttribute('data-nv-component') ?? '');
+    if (retained) stub.replaceWith(retained);
+  }
+  return node;
+}
 function changesOwner(current: Element, incoming: Element): boolean {
   return (
     !boundary(current) &&
@@ -242,6 +296,7 @@ export function prepareMorph(
 ): Element | DocumentFragment {
   validateKeys(parent, 'existing');
   validateKeys(incoming, 'incoming');
+  validateStubs(parent, incoming);
   if (
     !parent.querySelector('[nv\\:ignore\\.self]') &&
     !incoming.querySelector('[nv\\:ignore\\.self]')
@@ -300,11 +355,18 @@ export function morphChildren(
 ): void {
   const projected = prepareMorph(parent, incoming);
   const controls = createControlMorph(parent, projected, dirty);
-  patchChildren(parent, projected, dirty, lifecycle, controls);
+  patchChildren(
+    parent,
+    projected,
+    dirty,
+    lifecycle,
+    controls,
+    componentRoots(parent),
+  );
   controls.restore();
 }
-function remove(node: Node, lifecycle: MorphLifecycle): void {
-  if (!node.parentNode) return;
+function remove(node: Node, lifecycle: MorphLifecycle, parent?: Node): void {
+  if (!node.parentNode || (parent && node.parentNode !== parent)) return;
   lifecycle.beforeRemove?.(node);
   node.parentNode?.removeChild(node);
 }
@@ -332,6 +394,7 @@ function patchChildren(
   dirty: ReadonlyMap<string, unknown>,
   lifecycle: MorphLifecycle,
   controls: ControlMorph,
+  roots: ReadonlyMap<string, Element>,
 ): void {
   const originals = [...parent.childNodes];
   const retained = new Set<Node>();
@@ -346,9 +409,11 @@ function patchChildren(
       if (
         element &&
         incomingElement &&
-        changesOwner(element, incomingElement)
+        (changesOwner(element, incomingElement) ||
+          refreshesComponent(element, incomingElement))
       ) {
-        current = next.cloneNode(true);
+        // Graft retained grandchildren before releasing the replaced subtree.
+        current = graftStubs(next.cloneNode(true), roots);
         lifecycle.beforeRemove?.(candidate);
         parent.replaceChild(current, candidate);
         if (candidate !== cursor) parent.insertBefore(current, cursor);
@@ -356,23 +421,30 @@ function patchChildren(
       } else {
         current = candidate;
         if (current !== cursor) parent.insertBefore(current, cursor);
-        morphNode(current, next, dirty, lifecycle, controls);
+        morphNode(current, next, dirty, lifecycle, controls, roots);
       }
-    } else if (candidate && !retained.has(candidate)) {
-      const insertionPoint =
-        candidate === cursor ? candidate.nextSibling : cursor;
-      remove(candidate, lifecycle);
-      current = next.cloneNode(true);
-      insert(parent, current, insertionPoint, lifecycle);
     } else {
-      current = next.cloneNode(true);
-      insert(parent, current, cursor, lifecycle);
+      const moved = roots.get(stubId(next) ?? '');
+      if (candidate && !retained.has(candidate)) {
+        const insertionPoint =
+          candidate === cursor ? candidate.nextSibling : cursor;
+        remove(candidate, lifecycle, parent);
+        cursor = insertionPoint;
+      }
+      if (moved) {
+        // A retained child changed position: move the same root, never a stub.
+        current = moved;
+        parent.insertBefore(current, cursor);
+      } else {
+        current = graftStubs(next.cloneNode(true), roots);
+        insert(parent, current, cursor, lifecycle);
+      }
     }
     retained.add(current);
     cursor = current.nextSibling;
   }
   for (const node of originals)
-    if (!retained.has(node)) remove(node, lifecycle);
+    if (!retained.has(node)) remove(node, lifecycle, parent);
 }
 function morphNode(
   current: Node,
@@ -380,6 +452,7 @@ function morphNode(
   dirty: ReadonlyMap<string, unknown>,
   lifecycle: MorphLifecycle,
   controls: ControlMorph,
+  roots: ReadonlyMap<string, Element>,
 ): void {
   if (current.nodeType !== 1 || next.nodeType !== 1) {
     if (current.nodeValue !== next.nodeValue)
@@ -405,5 +478,5 @@ function morphNode(
   if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') return;
   if ('isContentEditable' in element && element.isContentEditable === true)
     return;
-  patchChildren(element, replacement, dirty, lifecycle, controls);
+  patchChildren(element, replacement, dirty, lifecycle, controls, roots);
 }

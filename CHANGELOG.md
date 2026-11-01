@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased: navigation, optimistic UI, downloads, flash, pagination and typed state
+
+Added `nv:navigate` (same-origin document swaps with full-load fallback,
+history/scroll/focus handling, hover prefetch and unsaved-edit confirmation) and
+`nv:optimistic` (data-literal projections with rollback events). Actions can
+create single-use identity-bound downloads (`downloadLive`) and session flash
+messages (`flashLive`/`consumeLiveFlash`). Added the pure `paginate` helper and
+`DateSynthesizer`/`BigIntSynthesizer` typed state. The starter gained a full
+`/projects` CRUD board used as the Phase 4 browser gate.
+
+## Unreleased: nested components, events, lazy loading and redirects
+
+Parents mount keyed children through an explicit `children` allowlist and the
+trusted `nvChild` helper. `@Prop`, `@Reactive` and `@Modelable` define
+parent-owned values; unchanged children are retained as stubs, changed reactive
+values refresh only that child (`data-nv-refresh`), removed children are revoked.
+Actions dispatch browser-routed events to `@OnEvent` listener actions, which
+validate payloads as ordinary input. Lazy components render a placeholder and
+load through `$sync`. `redirectLive` accepts application-relative paths only.
+The custom client gzip budget is revised from 35 KiB to 48 KiB (ADR 0020).
+
 ## Unreleased: renderless actions
 
 Added opt-in `@Action({ renderless: true })`. With the exact `renderless-v1`

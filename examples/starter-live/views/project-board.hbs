@@ -1,0 +1,91 @@
+<section aria-labelledby="projects-heading">
+  <h1 id="projects-heading">Projects</h1>
+  {{nvChild "toast" "toast"}}
+  <form method="get" action="/projects" role="search" nv:submit="search">
+    <label for="project-search">Search projects</label>
+    <input
+      id="project-search"
+      name="q"
+      value="{{query}}"
+      maxlength="40"
+      nv:model.live.debounce.250ms="query"
+    />
+    <button type="submit">Search</button>
+  </form>
+  <p>
+    Sort:
+    <button type="button" nv:click="sortByName">By name</button>
+    <button type="button" nv:click="sortByStatus">By status</button>
+    <span id="project-sort">{{sort}}</span>
+  </p>
+  <p id="project-summary">
+    Showing {{pagination.from}}–{{pagination.to}} of {{pagination.total}}
+    projects, page {{pagination.page}} of {{pagination.pages}}
+  </p>
+  <ul
+    id="project-list"
+    aria-label="Projects"
+    aria-describedby="project-summary"
+  >
+    {{#each rows}}
+    <li>{{nvChild "row" id projectId=id name=name status=status}}</li>
+    {{else}}
+    <li id="project-empty">No projects match this search.</li>
+    {{/each}}
+  </ul>
+  <nav aria-label="Project pages">
+    <ul id="project-pages">
+      {{#each pageLinks}} {{#if gap}}
+      <li><span aria-hidden="true">…</span></li>
+      {{else if current}}
+      <li>
+        <a href="{{href}}" aria-current="page" nv:navigate>Page {{label}}</a>
+      </li>
+      {{else}}
+      <li><a href="{{href}}" nv:navigate.hover>Page {{label}}</a></li>
+      {{/if}} {{/each}}
+    </ul>
+  </nav>
+  <form id="project-create" nv:submit="create" novalidate>
+    <h2>New project</h2>
+    <label for="project-name">Project name</label>
+    {{#if errors.name}}
+    <input
+      id="project-name"
+      name="draftName"
+      value="{{draftName}}"
+      maxlength="80"
+      aria-invalid="true"
+      aria-describedby="project-name-error"
+      nv:model="draftName"
+    />
+    <p id="project-name-error" role="alert">{{errors.name}}</p>
+    {{else}}
+    <input
+      id="project-name"
+      name="draftName"
+      value="{{draftName}}"
+      maxlength="80"
+      nv:model="draftName"
+    />
+    {{/if}}
+    <label for="project-status">Status</label>
+    <select id="project-status" name="draftStatus" nv:model="draftStatus">
+      <option value="planned">planned</option>
+      <option value="active">active</option>
+      <option value="done">done</option>
+    </select>
+    <button type="submit" nv:loading.attr="disabled">Create project</button>
+  </form>
+  <p>
+    <button type="button" nv:click="exportCsv">Export CSV</button>
+    <button
+      type="button"
+      nv:click="archiveDone"
+      nv:confirm="Archive every completed project?"
+    >
+      Archive completed
+    </button>
+  </p>
+  <p>Last change: <time id="project-updated">{{updatedLabel}}</time></p>
+</section>

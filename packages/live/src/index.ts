@@ -29,6 +29,11 @@ export {
   Computed,
   Action,
   ActionInput,
+  Prop,
+  Reactive,
+  Modelable,
+  OnEvent,
+  type PropMode,
   type ComponentOptions,
   type StateOptions,
   type ActionOptions,
@@ -42,7 +47,28 @@ export {
   type LiveRequest,
 } from './protocol.js';
 export {
+  dispatchLiveEvent,
+  redirectLive,
+  downloadLive,
+  flashLive,
+  consumeLiveFlash,
+  type LiveEvent,
+  type DispatchOptions,
+  type DownloadOptions,
+} from './effects.js';
+export {
+  DateSynthesizer,
+  BigIntSynthesizer,
+  type StateSynthesizer,
+} from './synthesizers.js';
+export {
+  paginate,
+  type Pagination,
+  type PaginateOptions,
+} from './pagination.js';
+export {
   MemoryLiveStore,
+  type ChildReference,
   type StateSnapshot,
   type LiveTransactionResult,
 } from './store.js';

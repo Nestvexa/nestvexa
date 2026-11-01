@@ -33,6 +33,8 @@ import {
 } from './presentation.js';
 import { applyUrlEffects } from './url-state.js';
 import { cloneActionInput } from './action-input.js';
+import { createNavigationController } from './navigation.js';
+import { parseOptimisticDirective, projectOptimistic } from './optimistic.js';
 import type { LiveActionInput } from './action-input.js';
 export type { LiveActionInput } from './action-input.js';
 import { createInitializationScheduler } from './initialization.js';
@@ -71,9 +73,11 @@ export type { EventDirective } from './events.js';
 import {
   LiveClientError,
   parseDirective,
+  parseEventName,
   parseIdentifier,
   parseLiveResponse,
 } from './protocol.js';
+import type { LiveEvent } from './protocol.js';
 export {
   LiveClientError,
   parseDirective,
@@ -82,6 +86,7 @@ export {
 } from './protocol.js';
 export type {
   LiveDirective,
+  LiveEvent,
   LiveResponse,
   ReplacementDirective,
 } from './protocol.js';
@@ -125,6 +130,13 @@ export interface LiveClient {
   /** Start an explicitly requested read-only text stream; no automatic retry. */
   startStream(target: Element): Promise<StreamResult>;
   cancelStream(target: Element): void;
+  /**
+   * Deliver a browser event to components whose `@OnEvent` listeners match.
+   * Listener actions validate and authorize the payload on the server.
+   */
+  dispatch(name: string, payload?: unknown): void;
+  /** Visit a same-origin path with `nv:navigate` semantics (full-load fallback). */
+  navigate(url: string): Promise<void>;
 }
 type Field = ModelValue;
 const componentOwners = new WeakMap<Element, symbol>();
@@ -158,6 +170,56 @@ interface Component {
   request: AbortController | null;
   failure: Error | null;
   initialized: boolean;
+  /** Event name → listening action ids declared by the server. */
+  readonly listeners: ReadonlyMap<string, readonly string[]>;
+  /** Local optimistic projections shown until the server acknowledges. */
+  readonly optimistic: Map<string, { value: unknown; token: symbol }>;
+  /** Parent model binding for a @Modelable child. */
+  readonly model?:
+    { readonly parent: string; readonly child: string } | undefined;
+}
+function parseListeners(value: string | null): Map<string, readonly string[]> {
+  const listeners = new Map<string, readonly string[]>();
+  if (value === null) return listeners;
+  if (value.length > 8192)
+    throw new LiveClientError('MARKER', 'Oversized Live listener marker');
+  const parsed: unknown = JSON.parse(value);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+    throw new LiveClientError('MARKER', 'Invalid Live listener marker');
+  for (const [name, actions] of Object.entries(parsed)) {
+    parseEventName(name);
+    if (
+      !Array.isArray(actions) ||
+      !actions.length ||
+      actions.length > 16 ||
+      actions.some((action) => typeof action !== 'string')
+    )
+      throw new LiveClientError('MARKER', 'Invalid Live listener marker');
+    listeners.set(
+      name,
+      Object.freeze(actions.map((action: string) => parseIdentifier(action))),
+    );
+  }
+  return listeners;
+}
+function parseModelMarker(
+  value: string | null,
+): { readonly parent: string; readonly child: string } | undefined {
+  if (value === null) return undefined;
+  const parsed: unknown = JSON.parse(value);
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    Array.isArray(parsed) ||
+    Object.keys(parsed).length !== 2 ||
+    typeof Reflect.get(parsed, 'parent') !== 'string' ||
+    typeof Reflect.get(parsed, 'child') !== 'string'
+  )
+    throw new LiveClientError('MARKER', 'Invalid Live model marker');
+  return Object.freeze({
+    parent: parseIdentifier(String(Reflect.get(parsed, 'parent'))),
+    child: parseIdentifier(String(Reflect.get(parsed, 'child'))),
+  });
 }
 function owner(element: Element): Element | null {
   return element.closest('[data-nv-component]');
@@ -233,6 +295,18 @@ function validateDirectives(
           );
         if (directive.kind === 'submit' && element.tagName !== 'FORM')
           throw new LiveClientError('DIRECTIVE', 'nv:submit requires a form');
+        if (
+          directive.kind === 'optimistic' &&
+          ![...element.attributes].some((item) =>
+            /^nv:(?:click|submit|keydown)(?:.|$)/.test(item.name),
+          )
+        )
+          throw new LiveClientError(
+            'DIRECTIVE',
+            'nv:optimistic requires a same-element action binding',
+          );
+        if (directive.kind === 'navigate' && element.tagName !== 'A')
+          throw new LiveClientError('DIRECTIVE', 'nv:navigate requires a link');
       }
   }
 }
@@ -381,6 +455,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   let loading = createLoadingController(focus);
   let background: ReturnType<typeof createObserverController> | undefined;
   let sorting: ReturnType<typeof createSortController> | undefined;
+  let lazyObserver: IntersectionObserver | undefined;
+  let navigation: ReturnType<typeof createNavigationController> | undefined;
   let streaming: ReturnType<typeof createStreamController> | undefined;
   const streams = copyStreamEndpoints(options.streams ?? Object.freeze({}));
   let presentation: ReturnType<typeof createPresentationController> | undefined;
@@ -388,7 +464,16 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     ReturnType<typeof createInitializationScheduler> | undefined;
   const reportedBackground = new WeakSet<object>();
   let urlHistory = false;
-  const restoreUrl = (): void => {
+  const restoreUrl = (event: PopStateEvent): void => {
+    // Navigation entries are revisited by the navigation controller instead.
+    const entry: unknown = event.state;
+    if (
+      navigation &&
+      entry &&
+      typeof entry === 'object' &&
+      Reflect.get(entry, 'nestvexaNavigate') === true
+    )
+      return;
     // Historical snapshots are not replayed: revisit the host route and hydrate
     // authoritative URL state under its normal guards and identity resolver.
     if (mounted && urlHistory) window.location.reload();
@@ -710,6 +795,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         contains(element) &&
         !components.has(element) &&
         !rejected.has(element) &&
+        !element.hasAttribute('data-nv-stub') &&
         !element.closest('[data-nv-island]')
       ) {
         try {
@@ -795,11 +881,36 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
             request: null,
             failure: null,
             initialized: false,
+            listeners: parseListeners(
+              element.getAttribute('data-nv-listeners'),
+            ),
+            optimistic: new Map(),
+            ...(element.hasAttribute('data-nv-model')
+              ? {
+                  model: parseModelMarker(
+                    element.getAttribute('data-nv-model'),
+                  ),
+                }
+              : {}),
           };
+          const lazyTiming = element.getAttribute('data-nv-lazy');
+          if (lazyTiming !== null && !['load', 'visible'].includes(lazyTiming))
+            throw new LiveClientError('MARKER', 'Invalid Live lazy marker');
           refreshBindings(state);
           components.set(element, state);
           componentOwners.set(element, ownership);
           busy(state);
+          if (lazyTiming === 'visible' && window.IntersectionObserver) {
+            lazyObserver ??= new window.IntersectionObserver((entries) => {
+              for (const entry of entries)
+                if (entry.isIntersecting) {
+                  lazyObserver?.unobserve(entry.target);
+                  const pending = components.get(entry.target);
+                  if (pending) loadLazy(pending);
+                }
+            });
+            lazyObserver.observe(element);
+          } else if (lazyTiming !== null) loadLazy(state);
         } catch (error) {
           rejected.add(element);
           report(error, element);
@@ -913,6 +1024,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     queuedAt?: number,
     input: LiveActionInput = null,
     allowRenderless = true,
+    /** Render even without dirty fields (lazy first render). */
+    force = false,
   ): Promise<void> {
     flushResets();
     if (!usable(state)) return;
@@ -931,7 +1044,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         ? state.dirty.get(field)?.value
         : state.values[field],
     );
-    if (action === '_sync' && !hasChanges(state)) return;
+    if (action === '_sync' && !force && !hasChanges(state)) return;
     const sent = new Map(state.dirty);
     const updates: Record<string, Field> = Object.create(null) as Record<
       string,
@@ -1191,6 +1304,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       if (interruptedBeforeCommit) throw interruptedBeforeCommit;
       state.snapshot = result.snapshot;
       state.revision = result.component.revision;
+      const previousValues = state.values;
       state.values = result.state;
       refreshBindings(state);
       if (retainedScroll) {
@@ -1220,6 +1334,22 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           detail: { requestId, revision: state.revision },
         }),
       );
+      propagateModel(state, previousValues);
+      if (result.events?.length) deliverEvents(result.events, state);
+      if (result.download) {
+        const anchor = doc.createElement('a');
+        anchor.href = result.download.url;
+        anchor.download = result.download.filename;
+        anchor.rel = 'noopener';
+        anchor.hidden = true;
+        doc.body.append(anchor);
+        anchor.click();
+        anchor.remove();
+      }
+      if (result.redirect !== undefined) {
+        if (navigation) void navigation.visit(result.redirect);
+        else window.location.assign(result.redirect);
+      }
     } catch (error) {
       if (!usable(state)) return;
       failed = true;
@@ -1275,6 +1405,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     submit: boolean,
     input: LiveActionInput = null,
     allowRenderless = true,
+    force = false,
   ): Promise<void> {
     const failure = failureFor(state);
     if (failure) return Promise.reject(failure);
@@ -1304,7 +1435,9 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       ? window.performance.now()
       : undefined;
     const task = state.queue
-      .then(() => invoke(state, action, queuedAt, input, allowRenderless))
+      .then(() =>
+        invoke(state, action, queuedAt, input, allowRenderless, force),
+      )
       .finally(() => {
         state.pending--;
         const count = (state.pendingActions.get(targetAction) ?? 1) - 1;
@@ -1498,12 +1631,66 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         .sort(),
     );
   }
+  /** Apply declared nv:optimistic projections; returns the settle callback. */
+  function applyOptimistic(
+    state: Component,
+    element: Element,
+    action: string,
+  ): (succeeded: boolean) => void {
+    const directives = [...element.attributes]
+      .filter((attribute) => attribute.name.startsWith('nv:optimistic.'))
+      .map((attribute) =>
+        parseOptimisticDirective(attribute.name, attribute.value),
+      );
+    if (!directives.length) return () => undefined;
+    const token = Symbol('optimistic');
+    const read = (field: string): unknown =>
+      state.optimistic.has(field)
+        ? state.optimistic.get(field)?.value
+        : state.dirty.has(field)
+          ? state.dirty.get(field)?.value
+          : state.values[field];
+    const projected = new Map<string, unknown>();
+    for (const directive of directives) {
+      if (!Object.hasOwn(state.values, directive.field))
+        throw new LiveClientError('DIRECTIVE', 'Unknown optimistic field');
+      projected.set(
+        directive.field,
+        projectOptimistic(directive, read(directive.field)),
+      );
+    }
+    for (const [field, value] of projected)
+      state.optimistic.set(field, { value, token });
+    refreshBindings(state);
+    return (succeeded) => {
+      const fields: string[] = [];
+      for (const [field, entry] of state.optimistic)
+        if (entry.token === token) {
+          state.optimistic.delete(field);
+          fields.push(field);
+        }
+      if (!fields.length) return;
+      if (components.get(state.root) === state) refreshBindings(state);
+      if (!succeeded)
+        state.root.dispatchEvent(
+          new window.CustomEvent('nestvexa:rollback', {
+            bubbles: true,
+            detail: Object.freeze({ action, fields: Object.freeze(fields) }),
+          }),
+        );
+    };
+  }
   function invokeEvent(element: Element, action: string): Promise<void> {
     const state = componentFor(element);
-    const invoke = () =>
-      schedule(state, action, element.tagName === 'FORM').catch(
-        () => undefined,
+    const invoke = () => {
+      if (element.tagName === 'FORM' && state.submitting)
+        return Promise.resolve();
+      const settle = applyOptimistic(state, element, action);
+      return schedule(state, action, element.tagName === 'FORM').then(
+        () => settle(true),
+        () => settle(false),
       );
+    };
     const declarations = [...element.attributes].filter((attribute) =>
       /^nv:confirm(?:\.|$)/.test(attribute.name),
     );
@@ -1531,6 +1718,85 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         if (approved && current()) return invoke();
       });
   }
+  function loadLazy(state: Component): void {
+    void schedule(state, '_sync', false, null, false, true).then(
+      () => {
+        if (components.get(state.root) === state)
+          state.root.removeAttribute('data-nv-lazy');
+      },
+      () => undefined,
+    );
+  }
+  function deliverEvents(
+    events: readonly LiveEvent[],
+    source: Component | undefined,
+  ): void {
+    for (const event of events) {
+      window.dispatchEvent(
+        new window.CustomEvent('nestvexa:event', {
+          detail: Object.freeze({
+            name: event.name,
+            payload: structuredClone(event.payload),
+            source: source?.name ?? null,
+          }),
+        }),
+      );
+      let delivered = 0;
+      for (const target of [...components.values()]) {
+        if (!usable(target) || failureFor(target)) continue;
+        if (event.self === true && target !== source) continue;
+        if (event.to !== undefined && target.name !== event.to) continue;
+        for (const action of target.listeners.get(event.name) ?? []) {
+          if (++delivered > 64) {
+            report(
+              new LiveClientError(
+                'DIRECTIVE',
+                'Live event delivery exceeded 64 listener actions',
+              ),
+              target.root,
+            );
+            return;
+          }
+          const input =
+            event.payload === null ? null : cloneActionInput(event.payload);
+          void schedule(target, action, false, input).catch(() => undefined);
+        }
+      }
+    }
+  }
+  function propagateModel(
+    state: Component,
+    previous: Readonly<Record<string, unknown>>,
+  ): void {
+    if (!state.model) return;
+    const { parent: field, child } = state.model;
+    const value = state.values[child];
+    if (JSON.stringify(previous[child]) === JSON.stringify(value)) return;
+    const parentState = state.root.parentElement
+      ? registeredScope(state.root.parentElement)
+      : undefined;
+    if (!parentState || !Object.hasOwn(parentState.values, field)) return;
+    const scalar = (item: unknown): boolean =>
+      typeof item === 'string' ||
+      typeof item === 'boolean' ||
+      (typeof item === 'number' && Number.isFinite(item));
+    if (!scalar(value) && !(Array.isArray(value) && value.every(scalar))) {
+      report(
+        new LiveClientError(
+          'DIRECTIVE',
+          'Modelable values must be primitives or primitive arrays',
+        ),
+        state.root,
+      );
+      return;
+    }
+    parentState.dirty.set(field, {
+      value: structuredClone(value) as Field,
+      version: ++parentState.fieldVersion,
+    });
+    refreshBindings(parentState);
+    void schedule(parentState, '_sync', false).catch(() => undefined);
+  }
   function refreshBindings(state: Component): void {
     const differs = (field: string): boolean =>
       [...state.invalid.values()].includes(field) ||
@@ -1540,10 +1806,15 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       state.dirty.has(field)
         ? state.dirty.get(field)?.value
         : state.values[field];
+    // Optimistic projections affect display bindings only, never sent drafts.
+    const display = (field: string): unknown =>
+      state.optimistic.has(field)
+        ? state.optimistic.get(field)?.value
+        : read(field);
     const selections = modelSelections(state.root, read, state.invalid);
     applyBindings(
       state.root,
-      read,
+      display,
       (field) =>
         field === undefined
           ? [...state.dirty.keys()].some(differs)
@@ -1580,6 +1851,26 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     },
     cancelStream(target: Element): void {
       streaming?.cancel(target);
+    },
+    navigate(url: string): Promise<void> {
+      if (!navigation)
+        return Promise.reject(
+          new LiveClientError('DIRECTIVE', 'Live client is not mounted'),
+        );
+      return navigation.visit(url);
+    },
+    dispatch(name: string, payload: unknown = null): void {
+      if (!mounted)
+        throw new LiveClientError('DIRECTIVE', 'Live client is not mounted');
+      deliverEvents(
+        [
+          {
+            name: parseEventName(name),
+            payload: payload === null ? null : cloneActionInput(payload),
+          },
+        ],
+        undefined,
+      );
     },
     call(element: Element, action: string, input?: unknown): Promise<void> {
       try {
@@ -1754,6 +2045,21 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       });
       generation++;
       initializations = 0;
+      if (root.nodeType === 9)
+        navigation = createNavigationController({
+          window,
+          fetch: transport,
+          hasUnsavedChanges: () =>
+            [...components.values()].some(
+              (state) => usable(state) && hasChanges(state),
+            ),
+          confirmLeave: (message) => window.confirm(message),
+          onError: (error) => report(error, null),
+          onNavigated: () => {
+            // A swapped document starts a fresh URL-state history scope.
+            urlHistory = false;
+          },
+        });
       dispatcher = createEventDispatcher({
         // The component queue reports transport errors once and suppresses released work.
         invoke: invokeEvent,
@@ -1803,6 +2109,10 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       resetTimer = undefined;
       observer?.disconnect();
       observer = null;
+      lazyObserver?.disconnect();
+      lazyObserver = undefined;
+      navigation?.dispose();
+      navigation = undefined;
       dispatcher?.dispose();
       dispatcher = undefined;
       direct.dispose();

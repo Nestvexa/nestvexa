@@ -1,9 +1,11 @@
 import {
   Controller,
+  Get,
   Header,
   Inject,
   Injectable,
   Module,
+  Param,
   Post,
   Req,
   Scope,
@@ -33,6 +35,7 @@ import type { LiveHostOptions } from './runtime.js';
 import { MemoryLiveStore } from './store.js';
 
 const ROUTE = Symbol('nv:route');
+const DOWNLOAD_ACTION = '$download';
 @Injectable()
 class LiveAdmissionGuard implements CanActivate {
   constructor(@Inject(LiveRuntime) private readonly runtime: LiveRuntime) {}
@@ -41,6 +44,8 @@ class LiveAdmissionGuard implements CanActivate {
       { component: ComponentDefinition; action: string } | undefined =
       Reflect.getMetadata(ROUTE, context.getHandler());
     if (!route) throw new Error('Missing live route contract');
+    // Component class guards still run; the token check happens in the handler.
+    if (route.action === DOWNLOAD_ACTION) return true;
     await this.runtime.admit(
       context.switchToHttp().getRequest<object>(),
       route.component,
@@ -101,6 +106,12 @@ function structure(options: {
     new Set(definitions.map((entry) => entry.name)).size !== definitions.length
   )
     throw new Error('Duplicate live component name');
+  for (const entry of definitions)
+    for (const [alias, type] of entry.children)
+      if (!components.includes(type))
+        throw new Error(
+          `Child ${entry.name}.${alias} must be registered in the same LiveModule components array`,
+        );
   return { endpoint, basePath, definitions };
 }
 
@@ -341,6 +352,47 @@ function generatedController(
     ROUTE,
     { component, action: INTERNAL_SYNC_ACTION },
     sync,
+  );
+  // Single-use attachments: the token is the capability, bound to the identity
+  // that ran the action. No admission guard: GET navigations carry no Origin/CSRF.
+  const downloadMethod = '__nestvexaDownload';
+  const download = function (
+    this: LiveController,
+    request: object,
+    token: unknown,
+  ) {
+    return this.runtime.download(request, component, token);
+  };
+  Object.defineProperty(LiveController.prototype, downloadMethod, {
+    value: download,
+  });
+  const downloadDescriptor = Object.getOwnPropertyDescriptor(
+    LiveController.prototype,
+    downloadMethod,
+  );
+  if (!downloadDescriptor)
+    throw new Error('Failed to define live download handler');
+  Req()(LiveController.prototype, downloadMethod, 0);
+  Param('token')(LiveController.prototype, downloadMethod, 1);
+  Get('_download/:token')(
+    LiveController.prototype,
+    downloadMethod,
+    downloadDescriptor,
+  );
+  for (const [name, value] of [
+    ['Cache-Control', 'no-store'],
+    ['X-Content-Type-Options', 'nosniff'],
+    ['Content-Security-Policy', "sandbox; default-src 'none'"],
+  ] as const)
+    Header(name, value)(
+      LiveController.prototype,
+      downloadMethod,
+      downloadDescriptor,
+    );
+  Reflect.defineMetadata(
+    ROUTE,
+    { component, action: DOWNLOAD_ACTION },
+    download,
   );
   return LiveController;
 }

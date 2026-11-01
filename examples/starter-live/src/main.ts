@@ -21,6 +21,7 @@ import {
   NestvexaModule,
   State,
   configureNestvexa,
+  consumeLiveFlash,
   createTextStreamResponse,
   parseTextStreamRequest,
 } from 'nestvexa';
@@ -31,6 +32,18 @@ import session from 'express-session';
 import { WorkBoard } from './work-board.js';
 import { StartupPanel, DeniedStartupPanel } from './startup-panel.js';
 import { ActivityPanel } from './activity-panel.js';
+import {
+  TeamBoard,
+  TeamMember,
+  TeamRolePicker,
+  TeamStats,
+} from './team-board.js';
+import {
+  ProjectBoard,
+  ProjectRow,
+  ProjectsModule,
+  ProjectToast,
+} from './projects.js';
 
 declare module 'express-session' {
   interface SessionData {
@@ -160,6 +173,35 @@ class Pages {
       secondary: await this.live.mount(Counter, request),
     };
   }
+  @Get('projects')
+  @Header('Cache-Control', 'no-store')
+  @Header(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+  )
+  @Render('projects')
+  async projects(@Req() request: SessionRequest) {
+    request.session.csrf ??= randomBytes(32).toString('base64url');
+    return {
+      title: 'Projects',
+      flash: consumeLiveFlash(request),
+      widget: await this.live.mount(ProjectBoard, request),
+    };
+  }
+  @Get('team')
+  @Header('Cache-Control', 'no-store')
+  @Header(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+  )
+  @Render('home')
+  async team(@Req() request: SessionRequest) {
+    request.session.csrf ??= randomBytes(32).toString('base64url');
+    return {
+      title: 'Team board',
+      widget: await this.live.mount(TeamBoard, request),
+    };
+  }
   @Get('about')
   @Render('about')
   about() {
@@ -275,7 +317,15 @@ document.addEventListener('click', async (event) => {
           StartupPanel,
           DeniedStartupPanel,
           ActivityPanel,
+          TeamBoard,
+          TeamMember,
+          TeamRolePicker,
+          TeamStats,
+          ProjectBoard,
+          ProjectRow,
+          ProjectToast,
         ],
+        imports: [ProjectsModule],
         useFactory: () => ({
           origin: `http://127.0.0.1:${port}`,
           resolveIdentity(request: object) {
@@ -300,6 +350,36 @@ document.addEventListener('click', async (event) => {
                 'reorder',
                 '$stream:summary',
               ].includes(action)) ||
+            (component === 'project-board' &&
+              [
+                '$mount',
+                '$sync',
+                'sortByName',
+                'sortByStatus',
+                'search',
+                'create',
+                'removed',
+                'exportCsv',
+                'archiveDone',
+              ].includes(action)) ||
+            (component === 'project-row' &&
+              ['$mount', 'toggleStar', 'remove'].includes(action)) ||
+            (component === 'project-toast' &&
+              ['$mount', 'show'].includes(action)) ||
+            (component === 'team-board' &&
+              [
+                '$mount',
+                '$sync',
+                'renameGrace',
+                'memberLeft',
+                'finish',
+              ].includes(action)) ||
+            (component === 'team-member' &&
+              ['$mount', 'thank', 'leave'].includes(action)) ||
+            (component === 'team-role-picker' &&
+              ['$mount', 'chooseEditor', 'chooseOwner'].includes(action)) ||
+            (component === 'team-stats' &&
+              ['$mount', '$sync'].includes(action)) ||
             (component === 'startup-panel' &&
               ['$mount', 'load', 'refresh'].includes(action)) ||
             (component === 'startup-denied' &&

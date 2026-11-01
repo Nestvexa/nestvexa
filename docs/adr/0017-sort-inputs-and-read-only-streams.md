@@ -64,8 +64,8 @@ incomplete/error status and resource-level policies. Native dragging supports
 vertical same-list movement; keyboard shortcuts and visible instructions are
 provided, with manual assistive-technology review still required.
 
-The bundled custom client grows but remains subject to the unchanged 35 KiB
-gzip budget, excluding Alpine. No renderer, cloud or broker dependency is added.
+The bundled custom client grows but remains subject to the hard
+gzip budget (35 KiB at that checkpoint; revised by ADR 0020), excluding Alpine. No renderer, cloud or broker dependency is added.
 Fresh component construction changes accidental same-request object reuse;
 applications must share ordinary providers instead of mutable component objects.
 The documented context/scope behavior is tested only on the supported Nest

@@ -19,6 +19,8 @@ import type { Type, PipeTransform } from '@nestjs/common';
 import { cloneState } from './protocol.js';
 import type { JsonValue } from './protocol.js';
 import { lifecycleHookNames } from './lifecycle.js';
+import { isSynthesizer } from './synthesizers.js';
+import type { StateSynthesizer } from './synthesizers.js';
 import { collectStateContext } from './state-context.js';
 import type { StateContextDefinition } from './state-context.js';
 
@@ -28,11 +30,28 @@ export const INTERNAL_SYNC_PATH = '_sync';
 export interface ComponentOptions {
   readonly name: string;
   readonly view: string;
+  /**
+   * Explicit child allowlist: template alias → registered component class.
+   * Templates mount children with the trusted `nvChild` helper; aliases never
+   * resolve arbitrary classes.
+   */
+  readonly children?: Readonly<Record<string, Type<object>>>;
+  /** Render a placeholder at mount and the component body on the first client refresh. */
+  readonly lazy?: boolean | 'visible';
+  /** Optional view rendered with public state while a lazy component waits. */
+  readonly placeholder?: string;
 }
+/** How a parent may initialize or update a child state field. */
+export type PropMode = 'mount' | 'reactive' | 'modelable';
 export interface StateOptions {
   readonly writable?: boolean;
   /** Pure validation before any component hook/action runs. False rejects without consuming state. */
   readonly validate?: (value: JsonValue) => boolean | Promise<boolean>;
+  /**
+   * Trusted typed conversion (for example `DateSynthesizer`). The field holds the
+   * typed value; snapshots, templates, validation and client updates use JSON.
+   */
+  readonly synthesizer?: StateSynthesizer;
 }
 export interface ActionOptions {
   readonly id?: string;
@@ -64,6 +83,12 @@ export interface ComponentDefinition {
   readonly type: Type<object>;
   readonly name: string;
   readonly view: string;
+  readonly children: ReadonlyMap<string, Type<object>>;
+  readonly lazy: false | 'load' | 'visible';
+  readonly placeholder?: string;
+  readonly props: ReadonlyMap<string, PropMode>;
+  /** Event name → listening action ids. */
+  readonly listeners: ReadonlyMap<string, readonly string[]>;
   readonly states: ReadonlyMap<string, StateOptions>;
   readonly computed: ReadonlyMap<string, ComputedDefinition>;
   readonly stateContext: StateContextDefinition;
@@ -84,6 +109,8 @@ const ACTIONS = Symbol('nv:actions');
 const INPUT = Symbol('nv:input');
 const ACTION_DECLARED = Symbol('nv:action-declared');
 const ACTION_RENDERLESS = Symbol('nv:action-renderless');
+const PROPS = Symbol('nv:props');
+const LISTENERS = Symbol('nv:listeners');
 const reservedMembers = new Set([
   ...lifecycleHookNames,
   ...Object.getOwnPropertyNames(Object.prototype),
@@ -171,8 +198,63 @@ export function LiveComponent(options: ComponentOptions): ClassDecorator {
     options.view.includes('\\')
   )
     throw new Error('Invalid component view');
+  if (
+    options.lazy !== undefined &&
+    options.lazy !== true &&
+    options.lazy !== false &&
+    options.lazy !== 'visible'
+  )
+    throw new Error('Component lazy must be a boolean or "visible"');
+  if (
+    options.placeholder !== undefined &&
+    (typeof options.placeholder !== 'string' ||
+      !options.placeholder ||
+      options.placeholder.includes('..') ||
+      options.placeholder.startsWith('/') ||
+      options.placeholder.includes('\\') ||
+      !options.lazy)
+  )
+    throw new Error('Component placeholder must be a view and requires lazy');
+  const children = new Map<string, Type<object>>();
+  if (options.children !== undefined) {
+    if (
+      !options.children ||
+      typeof options.children !== 'object' ||
+      Array.isArray(options.children)
+    )
+      throw new Error('Component children must be an alias map');
+    const entries = Object.entries(
+      Object.getOwnPropertyDescriptors(options.children),
+    );
+    if (entries.length > 64) throw new Error('At most 64 child aliases');
+    for (const [alias, descriptor] of entries) {
+      identifier(alias);
+      if (!('value' in descriptor) || typeof descriptor.value !== 'function')
+        throw new Error(
+          `Child alias ${alias} must reference a component class`,
+        );
+      children.set(alias, descriptor.value as Type<object>);
+    }
+  }
   return (target) => {
-    Reflect.defineMetadata(COMPONENT, Object.freeze({ ...options }), target);
+    Reflect.defineMetadata(
+      COMPONENT,
+      Object.freeze({
+        name: options.name,
+        view: options.view,
+        children,
+        lazy:
+          options.lazy === 'visible'
+            ? 'visible'
+            : options.lazy === true
+              ? 'load'
+              : false,
+        ...(options.placeholder === undefined
+          ? {}
+          : { placeholder: options.placeholder }),
+      }),
+      target,
+    );
   };
 }
 /** Public JSON state. Client writes require writable:true. Injected fields are never serialized. */
@@ -181,6 +263,10 @@ export function State(options: StateOptions = {}): PropertyDecorator {
     throw new Error('State validate must be a function');
   if (options.validate !== undefined && options.writable !== true)
     throw new Error('State validation requires writable:true');
+  if (options.synthesizer !== undefined && !isSynthesizer(options.synthesizer))
+    throw new Error(
+      'State synthesizer must provide name, dehydrate and hydrate',
+    );
   return (target, key) => {
     const name = property(key);
     const prior: Map<string, StateOptions> | undefined = Reflect.getMetadata(
@@ -195,6 +281,9 @@ export function State(options: StateOptions = {}): PropertyDecorator {
         ...(options.validate === undefined
           ? {}
           : { validate: options.validate }),
+        ...(options.synthesizer === undefined
+          ? {}
+          : { synthesizer: options.synthesizer }),
       }),
     );
     Reflect.defineMetadata(STATES, states, target);
@@ -203,6 +292,62 @@ export function State(options: StateOptions = {}): PropertyDecorator {
 /** Equivalent to read-only public state; it is not an authorization policy. */
 export function Locked(): PropertyDecorator {
   return State({ writable: false });
+}
+function prop(mode: PropMode): PropertyDecorator {
+  return (target, key) => {
+    const name = property(key);
+    const prior: Map<string, PropMode> | undefined = Reflect.getMetadata(
+      PROPS,
+      target,
+    );
+    if (prior?.has(name) && prior.get(name) !== mode)
+      throw new Error(`State ${name} has conflicting prop modes`);
+    const props = new Map(prior);
+    props.set(name, mode);
+    Reflect.defineMetadata(PROPS, props, target);
+  };
+}
+/** A parent may initialize this declared @State when it mounts the child. */
+export function Prop(): PropertyDecorator {
+  return prop('mount');
+}
+/**
+ * Parent-owned value: re-sent on every parent render and refreshes the child when
+ * it changes. Child actions must not change it (the response is rejected).
+ */
+export function Reactive(): PropertyDecorator {
+  return prop('reactive');
+}
+/**
+ * The single child field bound to a parent `model` field. Parent renders flow
+ * down; child changes are proposed back to the writable parent field by the client.
+ */
+export function Modelable(): PropertyDecorator {
+  return prop('modelable');
+}
+/**
+ * Route an event to this registered @Action. Payloads cross the browser and are
+ * untrusted: validate them with @ActionInput pipes and authorize the action.
+ */
+export function OnEvent(event: string): MethodDecorator {
+  if (typeof event !== 'string' || !/^[a-z][a-z0-9:.-]{0,63}$/.test(event))
+    throw new Error(
+      'Event names use lowercase letters, digits, ".", ":" and "-"',
+    );
+  return (target, key) => {
+    const method = property(key);
+    const prior: Map<string, string[]> | undefined = Reflect.getMetadata(
+      LISTENERS,
+      target,
+    );
+    const listeners = new Map<string, string[]>();
+    for (const [name, methods] of prior ?? [])
+      listeners.set(name, [...methods]);
+    const methods = listeners.get(event) ?? [];
+    if (!methods.includes(method)) methods.push(method);
+    listeners.set(event, methods);
+    Reflect.defineMetadata(LISTENERS, listeners, target);
+  };
 }
 /** A synchronous getter, or an explicit async:true zero-argument method, rendered as derived JSON. */
 export function Computed(options: ComputedOptions = {}): MethodDecorator {
@@ -362,10 +507,15 @@ export function ActionInput(
   };
 }
 export function definition(type: Type<object>): ComponentDefinition {
-  const options: ComponentOptions | undefined = Reflect.getMetadata(
-    COMPONENT,
-    type,
-  );
+  const options:
+    | {
+        readonly name: string;
+        readonly view: string;
+        readonly children?: ReadonlyMap<string, Type<object>>;
+        readonly lazy?: false | 'load' | 'visible';
+        readonly placeholder?: string;
+      }
+    | undefined = Reflect.getMetadata(COMPONENT, type);
   if (!options) throw new Error(`Missing @LiveComponent on ${type.name}`);
   for (const name of lifecycleHookNames) {
     const declaration = memberDeclaration(type.prototype, name);
@@ -459,9 +609,54 @@ export function definition(type: Type<object>): ComponentDefinition {
         );
   }
   const stateContext = collectStateContext(type, states);
+  const props: Map<string, PropMode> = new Map(
+    Reflect.getMetadata(PROPS, type.prototype),
+  );
+  for (const [field, entry] of states)
+    if (
+      entry.synthesizer &&
+      (stateContext.url.has(field) ||
+        stateContext.session.has(field) ||
+        props.has(field))
+    )
+      throw new Error(
+        `Synthesized state ${field} cannot also be @Url, @Session or a prop`,
+      );
+  for (const [field, mode] of props) {
+    if (!states.has(field))
+      throw new Error(`Prop ${field} must also be declared @State`);
+    if (mode === 'reactive' && states.get(field)?.writable)
+      throw new Error(`Reactive prop ${field} cannot be client-writable`);
+    if (stateContext.url.has(field) || stateContext.session.has(field))
+      throw new Error(`Prop ${field} cannot also use @Url or @Session`);
+  }
+  if ([...props.values()].filter((mode) => mode === 'modelable').length > 1)
+    throw new Error(`${type.name} declares more than one @Modelable field`);
+  const listenerMethods: Map<string, string[]> = new Map(
+    Reflect.getMetadata(LISTENERS, type.prototype),
+  );
+  const listeners = new Map<string, readonly string[]>();
+  for (const [event, names] of listenerMethods) {
+    const ids: string[] = [];
+    for (const method of names) {
+      const id = [...methods].find(([, name]) => name === method)?.[0];
+      if (id === undefined)
+        throw new Error(`${type.name}.${method} uses @OnEvent without @Action`);
+      ids.push(id);
+    }
+    listeners.set(event, Object.freeze(ids));
+  }
   return Object.freeze({
     type,
-    ...options,
+    name: options.name,
+    view: options.view,
+    children: options.children ?? new Map<string, Type<object>>(),
+    lazy: options.lazy ?? false,
+    ...(options.placeholder === undefined
+      ? {}
+      : { placeholder: options.placeholder }),
+    props,
+    listeners,
     states,
     computed,
     actions,

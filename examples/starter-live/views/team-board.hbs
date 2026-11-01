@@ -1,0 +1,14 @@
+<section aria-label="Team board">
+  <p>
+    Role: <output id="team-role">{{role}}</output>; departures:
+    <output id="team-departures">{{departures}}</output>
+  </p>
+  <ul id="team-members" aria-label="Team members">
+    {{#each members}}
+    <li>{{nvChild "member" id memberId=id name=name}}</li>
+    {{/each}}
+  </ul>
+  <button type="button" nv:click="renameGrace">Rename Grace</button>
+  {{nvChild "role" "role" model="role"}} {{nvChild "stats" "stats"}}
+  <button type="button" nv:click="finish">Finish and visit About</button>
+</section>

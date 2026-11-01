@@ -9,3 +9,5 @@ Nestvexa_Brand_Kit
 docs/implementation/feature-ledger.md
 docs/implementation/requirements.json
 docs/implementation/feature-ledger.json
+# Local agent tooling and isolated worktrees
+.claude

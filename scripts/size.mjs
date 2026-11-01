@@ -21,7 +21,8 @@ const report = {
   files,
   bytes: files.reduce((sum, file) => sum + file.bytes, 0),
   gzipBytes: files.reduce((sum, file) => sum + file.gzipBytes, 0),
-  gzipBudget: 35 * 1024,
+  // ADR 0020: revised from 35 KiB with measurements; still a hard gate.
+  gzipBudget: 48 * 1024,
   passed: false,
 };
 report.passed = report.gzipBytes <= report.gzipBudget;

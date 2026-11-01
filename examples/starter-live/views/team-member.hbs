@@ -1,0 +1,10 @@
+<article aria-label="Member {{name}}">
+  <h2 id="member-name-{{memberId}}">{{name}}</h2>
+  <label
+    >Private note for {{name}}
+    <input id="member-note-{{memberId}}" value="" maxlength="80"
+  /></label>
+  <p>Kudos: <output id="member-kudos-{{memberId}}">{{kudos}}</output></p>
+  <button type="button" nv:click="thank">Thank {{name}}</button>
+  <button type="button" nv:click="leave">{{name}} leaves</button>
+</article>

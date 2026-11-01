@@ -33,7 +33,7 @@ no identity labels or buffer, and isolated sink failures. The
 timing separation and failure/cancellation classification. A cleanup-triggered
 abort must not mislabel an invalid fragment as user cancellation. This additive
 alpha API changes neither wire format nor retry policy. The existing
-[per-module size checker](../../scripts/size.mjs) retains its 35KiB custom-client
+[per-module size checker](../../scripts/size.mjs) retains a hard custom-client (48 KiB since [ADR 0020](0020-client-budget-revision.md))
 gzip cap and explicit Alpine/maps exclusions. Server/OTel spans and comparative
 production measurements remain later work.
 

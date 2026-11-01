@@ -61,7 +61,10 @@ export function prepareComputed(
         throw new Error(
           `Computed dependency ${field} must be an initialized data field`,
         );
-      values[field] = descriptor.value;
+      const synthesizer = component.states.get(field)?.synthesizer;
+      values[field] = synthesizer
+        ? synthesizer.dehydrate(descriptor.value)
+        : descriptor.value;
     }
     // Distinguish signed zero without colliding with ordinary strings that resemble a marker.
     return JSON.stringify(cloneState(values), (_key, value: unknown) =>

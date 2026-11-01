@@ -12,6 +12,13 @@ import {
   type JsonValue,
 } from './protocol.js';
 
+/** Server-only reference to a keyed child mounted by a parent render. */
+export interface ChildReference {
+  readonly alias: string;
+  readonly name: string;
+  readonly id: string;
+  readonly token: string;
+}
 /** Detached immutable public state; binding never appears in a browser snapshot. */
 export interface StateSnapshot {
   readonly id: string;
@@ -20,6 +27,8 @@ export interface StateSnapshot {
   readonly state: Readonly<Record<string, JsonValue>>;
   readonly snapshot: string;
   readonly expiresAt: number;
+  /** Server-only child bookkeeping; never serialized into a browser response. */
+  readonly children?: Readonly<Record<string, ChildReference>>;
 }
 export interface LiveTransactionResult extends StateSnapshot {
   readonly html: string;
@@ -53,10 +62,30 @@ function bindingHash(binding: string): Buffer {
     unavailable();
   return createHash('sha256').update(binding).digest();
 }
+function frozenChildren(
+  children: Readonly<Record<string, ChildReference>> | undefined,
+): Readonly<Record<string, ChildReference>> | undefined {
+  if (children === undefined) return undefined;
+  const copy = Object.create(null) as Record<string, ChildReference>;
+  for (const [key, child] of Object.entries(children))
+    copy[key] = Object.freeze({
+      alias: child.alias,
+      name: child.name,
+      id: child.id,
+      token: child.token,
+    });
+  return Object.freeze(copy);
+}
 function frozenSnapshot(snapshot: StateSnapshot): StateSnapshot {
+  const children = frozenChildren(snapshot.children);
   return Object.freeze({
-    ...snapshot,
+    id: snapshot.id,
+    name: snapshot.name,
+    revision: snapshot.revision,
     state: freezeJson(cloneState(snapshot.state)),
+    snapshot: snapshot.snapshot,
+    expiresAt: snapshot.expiresAt,
+    ...(children === undefined ? {} : { children }),
   });
 }
 
@@ -129,6 +158,7 @@ export class MemoryLiveStore {
     component: string,
     binding: string,
     state: Record<string, JsonValue>,
+    children?: Readonly<Record<string, ChildReference>>,
   ): StateSnapshot {
     if (
       typeof component !== 'string' ||
@@ -166,6 +196,7 @@ export class MemoryLiveStore {
         500,
         'Live identity generator returned an invalid UUID',
       );
+    const references = frozenChildren(children);
     const snapshot: StateSnapshot = Object.freeze({
       id,
       name: component,
@@ -173,6 +204,7 @@ export class MemoryLiveStore {
       state: validated,
       snapshot: token,
       expiresAt: this.#time() + this.#ttlMs,
+      ...(references === undefined ? {} : { children: references }),
     });
     this.#entries.set(token, { snapshot, bindingHash: hashed, busy: false });
     return frozenSnapshot(snapshot);
@@ -186,9 +218,11 @@ export class MemoryLiveStore {
     token: string,
     binding: string,
     revision: number,
-    callback: (
-      snapshot: StateSnapshot,
-    ) => Promise<{ state: Record<string, JsonValue>; html: string }>,
+    callback: (snapshot: StateSnapshot) => Promise<{
+      state: Record<string, JsonValue>;
+      html: string;
+      children?: Readonly<Record<string, ChildReference>>;
+    }>,
   ): Promise<LiveTransactionResult> {
     const entry = this.#entry(token, binding);
     if (
@@ -236,10 +270,18 @@ export class MemoryLiveStore {
         entry.snapshot.expiresAt <= this.#time()
       )
         unavailable();
+      const references =
+        result.children === undefined
+          ? entry.snapshot.children
+          : frozenChildren(result.children);
       entry.snapshot = Object.freeze({
-        ...entry.snapshot,
+        id: entry.snapshot.id,
+        name: entry.snapshot.name,
+        snapshot: entry.snapshot.snapshot,
+        expiresAt: entry.snapshot.expiresAt,
         state,
         revision: revision + 1,
+        ...(references === undefined ? {} : { children: references }),
       });
       return Object.freeze({
         ...frozenSnapshot(entry.snapshot),

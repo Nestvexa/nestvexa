@@ -3,6 +3,8 @@ export interface LiveClientBridge {
   call(element: Element, action: string): Promise<void>;
   get(element: Element, name: string): unknown;
   set(element: Element, name: string, value: string | number | boolean): void;
+  /** Optional: deliver a browser event to `@OnEvent` listeners. */
+  dispatch?(name: string, payload?: unknown): void;
 }
 export interface AlpineMagicUtilities {
   cleanup(callback: () => void): void;
@@ -23,6 +25,8 @@ export interface LiveMagic {
   call(action: string): Promise<void>;
   get(name: string): unknown;
   set(name: string, value: string | number | boolean): void;
+  /** Deliver an event to listening components; payloads are validated server-side. */
+  dispatch(name: string, payload?: unknown): void;
 }
 
 const installed = new WeakMap<object, LiveClientBridge>();
@@ -108,6 +112,12 @@ export function installLiveAlpine(
         assertActive();
         client.set(element, name, value);
         signal.revision++;
+      },
+      dispatch(name: string, payload?: unknown): void {
+        assertActive();
+        if (typeof client.dispatch !== 'function')
+          throw new Error('This Live client does not support events');
+        client.dispatch(name, payload);
       },
     });
     component.addEventListener('nestvexa:updated', update);

@@ -48,7 +48,7 @@ throwing sinks, rejected HTTP, invalid fragments and disposal. Those tests are
 browser instrumentation tests, not server performance benchmarks.
 
 `pnpm size:check` measures the emitted custom client modules and checks the
-unchanged 35KiB sum-of-per-module gzip budget. The JSON report breaks down every
+48 KiB gzip budget ([ADR 0020](../adr/0020-client-budget-revision.md)). The JSON report breaks down every
 module and explicitly excludes Alpine, its adapter and source maps. It is not an
 observed compressed HTTP transfer size or the complete startup cost.
 
