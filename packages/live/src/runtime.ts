@@ -456,6 +456,9 @@ export class LiveRuntime implements OnApplicationShutdown {
         payload.input !== null
       )
         fail(400, 'UNEXPECTED_INPUT');
+      const renderless =
+        selected?.renderless === true &&
+        header(request, 'x-nestvexa-capabilities') === 'renderless-v1';
       const updates = await this.validatedUpdates(component, identity, payload);
       let url: readonly UrlStateEffect[] = [];
       let persist: (() => void) | undefined;
@@ -514,7 +517,13 @@ export class LiveRuntime implements OnApplicationShutdown {
                 await this.hook(instance, 'afterAction');
               }
               await this.hook(instance, 'dehydrate');
-              const captured = await this.render(instance, component);
+              const captured = renderless
+                ? {
+                    html: '',
+                    state: this.state(instance, component),
+                    url: urlStateEffects(instance, component.stateContext),
+                  }
+                : await this.render(instance, component);
               url = captured.url;
               persist = () =>
                 persistStateContext(
@@ -550,6 +559,7 @@ export class LiveRuntime implements OnApplicationShutdown {
         snapshot: result.snapshot,
         state: result.state,
         html: result.html,
+        ...(renderless ? { renderless: true } : {}),
         ...(url.length ? { url } : {}),
       };
     } catch (error) {

@@ -293,6 +293,7 @@ document.addEventListener('click', async (event) => {
                 '$mount',
                 '$sync',
                 'remember',
+                'like',
                 'refresh',
                 'appear',
                 'toggle',

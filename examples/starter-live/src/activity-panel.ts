@@ -63,6 +63,7 @@ export class ActivityPanel {
   remembered = 0;
 
   @State() refreshes = 0;
+  @State() likes = 0;
   @State() appearances = 0;
   @State() taskOrderSaved = false;
   @State({ writable: true }) panelVisible = true;
@@ -89,6 +90,11 @@ export class ActivityPanel {
       return task;
     });
     this.taskOrderSaved = true;
+  }
+
+  /** Acknowledged with state only; bound `nv:text` values update without an HTML morph. */
+  @Action({ renderless: true }) like(): void {
+    this.likes++;
   }
 
   @Action() remember(): void {

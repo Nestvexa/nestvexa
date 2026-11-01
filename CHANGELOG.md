@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased: renderless actions
+
+Added opt-in `@Action({ renderless: true })`. With the exact `renderless-v1`
+client capability the server returns post-dehydrate state, URL effects and the
+next snapshot without render hooks, computed values or template work; the
+browser refreshes bindings on the retained subtree without an HTML morph.
+Unknown capabilities, normal actions, `_sync` and stream refreshes keep full
+rendering. The complete security pipeline is unchanged.
+
 ## Unreleased: owned sorting, bounded action inputs and text streams
 
 Added `nv:sort` with keyboard/native-pointer proposals, exact item-set validation

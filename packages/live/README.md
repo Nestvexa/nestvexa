@@ -66,7 +66,7 @@ The host owns the supplied renderer lifecycle: initialize it before requests and
 
 ## Contracts and limits
 
-`@State({writable:true})` explicitly allows top-level JSON updates; default state is locked against client writes. `@Locked()` is an equivalent readable state declaration. `@Computed()` supports synchronous getters; `@Computed({async:true})` supports awaited zero-argument methods. `@Action({id?})` exposes only registered methods. A single argument may use `@ActionInput(...pipes)`; normal Nest parameter pipes perform transformation and validation. No arbitrary service or class selection is accepted.
+`@State({writable:true})` explicitly allows top-level JSON updates; default state is locked against client writes. `@Locked()` is an equivalent readable state declaration. `@Computed()` supports synchronous getters; `@Computed({async:true})` supports awaited zero-argument methods. `@Action({id?, renderless?})` exposes only registered methods; `renderless: true` acknowledges state without rendering when the client negotiates `renderless-v1` (see the [renderless guide](../../docs/guides/renderless-actions.md)). A single argument may use `@ActionInput(...pipes)`; normal Nest parameter pipes perform transformation and validation. No arbitrary service or class selection is accepted.
 
 Writable state can supply a pure `validate(value)` callback returning `boolean` or `Promise<boolean>`:
 

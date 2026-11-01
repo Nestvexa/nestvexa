@@ -205,6 +205,17 @@ export function applyBindings(
   focus: FocusController = createFocusController(),
   visibility?: (element: Element, shown: boolean, apply: () => void) => void,
 ): void {
+  prepareBindings(root, read, isDirty, focus, visibility)();
+}
+
+/** Validate local state effects without cloning or mutating a live subtree. */
+export function prepareBindings(
+  root: Element,
+  read: (field: string) => unknown,
+  isDirty: (field?: string) => boolean,
+  focus: FocusController = createFocusController(),
+  visibility?: (element: Element, shown: boolean, apply: () => void) => void,
+): () => void {
   const operations: Operation[] = [];
   const cloaked: Element[] = [];
   queryRefs(root);
@@ -249,36 +260,38 @@ export function applyBindings(
       operations.push({ element, binding, value });
     }
   }
-  for (const { element, binding, value } of operations) {
-    switch (binding.kind) {
-      case 'text':
-        element.textContent = String(value);
-        break;
-      case 'show':
-      case 'dirty': {
-        const shown = value === true;
-        if (!shown) focus.beforeHiding(root, element);
-        const apply = (): void => {
-          element.toggleAttribute('hidden', !shown);
-          element.setAttribute('aria-hidden', shown ? 'false' : 'true');
-        };
-        if (visibility) visibility(element, shown, apply);
-        else apply();
-        break;
+  return (): void => {
+    for (const { element, binding, value } of operations) {
+      switch (binding.kind) {
+        case 'text':
+          element.textContent = String(value);
+          break;
+        case 'show':
+        case 'dirty': {
+          const shown = value === true;
+          if (!shown) focus.beforeHiding(root, element);
+          const apply = (): void => {
+            element.toggleAttribute('hidden', !shown);
+            element.setAttribute('aria-hidden', shown ? 'false' : 'true');
+          };
+          if (visibility) visibility(element, shown, apply);
+          else apply();
+          break;
+        }
+        case 'bind':
+          if (
+            binding.attribute === 'disabled' ||
+            binding.attribute === 'readonly'
+          )
+            element.toggleAttribute(binding.attribute, value === true);
+          else if (value === null) element.removeAttribute(binding.attribute);
+          else element.setAttribute(binding.attribute, String(value));
+          break;
+        case 'cloak':
+        case 'ref':
+          break;
       }
-      case 'bind':
-        if (
-          binding.attribute === 'disabled' ||
-          binding.attribute === 'readonly'
-        )
-          element.toggleAttribute(binding.attribute, value === true);
-        else if (value === null) element.removeAttribute(binding.attribute);
-        else element.setAttribute(binding.attribute, String(value));
-        break;
-      case 'cloak':
-      case 'ref':
-        break;
     }
-  }
-  for (const element of cloaked) element.removeAttribute('nv:cloak');
+    for (const element of cloaked) element.removeAttribute('nv:cloak');
+  };
 }

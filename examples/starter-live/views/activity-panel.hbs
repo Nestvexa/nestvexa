@@ -21,6 +21,13 @@
   <a href="/activity" nv:current.exact="active" id="activity-link"
     >Activity preferences</a
   >
+  <p>
+    Likes:
+    <output id="activity-likes" nv:text="likes" aria-live="polite"
+      >{{likes}}</output
+    >
+    <button type="button" nv:click="like">Like activity</button>
+  </p>
   <button type="button" nv:click="toggle">Toggle activity detail</button>
   <p id="activity-sort-help">
     Drag a task handle, or focus it and use Alt with Up, Down, Home or End. The

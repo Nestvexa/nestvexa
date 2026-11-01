@@ -4,7 +4,7 @@ import {
   validateFragment,
   validateIgnore,
 } from './morph.js';
-import { applyBindings, queryRefs } from './bindings.js';
+import { applyBindings, prepareBindings, queryRefs } from './bindings.js';
 import {
   createConfirmationController,
   createEventDispatcher,
@@ -912,6 +912,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     action: string,
     queuedAt?: number,
     input: LiveActionInput = null,
+    allowRenderless = true,
   ): Promise<void> {
     flushResets();
     if (!usable(state)) return;
@@ -971,6 +972,9 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           headers: {
             'content-type': 'application/json',
             'x-nestvexa-csrf': state.csrf,
+            ...(allowRenderless
+              ? { 'x-nestvexa-capabilities': 'renderless-v1' }
+              : {}),
           },
           body,
         },
@@ -990,6 +994,11 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       if (interrupted) throw interrupted;
       morphAt = options.onDiagnostic ? window.performance.now() : undefined;
       const result = parseLiveResponse(payload);
+      if (result.renderless && !allowRenderless)
+        throw new LiveClientError(
+          'RESPONSE',
+          'This interaction requires server-rendered HTML',
+        );
       if (
         result.requestId !== requestId ||
         result.component.id !== state.id ||
@@ -1000,13 +1009,6 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           'RESPONSE',
           'Mismatched or stale Live response',
         );
-      const template = doc.createElement('template');
-      template.innerHTML = result.html;
-      validateFragment(template.content);
-      const incoming = prepareMorph(state.root, template.content);
-      const preview = state.root.cloneNode(false) as Element;
-      preview.append(incoming.cloneNode(true));
-      validateDirectives(preview, streams);
       const dirty = new Map<string, unknown>();
       for (const [key, field] of state.dirty)
         if (sent.get(key)?.version !== field.version)
@@ -1020,127 +1022,167 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
               state.dirty.get(model.field)?.value ?? state.values[model.field],
             );
         }
-      // A changed model shape/cast has no compatible array draft. Validate its
-      // authoritative response value rather than projecting the old scalar/cast.
-      const arrayCasts = new Map<string, string>();
-      for (const element of owned(state.root)) {
-        const model = getModelDirective(element);
-        if (
-          model &&
-          element.tagName === 'SELECT' &&
-          (element as HTMLSelectElement).multiple
-        )
-          arrayCasts.set(model.field, model.cast);
-      }
-      for (const element of owned(preview)) {
-        const model = getModelDirective(element);
-        if (
-          model &&
-          element.tagName === 'SELECT' &&
-          (element as HTMLSelectElement).multiple &&
-          arrayCasts.get(model.field) !== model.cast
-        )
-          dirty.delete(model.field);
-      }
-      const differs = (field: string): boolean =>
-        dirty.has(field) &&
-        !sameModelValue(dirty.get(field), result.state[field]);
-      const read = (field: string): unknown =>
-        dirty.has(field) ? dirty.get(field) : result.state[field];
-      const selections = modelSelections(preview, read);
-      applyBindings(
-        preview,
-        read,
-        (field) =>
-          field === undefined
-            ? [...dirty.keys()].some(differs)
-            : differs(field),
-        focus,
-      );
-      for (const apply of selections) apply();
-      const focused = state.root.contains(doc.activeElement)
-        ? doc.activeElement
-        : null;
-      const caret = selection(focused);
-      const editorSelection = captureEditorSelection(focused, state.root);
-      const scroll = { top: state.root.scrollTop, left: state.root.scrollLeft };
-      const previousControls = new Map<
-        string,
-        { element: Element; signature: string }[]
-      >();
-      for (const element of owned(state.root)) {
-        const model = getModelDirective(element);
-        if (
-          model &&
-          (state.dirty.has(model.field) || state.invalid.has(element))
-        ) {
-          const controls = previousControls.get(model.field) ?? [];
-          controls.push({ element, signature: controlSignature(element) });
-          previousControls.set(model.field, controls);
+      // Binding visibility changes can trigger browser scroll anchoring.
+      let retainedScroll: { top: number; left: number } | undefined;
+      if (result.renderless) {
+        // A state acknowledgement must not clone widgets or run HTML morph
+        // lifecycle. Validate its local bindings against the retained subtree.
+        morphAt = undefined;
+        retainedScroll = {
+          top: state.root.scrollTop,
+          left: state.root.scrollLeft,
+        };
+        validateDirectives(state.root, streams);
+        const read = (field: string): unknown =>
+          dirty.has(field) ? dirty.get(field) : result.state[field];
+        modelSelections(state.root, read, state.invalid);
+        prepareBindings(
+          state.root,
+          read,
+          (field) =>
+            field === undefined
+              ? [...dirty].some(
+                  ([key, value]) => !sameModelValue(value, result.state[key]),
+                )
+              : dirty.has(field) &&
+                !sameModelValue(dirty.get(field), result.state[field]),
+          focus,
+        );
+      } else {
+        const template = doc.createElement('template');
+        template.innerHTML = result.html;
+        validateFragment(template.content);
+        const incoming = prepareMorph(state.root, template.content);
+        const preview = state.root.cloneNode(false) as Element;
+        preview.append(incoming.cloneNode(true));
+        validateDirectives(preview, streams);
+        // A changed model shape/cast has no compatible array draft. Validate its
+        // authoritative response value rather than projecting the old scalar/cast.
+        const arrayCasts = new Map<string, string>();
+        for (const element of owned(state.root)) {
+          const model = getModelDirective(element);
+          if (
+            model &&
+            element.tagName === 'SELECT' &&
+            (element as HTMLSelectElement).multiple
+          )
+            arrayCasts.set(model.field, model.cast);
         }
-      }
-      loading.restore(state.root);
-      presentation?.restore(state.root);
-      // Reconcile drag attributes against fresh server baselines after morphing.
-      sorting?.remove(state.root);
-      morphChildren(state.root, incoming, dirty, {
-        beforeRemove(node): void {
-          if (editorSelection)
-            editorSelection.observe(() => beforeRemove(node));
-          else beforeRemove(node);
-        },
-        afterInsert(node): void {
-          if (editorSelection) editorSelection.observe(() => afterInsert(node));
-          else afterInsert(node);
-        },
-      });
-      for (const [field, controls] of previousControls) {
-        let survives = false;
-        for (const { element, signature } of controls) {
+        for (const element of owned(preview)) {
+          const model = getModelDirective(element);
+          if (
+            model &&
+            element.tagName === 'SELECT' &&
+            (element as HTMLSelectElement).multiple &&
+            arrayCasts.get(model.field) !== model.cast
+          )
+            dirty.delete(model.field);
+        }
+        const differs = (field: string): boolean =>
+          dirty.has(field) &&
+          !sameModelValue(dirty.get(field), result.state[field]);
+        const read = (field: string): unknown =>
+          dirty.has(field) ? dirty.get(field) : result.state[field];
+        const selections = modelSelections(preview, read);
+        applyBindings(
+          preview,
+          read,
+          (field) =>
+            field === undefined
+              ? [...dirty.keys()].some(differs)
+              : differs(field),
+          focus,
+        );
+        for (const apply of selections) apply();
+        const focused = state.root.contains(doc.activeElement)
+          ? doc.activeElement
+          : null;
+        const caret = selection(focused);
+        const editorSelection = captureEditorSelection(focused, state.root);
+        const scroll = {
+          top: state.root.scrollTop,
+          left: state.root.scrollLeft,
+        };
+        const previousControls = new Map<
+          string,
+          { element: Element; signature: string }[]
+        >();
+        for (const element of owned(state.root)) {
+          const model = getModelDirective(element);
+          if (
+            model &&
+            (state.dirty.has(model.field) || state.invalid.has(element))
+          ) {
+            const controls = previousControls.get(model.field) ?? [];
+            controls.push({ element, signature: controlSignature(element) });
+            previousControls.set(model.field, controls);
+          }
+        }
+        loading.restore(state.root);
+        presentation?.restore(state.root);
+        // Reconcile drag attributes against fresh server baselines after morphing.
+        sorting?.remove(state.root);
+        morphChildren(state.root, incoming, dirty, {
+          beforeRemove(node): void {
+            if (editorSelection)
+              editorSelection.observe(() => beforeRemove(node));
+            else beforeRemove(node);
+          },
+          afterInsert(node): void {
+            if (editorSelection)
+              editorSelection.observe(() => afterInsert(node));
+            else afterInsert(node);
+          },
+        });
+        for (const [field, controls] of previousControls) {
+          let survives = false;
+          for (const { element, signature } of controls) {
+            const retained =
+              element.isConnected &&
+              owner(element) === state.root &&
+              getModelDirective(element)?.field === field &&
+              controlSignature(element) === signature;
+            if (retained) survives = true;
+            else state.invalid.delete(element);
+          }
+          if (!survives) state.dirty.delete(field);
+        }
+        for (const [element] of state.invalid)
+          if (!element.isConnected || owner(element) !== state.root)
+            state.invalid.delete(element);
+        // Lifecycle hooks may deliberately choose a different focus target. Preserve it.
+        if (focused && !focusMoved(doc, focused)) {
           const retained =
-            element.isConnected &&
-            owner(element) === state.root &&
-            getModelDirective(element)?.field === field &&
-            controlSignature(element) === signature;
-          if (retained) survives = true;
-          else state.invalid.delete(element);
+            focused instanceof window.HTMLElement && availableForFocus(focused);
+          if (retained) {
+            editorSelection?.restore();
+            if (!focusMoved(doc, focused))
+              focused.focus({ preventScroll: true });
+          }
+          // A retained INPUT may now have a type without the selection API.
+          if (
+            retained &&
+            doc.activeElement === focused &&
+            caret &&
+            selection(focused) !== null
+          )
+            (focused as HTMLInputElement).setSelectionRange(
+              caret.start,
+              caret.end,
+              caret.direction,
+            );
+          if (
+            (!retained || doc.activeElement !== focused) &&
+            !focusMoved(doc, focused) &&
+            state.root instanceof window.HTMLElement &&
+            availableForFocus(state.root)
+          ) {
+            focus.focus(state.root, state.root);
+          }
         }
-        if (!survives) state.dirty.delete(field);
+        state.root.scrollTop = scroll.top;
+        state.root.scrollLeft = scroll.left;
       }
-      for (const [element] of state.invalid)
-        if (!element.isConnected || owner(element) !== state.root)
-          state.invalid.delete(element);
-      // Lifecycle hooks may deliberately choose a different focus target. Preserve it.
-      if (focused && !focusMoved(doc, focused)) {
-        const retained =
-          focused instanceof window.HTMLElement && availableForFocus(focused);
-        if (retained) {
-          editorSelection?.restore();
-          if (!focusMoved(doc, focused)) focused.focus({ preventScroll: true });
-        }
-        // A retained INPUT may now have a type without the selection API.
-        if (
-          retained &&
-          doc.activeElement === focused &&
-          caret &&
-          selection(focused) !== null
-        )
-          (focused as HTMLInputElement).setSelectionRange(
-            caret.start,
-            caret.end,
-            caret.direction,
-          );
-        if (
-          (!retained || doc.activeElement !== focused) &&
-          !focusMoved(doc, focused) &&
-          state.root instanceof window.HTMLElement &&
-          availableForFocus(state.root)
-        ) {
-          focus.focus(state.root, state.root);
-        }
-      }
-      state.root.scrollTop = scroll.top;
-      state.root.scrollLeft = scroll.left;
       for (const [key, field] of sent)
         if (state.dirty.get(key)?.version === field.version)
           state.dirty.delete(key);
@@ -1151,6 +1193,10 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       state.revision = result.component.revision;
       state.values = result.state;
       refreshBindings(state);
+      if (retainedScroll) {
+        state.root.scrollTop = retainedScroll.top;
+        state.root.scrollLeft = retainedScroll.left;
+      }
       busy(state);
       const encodedState = JSON.stringify(result.state);
       state.markers.set('data-nv-state', encodedState);
@@ -1228,6 +1274,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     action: string,
     submit: boolean,
     input: LiveActionInput = null,
+    allowRenderless = true,
   ): Promise<void> {
     const failure = failureFor(state);
     if (failure) return Promise.reject(failure);
@@ -1257,7 +1304,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       ? window.performance.now()
       : undefined;
     const task = state.queue
-      .then(() => invoke(state, action, queuedAt, input))
+      .then(() => invoke(state, action, queuedAt, input, allowRenderless))
       .finally(() => {
         state.pending--;
         const count = (state.pendingActions.get(targetAction) ?? 1) - 1;
@@ -1687,6 +1734,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
               action,
               false,
               cloneActionInput(input),
+              false,
             );
           } catch (error) {
             if (error && typeof error === 'object')

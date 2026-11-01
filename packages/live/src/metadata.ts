@@ -36,6 +36,8 @@ export interface StateOptions {
 }
 export interface ActionOptions {
   readonly id?: string;
+  /** Acknowledge state without rendering when the client negotiates support. */
+  readonly renderless?: boolean;
 }
 /** Derived JSON values; caches never survive the current component request/stage. */
 export interface ComputedOptions {
@@ -67,7 +69,11 @@ export interface ComponentDefinition {
   readonly stateContext: StateContextDefinition;
   readonly actions: ReadonlyMap<
     string,
-    { readonly method: string; readonly input: boolean }
+    {
+      readonly method: string;
+      readonly input: boolean;
+      readonly renderless?: true;
+    }
   >;
 }
 const COMPONENT = Symbol('nv:component');
@@ -77,6 +83,7 @@ const COMPUTED_DECLARED = Symbol('nv:computed-declared');
 const ACTIONS = Symbol('nv:actions');
 const INPUT = Symbol('nv:input');
 const ACTION_DECLARED = Symbol('nv:action-declared');
+const ACTION_RENDERLESS = Symbol('nv:action-renderless');
 const reservedMembers = new Set([
   ...lifecycleHookNames,
   ...Object.getOwnPropertyNames(Object.prototype),
@@ -289,10 +296,35 @@ export function Computed(options: ComputedOptions = {}): MethodDecorator {
 }
 export function Action(options: ActionOptions = {}): MethodDecorator {
   return (target, key, descriptor) => {
+    if (!options || typeof options !== 'object' || Array.isArray(options))
+      throw new Error('Invalid action options');
+    const prototype: unknown = Object.getPrototypeOf(options);
+    if (prototype !== Object.prototype && prototype !== null)
+      throw new Error('Invalid action options');
+    const selected: ActionOptions = Object.create(null) as ActionOptions;
+    for (const key of Reflect.ownKeys(options)) {
+      const option = Object.getOwnPropertyDescriptor(options, key);
+      if (
+        typeof key !== 'string' ||
+        !['id', 'renderless'].includes(key) ||
+        !option ||
+        !('value' in option)
+      )
+        throw new Error('Action options must use known own data properties');
+      Object.defineProperty(selected, key, { value: option.value });
+    }
+    Object.freeze(selected);
+    if (selected.id !== undefined && typeof selected.id !== 'string')
+      throw new Error('Action id must be a string');
+    if (
+      selected.renderless !== undefined &&
+      typeof selected.renderless !== 'boolean'
+    )
+      throw new Error('Action renderless must be a boolean');
     const name = property(key);
     if (typeof descriptor.value !== 'function')
       throw new Error('@Action requires a method');
-    const id = options.id ?? name;
+    const id = selected.id ?? name;
     identifier(id);
     const prior: Map<string, string> | undefined = Reflect.getMetadata(
       ACTIONS,
@@ -310,6 +342,12 @@ export function Action(options: ActionOptions = {}): MethodDecorator {
     actions.set(id, name);
     Reflect.defineMetadata(ACTIONS, actions, target);
     Reflect.defineMetadata(ACTION_DECLARED, true, target, key);
+    Reflect.defineMetadata(
+      ACTION_RENDERLESS,
+      selected.renderless === true,
+      target,
+      key,
+    );
   };
 }
 /** A single DTO input at argument zero, transformed by ordinary Nest pipes. */
@@ -359,7 +397,10 @@ export function definition(type: Type<object>): ComponentDefinition {
   const methods: Map<string, string> = new Map(
     Reflect.getMetadata(ACTIONS, type.prototype),
   );
-  const actions = new Map<string, { method: string; input: boolean }>();
+  const actions = new Map<
+    string,
+    { method: string; input: boolean; renderless?: true }
+  >();
   for (const [id, method] of methods) {
     const declaration = memberDeclaration(type.prototype, method);
     if (
@@ -377,7 +418,17 @@ export function definition(type: Type<object>): ComponentDefinition {
       throw new Error(
         `${type.name}.${method} must have zero arguments or one @ActionInput`,
       );
-    actions.set(id, { method, input });
+    actions.set(id, {
+      method,
+      input,
+      ...(Reflect.getOwnMetadata(
+        ACTION_RENDERLESS,
+        declaration.owner,
+        method,
+      ) === true
+        ? { renderless: true as const }
+        : {}),
+    });
   }
   for (const name of states.keys())
     if (computed.has(name) || [...methods.values()].includes(name))

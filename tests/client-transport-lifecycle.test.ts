@@ -26,6 +26,7 @@ interface TaskResult {
 }
 interface TransportRequest {
   url: string;
+  headers: Headers;
   body: RequestBody;
   signal: AbortSignal | null;
   resolve(response: Response): void;
@@ -39,6 +40,8 @@ interface Reply {
   raw?: string;
   state?: Record<string, unknown>;
   html?: string;
+  renderless?: unknown;
+  snapshot?: string;
   mode?:
     | 'hang'
     | 'hang-cancel'
@@ -143,11 +146,22 @@ interface MountOptions {
   live?: boolean;
   diagnostics?: 'collect' | 'throw';
   offline?: boolean;
+  extraHtml?: string;
+  state?: Record<string, unknown>;
 }
 /** Actual Chromium with deliberately controlled fetch/streams; not Nest protocol conformance. */
 async function mount(options: MountOptions = { timeout: 100 }): Promise<void> {
   await page.evaluate(
-    ({ timeout, second, nested, live, diagnostics, offline }) => {
+    ({
+      timeout,
+      second,
+      nested,
+      live,
+      diagnostics,
+      offline,
+      extraHtml,
+      state,
+    }) => {
       const html = (name: string) =>
         `<form id="${name}-form" nv:submit="save"><label for="${name}-edit">Query</label><input id="${name}-edit" nv:model${live ? '.live.debounce.25ms' : ''}="query" value="initial"><button type="submit">Save</button></form><button id="${name}-slow" type="button" nv:click="slow" nv:loading.attr="disabled" nv:target="slow">Slow</button><span id="${name}-loading" nv:loading="" nv:target="slow" hidden>Pending</span><output id="${name}-count" nv:text="count">0</output><output id="${name}-query" nv:text="query">initial</output>${offline ? `<p id="${name}-offline" nv:offline="" hidden role="status">Connection may be unavailable</p>` : ''}`;
       const createRoot = (name: string, number: number) => {
@@ -160,10 +174,16 @@ async function mount(options: MountOptions = { timeout: 100 }): Promise<void> {
           'data-nv-revision': '0',
           'data-nv-endpoint': `/live/${name}`,
           'data-nv-csrf': 'fixture-csrf-012345678901234567890123456789',
-          'data-nv-state': JSON.stringify({ query: 'initial', count: 0 }),
+          'data-nv-state': JSON.stringify({
+            query: 'initial',
+            count: 0,
+            ...state,
+          }),
         }))
           element.setAttribute(key, value);
         element.innerHTML = html(name);
+        if (name === 'parent' && extraHtml)
+          element.insertAdjacentHTML('beforeend', extraHtml);
         return element;
       };
       const parent = createRoot('parent', 1);
@@ -205,6 +225,7 @@ async function mount(options: MountOptions = { timeout: 100 }): Promise<void> {
           return new Promise<Response>((resolve, reject) => {
             requests.push({
               url: String(url),
+              headers: new Headers(init?.headers),
               body: JSON.parse(String(init?.body)) as RequestBody,
               signal: init?.signal ?? null,
               resolve,
@@ -237,12 +258,15 @@ async function mount(options: MountOptions = { timeout: 100 }): Promise<void> {
               name,
               revision: request.body.revision + 1,
             },
-            snapshot: request.body.snapshot,
+            snapshot: spec.snapshot ?? request.body.snapshot,
             state: spec.state ?? {
               query: 'server',
               count: request.body.revision + 1,
             },
-            html: spec.html ?? html(name),
+            html: spec.html ?? (spec.renderless === true ? '' : html(name)),
+            ...(spec.renderless === undefined
+              ? {}
+              : { renderless: spec.renderless }),
             padding: '',
           };
           const encoder = new TextEncoder();
@@ -364,6 +388,382 @@ async function metrics() {
     errors: window.nvTransportSession.errors,
   }));
 }
+
+describe('renderless acknowledgements in actual Chromium with controlled fetch', () => {
+  const nextSnapshot = 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB';
+
+  it.each(['input', 'editor'] as const)(
+    'retains native controls, local widgets and the focused %s without parsing or morphing',
+    async (focused) => {
+      await mount({
+        timeout: 1000,
+        nested: true,
+        diagnostics: 'collect',
+        state: { visible: true, title: 'initial title' },
+        extraHtml:
+          '<p id="unbound">Initial Handlebars count: 0</p><p id="visibility" nv:show="visible">Visible</p><p id="title" nv:bind="title:title">Title</p><p id="dirty" nv:dirty="query">Unsaved</p><div id="editor" contenteditable="true">Local editor text</div><input id="file" type="file"><nv-renderless-widget id="widget"></nv-renderless-widget><div style="height:1000px;width:1000px"></div>',
+      });
+      const inspect = await page.evaluate((focused) => {
+        const session = window.nvTransportSession;
+        const root = document.getElementById('parent');
+        const input = document.getElementById('parent-edit');
+        const editor = document.getElementById('editor');
+        const file = document.getElementById('file');
+        const widget = document.getElementById('widget');
+        const child = document.getElementById('other');
+        if (
+          !root ||
+          !(input instanceof HTMLInputElement) ||
+          !editor ||
+          !(file instanceof HTMLInputElement) ||
+          !widget ||
+          !child
+        )
+          throw new Error('Missing renderless fixture');
+        const calls = {
+          templates: 0,
+          clones: 0,
+          inserted: 0,
+          removed: 0,
+          connected: 0,
+          disconnected: 0,
+          updated: 0,
+        };
+        customElements.define(
+          'nv-renderless-widget',
+          class extends HTMLElement {
+            connectedCallback() {
+              calls.connected++;
+            }
+            disconnectedCallback() {
+              calls.disconnected++;
+            }
+          },
+        );
+        const localWidgetState = { history: ['local-only'] };
+        Reflect.set(widget, 'localState', localWidgetState);
+        const transfer = new DataTransfer();
+        transfer.items.add(
+          new File(['local bytes'], 'retained.txt', { type: 'text/plain' }),
+        );
+        file.files = transfer.files;
+        const files = file.files;
+        const selectedFile = files?.[0];
+        root.style.cssText = 'height:180px;width:300px;overflow:auto';
+        root.scrollTop = 63;
+        root.scrollLeft = 17;
+        session.client.set(root, 'query', 'sent draft');
+        if (focused === 'input') {
+          input.focus({ preventScroll: true });
+          input.setSelectionRange(2, 6, 'backward');
+        } else {
+          editor.focus({ preventScroll: true });
+          const range = document.createRange();
+          const text = editor.firstChild;
+          if (!text) throw new Error('Missing editor text');
+          range.setStart(text, 2);
+          range.setEnd(text, 7);
+          const selection = document.getSelection();
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+        }
+        const editorText = editor.firstChild;
+        const scroll = { top: root.scrollTop, left: root.scrollLeft };
+        root.addEventListener('nestvexa:before-remove', () => calls.removed++);
+        root.addEventListener('nestvexa:after-insert', () => calls.inserted++);
+        root.addEventListener('nestvexa:updated', () => calls.updated++);
+        const createElement = document.createElement.bind(document);
+        Object.defineProperty(document, 'createElement', {
+          value(tag: string, options?: ElementCreationOptions) {
+            if (tag.toLowerCase() === 'template') calls.templates++;
+            return createElement(tag, options);
+          },
+        });
+        const cloneNode = Node.prototype.cloneNode;
+        Node.prototype.cloneNode = function (this: Node, deep = false) {
+          calls.clones++;
+          return cloneNode.call(this, deep);
+        };
+        Reflect.set(window, 'nvRenderlessInspect', () => {
+          const selection = document.getSelection();
+          return {
+            identities: [
+              input === document.getElementById('parent-edit'),
+              editor === document.getElementById('editor'),
+              editorText === editor.firstChild,
+              file === document.getElementById('file'),
+              files === file.files,
+              selectedFile === file.files?.[0],
+              widget === document.getElementById('widget'),
+              Reflect.get(widget, 'localState') === localWidgetState,
+              child === document.getElementById('other'),
+            ],
+            active: document.activeElement?.id,
+            inputSelection: [
+              input.selectionStart,
+              input.selectionEnd,
+              input.selectionDirection,
+            ],
+            editorSelection: [
+              selection?.anchorNode === editorText,
+              selection?.anchorOffset,
+              selection?.focusNode === editorText,
+              selection?.focusOffset,
+            ],
+            scroll: { top: root.scrollTop, left: root.scrollLeft },
+            calls,
+          };
+        });
+        return { scroll };
+      }, focused);
+      const task = await start('save');
+      await reply(0, {
+        renderless: true,
+        snapshot: nextSnapshot,
+        state: {
+          query: 'sent draft',
+          count: 9,
+          visible: false,
+          title: 'acknowledged title',
+        },
+      });
+      expect(await result(task)).toEqual({ ok: true, code: null });
+      const retained = await page.evaluate(() => {
+        const inspect = Reflect.get(window, 'nvRenderlessInspect') as () => {
+          identities: boolean[];
+          active: string;
+          inputSelection: unknown[];
+          editorSelection: unknown[];
+          scroll: { top: number; left: number };
+          calls: Record<string, number>;
+        };
+        return inspect();
+      });
+      expect(retained.identities).toEqual(Array<boolean>(9).fill(true));
+      expect(retained.active).toBe(
+        focused === 'input' ? 'parent-edit' : 'editor',
+      );
+      if (focused === 'input')
+        expect(retained.inputSelection).toEqual([2, 6, 'backward']);
+      else expect(retained.editorSelection).toEqual([true, 2, true, 7]);
+      expect(retained.scroll).toEqual(inspect.scroll);
+      expect(retained.calls).toEqual({
+        templates: 0,
+        clones: 0,
+        inserted: 0,
+        removed: 0,
+        connected: 1,
+        disconnected: 0,
+        updated: 1,
+      });
+      expect(await page.locator('#parent-count').textContent()).toBe('9');
+      expect(await page.locator('#parent-query').textContent()).toBe(
+        'sent draft',
+      );
+      expect(await page.locator('#unbound').textContent()).toBe(
+        'Initial Handlebars count: 0',
+      );
+      expect(
+        await page.locator('#visibility').getAttribute('hidden'),
+      ).not.toBeNull();
+      expect(
+        await page.locator('#dirty').getAttribute('hidden'),
+      ).not.toBeNull();
+      expect(await page.locator('#title').getAttribute('title')).toBe(
+        'acknowledged title',
+      );
+      expect(await page.locator('#other-count').textContent()).toBe('0');
+      expect(
+        await page.locator('#other').getAttribute('data-nv-revision'),
+      ).toBe('0');
+      expect(
+        await page.locator('#parent').getAttribute('data-nv-snapshot'),
+      ).toBe(nextSnapshot);
+      expect(
+        await page.locator('#parent').getAttribute('data-nv-revision'),
+      ).toBe('1');
+      expect(
+        await page.evaluate(() =>
+          window.nvTransportSession.diagnostics.map(({ phase }) => phase),
+        ),
+      ).toEqual(['queue', 'request']);
+      const next = await start('save');
+      expect(
+        await page.evaluate(() => window.nvTransportSession.requests[1]?.body),
+      ).toMatchObject({ revision: 1, snapshot: nextSnapshot, updates: {} });
+      // Every bound field must remain present in an acknowledgement.
+      await reply(1, {
+        renderless: true,
+        state: {
+          query: 'sent draft',
+          count: 10,
+          visible: false,
+          title: 'acknowledged title',
+        },
+      });
+      expect(await result(next)).toEqual({ ok: true, code: null });
+      expect(await page.locator('#parent-count').textContent()).toBe('10');
+    },
+  );
+
+  it('queues with the acknowledged snapshot and retains an edit made after dispatch', async () => {
+    await mount({
+      timeout: 1000,
+      extraHtml: '<p id="dirty" nv:dirty="query">Unsaved</p>',
+    });
+    await page.locator('#parent-edit').fill('sent draft');
+    const first = await start('save');
+    expect(
+      await page.evaluate(() =>
+        window.nvTransportSession.requests[0]?.headers.get(
+          'x-nestvexa-capabilities',
+        ),
+      ),
+    ).toBe('renderless-v1');
+    await page.locator('#parent-edit').fill('newer local edit');
+    const queued = await start('save');
+    expect((await metrics()).requests).toHaveLength(1);
+    await reply(0, {
+      renderless: true,
+      snapshot: nextSnapshot,
+      state: { query: 'server accepted sent draft', count: 1 },
+    });
+    expect(await result(first)).toEqual({ ok: true, code: null });
+    expect(await page.locator('#parent-edit').inputValue()).toBe(
+      'newer local edit',
+    );
+    expect(await page.locator('#parent-query').textContent()).toBe(
+      'newer local edit',
+    );
+    expect(await page.locator('#dirty').getAttribute('hidden')).toBeNull();
+    expect(
+      await page.evaluate(() => window.nvTransportSession.requests[1]?.body),
+    ).toMatchObject({
+      revision: 1,
+      snapshot: nextSnapshot,
+      updates: { query: 'newer local edit' },
+    });
+    expect(
+      await page.evaluate(() =>
+        JSON.parse(
+          document.getElementById('parent')?.getAttribute('data-nv-state') ??
+            '{}',
+        ),
+      ),
+    ).toEqual({ query: 'server accepted sent draft', count: 1 });
+    await reply(1, {
+      renderless: true,
+      state: { query: 'newer local edit', count: 2 },
+    });
+    expect(await result(queued)).toEqual({ ok: true, code: null });
+    expect(await page.locator('#dirty').getAttribute('hidden')).not.toBeNull();
+    await page.clock.runFor(500);
+    expect((await metrics()).requests).toHaveLength(2);
+  });
+
+  it.each([
+    {
+      label: 'mixed HTML',
+      spec: { renderless: true, html: '<p id="attacker">Injected</p>' },
+      code: 'RESPONSE',
+    },
+    {
+      label: 'invalid renderless flag',
+      spec: { renderless: 'true', html: '' },
+      code: 'RESPONSE',
+    },
+    {
+      label: 'invalid bound state',
+      spec: {
+        renderless: true,
+        state: { query: 'partial', count: { invalid: true } },
+      },
+      code: 'DIRECTIVE',
+    },
+  ])(
+    'rejects $label before committing state or metadata and never retries',
+    async ({ spec, code }) => {
+      await mount({ timeout: 1000 });
+      const task = await start('save');
+      const queued = await start('save');
+      await reply(0, { ...spec, snapshot: nextSnapshot });
+      expect(await result(task)).toEqual({ ok: false, code });
+      expect(await result(queued)).toEqual({ ok: false, code });
+      expect(await page.locator('#parent-count').textContent()).toBe('0');
+      expect(await page.locator('#parent-query').textContent()).toBe('initial');
+      expect(await page.locator('#parent-edit').inputValue()).toBe('initial');
+      expect(
+        await page.locator('#parent').getAttribute('data-nv-revision'),
+      ).toBe('0');
+      expect(
+        await page.locator('#parent').getAttribute('data-nv-snapshot'),
+      ).toBe('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA');
+      expect(
+        await page.evaluate(() =>
+          JSON.parse(
+            document.getElementById('parent')?.getAttribute('data-nv-state') ??
+              '{}',
+          ),
+        ),
+      ).toEqual({ query: 'initial', count: 0 });
+      expect(await page.locator('#attacker').count()).toBe(0);
+      expect(await result(await start('save'))).toEqual({ ok: false, code });
+      await page.clock.runFor(2000);
+      expect((await metrics()).requests).toHaveLength(1);
+      expect((await metrics()).errors.map(({ code }) => code)).toEqual([code]);
+    },
+  );
+
+  it('advertises renderless support while accepting ordinary server HTML', async () => {
+    await mount({ timeout: 1000 });
+    const task = await start('save');
+    expect(
+      await page.evaluate(() =>
+        window.nvTransportSession.requests[0]?.headers.get(
+          'x-nestvexa-capabilities',
+        ),
+      ),
+    ).toBe('renderless-v1');
+    await reply(0, {
+      html: '<p id="server-html">Ordinary render</p><output nv:text="count">0</output>',
+    });
+    expect(await result(task)).toEqual({ ok: true, code: null });
+    expect(await page.locator('#server-html').textContent()).toBe(
+      'Ordinary render',
+    );
+  });
+
+  it('omits the capability for sort-origin requests and applies authoritative server HTML', async () => {
+    const list =
+      '<ol nv:sort="reorder" aria-label="Tasks"><li nv:sort.item="a"><button id="sort-a" type="button" nv:sort.handle aria-label="Move A">A</button></li><li nv:sort.item="b"><button id="sort-b" type="button" nv:sort.handle aria-label="Move B">B</button></li></ol>';
+    await mount({ timeout: 1000, extraHtml: list });
+    await page.locator('#sort-a').focus();
+    await page.keyboard.press('Alt+ArrowDown');
+    await page.clock.runFor(0);
+    expect(
+      await page.evaluate(() =>
+        window.nvTransportSession.requests.map(({ headers, body }) => ({
+          capability: headers.get('x-nestvexa-capabilities'),
+          input: body.input,
+        })),
+      ),
+    ).toEqual([{ capability: null, input: { ids: ['b', 'a'] } }]);
+    await reply(0, {
+      html: list.replace(
+        /(<li nv:sort.item="a">.*?<\/li>)(<li nv:sort.item="b">.*?<\/li>)/,
+        '$2$1',
+      ),
+    });
+    expect(
+      await page
+        .locator('[nv\\:sort] > li')
+        .evaluateAll((items) =>
+          items.map((item) => item.getAttribute('nv:sort.item')),
+        ),
+    ).toEqual(['b', 'a']);
+    expect((await metrics()).errors).toEqual([]);
+  });
+});
 
 describe('bounded browser request lifecycle', () => {
   it('rejects a combined oversized request before dispatch and allows correction without suspension', async () => {

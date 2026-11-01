@@ -103,6 +103,8 @@ export interface LiveResponse {
   readonly snapshot: string;
   readonly state: Readonly<Record<string, unknown>>;
   readonly html: string;
+  /** State-only acknowledgement, negotiated by renderless-v1; html must be empty. */
+  readonly renderless?: true;
   readonly url?: readonly UrlStateEffect[];
 }
 function record(value: unknown): value is Record<string, unknown> {
@@ -136,7 +138,9 @@ export function parseLiveResponse(value: unknown): LiveResponse {
     !value['snapshot'] ||
     value['snapshot'].length > 65_536 ||
     typeof value['html'] !== 'string' ||
-    value['html'].length > 1_048_576
+    value['html'].length > 1_048_576 ||
+    (Object.hasOwn(value, 'renderless') && value['renderless'] !== true) ||
+    (value['renderless'] === true && value['html'] !== '')
   )
     throw new LiveClientError(
       'RESPONSE',
@@ -154,6 +158,7 @@ export function parseLiveResponse(value: unknown): LiveResponse {
     snapshot: value['snapshot'],
     state: value['state'],
     html: value['html'],
+    ...(value['renderless'] === true ? { renderless: true } : {}),
     ...(value['url'] === undefined
       ? {}
       : { url: parseUrlEffects(value['url']) }),

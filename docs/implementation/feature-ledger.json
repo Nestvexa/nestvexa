@@ -5222,14 +5222,33 @@
       "id": "LIVE-007",
       "priority": "P1",
       "package": "@nestvexa/live",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
+      "implementationFiles": [
+        "packages/live/src/metadata.ts",
+        "packages/live/src/runtime.ts",
+        "packages/client/src/index.ts",
+        "packages/client/src/protocol.ts",
+        "packages/client/src/bindings.ts"
+      ],
+      "testFiles": [
+        "tests/live-renderless.test.ts",
+        "tests/client-renderless-protocol.test.ts",
+        "tests/client-transport-lifecycle.test.ts",
+        "tests/browser/renderless.spec.ts"
+      ],
+      "docs": [
+        "docs/guides/renderless-actions.md",
+        "packages/live/README.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/activity-panel.ts",
+        "examples/starter-live/views/activity-panel.hbs"
+      ],
+      "securityNotes": "Renderless skips only render hooks, computed values and template work; admission, CSRF/origin, snapshot/revision, host authorization, Nest guards/pipes/interceptors/filters, URL/session commit and revocation are unchanged. Exact capability negotiation; unknown values fall back to full rendering.",
+      "state": "InProgress",
       "validationEvidence": [],
-      "outstandingIssues": []
+      "outstandingIssues": [
+        "`renderless` is implemented and verified; `concurrency` and `idempotent` action options remain unimplemented."
+      ]
     },
     {
       "sourceKey": "97247c997e8ec30671b8c24fe4fe721089cde4ed83b873014f250e65a9e1f9ca",
@@ -16239,14 +16258,26 @@
       "id": "PHASE-049",
       "priority": "P1",
       "package": "cross-package",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
+      "implementationFiles": [
+        "packages/live/src/runtime.ts",
+        "packages/client/src/index.ts"
+      ],
+      "testFiles": [
+        "tests/live-renderless.test.ts",
+        "tests/browser/renderless.spec.ts"
+      ],
+      "docs": [
+        "docs/guides/renderless-actions.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/activity-panel.ts"
+      ],
       "securityNotes": "",
-      "state": "Pending",
+      "state": "InProgress",
       "validationEvidence": [],
-      "outstandingIssues": []
+      "outstandingIssues": [
+        "Optional renderless actions are implemented. Lazy/deferred/island placeholders, request bundling, isolated requests and progressive HTML form support remain."
+      ]
     },
     {
       "sourceKey": "3438ab7ed64bdcdbbef354464f4e69bccb9f9965bc9d72c57142453112d62ebe",
