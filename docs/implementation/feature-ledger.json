@@ -5345,13 +5345,39 @@
       "id": "LIVE-010",
       "priority": "P1",
       "package": "@nestvexa/live",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/live/src/metadata.ts",
+        "packages/live/src/runtime.ts",
+        "packages/client/src/morph.ts"
+      ],
+      "testFiles": [
+        "tests/live-nesting.test.ts",
+        "tests/browser/nesting.spec.ts"
+      ],
+      "docs": [
+        "docs/guides/nested-components.md",
+        "docs/adr/0021-nested-components-and-events.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/team-board.ts",
+        "examples/starter-live/src/projects.ts"
+      ],
+      "securityNotes": "Reactive props are server-owned, cannot be client-writable and child mutation is rejected (409). Parent renders refresh children in the child's own store transaction; busy children are retained.",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check (install, format, lint, typecheck, test, coverage, size, test:e2e; pack step failed only on Git Bash tar)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T18:17:43.593Z",
+          "report": "docs/implementation/phase4-checkpoint-verification-2026-11-01.json"
+        },
+        {
+          "command": "pnpm test:pack (PowerShell)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T20:41:52.309Z",
+          "report": "docs/implementation/pack-consumers-2026-11-01.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {
@@ -5365,13 +5391,37 @@
       "id": "LIVE-011",
       "priority": "P1",
       "package": "@nestvexa/live",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/live/src/metadata.ts",
+        "packages/live/src/runtime.ts",
+        "packages/client/src/index.ts"
+      ],
+      "testFiles": [
+        "tests/live-nesting.test.ts",
+        "tests/browser/nesting.spec.ts"
+      ],
+      "docs": [
+        "docs/guides/nested-components.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/team-board.ts"
+      ],
+      "securityNotes": "Child values are proposed to the parent only through the parent's $sync route, so parent writable/validate rules and host authorization decide.",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check (install, format, lint, typecheck, test, coverage, size, test:e2e; pack step failed only on Git Bash tar)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T18:17:43.593Z",
+          "report": "docs/implementation/phase4-checkpoint-verification-2026-11-01.json"
+        },
+        {
+          "command": "pnpm test:pack (PowerShell)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T20:41:52.309Z",
+          "report": "docs/implementation/pack-consumers-2026-11-01.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {
@@ -5385,14 +5435,32 @@
       "id": "LIVE-012",
       "priority": "P1",
       "package": "@nestvexa/live",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
+      "implementationFiles": [
+        "packages/live/src/effects.ts",
+        "packages/live/src/metadata.ts",
+        "packages/client/src/index.ts",
+        "packages/alpine/src/index.ts"
+      ],
+      "testFiles": [
+        "tests/live-nesting.test.ts",
+        "tests/client-events-protocol.test.ts",
+        "tests/browser/nesting.spec.ts",
+        "tests/browser/projects.spec.ts"
+      ],
+      "docs": [
+        "docs/guides/nested-components.md",
+        "docs/adr/0021-nested-components-and-events.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/team-board.ts",
+        "examples/starter-live/src/projects.ts"
+      ],
+      "securityNotes": "Event payloads cross the browser and are delivered as ordinary action input to explicitly registered @OnEvent actions, behind host authorization, guards and pipes.",
+      "state": "InProgress",
       "validationEvidence": [],
-      "outstandingIssues": []
+      "outstandingIssues": [
+        "Browser-routed component events are implemented. Server-originated domain events (realtime/broker push) belong to Phase 13."
+      ]
     },
     {
       "sourceKey": "fbc00b4274d1776bb40707fc025ab51804f949555c4ba567fa3d82d8a758ddab",
@@ -5405,13 +5473,38 @@
       "id": "LIVE-013",
       "priority": "P1",
       "package": "@nestvexa/live",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/live/src/metadata.ts",
+        "packages/live/src/runtime.ts",
+        "packages/client/src/index.ts"
+      ],
+      "testFiles": [
+        "tests/live-nesting.test.ts",
+        "tests/browser/nesting.spec.ts"
+      ],
+      "docs": [
+        "docs/guides/nested-components.md",
+        "docs/adr/0021-nested-components-and-events.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/team-board.ts"
+      ],
+      "securityNotes": "lazy/lazy:'visible' defer rendering to an authorized $sync; requests are isolated per component by design (no cross-component batch endpoint that could bypass per-route guards).",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check (install, format, lint, typecheck, test, coverage, size, test:e2e; pack step failed only on Git Bash tar)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T18:17:43.593Z",
+          "report": "docs/implementation/phase4-checkpoint-verification-2026-11-01.json"
+        },
+        {
+          "command": "pnpm test:pack (PowerShell)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T20:41:52.309Z",
+          "report": "docs/implementation/pack-consumers-2026-11-01.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {
@@ -5515,13 +5608,38 @@
       "id": "LIVE-017",
       "priority": "P1",
       "package": "@nestvexa/live",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/live/src/synthesizers.ts",
+        "packages/live/src/runtime.ts",
+        "packages/live/src/computed.ts",
+        "packages/live/src/protocol.ts"
+      ],
+      "testFiles": [
+        "tests/live-effects.test.ts",
+        "tests/live-protocol.test.ts"
+      ],
+      "docs": [
+        "docs/guides/live-effects.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/projects.ts"
+      ],
+      "securityNotes": "Synthesizers are selected in server code only; the wire never names a type. Client updates must hydrate (422 otherwise); stored state that no longer hydrates fails closed (409).",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check (install, format, lint, typecheck, test, coverage, size, test:e2e; pack step failed only on Git Bash tar)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T18:17:43.593Z",
+          "report": "docs/implementation/phase4-checkpoint-verification-2026-11-01.json"
+        },
+        {
+          "command": "pnpm test:pack (PowerShell)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T20:41:52.309Z",
+          "report": "docs/implementation/pack-consumers-2026-11-01.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {
@@ -6568,13 +6686,37 @@
       "id": "DIR-011",
       "priority": "P1",
       "package": "@nestvexa/client",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/client/src/navigation.ts",
+        "packages/client/src/index.ts",
+        "packages/client/src/protocol.ts"
+      ],
+      "testFiles": [
+        "tests/client-optimistic-navigation.test.ts",
+        "tests/browser/projects.spec.ts"
+      ],
+      "docs": [
+        "docs/reference/nv-navigate.md"
+      ],
+      "examples": [
+        "examples/starter-live/views/project-board.hbs"
+      ],
+      "securityNotes": "Same-origin GET only; cross-origin redirects, non-HTML, oversized, asset-signature mismatch and inline scripts fall back to full loads; parsed scripts never execute; history revisits re-fetch through host guards.",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check (install, format, lint, typecheck, test, coverage, size, test:e2e; pack step failed only on Git Bash tar)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T18:17:43.593Z",
+          "report": "docs/implementation/phase4-checkpoint-verification-2026-11-01.json"
+        },
+        {
+          "command": "pnpm test:pack (PowerShell)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T20:41:52.309Z",
+          "report": "docs/implementation/pack-consumers-2026-11-01.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {
@@ -7406,13 +7548,37 @@
       "id": "BROW-016",
       "priority": "P1",
       "package": "@nestvexa/client",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/client/src/index.ts",
+        "packages/live/src/live.module.ts"
+      ],
+      "testFiles": [
+        "tests/client-transport-lifecycle.test.ts",
+        "tests/live-nesting.test.ts"
+      ],
+      "docs": [
+        "docs/adr/0021-nested-components-and-events.md",
+        "docs/guides/request-lifecycle.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/projects.ts"
+      ],
+      "securityNotes": "Deliberate capability boundary (ADR 0021): no cross-component batch endpoint, because each action must pass its own generated Nest route and guards. One component's field updates and action share one request; components are isolated with independent bounded queues.",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check (install, format, lint, typecheck, test, coverage, size, test:e2e; pack step failed only on Git Bash tar)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T18:17:43.593Z",
+          "report": "docs/implementation/phase4-checkpoint-verification-2026-11-01.json"
+        },
+        {
+          "command": "pnpm test:pack (PowerShell)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T20:41:52.309Z",
+          "report": "docs/implementation/pack-consumers-2026-11-01.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {
@@ -7446,13 +7612,35 @@
       "id": "BROW-018",
       "priority": "P1",
       "package": "@nestvexa/client",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/client/src/navigation.ts"
+      ],
+      "testFiles": [
+        "tests/client-optimistic-navigation.test.ts",
+        "tests/browser/projects.spec.ts"
+      ],
+      "docs": [
+        "docs/reference/nv-navigate.md"
+      ],
+      "examples": [
+        "examples/starter-live/views/project-board.hbs"
+      ],
+      "securityNotes": "Prefetch is explicit (nv:navigate.hover), GET-only, same-origin, 10 s expiry, 8 entries, consumed once.",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check (install, format, lint, typecheck, test, coverage, size, test:e2e; pack step failed only on Git Bash tar)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T18:17:43.593Z",
+          "report": "docs/implementation/phase4-checkpoint-verification-2026-11-01.json"
+        },
+        {
+          "command": "pnpm test:pack (PowerShell)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T20:41:52.309Z",
+          "report": "docs/implementation/pack-consumers-2026-11-01.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {
@@ -7466,13 +7654,36 @@
       "id": "BROW-019",
       "priority": "P1",
       "package": "@nestvexa/client",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/client/src/optimistic.ts",
+        "packages/client/src/index.ts"
+      ],
+      "testFiles": [
+        "tests/client-optimistic-navigation.test.ts",
+        "tests/browser/projects.spec.ts"
+      ],
+      "docs": [
+        "docs/reference/nv-optimistic.md"
+      ],
+      "examples": [
+        "examples/starter-live/views/project-row.hbs"
+      ],
+      "securityNotes": "Data-literal projections only (no evaluation); display bindings only, never sent as updates; rollback on failure; server revision checks reject replayed/stale mutations.",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check (install, format, lint, typecheck, test, coverage, size, test:e2e; pack step failed only on Git Bash tar)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T18:17:43.593Z",
+          "report": "docs/implementation/phase4-checkpoint-verification-2026-11-01.json"
+        },
+        {
+          "command": "pnpm test:pack (PowerShell)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T20:41:52.309Z",
+          "report": "docs/implementation/pack-consumers-2026-11-01.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {
@@ -7532,13 +7743,35 @@
       "id": "BROW-021",
       "priority": "P1",
       "package": "@nestvexa/client",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/client/src/navigation.ts",
+        "packages/client/src/index.ts"
+      ],
+      "testFiles": [
+        "tests/browser/projects.spec.ts"
+      ],
+      "docs": [
+        "docs/reference/nv-navigate.md"
+      ],
+      "examples": [
+        "examples/starter-live/views/project-board.hbs"
+      ],
+      "securityNotes": "See DIR-011. Dirty-form confirmation guards unsaved Live drafts.",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check (install, format, lint, typecheck, test, coverage, size, test:e2e; pack step failed only on Git Bash tar)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T18:17:43.593Z",
+          "report": "docs/implementation/phase4-checkpoint-verification-2026-11-01.json"
+        },
+        {
+          "command": "pnpm test:pack (PowerShell)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T20:41:52.309Z",
+          "report": "docs/implementation/pack-consumers-2026-11-01.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {
@@ -16058,7 +16291,8 @@
         "packages/client/src/bindings.ts",
         "packages/client/src/initialization.ts",
         "packages/live/src/lifecycle.ts",
-        "packages/live/src/metadata.ts"
+        "packages/live/src/metadata.ts",
+        "packages/live/src/effects.ts"
       ],
       "testFiles": [
         "tests/live-state-context.test.ts",
@@ -16073,28 +16307,43 @@
         "tests/client.test.ts",
         "tests/browser/initialization.spec.ts",
         "tests/live-lifecycle-hooks.test.ts",
-        "tests/live.test.ts"
+        "tests/live.test.ts",
+        "tests/live-nesting.test.ts",
+        "tests/browser/nesting.spec.ts"
       ],
       "docs": [
         "docs/guides/live-lifecycle.md",
         "docs/guides/url-session-state.md",
         "docs/reference/nv-poll.md",
-        "docs/adr/0015-production-client-bundle.md"
+        "docs/adr/0015-production-client-bundle.md",
+        "docs/guides/nested-components.md"
       ],
-      "examples": [],
-      "securityNotes": "",
-      "state": "InProgress",
+      "examples": [
+        "examples/starter-live/src/team-board.ts"
+      ],
+      "securityNotes": "Props are server-assigned allowlisted state; reactive props cannot be client-written or child-mutated; events are delivered as authorized action input; each child has its own identity-bound snapshot and $mount authorization.",
+      "state": "Done",
       "validationEvidence": [
         {
           "command": "pnpm checkpoint:check",
           "exitCode": 0,
           "executedAt": "2026-10-31T06:58:56.404Z",
           "report": "docs/implementation/context-and-observers-hardened-checkpoint-evidence-2026-10-31.json"
+        },
+        {
+          "command": "pnpm checkpoint:check (install, format, lint, typecheck, test, coverage, size, test:e2e; pack step failed only on Git Bash tar)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T18:17:43.593Z",
+          "report": "docs/implementation/phase4-checkpoint-verification-2026-11-01.json"
+        },
+        {
+          "command": "pnpm test:pack (PowerShell)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T20:41:52.309Z",
+          "report": "docs/implementation/pack-consumers-2026-11-01.json"
         }
       ],
-      "outstandingIssues": [
-        "Phase4 remains incomplete: reactive/modelable children/events, server nesting/mount keys/synthesizers, sort/stream/navigation, lazy server placeholders/batching/renderless, complete progressive mutations/effects, optimistic rollback and full CRUD exit gate."
-      ]
+      "outstandingIssues": []
     },
     {
       "sourceKey": "bfd7fd495bb81ed9f21f9cfca3d0944a9caf064277d7887552351e497c81e010",
@@ -16120,7 +16369,9 @@
         "packages/client/src/protocol.ts",
         "packages/client/src/presentation.ts",
         "packages/client/src/bindings.ts",
-        "packages/client/src/initialization.ts"
+        "packages/client/src/initialization.ts",
+        "packages/live/src/synthesizers.ts",
+        "packages/live/src/store.ts"
       ],
       "testFiles": [
         "tests/live-model.test.ts",
@@ -16140,7 +16391,10 @@
         "tests/client.test.ts",
         "tests/browser/initialization.spec.ts",
         "tests/live-lifecycle-hooks.test.ts",
-        "tests/live.test.ts"
+        "tests/live.test.ts",
+        "tests/live-nesting.test.ts",
+        "tests/live-effects.test.ts",
+        "tests/browser/nesting.spec.ts"
       ],
       "docs": [
         "docs/guides/live-update-hooks.md",
@@ -16151,27 +16405,41 @@
         "docs/guides/live-lifecycle.md",
         "docs/guides/url-session-state.md",
         "docs/reference/nv-poll.md",
-        "docs/adr/0015-production-client-bundle.md"
+        "docs/adr/0015-production-client-bundle.md",
+        "docs/guides/nested-components.md",
+        "docs/guides/live-effects.md"
       ],
       "examples": [
         "examples/starter-live/src/work-board.ts",
         "examples/starter-live/views/board.hbs",
         "examples/starter-live/src/startup-panel.ts",
-        "examples/starter-live/views/startup-panel.hbs"
+        "examples/starter-live/views/startup-panel.hbs",
+        "examples/starter-live/src/team-board.ts",
+        "examples/starter-live/src/projects.ts"
       ],
-      "securityNotes": "Hooks execute only after admission, host authorization, Nest guards/pipes and whole-batch state validation. Context values are detached/frozen. Callback failure retains existing token revocation, preventing blind retries. Hook methods are reserved from state/action metadata; shutdown prevents the next stage. External effects are not rolled back.",
-      "state": "InProgress",
+      "securityNotes": "Child bookkeeping stays server-side; stubs must match existing roots before any DOM change; synthesizers are server-selected and fail closed on malformed input.",
+      "state": "Done",
       "validationEvidence": [
         {
           "command": "pnpm checkpoint:check",
           "exitCode": 0,
           "executedAt": "2026-10-31T06:58:56.404Z",
           "report": "docs/implementation/context-and-observers-hardened-checkpoint-evidence-2026-10-31.json"
+        },
+        {
+          "command": "pnpm checkpoint:check (install, format, lint, typecheck, test, coverage, size, test:e2e; pack step failed only on Git Bash tar)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T18:17:43.593Z",
+          "report": "docs/implementation/phase4-checkpoint-verification-2026-11-01.json"
+        },
+        {
+          "command": "pnpm test:pack (PowerShell)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T20:41:52.309Z",
+          "report": "docs/implementation/pack-consumers-2026-11-01.json"
         }
       ],
-      "outstandingIssues": [
-        "Phase4 remains incomplete: reactive/modelable children/events, server nesting/mount keys/synthesizers, sort/stream/navigation, lazy server placeholders/batching/renderless, complete progressive mutations/effects, optimistic rollback and full CRUD exit gate."
-      ]
+      "outstandingIssues": []
     },
     {
       "sourceKey": "ee9e37ee31211b304cb630f6adacbc0f314fbd18169cd2a5a94810a4b29e2400",
@@ -16196,7 +16464,8 @@
         "packages/client/src/bindings.ts",
         "packages/client/src/initialization.ts",
         "packages/live/src/lifecycle.ts",
-        "packages/live/src/metadata.ts"
+        "packages/live/src/metadata.ts",
+        "packages/client/src/navigation.ts"
       ],
       "testFiles": [
         "tests/client.test.ts",
@@ -16213,7 +16482,8 @@
         "tests/client-presentation.test.ts",
         "tests/client-transport-lifecycle.test.ts",
         "tests/live-lifecycle-hooks.test.ts",
-        "tests/live.test.ts"
+        "tests/live.test.ts",
+        "tests/browser/projects.spec.ts"
       ],
       "docs": [
         "docs/reference/nv-confirm.md",
@@ -16224,28 +16494,40 @@
         "docs/guides/live-lifecycle.md",
         "docs/guides/url-session-state.md",
         "docs/reference/nv-poll.md",
-        "docs/adr/0015-production-client-bundle.md"
+        "docs/adr/0015-production-client-bundle.md",
+        "docs/reference/nv-navigate.md"
       ],
       "examples": [
         "examples/starter-live/src/work-board.ts",
         "examples/starter-live/src/main.ts",
         "examples/starter-live/views/board.hbs",
         "examples/starter-live/src/startup-panel.ts",
-        "examples/starter-live/views/startup-panel.hbs"
+        "examples/starter-live/views/startup-panel.hbs",
+        "examples/starter-live/views/project-board.hbs"
       ],
-      "securityNotes": "Plain-text approval is presentation only. True-only callback result, bounded deadline/capacity, ownership/configuration recheck and abort/disposal cleanup. Server CSRF, session ownership, authorization and revisions remain authoritative; native UI cannot be force-closed by browser timers.",
-      "state": "InProgress",
+      "securityNotes": "nv:navigate is same-origin GET only with full-load fallback and no script execution from swapped documents.",
+      "state": "Done",
       "validationEvidence": [
         {
           "command": "pnpm checkpoint:check",
           "exitCode": 0,
           "executedAt": "2026-10-31T06:58:56.404Z",
           "report": "docs/implementation/context-and-observers-hardened-checkpoint-evidence-2026-10-31.json"
+        },
+        {
+          "command": "pnpm checkpoint:check (install, format, lint, typecheck, test, coverage, size, test:e2e; pack step failed only on Git Bash tar)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T18:17:43.593Z",
+          "report": "docs/implementation/phase4-checkpoint-verification-2026-11-01.json"
+        },
+        {
+          "command": "pnpm test:pack (PowerShell)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T20:41:52.309Z",
+          "report": "docs/implementation/pack-consumers-2026-11-01.json"
         }
       ],
-      "outstandingIssues": [
-        "Phase4 remains incomplete: reactive/modelable children/events, server nesting/mount keys/synthesizers, sort/stream/navigation, lazy server placeholders/batching/renderless, complete progressive mutations/effects, optimistic rollback and full CRUD exit gate."
-      ]
+      "outstandingIssues": []
     },
     {
       "sourceKey": "d3184e6fa19b24365135286c7561eec8f0100ae1e3d43be08cde76026683e144",
@@ -16264,19 +16546,24 @@
       ],
       "testFiles": [
         "tests/live-renderless.test.ts",
-        "tests/browser/renderless.spec.ts"
+        "tests/browser/renderless.spec.ts",
+        "tests/live-nesting.test.ts",
+        "tests/browser/nesting.spec.ts",
+        "tests/browser/projects.spec.ts"
       ],
       "docs": [
-        "docs/guides/renderless-actions.md"
+        "docs/guides/renderless-actions.md",
+        "docs/guides/nested-components.md"
       ],
       "examples": [
-        "examples/starter-live/src/activity-panel.ts"
+        "examples/starter-live/src/activity-panel.ts",
+        "examples/starter-live/src/team-board.ts"
       ],
       "securityNotes": "",
       "state": "InProgress",
       "validationEvidence": [],
       "outstandingIssues": [
-        "Optional renderless actions are implemented. Lazy/deferred/island placeholders, request bundling, isolated requests and progressive HTML form support remain."
+        "Lazy/deferred placeholders, renderless actions, per-component isolation and GET progressive forms are implemented. Framework island placeholders depend on Phase 12; progressive POST mutation fallbacks belong to Phase 5 forms."
       ]
     },
     {
@@ -16290,13 +16577,41 @@
       "id": "PHASE-050",
       "priority": "P1",
       "package": "cross-package",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/live/src/effects.ts",
+        "packages/live/src/pagination.ts",
+        "packages/live/src/runtime.ts",
+        "packages/client/src/navigation.ts"
+      ],
+      "testFiles": [
+        "tests/live-effects.test.ts",
+        "tests/live-nesting.test.ts",
+        "tests/browser/projects.spec.ts",
+        "tests/browser/nesting.spec.ts"
+      ],
+      "docs": [
+        "docs/guides/live-effects.md",
+        "docs/reference/nv-navigate.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/projects.ts"
+      ],
+      "securityNotes": "Redirects are application-relative only (server and client). Downloads are single-use, identity-bound, 60 s, 5 MiB, sandboxed attachments. Flash requires a host session; a failed write revokes the snapshot.",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check (install, format, lint, typecheck, test, coverage, size, test:e2e; pack step failed only on Git Bash tar)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T18:17:43.593Z",
+          "report": "docs/implementation/phase4-checkpoint-verification-2026-11-01.json"
+        },
+        {
+          "command": "pnpm test:pack (PowerShell)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T20:41:52.309Z",
+          "report": "docs/implementation/pack-consumers-2026-11-01.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {
@@ -16310,13 +16625,39 @@
       "id": "PHASE-051",
       "priority": "P1",
       "package": "cross-package",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
+      "implementationFiles": [
+        "packages/client/src/optimistic.ts",
+        "packages/client/src/index.ts",
+        "packages/live/src/store.ts"
+      ],
+      "testFiles": [
+        "tests/browser/projects.spec.ts",
+        "tests/client-optimistic-navigation.test.ts",
+        "tests/client-transport-lifecycle.test.ts"
+      ],
+      "docs": [
+        "docs/reference/nv-optimistic.md",
+        "docs/guides/request-lifecycle.md"
+      ],
+      "examples": [
+        "examples/starter-live/views/project-row.hbs"
+      ],
+      "securityNotes": "Optimistic display never replaces server authority; stale revisions return 409 and uncertain failures suspend without automatic retry.",
+      "state": "Done",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check (install, format, lint, typecheck, test, coverage, size, test:e2e; pack step failed only on Git Bash tar)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T18:17:43.593Z",
+          "report": "docs/implementation/phase4-checkpoint-verification-2026-11-01.json"
+        },
+        {
+          "command": "pnpm test:pack (PowerShell)",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T20:41:52.309Z",
+          "report": "docs/implementation/pack-consumers-2026-11-01.json"
+        }
+      ],
       "outstandingIssues": []
     },
     {
@@ -19850,14 +20191,24 @@
       "id": "SHOWCASE-005",
       "priority": "P1",
       "package": "cross-package governance and acceptance",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
+      "implementationFiles": [
+        "examples/starter-live/src/projects.ts"
+      ],
+      "testFiles": [
+        "tests/browser/projects.spec.ts"
+      ],
+      "docs": [
+        "docs/guides/live-effects.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/projects.ts"
+      ],
       "securityNotes": "",
-      "state": "Pending",
+      "state": "InProgress",
       "validationEvidence": [],
-      "outstandingIssues": []
+      "outstandingIssues": [
+        "Search, sort, pagination, confirmation, validation, toast, partial updates and optimistic changes are implemented and browser-tested. Nested modals and file attachments (Phase 6 uploads) remain."
+      ]
     },
     {
       "sourceKey": "2d54d72c7de97bfafcb4cc2add244fffdc1286739ae16eec9d23548e1a26a718",

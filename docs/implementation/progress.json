@@ -30,54 +30,76 @@
     },
     {
       "id": 4,
-      "state": "InProgress",
-      "scope": "Prior hooks/context/directives plus fresh request component instances, bounded queued action inputs, server-approved sorting, authorized text streams and explicit shutdown/cancellation.",
-      "remaining": "Server nesting/mount keys, reactive/modelable children/events, typed synthesizers, navigation, deferred server placeholders, batching/isolation/renderless actions, complete progressive mutation/effect flows, optimistic rollback and the full CRUD gate remain unfinished. Sorting/streaming scoped implementations have the explicit acceptance limits recorded in the ledger. Phase5 stays Pending until Phase4 exit.",
-      "evidence": "docs/implementation/sort-and-stream-checkpoint-evidence-2026-11-01.json"
+      "state": "Done",
+      "scope": "Live parity: hooks, computed, URL/session, nesting with mount keys and @Prop/@Reactive/@Modelable, events, lazy, renderless, redirects/flash/downloads/pagination, synthesizers, all section 8.3 directives incl. nv:navigate/nv:optimistic, CRUD exit gate (/projects).",
+      "remaining": "Exhaustive directive combination matrix rows stay InProgress in the ledger; islands placeholders (Phase 12), POST progressive mutations (Phase 5), Linux matrix.",
+      "evidence": "docs/implementation/phase4-acceptance.md"
     },
     {
       "id": 5,
-      "state": "Pending"
+      "state": "InProgress",
+      "scope": "@nestvexa/forms merged (411a653): Zod/class-validator/custom adapters, input hardening, Live validateLive, wizard, drafts, error bags, focus-first-invalid, no-JS submitForm with CSRF and 303/flash; examples/auth-forms (3104).",
+      "remaining": "Full checkpoint on a quiet host; wizard/drafts UI demo; Live repeaters limited by top-level nv:model."
     },
     {
       "id": 6,
-      "state": "Pending"
+      "state": "InProgress",
+      "scope": "@nestvexa/uploads merged (a3df926): streaming limits, magic bytes, quotas, single-use identity-bound tokens, chunked/resumable uploads, S3 SigV4 presign (test double), scanner hook (ClamdScanner vs fake), Range downloads, nv:upload, no-JS fallback; examples/uploads (3105).",
+      "remaining": "Real S3/MinIO and real clamd runs; multi-node token store; full checkpoint on a quiet host."
     },
     {
       "id": 7,
-      "state": "Pending"
+      "state": "InProgress",
+      "scope": "EJS/Pug/Nunjucks adapters in progress on an agent branch.",
+      "remaining": "Merge, Live mount per engine, external consumer."
     },
     {
       "id": 8,
-      "state": "Pending"
+      "state": "InProgress",
+      "scope": "@nestvexa/inertia merged (8787ec6): v3 protocol, all prop types with lazy evaluation, versioning, redirects, errors/flash, history flags, SSR gateway contract, 17 cited golden vectors, official React client browser test.",
+      "remaining": "Precognition; Vue/Svelte official clients (Phases 10/11); real SSR process (Phase 9)."
     },
     {
       "id": 9,
-      "state": "Pending"
+      "state": "InProgress",
+      "scope": "React/Vite/SSR adapter on an agent branch.",
+      "remaining": "Merge and verification."
     },
     {
       "id": 10,
-      "state": "Pending"
+      "state": "InProgress",
+      "scope": "Vue adapter committed on an agent branch.",
+      "remaining": "Merge and verification."
     },
     {
       "id": 11,
-      "state": "Pending"
+      "state": "InProgress",
+      "scope": "Svelte adapter and mixed host committed on an agent branch.",
+      "remaining": "Merge and verification."
     },
     {
       "id": 12,
-      "state": "Pending"
+      "state": "InProgress",
+      "scope": "Universal server actions + typegen on an agent branch; islands not started.",
+      "remaining": "Merge actions; implement islands registry/mounts and hybrid page."
     },
     {
       "id": 13,
-      "state": "Pending"
+      "state": "InProgress",
+      "scope": "@nestvexa/realtime (17b1d17): SSE/poll/WebSocket, identity-bound tokens, revocation, bounded queues, memory broker with replay, Redis-protocol broker (test double), JobRunner with progress; @nestvexa/cache (0ee41cf) with tags and tag→channel invalidation; /realtime starter.",
+      "remaining": "Real Redis two-process test, broker restart and load tests; Redis-backed Live state store; durable queue adapter."
     },
     {
       "id": 14,
-      "state": "Pending"
+      "state": "InProgress",
+      "scope": "i18n/RTL, UI kit, AI streaming adapter, flags and offline drafts on an agent branch.",
+      "remaining": "Merge and verification."
     },
     {
       "id": 15,
-      "state": "Pending"
+      "state": "InProgress",
+      "scope": "@nestvexa/cli (1cede07): init, doctor, check, add, make:*, inspect:*, remove, build, migrate with atomic rollback and checksum manifest; CJS-compatible exports; @nestvexa/observability (0b458d0): Live spans, OTel bridge, metrics, redacted logs, dev-only devtools.",
+      "remaining": "React/Vue/Svelte/i18n/action/island generators after merges; browser devtools extension (not planned); starter generators for each renderer."
     },
     {
       "id": 16,

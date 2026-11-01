@@ -1,6 +1,56 @@
 # Implementation status
 
-Checkpoint: **2026-11-01** (Africa/Cairo calendar date). **NOT YET READY — BLOCKERS.** UTC timestamps identify individual runs.
+Checkpoint: **2026-11-01** (late session). **NOT YET READY — BLOCKERS.** UTC timestamps identify individual runs.
+
+## Current state (2026-11-01, after commit 411a653)
+
+Work continued from the Codex handoff (last Codex commit `7042e4b`). Since then:
+
+| Commit    | Content                                                                                                                                                                                                                                                                                              |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `946c00b` | Negotiated renderless actions                                                                                                                                                                                                                                                                        |
+| `c00a49e` | Phase 4 completion: nested components (`nvChild`, `@Prop`/`@Reactive`/`@Modelable`), events, lazy, redirects, downloads, flash, pagination, synthesizers, `nv:navigate`, `nv:optimistic`, `/team` and `/projects` starters; client budget 48 KiB ([ADR 0020](../adr/0020-client-budget-revision.md)) |
+| `8787ec6` | Merge: Phase 8 `@nestvexa/inertia` (verified v3 protocol, official React client test)                                                                                                                                                                                                                |
+| `17b1d17` | `@nestvexa/realtime` (SSE/poll/WebSocket, tokens, broker, jobs)                                                                                                                                                                                                                                      |
+| `0ee41cf` | `@nestvexa/cache`                                                                                                                                                                                                                                                                                    |
+| `1cede07` | `@nestvexa/cli` and CommonJS-compatible `default` export conditions                                                                                                                                                                                                                                  |
+| `0b458d0` | `@nestvexa/observability` and Live tracing spans                                                                                                                                                                                                                                                     |
+| `a3df926` | Merge: Phase 6 `@nestvexa/uploads`                                                                                                                                                                                                                                                                   |
+| `411a653` | Merge: Phase 5 `@nestvexa/forms`                                                                                                                                                                                                                                                                     |
+
+**Executed evidence.** At `c00a49e` the full `pnpm checkpoint:check` passed install, format, lint,
+typecheck, **1926+ vitest tests**, coverage, size and the **full three-browser e2e suite**; its pack step
+failed only because Git Bash's GNU `tar` cannot read `C:` paths, and `pnpm test:pack` then passed from
+PowerShell (7, later 11 tarballs; npm and pnpm full/minimal consumers). After later commits, targeted
+suites and three-browser specs for nesting, projects, realtime, forms and uploads passed; full-suite runs
+during this session showed only 15 s **timeouts** while up to six parallel agents saturated the CPU (the
+same tests pass when re-run). A full checkpoint and evidence snapshot must be repeated on a quiet host
+before ledger rows are marked Done for the new packages.
+
+**Not executed:** Linux, real Redis/S3/MinIO/ClamAV services, multi-process realtime, load/memory tests,
+manual assistive-technology review. No package has been published.
+
+| Phase | State      | Summary                                                                                  |
+| ----- | ---------- | ---------------------------------------------------------------------------------------- |
+| 0–2   | InProgress | Foundations implemented; Linux clean install and full matrix pending                     |
+| 3     | Done       | [Acceptance review](phase3-acceptance.md)                                                |
+| 4     | Done       | [Acceptance review](phase4-acceptance.md); combination-matrix rows tracked in the ledger |
+| 5     | InProgress | Forms merged; quiet-host checkpoint pending                                              |
+| 6     | InProgress | Uploads merged; real S3/clamd runs pending                                               |
+| 7     | InProgress | Engine adapters on an agent branch                                                       |
+| 8     | InProgress | Inertia merged; Precognition, Vue/Svelte clients pending                                 |
+| 9–11  | InProgress | React/Vue/Svelte + Vite/SSR on an agent branch                                           |
+| 12    | InProgress | Universal actions on an agent branch; islands not started                                |
+| 13    | InProgress | Realtime, cache, jobs implemented; distributed acceptance pending                        |
+| 14    | InProgress | i18n/UI kit/AI/flags/offline on an agent branch                                          |
+| 15    | InProgress | CLI and observability implemented; renderer generators pending                           |
+| 16–17 | Pending    | Hardening matrix and release preparation                                                 |
+
+Machine-readable state: [progress.json](progress.json). Earlier detailed history follows.
+
+---
+
+## Historical log (Codex sessions and earlier checkpoints)
 
 The [sorting and text-stream checkpoint](sort-and-stream-checkpoint-evidence-2026-11-01.json) at **2026-11-01T07:42:00.002Z** passes **1582 aggregate / 261 three-browser checks**, seven tarballs/four external consumers, the full implemented-checkpoint commands and isolated Windows Node22/24 strict+aggregate. The [internal review](sort-stream-review-2026-11-01.md) records corrected cleanup, detached-label and editable-target defects. Earlier evidence below is historical.
 
