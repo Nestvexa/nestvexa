@@ -21,6 +21,8 @@ import { parseNavigateDirective } from './navigation.js';
 import type { NavigateDirective } from './navigation.js';
 import { parseOptimisticDirective } from './optimistic.js';
 import type { OptimisticDirective } from './optimistic.js';
+import { parseUploadDirective } from './upload.js';
+import type { UploadDirective } from './upload.js';
 export { LiveClientError, parseIdentifier } from './grammar.js';
 export type LiveDirective =
   | {
@@ -44,6 +46,7 @@ export type LiveDirective =
   | ReplacementDirective
   | NavigateDirective
   | OptimisticDirective
+  | UploadDirective
   | { readonly kind: 'confirm'; readonly message: string }
   | { readonly kind: 'target'; readonly actions: readonly string[] };
 // Additional directives remain data-only configuration.
@@ -63,6 +66,7 @@ export function parseDirective(name: string, value: string): LiveDirective {
   if (/^nv:optimistic(?:\.|$)/.test(name))
     return parseOptimisticDirective(name, value);
   if (/^nv:stream(?:\.|$)/.test(name)) return parseStreamDirective(name, value);
+  if (/^nv:upload(?:\.|$)/.test(name)) return parseUploadDirective(name, value);
   if (/^nv:(?:poll|intersect)(?:\.|$)/.test(name))
     return parseObserverDirective(name, value);
   if (/^nv:(?:offline|current|transition)(?:\.|$)/.test(name))

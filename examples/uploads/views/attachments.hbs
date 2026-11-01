@@ -1,0 +1,80 @@
+<section aria-labelledby="attachments-title">
+  <h2 id="attachments-title">Upload attachments</h2>
+  <form nv:submit="attach">
+    <fieldset>
+      <legend>Documents and images</legend>
+      <label for="attachment-files">
+        Up to 5 files (PNG, JPEG, GIF, WebP, PDF, TXT or CSV), 2 MB each
+      </label>
+      <input
+        id="attachment-files"
+        type="file"
+        multiple
+        accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.csv"
+        aria-describedby="attachment-files-status"
+        nv:upload="files"
+      />
+      <progress
+        id="attachment-files-progress"
+        aria-label="Documents upload progress"
+        value="0"
+        max="1"
+        nv:upload.progress="files"
+      ></progress>
+      <p
+        id="attachment-files-status"
+        role="status"
+        aria-live="polite"
+        nv:upload.status="files"
+      ></p>
+      <button type="button" nv:upload.cancel="files">
+        Cancel or clear documents
+      </button>
+    </fieldset>
+    <fieldset>
+      <legend>Large PDF (resumable chunks)</legend>
+      <label for="attachment-archive">One PDF up to 8 MB</label>
+      <input
+        id="attachment-archive"
+        type="file"
+        accept=".pdf"
+        aria-describedby="attachment-archive-status"
+        nv:upload="archive"
+      />
+      <progress
+        id="attachment-archive-progress"
+        aria-label="Large PDF upload progress"
+        value="0"
+        max="1"
+        nv:upload.progress="archive"
+      ></progress>
+      <p
+        id="attachment-archive-status"
+        role="status"
+        aria-live="polite"
+        nv:upload.status="archive"
+      ></p>
+      <button type="button" nv:upload.cancel="archive">
+        Cancel or clear large PDF
+      </button>
+    </fieldset>
+    <button type="submit">Attach uploaded files</button>
+  </form>
+  <p id="attachments-message" role="status" aria-live="polite">{{message}}</p>
+  <h2>Attached files</h2>
+  {{#if items.length}}
+  <ul id="attachment-list">
+    {{#each items}}
+    <li>
+      <a href="/attachments/{{id}}/download">Download {{name}}</a>
+      ({{size}}, {{contentType}}) {{#if inline}}
+      <a href="/attachments/{{id}}/download?inline=1">View {{name}}</a>
+      {{/if}}
+    </li>
+    {{/each}}
+  </ul>
+  <button type="button" nv:click="clear">Remove all attachments</button>
+  {{else}}
+  <p id="attachment-empty">No attachments yet.</p>
+  {{/if}}
+</section>

@@ -42,6 +42,16 @@ import type {
   LoadingDirective,
   ReplacementDirective,
 } from '@nestvexa/client';
+import {
+  UploadsModule,
+  UploadsService,
+  configureUploads,
+  contentDisposition,
+} from '@nestvexa/uploads';
+import type { FinalizedUpload } from '@nestvexa/uploads';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 // Importing a browser entry in Node must not initialize a document or a global runtime.
 assert.equal(typeof createLiveClient, 'function');
@@ -313,4 +323,67 @@ try {
 } finally {
   await app.close();
   await renderer.dispose();
+}
+
+// Packed @nestvexa/uploads: raw upload and single-use finalize over real HTTP.
+const uploadsDirectory = await mkdtemp(
+  join(tmpdir(), 'nestvexa-pack-uploads-'),
+);
+const uploadsCsrf = 'packed-uploads-csrf-0123456789abcdef';
+const uploadsApp = await NestFactory.create(
+  UploadsModule.register({
+    origin: 'http://packed.test',
+    directory: uploadsDirectory,
+    resolveIdentity: () => ({
+      binding: 'packed-consumer-binding',
+      csrfToken: uploadsCsrf,
+    }),
+    authorize: () => true,
+    purposes: { images: { types: ['png'], maxFileSize: 1024 } },
+  }),
+  { logger: false },
+);
+try {
+  await configureUploads(uploadsApp);
+  await uploadsApp.listen(0, '127.0.0.1');
+  const uploadsBase = (await uploadsApp.getUrl()).replace('[::1]', '127.0.0.1');
+  const png = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    Buffer.from('packed'),
+  ]);
+  const uploaded = await fetch(`${uploadsBase}/_nestvexa/uploads/files`, {
+    method: 'POST',
+    headers: {
+      origin: 'http://packed.test',
+      'x-nestvexa-csrf': uploadsCsrf,
+      'content-type': 'application/octet-stream',
+      'x-nestvexa-upload-purpose': 'images',
+      'x-nestvexa-upload-name': 'packed.png',
+    },
+    body: png,
+  });
+  assert.equal(uploaded.status, 201);
+  const receipt = (await uploaded.json()) as { token: string };
+  const uploadsService = uploadsApp.get(UploadsService);
+  const file: FinalizedUpload = await uploadsService.finalize(
+    { headers: {} },
+    receipt.token,
+    { purpose: 'images' },
+  );
+  assert.equal(file.size, png.byteLength);
+  await assert.rejects(
+    uploadsService.finalize({ headers: {} }, receipt.token, {
+      purpose: 'images',
+    }),
+  );
+  assert.equal(
+    contentDisposition('a.png'),
+    `attachment; filename="a.png"; filename*=UTF-8''a.png`,
+  );
+  console.log(
+    'Packed uploads consumer passed: upload and single-use finalize.',
+  );
+} finally {
+  await uploadsApp.close();
+  await rm(uploadsDirectory, { recursive: true, force: true });
 }

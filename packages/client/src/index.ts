@@ -47,7 +47,15 @@ import {
   validateStreams,
 } from './stream.js';
 import type { StreamEndpoint, StreamResult } from './stream.js';
+import {
+  copyUploadEndpoint,
+  createUploadController,
+  validateUploads,
+} from './upload.js';
+import type { UploadEndpoint } from './upload.js';
 export { parseStreamDirective } from './stream.js';
+export { parseUploadDirective } from './upload.js';
+export type { UploadDirective, UploadEndpoint } from './upload.js';
 export type {
   StreamDirective,
   StreamEndpoint,
@@ -111,6 +119,8 @@ export interface LiveClientOptions {
   readonly maxSortLists?: number;
   /** Trusted static same-origin POST routes. Markup names a registered ID, never a URL. */
   readonly streams?: Readonly<Record<string, StreamEndpoint>>;
+  /** Trusted same-origin upload API prefix for `nv:upload` (from @nestvexa/uploads). */
+  readonly uploads?: UploadEndpoint;
 }
 /** One bounded timing sample per phase of a dispatched request; no retained buffer. */
 export interface LiveDiagnostic {
@@ -130,6 +140,10 @@ export interface LiveClient {
   /** Start an explicitly requested read-only text stream; no automatic retry. */
   startStream(target: Element): Promise<StreamResult>;
   cancelStream(target: Element): void;
+  /** Upload the files selected in an owned `nv:upload` input, then set its field to the tokens. */
+  upload(input: Element): Promise<readonly string[]>;
+  /** Abort an active upload and discard unfinalized tokens for the element's field. */
+  cancelUpload(element: Element): void;
   /**
    * Deliver a browser event to components whose `@OnEvent` listeners match.
    * Listener actions validate and authorize the payload on the server.
@@ -245,6 +259,7 @@ function ignored(element: Element, component: Element): boolean {
 function validateDirectives(
   component: Element,
   streams: Readonly<Record<string, StreamEndpoint>>,
+  uploads: boolean,
 ): void {
   let initializers = 0;
   if (component.hasAttribute('nv:ignore'))
@@ -257,6 +272,7 @@ function validateDirectives(
   validatePresentation(component);
   validateSort(component);
   validateStreams(component, streams);
+  validateUploads(component, uploads);
   validateReplacement(component, component);
   for (const element of owned(component)) {
     getModelDirective(element);
@@ -459,6 +475,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   let navigation: ReturnType<typeof createNavigationController> | undefined;
   let streaming: ReturnType<typeof createStreamController> | undefined;
   const streams = copyStreamEndpoints(options.streams ?? Object.freeze({}));
+  const uploadEndpoint = copyUploadEndpoint(options.uploads);
+  let uploading: ReturnType<typeof createUploadController> | undefined;
   let presentation: ReturnType<typeof createPresentationController> | undefined;
   let initialization:
     ReturnType<typeof createInitializationScheduler> | undefined;
@@ -804,7 +822,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
               'MARKER',
               'Live component already belongs to another client instance',
             );
-          validateDirectives(element, streams);
+          validateDirectives(element, streams, uploadEndpoint !== undefined);
           const id = element.getAttribute('data-nv-component');
           const name = element.getAttribute('data-nv-name');
           const snapshot = element.getAttribute('data-nv-snapshot');
@@ -987,7 +1005,11 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
               target.hasAttribute('nv:confirm')
             )
               return false;
-            validateDirectives(state.root, streams);
+            validateDirectives(
+              state.root,
+              streams,
+              uploadEndpoint !== undefined,
+            );
             return true;
           },
         );
@@ -1145,7 +1167,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           top: state.root.scrollTop,
           left: state.root.scrollLeft,
         };
-        validateDirectives(state.root, streams);
+        validateDirectives(state.root, streams, uploadEndpoint !== undefined);
         const read = (field: string): unknown =>
           dirty.has(field) ? dirty.get(field) : result.state[field];
         modelSelections(state.root, read, state.invalid);
@@ -1168,7 +1190,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         const incoming = prepareMorph(state.root, template.content);
         const preview = state.root.cloneNode(false) as Element;
         preview.append(incoming.cloneNode(true));
-        validateDirectives(preview, streams);
+        validateDirectives(preview, streams, uploadEndpoint !== undefined);
         // A changed model shape/cast has no compatible array draft. Validate its
         // authoritative response value rather than projecting the old scalar/cast.
         const arrayCasts = new Map<string, string>();
@@ -1835,7 +1857,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       )
     );
   }
-  return {
+  const api: LiveClient = {
     refs(element: Element): ReadonlyMap<string, Element> {
       return queryRefs(componentFor(element).root);
     },
@@ -1851,6 +1873,16 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     },
     cancelStream(target: Element): void {
       streaming?.cancel(target);
+    },
+    upload(input: Element): Promise<readonly string[]> {
+      if (!uploading)
+        return Promise.reject(
+          new LiveClientError('DIRECTIVE', 'Live client is not mounted'),
+        );
+      return uploading.start(input);
+    },
+    cancelUpload(element: Element): void {
+      uploading?.cancel(element);
     },
     navigate(url: string): Promise<void> {
       if (!navigation)
@@ -2007,6 +2039,19 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         },
         onError: (error, target) => report(error, owner(target)),
       });
+      uploading = createUploadController({
+        root,
+        window,
+        endpoint: uploadEndpoint,
+        component: (element) => {
+          const state = registeredScope(element);
+          if (!state || failureFor(state) || ignored(element, state.root))
+            return undefined;
+          return { root: state.root, name: state.name, csrf: state.csrf };
+        },
+        set: (element, field, value) => api.set(element, field, value),
+        onError: (error, element) => report(error, owner(element)),
+      });
       sorting = createSortController({
         window,
         maxLists: sortLimit,
@@ -2124,6 +2169,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       sorting = undefined;
       streaming?.dispose();
       streaming = undefined;
+      uploading?.dispose();
+      uploading = undefined;
       initialization?.dispose();
       initialization = undefined;
       background = undefined;
@@ -2153,4 +2200,5 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       rejected = new WeakSet<Element>();
     },
   };
+  return api;
 }

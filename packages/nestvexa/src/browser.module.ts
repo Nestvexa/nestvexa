@@ -23,12 +23,15 @@ export interface NestvexaBrowserOptions {
   readonly basePath?: string;
   /** Trusted explicit public POST paths, including any host prefix. Never taken from markup. */
   readonly streams?: Readonly<Record<string, { readonly endpoint: string }>>;
+  /** Public prefix of the opt-in @nestvexa/uploads routes, including any host prefix. */
+  readonly uploads?: { readonly endpoint: string };
 }
 interface BrowserOptions {
   readonly mode: 'alpine' | 'manual';
   readonly path: string;
   readonly basePath: string;
   readonly streams: Readonly<Record<string, { readonly endpoint: string }>>;
+  readonly uploads: { readonly endpoint: string } | undefined;
 }
 const BROWSER_OPTIONS = Symbol('nv:browser-options');
 function normalizeStreams(value: unknown): BrowserOptions['streams'] {
@@ -79,6 +82,28 @@ function normalizeStreams(value: unknown): BrowserOptions['streams'] {
   }
   return Object.freeze(result);
 }
+function normalizeUploads(value: unknown): BrowserOptions['uploads'] {
+  if (value === undefined) return undefined;
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    (Object.getPrototypeOf(value) !== Object.prototype &&
+      Object.getPrototypeOf(value) !== null) ||
+    Reflect.ownKeys(value).length !== 1
+  )
+    throw new Error('Invalid browser uploads option');
+  const endpoint = Object.getOwnPropertyDescriptor(value, 'endpoint');
+  if (
+    !endpoint?.enumerable ||
+    !('value' in endpoint) ||
+    typeof endpoint.value !== 'string'
+  )
+    throw new Error('Browser uploads endpoint must be a string data property');
+  return Object.freeze({
+    endpoint: normalizeAssetOptions({ path: endpoint.value, basePath: '' })
+      .path,
+  });
+}
 function attribute(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -126,12 +151,23 @@ export class NestvexaBrowserService implements OnApplicationShutdown {
     return `import {createLiveClient} from ${JSON.stringify(entries.live)};
 import Alpine from ${JSON.stringify(entries.alpine)};
 import {startLiveAlpine} from ${JSON.stringify(entries.alpineAdapter)};
-const app = startLiveAlpine(Alpine, createLiveClient(${Object.keys(this.options.streams).length ? JSON.stringify({ streams: this.options.streams }).replaceAll('<', '\\u003c') : ''}), {
+const app = startLiveAlpine(Alpine, createLiveClient(${this.clientOptions()}), {
   configure(Alpine, client) {
     document.dispatchEvent(new CustomEvent('nestvexa:alpine:init', {detail: Object.freeze({Alpine, client})}));
   }
 });
 export {app};\n`;
+  }
+  private clientOptions(): string {
+    const options = {
+      ...(Object.keys(this.options.streams).length
+        ? { streams: this.options.streams }
+        : {}),
+      ...(this.options.uploads ? { uploads: this.options.uploads } : {}),
+    };
+    return Object.keys(options).length
+      ? JSON.stringify(options).replaceAll('<', '\\u003c')
+      : '';
   }
   onApplicationShutdown(): void {
     this.closed = true;
@@ -174,9 +210,14 @@ export class NestvexaBrowserModule {
     for (const key of Reflect.ownKeys(options)) {
       const descriptor = Object.getOwnPropertyDescriptor(options, key);
       if (
-        !['mode', 'path', 'assetsPath', 'basePath', 'streams'].includes(
-          String(key),
-        ) ||
+        ![
+          'mode',
+          'path',
+          'assetsPath',
+          'basePath',
+          'streams',
+          'uploads',
+        ].includes(String(key)) ||
         typeof key !== 'string' ||
         !descriptor ||
         !('value' in descriptor)
@@ -193,6 +234,11 @@ export class NestvexaBrowserModule {
     if (mode === 'manual' && Object.keys(streams).length)
       throw new Error(
         'Configure streams on the host-owned client in manual browser mode',
+      );
+    const uploads = normalizeUploads(read('uploads'));
+    if (mode === 'manual' && uploads)
+      throw new Error(
+        'Configure uploads on the host-owned client in manual browser mode',
       );
     const prefix = normalizeAssetOptions({
       path: read('path') === undefined ? '/_nestvexa' : read('path'),
@@ -220,7 +266,7 @@ export class NestvexaBrowserModule {
       providers: [
         {
           provide: BROWSER_OPTIONS,
-          useValue: Object.freeze({ ...prefix, mode, streams }),
+          useValue: Object.freeze({ ...prefix, mode, streams, uploads }),
         },
         NestvexaBrowserService,
       ],

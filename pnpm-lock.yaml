@@ -158,6 +158,37 @@ importers:
         specifier: 1.19.0
         version: 1.19.0
 
+  examples/uploads:
+    dependencies:
+      '@nestjs/common':
+        specifier: 12.2.0
+        version: 12.2.0(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/core':
+        specifier: 12.2.0
+        version: 12.2.0(@nestjs/common@12.2.0(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@12.2.0)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/platform-express':
+        specifier: 12.2.0
+        version: 12.2.0(@nestjs/common@12.2.0(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@12.2.0)
+      '@nestvexa/uploads':
+        specifier: workspace:*
+        version: link:../../packages/uploads
+      express-session:
+        specifier: 1.19.0
+        version: 1.19.0
+      nestvexa:
+        specifier: workspace:*
+        version: link:../../packages/nestvexa
+      reflect-metadata:
+        specifier: 0.2.2
+        version: 0.2.2
+      rxjs:
+        specifier: 7.8.2
+        version: 7.8.2
+    devDependencies:
+      '@types/express-session':
+        specifier: 1.19.0
+        version: 1.19.0
+
   packages/alpine:
     dependencies:
       '@alpinejs/csp':
@@ -246,6 +277,25 @@ importers:
       rxjs:
         specifier: ^7.8.2
         version: 7.8.2
+
+  packages/uploads:
+    dependencies:
+      '@nestjs/common':
+        specifier: ^12.0.0
+        version: 12.2.0(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      busboy:
+        specifier: 1.6.0
+        version: 1.6.0
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+      rxjs:
+        specifier: ^7.8.2
+        version: 7.8.2
+    devDependencies:
+      '@types/busboy':
+        specifier: 1.5.4
+        version: 1.5.4
 
   packages/views: {}
 
@@ -834,6 +884,9 @@ packages:
 
   '@types/body-parser@1.19.6':
     resolution: {integrity: sha512-HLFeCYgz89uk22N5Qg3dvGvsv46B8GLvKKo1zKG4NybA8U2DiEO3w9lqGg29t/tfLRJpJ6iQxnVw4OnB7MoM9g==}
+
+  '@types/busboy@1.5.4':
+    resolution: {integrity: sha512-kG7WrUuAKK0NoyxfQHsVE6j1m01s6kMma64E+OZenQABMQyTJop1DumUWcLwAQ2JzpefU7PDYoRDKl8uZosFjw==}
 
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
@@ -2580,6 +2633,10 @@ snapshots:
   '@types/body-parser@1.19.6':
     dependencies:
       '@types/connect': 3.4.38
+      '@types/node': 24.19.2
+
+  '@types/busboy@1.5.4':
+    dependencies:
       '@types/node': 24.19.2
 
   '@types/chai@5.2.3':
