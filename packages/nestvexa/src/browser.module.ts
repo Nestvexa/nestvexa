@@ -28,6 +28,8 @@ export interface NestvexaBrowserOptions {
     readonly endpoint: string;
     readonly transport?: 'auto' | 'sse' | 'websocket' | 'polling';
   };
+  /** Public prefix of the opt-in @nestvexa/uploads routes, including any host prefix. */
+  readonly uploads?: { readonly endpoint: string };
 }
 interface BrowserOptions {
   readonly mode: 'alpine' | 'manual';
@@ -38,6 +40,7 @@ interface BrowserOptions {
     readonly endpoint: string;
     readonly transport: 'auto' | 'sse' | 'websocket' | 'polling';
   };
+  readonly uploads: { readonly endpoint: string } | undefined;
 }
 const BROWSER_OPTIONS = Symbol('nv:browser-options');
 function normalizeStreams(value: unknown): BrowserOptions['streams'] {
@@ -87,6 +90,28 @@ function normalizeStreams(value: unknown): BrowserOptions['streams'] {
     result[key] = Object.freeze({ endpoint: path });
   }
   return Object.freeze(result);
+}
+function normalizeUploads(value: unknown): BrowserOptions['uploads'] {
+  if (value === undefined) return undefined;
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    (Object.getPrototypeOf(value) !== Object.prototype &&
+      Object.getPrototypeOf(value) !== null) ||
+    Reflect.ownKeys(value).length !== 1
+  )
+    throw new Error('Invalid browser uploads option');
+  const endpoint = Object.getOwnPropertyDescriptor(value, 'endpoint');
+  if (
+    !endpoint?.enumerable ||
+    !('value' in endpoint) ||
+    typeof endpoint.value !== 'string'
+  )
+    throw new Error('Browser uploads endpoint must be a string data property');
+  return Object.freeze({
+    endpoint: normalizeAssetOptions({ path: endpoint.value, basePath: '' })
+      .path,
+  });
 }
 function attribute(value: string): string {
   return value
@@ -148,9 +173,10 @@ export {app};\n`;
         ? { streams: this.options.streams }
         : {}),
       ...(this.options.realtime ? { realtime: this.options.realtime } : {}),
+      ...(this.options.uploads ? { uploads: this.options.uploads } : {}),
     };
     return Object.keys(config).length
-      ? JSON.stringify(config).replaceAll('<', '\\u003c')
+      ? JSON.stringify(config).replaceAll('<', '\u003c')
       : '';
   }
   onApplicationShutdown(): void {
@@ -201,6 +227,7 @@ export class NestvexaBrowserModule {
           'basePath',
           'streams',
           'realtime',
+          'uploads',
         ].includes(String(key)) ||
         typeof key !== 'string' ||
         !descriptor ||
@@ -244,6 +271,11 @@ export class NestvexaBrowserModule {
       throw new Error(
         'Configure streams on the host-owned client in manual browser mode',
       );
+    const uploads = normalizeUploads(read('uploads'));
+    if (mode === 'manual' && uploads)
+      throw new Error(
+        'Configure uploads on the host-owned client in manual browser mode',
+      );
     const prefix = normalizeAssetOptions({
       path: read('path') === undefined ? '/_nestvexa' : read('path'),
       basePath: read('basePath') === undefined ? basePath : read('basePath'),
@@ -274,6 +306,7 @@ export class NestvexaBrowserModule {
             ...prefix,
             mode,
             streams,
+            uploads,
             ...(realtime === undefined ? {} : { realtime }),
           }),
         },

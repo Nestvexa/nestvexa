@@ -33,7 +33,7 @@ describe('instrumentation adapters', () => {
     const spans: {
       name: string;
       attributes: Record<string, unknown>;
-      status?: number;
+      status: number | undefined;
       ended: boolean;
     }[] = [];
     const tracer = {

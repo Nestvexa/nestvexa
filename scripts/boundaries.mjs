@@ -69,6 +69,39 @@ for (const field of ['dependencies', 'peerDependencies']) {
     if (/^(?:react|react-dom|vue|svelte|@inertiajs\/)/.test(name))
       throw new Error(`@nestvexa/inertia must not depend on ${name}`);
 }
+// Uploads is an opt-in server package: no Live/client/umbrella coupling and no
+// mandatory cloud SDK (S3 uses SigV4 on node:crypto).
+async function uploadSources(path) {
+  for (const entry of await readdir(path, { withFileTypes: true })) {
+    const file = join(path, entry.name);
+    if (entry.isDirectory()) await uploadSources(file);
+    else if (entry.name.endsWith('.ts')) {
+      const text = await readFile(file, 'utf8');
+      if (
+        /from\s+['"](?:@nestvexa\/(?:live|client|alpine)|nestvexa|@aws-sdk\/|aws-sdk)/.test(
+          text,
+        )
+      )
+        throw new Error(`Uploads boundary violation: ${file}`);
+    }
+  }
+}
+await uploadSources('packages/uploads/src');
+const uploadsManifest = manifests.get('@nestvexa/uploads');
+if (
+  uploadsManifest &&
+  Object.keys({
+    ...uploadsManifest.dependencies,
+    ...uploadsManifest.peerDependencies,
+  }).some((name) => name.startsWith('@aws-sdk/') || name === 'aws-sdk')
+)
+  throw new Error('Uploads must not require a cloud SDK');
+// Browser runtime code must never import Node or Nest modules.
+for (const entry of await readdir('packages/client/src')) {
+  const text = await readFile(join('packages/client/src', entry), 'utf8');
+  if (/from\s+['"](?:node:|@nestjs\/|@nestvexa\/uploads)/.test(text))
+    throw new Error(`Client browser boundary violation: ${entry}`);
+}
 console.log(
-  `Dependency graph checked: ${manifests.size} packages; core, view and Inertia adapter boundaries intact.`,
+  `Dependency graph checked: ${manifests.size} packages; core, view, Inertia, uploads and client boundaries intact.`,
 );

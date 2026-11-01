@@ -1,0 +1,36 @@
+<h1>{{title}}</h1>
+{{#if notice}}
+<p id="classic-notice" role="status">{{notice}}</p>
+{{/if}}
+<form
+  id="classic-form"
+  method="post"
+  action="/classic"
+  enctype="multipart/form-data"
+>
+  <input type="hidden" name="_csrf" value="{{csrf}}" />
+  <label for="classic-files">
+    Up to 3 files (PNG, JPEG, GIF, WebP, PDF, TXT or CSV), 2 MB each
+  </label>
+  <input
+    id="classic-files"
+    name="files"
+    type="file"
+    multiple
+    accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.csv"
+  />
+  <button type="submit">Upload and attach</button>
+</form>
+<h2>Attached files</h2>
+{{#if items.length}}
+<ul id="classic-list">
+  {{#each items}}
+  <li>
+    <a href="/attachments/{{id}}/download">Download {{name}}</a>
+    ({{size}})
+  </li>
+  {{/each}}
+</ul>
+{{else}}
+<p>No attachments yet.</p>
+{{/if}}
