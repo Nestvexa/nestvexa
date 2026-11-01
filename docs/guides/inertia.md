@@ -156,7 +156,9 @@ cross-session tokens are rejected with 403).
 `component-resolution`, `render`, `connection`, `timeout`,
 `invalid-response`). `fallback` mode (default) logs, calls `onError` and serves
 the client-rendered document; `strict` propagates a 500 without exposing the
-SSR detail. Running the SSR process and framework bundles is Phase 9.
+SSR detail. Framework SSR bundles, the in-process `moduleSsrRenderer` and the
+official SSR server launcher are covered in the [Vite](vite.md),
+[React](react.md), [Vue](vue.md) and [Svelte](svelte.md) guides.
 
 ## Parity matrix
 

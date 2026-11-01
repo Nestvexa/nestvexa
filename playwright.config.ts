@@ -34,5 +34,37 @@ export default defineConfig({
       url: 'http://127.0.0.1:3103',
       reuseExistingServer: false,
     },
+    // Phase 9-11 frontend adapters (Vite production builds + SSR). The React
+    // example renders through the official Inertia SSR server process.
+    {
+      command: 'pnpm --filter @nestvexa/example-inertia-react start:ssr',
+      url: 'http://127.0.0.1:13716/health',
+      reuseExistingServer: false,
+      timeout: 180000,
+    },
+    {
+      command: 'pnpm --filter @nestvexa/example-inertia-react start:e2e',
+      url: 'http://127.0.0.1:3106',
+      reuseExistingServer: false,
+      timeout: 180000,
+    },
+    {
+      command: 'pnpm --filter @nestvexa/example-inertia-vue start:e2e',
+      url: 'http://127.0.0.1:3107',
+      reuseExistingServer: false,
+      timeout: 180000,
+    },
+    {
+      command: 'pnpm --filter @nestvexa/example-inertia-svelte start:e2e',
+      url: 'http://127.0.0.1:3108',
+      reuseExistingServer: false,
+      timeout: 180000,
+    },
+    {
+      command: 'pnpm --filter @nestvexa/example-inertia-mixed start',
+      url: 'http://127.0.0.1:3109/api/health',
+      reuseExistingServer: false,
+      timeout: 180000,
+    },
   ],
 });

@@ -1,0 +1,155 @@
+import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import {
+  inertiaRequests,
+  markDocument,
+  observe,
+  sameDocument,
+} from './inertia-framework-suite.js';
+
+// examples/inertia-mixed: one Nest backend serving an HBS route plus React,
+// Vue and Svelte Inertia roots on /react, /vue and /svelte. Each root is a
+// separate Vite build with its own manifest, asset version and SSR bundle.
+const base = 'http://127.0.0.1:3109';
+const roots = ['react', 'vue', 'svelte'] as const;
+const labels = { react: 'React', vue: 'Vue', svelte: 'Svelte' } as const;
+const foreign = {
+  react: /\bvue\b|svelte/i,
+  vue: /react|svelte/i,
+  svelte: /react|\bvue\b/i,
+} as const;
+
+function manifest(
+  root: (typeof roots)[number],
+): Record<string, { file: string }> {
+  const path = fileURLToPath(
+    new URL(
+      `../../examples/inertia-mixed/dist/${root}/client/.vite/manifest.json`,
+      import.meta.url,
+    ),
+  );
+  return JSON.parse(readFileSync(path, 'utf8')) as Record<
+    string,
+    { file: string }
+  >;
+}
+
+async function hydratedAs(page: Page, root: string): Promise<void> {
+  await expect(page.locator(`html[data-hydrated="${root}"]`)).toHaveCount(1);
+}
+
+test.describe('mixed Nest host: HBS + React + Vue + Svelte roots', () => {
+  test('each root has a separate Vite manifest with no foreign framework modules', () => {
+    const files = new Map<string, string>();
+    for (const root of roots) {
+      const entries = manifest(root);
+      const keys = Object.keys(entries);
+      expect(keys.length).toBeGreaterThan(0);
+      for (const key of keys) {
+        expect(key).not.toMatch(foreign[root]);
+        expect(entries[key]?.file).toMatch(/^assets\//);
+        const file = `${root}:${entries[key]?.file ?? ''}`;
+        expect(files.has(file)).toBe(false);
+        files.set(file, root);
+      }
+      expect(keys).toContain(
+        root === 'react' ? 'client/react/app.tsx' : `client/${root}/app.ts`,
+      );
+    }
+  });
+
+  test('every root document is server-rendered and loads only its own bundle', async ({
+    request,
+  }) => {
+    for (const root of roots) {
+      const response = await request.get(`${base}/${root}`);
+      expect(response.status()).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('data-server-rendered="true"');
+      expect(html).toMatch(new RegExp(`<h1[^>]*>${labels[root]} home</h1>`));
+      expect(html).toContain(`src="/build/${root}/assets/`);
+      for (const other of roots)
+        if (other !== root) expect(html).not.toContain(`/build/${other}/`);
+      const version = /"version":"([^"]+)"/.exec(html)?.[1];
+      expect(version).toMatch(new RegExp(`^${root}:[0-9a-f]{16}$`));
+    }
+    const hbs = await request.get(`${base}/`);
+    expect(await hbs.text()).toContain('<h1>Mixed host</h1>');
+  });
+
+  test('same-root navigation stays XHR; cross-root navigation is a full page load', async ({
+    page,
+  }) => {
+    const observed = await observe(page);
+    const builds = new Set<string>();
+    page.on('request', (request) => {
+      const match = /\/build\/(react|vue|svelte)\//.exec(request.url());
+      if (match?.[1]) builds.add(match[1]);
+    });
+    await page.goto(`${base}/react`);
+    await hydratedAs(page, 'react');
+    expect([...builds]).toEqual(['react']);
+    await markDocument(page);
+    const xhr = inertiaRequests(page);
+    await page.getByRole('link', { name: 'React about' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'React about' }),
+    ).toBeVisible();
+    expect(await sameDocument(page)).toBe(true);
+    expect(xhr.map((request) => new URL(request.url()).pathname)).toEqual([
+      '/react/about',
+    ]);
+
+    // Inertia Link into the Vue root: the server answers the XHR with 409 and
+    // X-Inertia-Location (versions are namespaced per root), so the official
+    // client performs a full document visit.
+    const conflict = page.waitForResponse(
+      (response) =>
+        response.url() === `${base}/vue` && response.status() === 409,
+    );
+    await page.getByRole('link', { name: 'Vue root' }).click();
+    expect((await conflict).headers()['x-inertia-location']).toBe('/vue');
+    await expect(page.getByRole('heading', { name: 'Vue home' })).toBeVisible();
+    await hydratedAs(page, 'vue');
+    expect(await sameDocument(page)).toBe(false);
+    await markDocument(page);
+    await page.getByRole('link', { name: 'Vue about' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Vue about' }),
+    ).toBeVisible();
+    expect(await sameDocument(page)).toBe(true);
+
+    await page.getByRole('link', { name: 'Svelte root' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Svelte home' }),
+    ).toBeVisible();
+    await hydratedAs(page, 'svelte');
+    expect(await sameDocument(page)).toBe(false);
+    await markDocument(page);
+    await page.getByRole('link', { name: 'Svelte about' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Svelte about' }),
+    ).toBeVisible();
+    expect(await sameDocument(page)).toBe(true);
+
+    // Plain link to the HBS route served by the same Nest host.
+    await page.getByRole('link', { name: 'HBS index' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Mixed host' }),
+    ).toBeVisible();
+    expect(await sameDocument(page)).toBe(false);
+    await page.getByRole('link', { name: 'React root' }).click();
+    await hydratedAs(page, 'react');
+    await expect(
+      page.getByRole('heading', { name: 'React home' }),
+    ).toBeVisible();
+
+    expect(observed.errors).toEqual([]);
+    // Chromium logs the deliberate cross-root 409 responses as resource errors.
+    expect(
+      observed.console.filter((line) => !line.includes('status of 409')),
+    ).toEqual([]);
+  });
+});

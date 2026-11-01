@@ -1,0 +1,53 @@
+{
+  "name": "@nestvexa/svelte",
+  "version": "0.1.0-alpha.0",
+  "description": "Official @inertiajs/svelte client and SSR entry helpers for Nestvexa Inertia hosts built with Vite",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": "^22.13.0 || ^24.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./ssr": {
+      "types": "./dist/ssr.d.ts",
+      "import": "./dist/ssr.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run ../../tests/svelte-adapter.test.ts",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@nestvexa/vite": "workspace:*"
+  },
+  "peerDependencies": {
+    "@inertiajs/core": "^3.10.0",
+    "@inertiajs/svelte": "^3.10.0",
+    "svelte": "^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@inertiajs/core": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@inertiajs/core": "3.10.0",
+    "@inertiajs/svelte": "3.10.0",
+    "svelte": "5.57.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
