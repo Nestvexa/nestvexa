@@ -13,3 +13,30 @@ Model modifiers use the separate `_sync` route and require explicit `$sync` auth
 The lockfile overrides Multer to2.5.0 for GHSA-q7qp-rjg7-q26m. Nest12.2.0's Express platform pins2.4.0, so downstream apps must apply the patched resolution too until upstream updates. Repository overrides do not automatically transfer into a consumer app.
 
 No raw cookies, tokens or private DTOs should be logged. The current packages do not include telemetry. Do not expose development errors publicly. Report security issues privately through an owner-provided channel once configured; see [policy](../../SECURITY.md).
+
+## Optional subsystems (2026-11-01)
+
+- **Realtime.** Load `RealtimeModule` secrets from the environment (≥32 bytes, rotate by
+  prepending a new secret). Authorize channels from authoritative identity and tenant,
+  call `revoke(binding)` on logout and `closeChannel()` after permission changes, keep
+  SSE query tokens out of shared access logs, and enable the WebSocket transport only
+  with `resolveUpgradeIdentity` and the exact public `origin`.
+- **Uploads.** Store files outside the web root, keep the default type allowlist narrow,
+  configure a real malware scanner (`requireScan`) where your threat model needs one,
+  and serve stored files only through the safe download helper (attachment, `nosniff`,
+  sandbox CSP). Pending tokens are per process: use sticky sessions with several nodes.
+- **Forms.** Keep `whitelist`/`forbidNonWhitelisted` enabled for class-validator, use the
+  hardened urlencoded parser (`extended: false`) and single-use submission tokens for
+  non-idempotent no-JS posts.
+- **Downloads and redirects.** `downloadLive` and `redirectLive` already restrict
+  content and targets; never pass user-chosen absolute URLs to your own redirects.
+- **Navigation.** `nv:navigate` falls back to full loads when assets differ; still send
+  `Cache-Control: no-store` on private pages so history revisits re-authorize.
+- **Cache.** Never cache Live snapshots, CSRF tokens or per-user HTML without a private
+  scope and complete `vary` inputs.
+- **Telemetry.** Use the redacting logger and the provided span attributes; never
+  register `DevtoolsModule` in production (it refuses) or without host authorization.
+- **CommonJS hosts.** Packages are ESM loaded through `require(esm)` on Node 22.12+;
+  older Node versions are unsupported.
+- **CLI.** Review `nestvexa init` changes (use `--dry-run`) and replace the generated
+  guest identity policy before deployment.
