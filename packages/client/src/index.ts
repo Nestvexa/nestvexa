@@ -32,7 +32,25 @@ import {
   validatePresentation,
 } from './presentation.js';
 import { applyUrlEffects } from './url-state.js';
+import { cloneActionInput } from './action-input.js';
+import type { LiveActionInput } from './action-input.js';
+export type { LiveActionInput } from './action-input.js';
 import { createInitializationScheduler } from './initialization.js';
+import { createSortController, validateSort } from './sort.js';
+export { parseSortDirective } from './sort.js';
+export type { SortDirective } from './sort.js';
+import {
+  copyStreamEndpoints,
+  createStreamController,
+  validateStreams,
+} from './stream.js';
+import type { StreamEndpoint, StreamResult } from './stream.js';
+export { parseStreamDirective } from './stream.js';
+export type {
+  StreamDirective,
+  StreamEndpoint,
+  StreamResult,
+} from './stream.js';
 export { parseObserverDirective } from './observers.js';
 export type { ObserverDirective } from './observers.js';
 export { parsePresentationDirective } from './presentation.js';
@@ -84,6 +102,10 @@ export interface LiveClientOptions {
   readonly maxInitializations?: number;
   /** Total polling/intersection bindings per client: 1–1000; default 256. */
   readonly maxObservers?: number;
+  /** Active sortable lists per client: 1–256; default 64. */
+  readonly maxSortLists?: number;
+  /** Trusted static same-origin POST routes. Markup names a registered ID, never a URL. */
+  readonly streams?: Readonly<Record<string, StreamEndpoint>>;
 }
 /** One bounded timing sample per phase of a dispatched request; no retained buffer. */
 export interface LiveDiagnostic {
@@ -94,12 +116,15 @@ export interface LiveDiagnostic {
 export interface LiveClient {
   mount(): void;
   dispose(): void;
-  call(element: Element, action: string): Promise<void>;
+  call(element: Element, action: string, input?: unknown): Promise<void>;
   get(element: Element, name: string): unknown;
   set(element: Element, name: string, value: string | number | boolean): void;
   refs(element: Element): ReadonlyMap<string, Element>;
   /** Await a trusted CSS enter/leave phase before host-managed removal. */
   transition(element: Element, phase: 'enter' | 'leave'): Promise<boolean>;
+  /** Start an explicitly requested read-only text stream; no automatic retry. */
+  startStream(target: Element): Promise<StreamResult>;
+  cancelStream(target: Element): void;
 }
 type Field = ModelValue;
 const componentOwners = new WeakMap<Element, symbol>();
@@ -155,7 +180,10 @@ function ignored(element: Element, component: Element): boolean {
       return true;
   return false;
 }
-function validateDirectives(component: Element): void {
+function validateDirectives(
+  component: Element,
+  streams: Readonly<Record<string, StreamEndpoint>>,
+): void {
   let initializers = 0;
   if (component.hasAttribute('nv:ignore'))
     throw new LiveClientError(
@@ -165,6 +193,8 @@ function validateDirectives(component: Element): void {
   validateLoading(component);
   validateObservers(component);
   validatePresentation(component);
+  validateSort(component);
+  validateStreams(component, streams);
   validateReplacement(component, component);
   for (const element of owned(component)) {
     getModelDirective(element);
@@ -335,6 +365,12 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       'maxObservers must be an integer from 1 through 1000',
     );
   const components = new Map<Element, Component>();
+  const sortLimit = options.maxSortLists ?? 64;
+  if (!Number.isSafeInteger(sortLimit) || sortLimit < 1 || sortLimit > 256)
+    throw new LiveClientError(
+      'DIRECTIVE',
+      'maxSortLists must be an integer from 1 through 256',
+    );
   let focus = createFocusController();
   let mounted = false;
   let observer: MutationObserver | null = null;
@@ -344,6 +380,9 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   let confirmations = makeConfirmations();
   let loading = createLoadingController(focus);
   let background: ReturnType<typeof createObserverController> | undefined;
+  let sorting: ReturnType<typeof createSortController> | undefined;
+  let streaming: ReturnType<typeof createStreamController> | undefined;
+  const streams = copyStreamEndpoints(options.streams ?? Object.freeze({}));
   let presentation: ReturnType<typeof createPresentationController> | undefined;
   let initialization:
     ReturnType<typeof createInitializationScheduler> | undefined;
@@ -532,6 +571,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     state.request?.abort();
     loading.restore(state.root);
     background?.remove(state.root);
+    sorting?.remove(state.root);
+    streaming?.remove(state.root);
     initialization?.remove(state.root);
     presentation?.restore(state.root);
     state.root.removeAttribute('aria-busy');
@@ -543,6 +584,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   function cancelSubtree(node: Element): void {
     initialization?.remove(node);
     background?.remove(node);
+    sorting?.remove(node);
+    streaming?.remove(node);
     presentation?.remove(node);
     confirmations.cancel(node);
     focus.release(node);
@@ -675,7 +718,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
               'MARKER',
               'Live component already belongs to another client instance',
             );
-          validateDirectives(element);
+          validateDirectives(element, streams);
           const id = element.getAttribute('data-nv-component');
           const name = element.getAttribute('data-nv-name');
           const snapshot = element.getAttribute('data-nv-snapshot');
@@ -765,8 +808,12 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     try {
       syncDirectListeners();
       background?.refresh(root);
+      sorting?.refresh(root);
       for (const state of components.values())
-        if (usable(state)) presentation?.refresh(state.root);
+        if (usable(state)) {
+          presentation?.refresh(state.root);
+          streaming?.refresh(state.root);
+        }
     } catch (error) {
       report(error, null);
     }
@@ -829,7 +876,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
               target.hasAttribute('nv:confirm')
             )
               return false;
-            validateDirectives(state.root);
+            validateDirectives(state.root, streams);
             return true;
           },
         );
@@ -864,6 +911,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     state: Component,
     action: string,
     queuedAt?: number,
+    input: LiveActionInput = null,
   ): Promise<void> {
     flushResets();
     if (!usable(state)) return;
@@ -890,6 +938,19 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     >;
     for (const [key, field] of sent) updates[key] = field.value;
     const requestId = window.crypto.randomUUID();
+    const body = JSON.stringify({
+      protocol: 'nestvexa-live/1',
+      requestId,
+      snapshot: state.snapshot,
+      revision: state.revision,
+      updates,
+      input,
+    });
+    if (new TextEncoder().encode(body).byteLength > 65_536)
+      throw new LiveClientError(
+        'DIRECTIVE',
+        'Live request exceeds the 65536-byte envelope limit',
+      );
     const abort = new AbortController();
     state.request = abort;
     const startedAt = options.onDiagnostic
@@ -911,14 +972,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
             'content-type': 'application/json',
             'x-nestvexa-csrf': state.csrf,
           },
-          body: JSON.stringify({
-            protocol: 'nestvexa-live/1',
-            requestId,
-            snapshot: state.snapshot,
-            revision: state.revision,
-            updates,
-            input: null,
-          }),
+          body,
         },
         abort,
         {
@@ -952,7 +1006,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       const incoming = prepareMorph(state.root, template.content);
       const preview = state.root.cloneNode(false) as Element;
       preview.append(incoming.cloneNode(true));
-      validateDirectives(preview);
+      validateDirectives(preview, streams);
       const dirty = new Map<string, unknown>();
       for (const [key, field] of state.dirty)
         if (sent.get(key)?.version !== field.version)
@@ -1027,6 +1081,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       }
       loading.restore(state.root);
       presentation?.restore(state.root);
+      // Reconcile drag attributes against fresh server baselines after morphing.
+      sorting?.remove(state.root);
       morphChildren(state.root, incoming, dirty, {
         beforeRemove(node): void {
           if (editorSelection)
@@ -1171,6 +1227,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     state: Component,
     action: string,
     submit: boolean,
+    input: LiveActionInput = null,
   ): Promise<void> {
     const failure = failureFor(state);
     if (failure) return Promise.reject(failure);
@@ -1200,7 +1257,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       ? window.performance.now()
       : undefined;
     const task = state.queue
-      .then(() => invoke(state, action, queuedAt))
+      .then(() => invoke(state, action, queuedAt, input))
       .finally(() => {
         state.pending--;
         const count = (state.pendingActions.get(targetAction) ?? 1) - 1;
@@ -1464,9 +1521,27 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     refs(element: Element): ReadonlyMap<string, Element> {
       return queryRefs(componentFor(element).root);
     },
-    call(element: Element, action: string): Promise<void> {
+    startStream(target: Element): Promise<StreamResult> {
       try {
-        return schedule(componentFor(element), parseIdentifier(action), false);
+        componentFor(target);
+        if (!streaming)
+          throw new LiveClientError('DIRECTIVE', 'Live client is not mounted');
+        return streaming.start(target);
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    },
+    cancelStream(target: Element): void {
+      streaming?.cancel(target);
+    },
+    call(element: Element, action: string, input?: unknown): Promise<void> {
+      try {
+        return schedule(
+          componentFor(element),
+          parseIdentifier(action),
+          false,
+          input === undefined ? null : cloneActionInput(input),
+        );
       } catch (error) {
         return Promise.reject(error);
       }
@@ -1575,6 +1650,60 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         },
       });
       mounted = true;
+      streaming = createStreamController({
+        window,
+        streams,
+        fetch: transport,
+        component: (target) => {
+          const state = registeredScope(target);
+          if (!state || failureFor(state) || ignored(target, state.root))
+            return undefined;
+          return {
+            root: state.root,
+            id: state.id,
+            name: state.name,
+            snapshot: state.snapshot,
+            revision: state.revision,
+            csrf: state.csrf,
+          };
+        },
+        onError: (error, target) => report(error, owner(target)),
+      });
+      sorting = createSortController({
+        window,
+        maxLists: sortLimit,
+        usable: (element) => {
+          const state = registeredScope(element);
+          return (
+            state !== undefined &&
+            !failureFor(state) &&
+            !ignored(element, state.root)
+          );
+        },
+        invoke: async (element, action, input) => {
+          try {
+            await schedule(
+              componentFor(element),
+              action,
+              false,
+              cloneActionInput(input),
+            );
+          } catch (error) {
+            if (error && typeof error === 'object')
+              reportedBackground.add(error);
+            throw error;
+          }
+        },
+        onError: (error, element) => {
+          if (
+            error &&
+            typeof error === 'object' &&
+            reportedBackground.has(error)
+          )
+            return;
+          report(error, owner(element));
+        },
+      });
       generation++;
       initializations = 0;
       dispatcher = createEventDispatcher({
@@ -1633,6 +1762,10 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       confirmations.dispose();
       loading.dispose();
       background?.dispose();
+      sorting?.dispose();
+      sorting = undefined;
+      streaming?.dispose();
+      streaming = undefined;
       initialization?.dispose();
       initialization = undefined;
       background = undefined;

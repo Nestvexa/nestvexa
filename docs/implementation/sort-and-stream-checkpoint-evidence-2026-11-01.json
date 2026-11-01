@@ -1,0 +1,807 @@
+{
+  "schemaVersion": 1,
+  "checkpointDate": "2026-11-01",
+  "scope": "Server-approved sorting, bounded queued inputs, authorized text streams and fresh component instances; Phase4 remains in progress",
+  "verificationTimestamp": "2026-11-01T07:42:00.002Z",
+  "environment": {
+    "node": "v24.13.0",
+    "platform": "win32"
+  },
+  "implementedCheckpointPassed": true,
+  "releaseReady": false,
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exitCode": 0,
+      "milliseconds": 1416,
+      "log": "artifacts/reports/commands/install.log"
+    },
+    {
+      "command": "pnpm format:check",
+      "exitCode": 0,
+      "milliseconds": 6502,
+      "log": "artifacts/reports/commands/format-check.log"
+    },
+    {
+      "command": "pnpm lint",
+      "exitCode": 0,
+      "milliseconds": 6158,
+      "log": "artifacts/reports/commands/lint.log"
+    },
+    {
+      "command": "pnpm typecheck",
+      "exitCode": 0,
+      "milliseconds": 32827,
+      "log": "artifacts/reports/commands/typecheck.log"
+    },
+    {
+      "command": "pnpm test",
+      "exitCode": 0,
+      "milliseconds": 121750,
+      "log": "artifacts/reports/commands/test.log"
+    },
+    {
+      "command": "pnpm test:coverage",
+      "exitCode": 0,
+      "milliseconds": 7605,
+      "log": "artifacts/reports/commands/test-coverage.log"
+    },
+    {
+      "command": "pnpm size:check",
+      "exitCode": 0,
+      "milliseconds": 436,
+      "log": "artifacts/reports/commands/size-check.log"
+    },
+    {
+      "command": "pnpm test:e2e",
+      "exitCode": 0,
+      "milliseconds": 227968,
+      "log": "artifacts/reports/commands/test-e2e.log"
+    },
+    {
+      "command": "pnpm test:pack",
+      "exitCode": 0,
+      "milliseconds": 87913,
+      "log": "artifacts/reports/commands/test-pack.log"
+    },
+    {
+      "command": "pnpm docs:build",
+      "exitCode": 0,
+      "milliseconds": 855,
+      "log": "artifacts/reports/commands/docs-build.log"
+    },
+    {
+      "command": "pnpm ledger:check",
+      "exitCode": 0,
+      "milliseconds": 934,
+      "log": "artifacts/reports/commands/ledger-check.log"
+    },
+    {
+      "command": "pnpm bench",
+      "exitCode": 0,
+      "milliseconds": 740,
+      "log": "artifacts/reports/commands/bench.log"
+    },
+    {
+      "command": "pnpm audit --audit-level high",
+      "exitCode": 0,
+      "milliseconds": 921,
+      "log": "artifacts/reports/commands/audit.log"
+    },
+    {
+      "command": "pnpm release:check",
+      "exitCode": 1,
+      "milliseconds": 842,
+      "log": "artifacts/reports/commands/release-check.log"
+    }
+  ],
+  "tests": {
+    "total": 1582,
+    "passed": 1582,
+    "failed": 0,
+    "pending": 0
+  },
+  "browser": {
+    "startTime": "2026-11-01T07:44:58.162Z",
+    "duration": 226550.457,
+    "expected": 261,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "pack": {
+    "timestamp": "2026-11-01T07:48:45.380Z",
+    "node": "v24.13.0",
+    "platform": "win32",
+    "passed": true,
+    "packages": [
+      {
+        "name": "@nestvexa/alpine",
+        "version": "0.1.0-alpha.0",
+        "entryPoints": ["@nestvexa/alpine"],
+        "tarball": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-alpine-0.1.0-alpha.0.tgz",
+        "sha256": "660d6ef0fe17e2bc40d67295187fc765ed9d7283604c7dfb58b5f3d95d42243b",
+        "contents": [
+          "package/LICENSE",
+          "package/dist/index.js",
+          "package/package.json",
+          "package/dist/index.d.ts.map",
+          "package/dist/index.js.map",
+          "package/README.md",
+          "package/dist/index.d.ts"
+        ]
+      },
+      {
+        "name": "@nestvexa/client",
+        "version": "0.1.0-alpha.0",
+        "entryPoints": ["@nestvexa/client"],
+        "tarball": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-client-0.1.0-alpha.0.tgz",
+        "sha256": "7fcfd4f9753980a14b91296465d7cdc639b8188478bc99b8a873503e7580bc87",
+        "contents": [
+          "package/LICENSE",
+          "package/dist/index.js",
+          "package/package.json",
+          "package/dist/action-input.d.ts.map",
+          "package/dist/bindings.d.ts.map",
+          "package/dist/control-state.d.ts.map",
+          "package/dist/events.d.ts.map",
+          "package/dist/focus.d.ts.map",
+          "package/dist/form-reset.d.ts.map",
+          "package/dist/grammar.d.ts.map",
+          "package/dist/index.d.ts.map",
+          "package/dist/index.js.map",
+          "package/dist/initialization.d.ts.map",
+          "package/dist/listeners.d.ts.map",
+          "package/dist/loading.d.ts.map",
+          "package/dist/model-scheduler.d.ts.map",
+          "package/dist/models.d.ts.map",
+          "package/dist/morph.d.ts.map",
+          "package/dist/observers.d.ts.map",
+          "package/dist/presentation.d.ts.map",
+          "package/dist/protocol.d.ts.map",
+          "package/dist/sort.d.ts.map",
+          "package/dist/stream.d.ts.map",
+          "package/dist/transport.d.ts.map",
+          "package/dist/url-state.d.ts.map",
+          "package/README.md",
+          "package/dist/action-input.d.ts",
+          "package/dist/bindings.d.ts",
+          "package/dist/control-state.d.ts",
+          "package/dist/events.d.ts",
+          "package/dist/focus.d.ts",
+          "package/dist/form-reset.d.ts",
+          "package/dist/grammar.d.ts",
+          "package/dist/index.d.ts",
+          "package/dist/initialization.d.ts",
+          "package/dist/listeners.d.ts",
+          "package/dist/loading.d.ts",
+          "package/dist/model-scheduler.d.ts",
+          "package/dist/models.d.ts",
+          "package/dist/morph.d.ts",
+          "package/dist/observers.d.ts",
+          "package/dist/presentation.d.ts",
+          "package/dist/protocol.d.ts",
+          "package/dist/sort.d.ts",
+          "package/dist/stream.d.ts",
+          "package/dist/transport.d.ts",
+          "package/dist/url-state.d.ts"
+        ]
+      },
+      {
+        "name": "@nestvexa/core",
+        "version": "0.1.0-alpha.0",
+        "entryPoints": ["@nestvexa/core"],
+        "tarball": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-core-0.1.0-alpha.0.tgz",
+        "sha256": "83f9309a51abac8bf144fc22811ab1089fa1f362c09ee58066fedad2dc06c0ad",
+        "contents": [
+          "package/LICENSE",
+          "package/dist/config.js",
+          "package/dist/core.module.js",
+          "package/dist/errors.js",
+          "package/dist/index.js",
+          "package/dist/registry.js",
+          "package/package.json",
+          "package/dist/config.d.ts.map",
+          "package/dist/config.js.map",
+          "package/dist/core.module.d.ts.map",
+          "package/dist/core.module.js.map",
+          "package/dist/errors.d.ts.map",
+          "package/dist/errors.js.map",
+          "package/dist/index.d.ts.map",
+          "package/dist/index.js.map",
+          "package/dist/registry.d.ts.map",
+          "package/dist/registry.js.map",
+          "package/README.md",
+          "package/dist/config.d.ts",
+          "package/dist/core.module.d.ts",
+          "package/dist/errors.d.ts",
+          "package/dist/index.d.ts",
+          "package/dist/registry.d.ts"
+        ]
+      },
+      {
+        "name": "@nestvexa/engine-hbs",
+        "version": "0.1.0-alpha.0",
+        "entryPoints": ["@nestvexa/engine-hbs"],
+        "tarball": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-engine-hbs-0.1.0-alpha.0.tgz",
+        "sha256": "957754f47aaa63fe82bae6ce2c5fb80969a3fab8e18352ae21dc9c11451a7196",
+        "contents": [
+          "package/LICENSE",
+          "package/dist/index.js",
+          "package/package.json",
+          "package/dist/index.d.ts.map",
+          "package/dist/index.js.map",
+          "package/README.md",
+          "package/dist/index.d.ts"
+        ]
+      },
+      {
+        "name": "@nestvexa/live",
+        "version": "0.1.0-alpha.0",
+        "entryPoints": ["@nestvexa/live"],
+        "tarball": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-live-0.1.0-alpha.0.tgz",
+        "sha256": "c33992a1cf35fb800565ac9913c05dcfdfe670d092925869399411d648e17d50",
+        "contents": [
+          "package/LICENSE",
+          "package/dist/computed.js",
+          "package/dist/index.js",
+          "package/dist/lifecycle.js",
+          "package/dist/live.module.js",
+          "package/dist/metadata.js",
+          "package/dist/protocol.js",
+          "package/dist/registration.js",
+          "package/dist/runtime.js",
+          "package/dist/state-context.js",
+          "package/dist/store.js",
+          "package/dist/text-stream.js",
+          "package/package.json",
+          "package/dist/computed.d.ts.map",
+          "package/dist/computed.js.map",
+          "package/dist/index.d.ts.map",
+          "package/dist/index.js.map",
+          "package/dist/lifecycle.d.ts.map",
+          "package/dist/lifecycle.js.map",
+          "package/dist/live.module.d.ts.map",
+          "package/dist/live.module.js.map",
+          "package/dist/metadata.d.ts.map",
+          "package/dist/metadata.js.map",
+          "package/dist/protocol.d.ts.map",
+          "package/dist/protocol.js.map",
+          "package/dist/registration.d.ts.map",
+          "package/dist/registration.js.map",
+          "package/dist/runtime.d.ts.map",
+          "package/dist/runtime.js.map",
+          "package/dist/state-context.d.ts.map",
+          "package/dist/state-context.js.map",
+          "package/dist/store.d.ts.map",
+          "package/dist/store.js.map",
+          "package/dist/text-stream.d.ts.map",
+          "package/dist/text-stream.js.map",
+          "package/README.md",
+          "package/dist/computed.d.ts",
+          "package/dist/index.d.ts",
+          "package/dist/lifecycle.d.ts",
+          "package/dist/live.module.d.ts",
+          "package/dist/metadata.d.ts",
+          "package/dist/protocol.d.ts",
+          "package/dist/registration.d.ts",
+          "package/dist/runtime.d.ts",
+          "package/dist/state-context.d.ts",
+          "package/dist/store.d.ts",
+          "package/dist/text-stream.d.ts"
+        ]
+      },
+      {
+        "name": "nestvexa",
+        "version": "0.1.0-alpha.0",
+        "entryPoints": ["nestvexa", "nestvexa/assets"],
+        "tarball": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-0.1.0-alpha.0.tgz",
+        "sha256": "382329d8b3678b8b8ae1c462df4d34a6111f1b94d8e04f016c59b4e97f1b3c8f",
+        "contents": [
+          "package/LICENSE",
+          "package/dist/asset-catalog.js",
+          "package/dist/assets.js",
+          "package/dist/browser.module.js",
+          "package/dist/index.js",
+          "package/dist/mvc.module.js",
+          "package/package.json",
+          "package/dist/asset-catalog.d.ts.map",
+          "package/dist/asset-catalog.js.map",
+          "package/dist/assets.d.ts.map",
+          "package/dist/assets.js.map",
+          "package/dist/browser.module.d.ts.map",
+          "package/dist/browser.module.js.map",
+          "package/dist/index.d.ts.map",
+          "package/dist/index.js.map",
+          "package/dist/mvc.module.d.ts.map",
+          "package/dist/mvc.module.js.map",
+          "package/README.md",
+          "package/THIRD_PARTY_NOTICES.md",
+          "package/dist/asset-catalog.d.ts",
+          "package/dist/assets.d.ts",
+          "package/dist/browser.module.d.ts",
+          "package/dist/index.d.ts",
+          "package/dist/mvc.module.d.ts"
+        ]
+      },
+      {
+        "name": "@nestvexa/views",
+        "version": "0.1.0-alpha.0",
+        "entryPoints": ["@nestvexa/views"],
+        "tarball": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-views-0.1.0-alpha.0.tgz",
+        "sha256": "183c558960631607a77770f790f9fd0df128c72d58fa930fb91724f1fb732ce9",
+        "contents": [
+          "package/LICENSE",
+          "package/dist/index.js",
+          "package/package.json",
+          "package/dist/index.d.ts.map",
+          "package/dist/index.js.map",
+          "package/README.md",
+          "package/dist/index.d.ts"
+        ]
+      }
+    ],
+    "consumers": [
+      {
+        "manager": "pnpm",
+        "profile": "full",
+        "directory": "C:\\Users\\eslam\\AppData\\Local\\Temp\\nestvexa-pnpm-full-consumer-66OJfv",
+        "passed": true,
+        "commands": [
+          {
+            "command": "pnpm install --ignore-scripts",
+            "exitCode": 0,
+            "milliseconds": 9509
+          },
+          {
+            "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+            "exitCode": 0
+          },
+          {
+            "command": "node dist/consumer.js",
+            "exitCode": 0
+          },
+          {
+            "command": "node imports.mjs",
+            "exitCode": 0
+          }
+        ]
+      },
+      {
+        "manager": "pnpm",
+        "profile": "minimal",
+        "directory": "C:\\Users\\eslam\\AppData\\Local\\Temp\\nestvexa-pnpm-minimal-consumer-qw7F9f",
+        "passed": true,
+        "commands": [
+          {
+            "command": "pnpm install --ignore-scripts",
+            "exitCode": 0,
+            "milliseconds": 7561
+          },
+          {
+            "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+            "exitCode": 0
+          },
+          {
+            "command": "node dist/consumer.js",
+            "exitCode": 0
+          },
+          {
+            "command": "node imports.mjs",
+            "exitCode": 0
+          }
+        ]
+      },
+      {
+        "manager": "npm",
+        "profile": "full",
+        "directory": "C:\\Users\\eslam\\AppData\\Local\\Temp\\nestvexa-npm-full-consumer-b1zawG",
+        "passed": true,
+        "commands": [
+          {
+            "command": "pnpm exec npm install --ignore-scripts --no-fund --no-audit",
+            "exitCode": 0,
+            "milliseconds": 22245
+          },
+          {
+            "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+            "exitCode": 0
+          },
+          {
+            "command": "node dist/consumer.js",
+            "exitCode": 0
+          },
+          {
+            "command": "node imports.mjs",
+            "exitCode": 0
+          }
+        ]
+      },
+      {
+        "manager": "npm",
+        "profile": "minimal",
+        "directory": "C:\\Users\\eslam\\AppData\\Local\\Temp\\nestvexa-npm-minimal-consumer-66xaNQ",
+        "passed": true,
+        "commands": [
+          {
+            "command": "pnpm exec npm install --ignore-scripts --no-fund --no-audit",
+            "exitCode": 0,
+            "milliseconds": 14548
+          },
+          {
+            "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+            "exitCode": 0
+          },
+          {
+            "command": "node dist/consumer.js",
+            "exitCode": 0
+          },
+          {
+            "command": "node imports.mjs",
+            "exitCode": 0
+          }
+        ]
+      }
+    ]
+  },
+  "clientSize": {
+    "timestamp": "2026-11-01T07:44:56.800Z",
+    "node": "v24.13.0",
+    "scope": "Canonical bundled public Live entry, including all reachable custom runtime code. Excludes Alpine, its adapter and sourcemaps. Private per-module test outputs are not published or served. Gzip estimate; example server does not automatically enable HTTP compression.",
+    "files": [
+      {
+        "file": "index.js",
+        "bytes": 107505,
+        "gzipBytes": 34786
+      }
+    ],
+    "bytes": 107505,
+    "gzipBytes": 34786,
+    "gzipBudget": 35840,
+    "passed": true
+  },
+  "benchmark": {
+    "timestamp": "2026-11-01T07:50:15.207Z",
+    "node": "v24.13.0",
+    "platform": "win32 10.0.26200",
+    "cpu": "11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz",
+    "iterations": 1000,
+    "scope": "cached HBS adapter only; not end-to-end or a plain-Nest comparison",
+    "milliseconds": {
+      "p50": 0.1821999999999946,
+      "p95": 0.2505000000000166,
+      "p99": 0.3048000000000002
+    }
+  },
+  "highRiskCoverage": {
+    "total": {
+      "lines": {
+        "total": 422,
+        "covered": 418,
+        "skipped": 0,
+        "pct": 99.05
+      },
+      "statements": {
+        "total": 462,
+        "covered": 453,
+        "skipped": 0,
+        "pct": 98.05
+      },
+      "functions": {
+        "total": 73,
+        "covered": 73,
+        "skipped": 0,
+        "pct": 100
+      },
+      "branches": {
+        "total": 445,
+        "covered": 430,
+        "skipped": 0,
+        "pct": 96.62
+      },
+      "branchesTrue": {
+        "total": 0,
+        "covered": 0,
+        "skipped": 0,
+        "pct": 100
+      }
+    },
+    "files": [
+      "C:\\Users\\eslam\\Desktop\\Nestvexa\\packages\\core\\src\\config.ts",
+      "C:\\Users\\eslam\\Desktop\\Nestvexa\\packages\\live\\src\\computed.ts",
+      "C:\\Users\\eslam\\Desktop\\Nestvexa\\packages\\live\\src\\protocol.ts",
+      "C:\\Users\\eslam\\Desktop\\Nestvexa\\packages\\live\\src\\state-context.ts",
+      "C:\\Users\\eslam\\Desktop\\Nestvexa\\packages\\live\\src\\store.ts"
+    ],
+    "scope": "Only five selected core config/live protocol/store/computed/state-context files; excludes full runtime, metadata, streaming, action-input, sort, client and most project code. No project-wide or mutation coverage claim."
+  },
+  "additionalRuntimes": [
+    {
+      "timestamp": "2026-11-01T07:50:49.075Z",
+      "node": "v22.23.4",
+      "platform": "win32",
+      "passed": true,
+      "scope": "Strict test compilation and current aggregate unit/real HTTP/browser DOM suites; not Linux or a full release matrix",
+      "commands": [
+        {
+          "task": "strict compilation",
+          "exitCode": 0,
+          "milliseconds": 22072,
+          "log": "artifacts/reports/node22-0.log"
+        },
+        {
+          "task": "current aggregate suite",
+          "exitCode": 0,
+          "milliseconds": 140590,
+          "log": "artifacts/reports/node22-1.log"
+        }
+      ],
+      "aggregate": {
+        "total": 1582,
+        "passed": 1582,
+        "failed": 0,
+        "pending": 0
+      }
+    },
+    {
+      "timestamp": "2026-11-01T07:53:38.881Z",
+      "node": "v24.22.1",
+      "platform": "win32",
+      "passed": true,
+      "scope": "Strict test compilation and current aggregate unit/real HTTP/browser DOM suites; not Linux or a full release matrix",
+      "commands": [
+        {
+          "task": "strict compilation",
+          "exitCode": 0,
+          "milliseconds": 6589,
+          "log": "artifacts/reports/node24-0.log"
+        },
+        {
+          "task": "current aggregate suite",
+          "exitCode": 0,
+          "milliseconds": 102988,
+          "log": "artifacts/reports/node24-1.log"
+        }
+      ],
+      "aggregate": {
+        "total": 1582,
+        "passed": 1582,
+        "failed": 0,
+        "pending": 0
+      }
+    }
+  ],
+  "ledger": {
+    "total": 925,
+    "states": {
+      "Pending": 807,
+      "InProgress": 98,
+      "Done": 20
+    }
+  },
+  "reportSha256": {
+    "artifacts/reports/verification.json": "96ae53df693038a6afb24813820b3962d21a8e3dd88618aaf03cf8dfd15a8945",
+    "artifacts/reports/vitest.json": "13f3bd216863eff9e92172b6c263721b79018cd8430670ffaae22dca655f3617",
+    "artifacts/reports/playwright.json": "74e65470288f2f9d4abfef5d05e6a414562405c9c5c904b1406093458736acbd",
+    "artifacts/reports/pack.json": "fc0b6d727342661b56062a7f1b4ca0aa039b6d6669765154627d9c98a4d89863",
+    "artifacts/reports/client-size.json": "c5f51ddbc204e7e540c2b4e182b7eaf9b382120df727ed8c02c2434af7ec660f",
+    "artifacts/reports/benchmark.json": "65697955b8ac7a449d246f87c8a18da755e353de7fdec4a7898e6de9be6de9c0",
+    "artifacts/reports/coverage/high-risk/coverage-summary.json": "dfb4bc62e32a27921701ce594710263706600ee71712077aac153ca80919717b",
+    "docs/implementation/feature-ledger.json": "4a4b81f9bfd2e07b9eba90651b07e15f9c8227f9bc964470421023c0ccd77e68",
+    "artifacts/reports/node22-compatibility.json": "7d470d88eeab389e46551f04cf37dd7477d73d68ca68084de2f5f2a0ffa57f51",
+    "artifacts/reports/node22-tests.json": "94844a619f51ca882642956aad63433d51a8cf9d0a326cb267a4ad05494de42b",
+    "artifacts/reports/node24-compatibility.json": "47982af24e3d62dd66eac4430e7f3925ea5fa2f5977774d1ad25421523c60536",
+    "artifacts/reports/node24-tests.json": "f73f5b060c4b8a09e76c617e8405c83c07a56f507fad7ec3672b021d74c8ab25",
+    "docs/implementation/sort-stream-review-2026-11-01.md": "95ee5c4ffa2e6205dda29521519bc4e3949e90682440e85490292eb4c3b3ed34",
+    "artifacts/reports/phase3-acceptance.json": "b667bef94427e9bcfa192feec6ef280972e8eddc70d471b15602a5b2681af4ee",
+    "artifacts/reports/tooling-audit.json": "498f3d9afae5bb4e75c93addef51113ce443af4708428a14096a8e4a170de9a3"
+  },
+  "limitations": [
+    "Phase3 retains its prior scoped acceptance and current regression; Phase4 remains InProgress and Phase5 Pending. This checkpoint does not accept the remaining master release gates.",
+    "Windows execution only; Linux and full release matrix remain unverified",
+    "Controlled browser transport fixtures are not server conformance evidence",
+    "No independent security certification, publication, remote push, SBOM or provenance attestation"
+  ],
+  "sourceSha256": "5c7647707723aaf1376e4ea8c23291f9d03bb72af061f0f6a5a242e6a775bb7e",
+  "securityReview": {
+    "kind": "Internal separate-agent read-only review and regression fixes, not external certification",
+    "report": "docs/implementation/sort-stream-review-2026-11-01.md"
+  },
+  "dependencyAudit": {
+    "command": "pnpm audit --json",
+    "timestamp": "2026-11-01T07:50:44.633Z",
+    "exitCode": 0,
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0
+    }
+  },
+  "archive": {
+    "root": "artifacts/checkpoints/sort-and-stream-2026-11-01",
+    "files": [
+      {
+        "source": "artifacts/reports/verification.json",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/verification.json",
+        "sha256": "96ae53df693038a6afb24813820b3962d21a8e3dd88618aaf03cf8dfd15a8945"
+      },
+      {
+        "source": "artifacts/reports/vitest.json",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/vitest.json",
+        "sha256": "13f3bd216863eff9e92172b6c263721b79018cd8430670ffaae22dca655f3617"
+      },
+      {
+        "source": "artifacts/reports/playwright.json",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/playwright.json",
+        "sha256": "74e65470288f2f9d4abfef5d05e6a414562405c9c5c904b1406093458736acbd"
+      },
+      {
+        "source": "artifacts/reports/pack.json",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/pack.json",
+        "sha256": "fc0b6d727342661b56062a7f1b4ca0aa039b6d6669765154627d9c98a4d89863"
+      },
+      {
+        "source": "artifacts/reports/client-size.json",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/client-size.json",
+        "sha256": "c5f51ddbc204e7e540c2b4e182b7eaf9b382120df727ed8c02c2434af7ec660f"
+      },
+      {
+        "source": "artifacts/reports/benchmark.json",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/benchmark.json",
+        "sha256": "65697955b8ac7a449d246f87c8a18da755e353de7fdec4a7898e6de9be6de9c0"
+      },
+      {
+        "source": "artifacts/reports/coverage/high-risk/coverage-summary.json",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/coverage/high-risk/coverage-summary.json",
+        "sha256": "dfb4bc62e32a27921701ce594710263706600ee71712077aac153ca80919717b"
+      },
+      {
+        "source": "docs/implementation/feature-ledger.json",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/docs/implementation/feature-ledger.json",
+        "sha256": "4a4b81f9bfd2e07b9eba90651b07e15f9c8227f9bc964470421023c0ccd77e68"
+      },
+      {
+        "source": "artifacts/reports/node22-compatibility.json",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/node22-compatibility.json",
+        "sha256": "7d470d88eeab389e46551f04cf37dd7477d73d68ca68084de2f5f2a0ffa57f51"
+      },
+      {
+        "source": "artifacts/reports/node22-tests.json",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/node22-tests.json",
+        "sha256": "94844a619f51ca882642956aad63433d51a8cf9d0a326cb267a4ad05494de42b"
+      },
+      {
+        "source": "artifacts/reports/node24-compatibility.json",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/node24-compatibility.json",
+        "sha256": "47982af24e3d62dd66eac4430e7f3925ea5fa2f5977774d1ad25421523c60536"
+      },
+      {
+        "source": "artifacts/reports/node24-tests.json",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/node24-tests.json",
+        "sha256": "f73f5b060c4b8a09e76c617e8405c83c07a56f507fad7ec3672b021d74c8ab25"
+      },
+      {
+        "source": "docs/implementation/sort-stream-review-2026-11-01.md",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/docs/implementation/sort-stream-review-2026-11-01.md",
+        "sha256": "95ee5c4ffa2e6205dda29521519bc4e3949e90682440e85490292eb4c3b3ed34"
+      },
+      {
+        "source": "artifacts/reports/phase3-acceptance.json",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/phase3-acceptance.json",
+        "sha256": "b667bef94427e9bcfa192feec6ef280972e8eddc70d471b15602a5b2681af4ee"
+      },
+      {
+        "source": "artifacts/reports/tooling-audit.json",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/tooling-audit.json",
+        "sha256": "498f3d9afae5bb4e75c93addef51113ce443af4708428a14096a8e4a170de9a3"
+      },
+      {
+        "source": "artifacts/reports/commands/install.log",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/commands/install.log",
+        "sha256": "8129b8d5bed6b2e8ef16c2ddce7ed804768b3a10f6cdb0f6d665d6ecb0d432fb"
+      },
+      {
+        "source": "artifacts/reports/commands/format-check.log",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/commands/format-check.log",
+        "sha256": "74f44f064ff3a35f61ef09471258982a15133c9c2d9ae07cc9126aa5c3c03ab6"
+      },
+      {
+        "source": "artifacts/reports/commands/lint.log",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/commands/lint.log",
+        "sha256": "2d454d413524a0d2f95503c7bd55138f7b353fc4354a2f6924ed892c5837630e"
+      },
+      {
+        "source": "artifacts/reports/commands/typecheck.log",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/commands/typecheck.log",
+        "sha256": "2163487aeb475e0b9e006a4ac203ccce80fe072b59b1e192673b4a850ab08bfb"
+      },
+      {
+        "source": "artifacts/reports/commands/test.log",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/commands/test.log",
+        "sha256": "aa7e35fb1be60fe8a234a9fa9d207d4e719d0f8f7e7e6e11d62be7da17839150"
+      },
+      {
+        "source": "artifacts/reports/commands/test-coverage.log",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/commands/test-coverage.log",
+        "sha256": "953592c8995f00cf9f3357ea15efd7d1fe5298480187fb308c4db82e0e21f549"
+      },
+      {
+        "source": "artifacts/reports/commands/size-check.log",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/commands/size-check.log",
+        "sha256": "22625399b4c054bba4d84de74a2f22c481b394b7806a019e03537fece24a7abc"
+      },
+      {
+        "source": "artifacts/reports/commands/test-e2e.log",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/commands/test-e2e.log",
+        "sha256": "c4d687ab0c6cd54ba1a3dd16e32019dbf8fb237c27963e816b3a80deeadd76d1"
+      },
+      {
+        "source": "artifacts/reports/commands/test-pack.log",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/commands/test-pack.log",
+        "sha256": "295c726ba8cfe992a0193b8a0d028dfa98da6d5c8b174be3ac40cb9fad742a49"
+      },
+      {
+        "source": "artifacts/reports/commands/docs-build.log",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/commands/docs-build.log",
+        "sha256": "f42270ff2684a70193e7f39e14d1ba08f4b3f2818ac4ad404263db4eb4a59fb6"
+      },
+      {
+        "source": "artifacts/reports/commands/ledger-check.log",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/commands/ledger-check.log",
+        "sha256": "0939e25922dcebab09d3166af189804a24a7b23be2748a0fbd3d42d1eca16204"
+      },
+      {
+        "source": "artifacts/reports/commands/bench.log",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/commands/bench.log",
+        "sha256": "fb36d3007409b8c5a8d5acca2fbe1b9d34f31544c2689b0d8ee52bc19ef37346"
+      },
+      {
+        "source": "artifacts/reports/commands/audit.log",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/commands/audit.log",
+        "sha256": "592896a96ecdb6f4a1e7438534019420ec80bbf8bdde16fc4dd2fe207c9c3b5d"
+      },
+      {
+        "source": "artifacts/reports/commands/release-check.log",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/artifacts/reports/commands/release-check.log",
+        "sha256": "50cc7e1e24430f476a3cc850d31ac115f9cd3453f88366c6684cf912e76a79c9"
+      },
+      {
+        "source": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-alpine-0.1.0-alpha.0.tgz",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/packages/nestvexa-alpine-0.1.0-alpha.0.tgz",
+        "sha256": "660d6ef0fe17e2bc40d67295187fc765ed9d7283604c7dfb58b5f3d95d42243b"
+      },
+      {
+        "source": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-client-0.1.0-alpha.0.tgz",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/packages/nestvexa-client-0.1.0-alpha.0.tgz",
+        "sha256": "7fcfd4f9753980a14b91296465d7cdc639b8188478bc99b8a873503e7580bc87"
+      },
+      {
+        "source": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-core-0.1.0-alpha.0.tgz",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/packages/nestvexa-core-0.1.0-alpha.0.tgz",
+        "sha256": "83f9309a51abac8bf144fc22811ab1089fa1f362c09ee58066fedad2dc06c0ad"
+      },
+      {
+        "source": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-engine-hbs-0.1.0-alpha.0.tgz",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/packages/nestvexa-engine-hbs-0.1.0-alpha.0.tgz",
+        "sha256": "957754f47aaa63fe82bae6ce2c5fb80969a3fab8e18352ae21dc9c11451a7196"
+      },
+      {
+        "source": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-live-0.1.0-alpha.0.tgz",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/packages/nestvexa-live-0.1.0-alpha.0.tgz",
+        "sha256": "c33992a1cf35fb800565ac9913c05dcfdfe670d092925869399411d648e17d50"
+      },
+      {
+        "source": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-0.1.0-alpha.0.tgz",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/packages/nestvexa-0.1.0-alpha.0.tgz",
+        "sha256": "382329d8b3678b8b8ae1c462df4d34a6111f1b94d8e04f016c59b4e97f1b3c8f"
+      },
+      {
+        "source": "C:\\Users\\eslam\\Desktop\\Nestvexa\\artifacts\\packages\\nestvexa-views-0.1.0-alpha.0.tgz",
+        "archive": "artifacts/checkpoints/sort-and-stream-2026-11-01/packages/nestvexa-views-0.1.0-alpha.0.tgz",
+        "sha256": "183c558960631607a77770f790f9fd0df128c72d58fa930fb91724f1fb732ce9"
+      }
+    ]
+  }
+}

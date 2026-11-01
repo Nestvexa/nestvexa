@@ -374,6 +374,7 @@ describe.each(['express', 'fastify'] as const)(
 
     it('serves explicit version-neutral boot/assets under a global prefix and host guards', async () => {
       const resource = await templates();
+      const streams = { summary: { endpoint: '/host/v1/report' } };
       const app = await application(
         platform,
         resource,
@@ -384,7 +385,12 @@ describe.each(['express', 'fastify'] as const)(
           },
           registration({
             basePath: '/host/v1',
-            browser: { basePath: '/host', path: '/ui', assetsPath: '/static' },
+            browser: {
+              basePath: '/host',
+              path: '/ui',
+              assetsPath: '/static',
+              streams,
+            },
           }),
         ),
       );
@@ -393,6 +399,7 @@ describe.each(['express', 'fastify'] as const)(
       await configureNestvexa(app);
       await app.listen(0, '127.0.0.1');
       const browser = app.get(NestvexaBrowserService);
+      streams.summary.endpoint = '/changed-after-registration';
       expect(browser.getBootUrl()).toBe('/host/ui/boot.js');
       const boot = await send(app, browser.getBootUrl());
       expect(boot.status).toBe(200);
@@ -400,6 +407,8 @@ describe.each(['express', 'fastify'] as const)(
       expect(boot.headers['content-type']).toContain('text/javascript');
       expect(boot.headers['x-content-type-options']).toBe('nosniff');
       expect(boot.body).toContain('startLiveAlpine');
+      expect(boot.body).toContain('"summary":{"endpoint":"/host/v1/report"}');
+      expect(boot.body).not.toContain('/changed-after-registration');
       expect(boot.body).not.toContain(csrf);
       const manifest = app.get(NestvexaAssetsService).getManifest();
       for (const url of Object.values(manifest.entries)) {
@@ -742,6 +751,40 @@ describe('umbrella setup validation boundaries', () => {
       { path: '/static/current', assetsPath: '/static' },
     ],
     ['unknown option', { unknown: true }],
+    ['null stream map', { streams: null }],
+    ['array stream map', { streams: [] }],
+    [
+      'invalid stream identifier',
+      { streams: { 'bad()': { endpoint: '/read' } } },
+    ],
+    [
+      'prototype stream identifier',
+      { streams: { constructor: { endpoint: '/read' } } },
+    ],
+    [
+      'external stream',
+      { streams: { summary: { endpoint: 'https://foreign.invalid/read' } } },
+    ],
+    ['stream query', { streams: { summary: { endpoint: '/read?secret=x' } } }],
+    [
+      'extra stream option',
+      { streams: { summary: { endpoint: '/read', action: 'secret' } } },
+    ],
+    [
+      'too many streams',
+      {
+        streams: Object.fromEntries(
+          Array.from({ length: 65 }, (_, index) => [
+            `stream${index}`,
+            { endpoint: '/read' },
+          ]),
+        ),
+      },
+    ],
+    [
+      'unused manual stream option',
+      { mode: 'manual', streams: { summary: { endpoint: '/read' } } },
+    ],
   ])('rejects %s without silently applying defaults', (_label, browser) => {
     // Deliberately malformed JavaScript-facing values bypass compile-time option types.
     const options = invalidOptions({ ...registration(), browser });

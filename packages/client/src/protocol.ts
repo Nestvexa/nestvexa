@@ -13,6 +13,10 @@ import type { ObserverDirective } from './observers.js';
 import { parsePresentationDirective } from './presentation.js';
 import type { PresentationDirective } from './presentation.js';
 import type { InitializationTiming } from './initialization.js';
+import { parseSortDirective } from './sort.js';
+import type { SortDirective } from './sort.js';
+import { parseStreamDirective } from './stream.js';
+import type { StreamDirective } from './stream.js';
 export { LiveClientError, parseIdentifier } from './grammar.js';
 export type LiveDirective =
   | {
@@ -31,6 +35,8 @@ export type LiveDirective =
   | LoadingDirective
   | ObserverDirective
   | PresentationDirective
+  | SortDirective
+  | StreamDirective
   | ReplacementDirective
   | { readonly kind: 'confirm'; readonly message: string }
   | { readonly kind: 'target'; readonly actions: readonly string[] };
@@ -45,6 +51,8 @@ export function parseDirective(name: string, value: string): LiveDirective {
   if (!name.startsWith('nv:'))
     throw new LiveClientError('DIRECTIVE', 'Expected an nv: directive');
   if (kind === 'confirm') return { kind, message: parseConfirmation(value) };
+  if (/^nv:sort(?:\.|$)/.test(name)) return parseSortDirective(name, value);
+  if (/^nv:stream(?:\.|$)/.test(name)) return parseStreamDirective(name, value);
   if (/^nv:(?:poll|intersect)(?:\.|$)/.test(name))
     return parseObserverDirective(name, value);
   if (/^nv:(?:offline|current|transition)(?:\.|$)/.test(name))

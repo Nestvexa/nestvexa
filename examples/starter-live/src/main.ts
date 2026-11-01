@@ -3,10 +3,13 @@ import {
   Controller,
   Get,
   Header,
+  HttpCode,
   Inject,
   Module,
+  Post,
   Render,
   Req,
+  Res,
   UnauthorizedException,
 } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
@@ -18,7 +21,10 @@ import {
   NestvexaModule,
   State,
   configureNestvexa,
+  createTextStreamResponse,
+  parseTextStreamRequest,
 } from 'nestvexa';
+import { setTimeout as delay } from 'node:timers/promises';
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import session from 'express-session';
@@ -34,6 +40,7 @@ declare module 'express-session' {
 interface SessionRequest {
   session: session.Session & Partial<session.SessionData>;
   sessionID: string;
+  body?: unknown;
 }
 const port = Number(process.env['PORT'] ?? 3102);
 const root = fileURLToPath(new URL('../views', import.meta.url));
@@ -206,8 +213,53 @@ class Pages {
     request.session.csrf ??= randomBytes(32).toString('base64url');
     return {
       title: 'Activity preferences',
+      activityClient: true,
       widget: await this.live.mount(ActivityPanel, request),
     };
+  }
+  @Post('activity-stream')
+  @HttpCode(200)
+  async activityStream(
+    @Req() request: SessionRequest,
+    @Res({ passthrough: true }) response: object,
+  ) {
+    const input = parseTextStreamRequest(request.body);
+    const authorization = await this.live.authorizeStream(
+      request,
+      ActivityPanel,
+      'summary',
+      { snapshot: input.snapshot, revision: input.revision },
+    );
+    return createTextStreamResponse({
+      request,
+      response,
+      authorization,
+      produce: async function* ({ signal, state }) {
+        yield `Activity query: ${String(state['query'])}\n`;
+        await delay(75, undefined, { signal });
+        yield 'Public demonstration summary — مرحباً\n';
+        await delay(75, undefined, { signal });
+        yield '<script>This is literal text, never HTML.</script>';
+      },
+    });
+  }
+  @Get('activity-client.js')
+  @Header('Content-Type', 'text/javascript; charset=utf-8')
+  activityClient(): string {
+    return `import {app} from '/_nestvexa/boot.js';
+document.addEventListener('click', async (event) => {
+  if (!(event.target instanceof Element)) return;
+  const button = event.target.closest('#activity-stream-start, #activity-stream-cancel');
+  const target = document.getElementById('activity-summary');
+  const status = document.getElementById('activity-stream-status');
+  if (!(button instanceof HTMLButtonElement) || !target || !status) return;
+  if (button.id === 'activity-stream-cancel') { app.client.cancelStream(target); return; }
+  button.disabled = true;
+  status.textContent = 'Reading summary';
+  try { await app.client.startStream(target); status.textContent = 'Summary complete'; }
+  catch { status.textContent = 'Summary stopped. Start again to request a fresh read.'; }
+  finally { if (button.isConnected) button.disabled = false; }
+});`;
   }
 }
 
@@ -216,6 +268,7 @@ class Pages {
     NestvexaModule.forRoot(
       { views: { root, layout: 'layout' }, live: { enabled: true } },
       {
+        browser: { streams: { summary: { endpoint: '/activity-stream' } } },
         components: [
           Counter,
           WorkBoard,
@@ -243,6 +296,8 @@ class Pages {
                 'refresh',
                 'appear',
                 'toggle',
+                'reorder',
+                '$stream:summary',
               ].includes(action)) ||
             (component === 'startup-panel' &&
               ['$mount', 'load', 'refresh'].includes(action)) ||

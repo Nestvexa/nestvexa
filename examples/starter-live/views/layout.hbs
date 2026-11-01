@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{title}}</title>
     <link rel="stylesheet" href="/activity.css" />
-    {{nvScripts}}
+    {{nvScripts}} {{#if activityClient}}
+    <script type="module" src="/activity-client.js"></script>
+    {{/if}}
   </head>
   <body>
     <header>

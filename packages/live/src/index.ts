@@ -46,3 +46,13 @@ export {
   type StateSnapshot,
   type LiveTransactionResult,
 } from './store.js';
+export {
+  createTextStreamResponse,
+  parseTextStreamRequest,
+} from './text-stream.js';
+export type {
+  TextStreamAuthorization,
+  TextStreamRequest,
+  TextStreamProducerContext,
+  TextStreamOptions,
+} from './text-stream.js';

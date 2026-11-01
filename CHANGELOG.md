@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased: owned sorting, bounded action inputs and text streams
+
+Added `nv:sort` with keyboard/native-pointer proposals, exact item-set validation
+in a real Nest example, pending announcements and server-authoritative ordering.
+Drag attributes are reconciled across Live morphs. Programmatic action inputs are
+detached at enqueue and bounded before network dispatch.
+
+Added explicit `nv:stream` text targets, trusted endpoint configuration and
+ordinary Nest streaming routes with repeated host authorization, CSRF/identity/
+revision checks, bounded output, backpressure and cancellation. Application
+shutdown cancels active streams; uncooperative producers retain quota until they
+settle. Fresh registered component instances share request-scoped dependencies
+without sharing mutable sibling fields. Whole Phase 4 acceptance remains open.
+
 ## Unreleased: Phase 4 context, background directives and request cleanup
 
 Added validated `@Url` and identity-namespaced `@Session` state, optional query

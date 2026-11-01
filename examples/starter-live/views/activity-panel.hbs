@@ -22,6 +22,50 @@
     >Activity preferences</a
   >
   <button type="button" nv:click="toggle">Toggle activity detail</button>
+  <p id="activity-sort-help">
+    Drag a task handle, or focus it and use Alt with Up, Down, Home or End. The
+    server approves each order.
+  </p>
+  <div aria-label="Read-only activity summary">
+    <button id="activity-stream-start" type="button">
+      Read activity summary
+    </button>
+    <button id="activity-stream-cancel" type="button">Cancel summary</button>
+    <p id="activity-stream-status" role="status"></p>
+    <output
+      id="activity-summary"
+      nv:stream="summary"
+      aria-label="Activity summary"
+    ></output>
+  </div>
+  <h2
+    id="{{#if taskOrderSaved}}activity-task-heading{{else}}activity-task-default-heading{{/if}}"
+  >
+    Activity tasks
+  </h2>
+  <ol
+    id="activity-tasks"
+    nv:sort="reorder"
+    aria-labelledby="{{#if taskOrderSaved}}activity-task-heading{{else}}activity-task-default-heading{{/if}}"
+    aria-describedby="activity-sort-help"
+  >
+    {{#each tasks}}
+    <li data-nv-key="activity-task-{{id}}" nv:sort.item="{{id}}">
+      <span
+        id="{{#if ../taskOrderSaved}}activity-task-label-{{else}}activity-task-default-label-{{/if}}{{id}}"
+        >Move {{title}}</span
+      >
+      <button
+        id="activity-task-handle-{{id}}"
+        type="button"
+        nv:sort.handle
+        aria-labelledby="{{#if ../taskOrderSaved}}activity-task-label-{{else}}activity-task-default-label-{{/if}}{{id}}"
+      >
+        {{title}}
+      </button>
+    </li>
+    {{/each}}
+  </ol>
   <div
     nv:show="panelVisible"
     nv:transition.enter="activity-fade"

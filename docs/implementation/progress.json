@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "checkpointDate": "2026-10-31",
+  "checkpointDate": "2026-11-01",
   "releaseStatus": "NOT YET READY — BLOCKERS",
   "phases": [
     {
@@ -13,13 +13,13 @@
       "id": 1,
       "state": "InProgress",
       "scope": "Core, views, HBS, integrated umbrella Live/Alpine startup and three runnable examples",
-      "remaining": "Current implemented checkpoint passes 1387 aggregate / 246 three-browser checks, seven tarballs/four external consumers and isolated Windows Node22/24 strict+aggregate. Complete phase-specific and Linux/full matrix acceptance remain open; Phase3 accepted separately, Phase4 InProgress."
+      "remaining": "Current checkpoint passes 1582 aggregate / 261 three-browser checks, seven tarballs/four external consumers and isolated Windows Node22/24 strict+aggregate. Complete phase-specific/Linux/full matrix acceptance remains open."
     },
     {
       "id": 2,
       "state": "InProgress",
       "scope": "Live protocol, opaque state store, generated routes, registration ownership, authorized model synchronization and pure writable-state validation",
-      "remaining": "Current implemented checkpoint passes 1387 aggregate / 246 three-browser checks, seven tarballs/four external consumers and isolated Windows Node22/24 strict+aggregate. Complete phase-specific and Linux/full matrix acceptance remain open; Phase3 accepted separately, Phase4 InProgress."
+      "remaining": "Current checkpoint passes 1582 aggregate / 261 three-browser checks, seven tarballs/four external consumers and isolated Windows Node22/24 strict+aggregate. Complete phase-specific/Linux/full matrix acceptance remains open."
     },
     {
       "id": 3,
@@ -31,9 +31,9 @@
     {
       "id": 4,
       "state": "InProgress",
-      "scope": "URL/session state, render/error/request disposal, visible/idle initialization, polling/intersection, offline/current/transition directives and a canonical minified client bundle, in addition to prior hooks/confirmation/computed.",
-      "remaining": "Eight URL/session/directive requirements accepted on this checkpoint. Server nesting/mount keys, reactive/modelable/events, serializers, sort/stream/navigation, server lazy/deferred placeholders, batching/isolation/renderless, complete progressive mutation/effect flows, optimistic rollback and full CRUD acceptance remain open. Phase5 stays Pending until Phase4 exit.",
-      "evidence": "docs/implementation/context-and-observers-hardened-checkpoint-evidence-2026-10-31.json"
+      "scope": "Prior hooks/context/directives plus fresh request component instances, bounded queued action inputs, server-approved sorting, authorized text streams and explicit shutdown/cancellation.",
+      "remaining": "Server nesting/mount keys, reactive/modelable children/events, typed synthesizers, navigation, deferred server placeholders, batching/isolation/renderless actions, complete progressive mutation/effect flows, optimistic rollback and the full CRUD gate remain unfinished. Sorting/streaming scoped implementations have the explicit acceptance limits recorded in the ledger. Phase5 stays Pending until Phase4 exit.",
+      "evidence": "docs/implementation/sort-and-stream-checkpoint-evidence-2026-11-01.json"
     },
     {
       "id": 5,

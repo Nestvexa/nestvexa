@@ -14,6 +14,7 @@ import type { Server } from 'node:http';
 import { readFile } from 'node:fs/promises';
 
 interface RequestBody {
+  input: unknown;
   requestId: string;
   revision: number;
   snapshot: string;
@@ -365,6 +366,82 @@ async function metrics() {
 }
 
 describe('bounded browser request lifecycle', () => {
+  it('rejects a combined oversized request before dispatch and allows correction without suspension', async () => {
+    await mount({ timeout: 1000 });
+    const rejected = await page.evaluate(async () => {
+      const root = document.getElementById('parent');
+      if (!root) throw new Error('Missing component');
+      const { client } = window.nvTransportSession;
+      client.set(root, 'query', 'x'.repeat(50_000));
+      try {
+        await client.call(root, 'save', { text: 'y'.repeat(16_000) });
+        return false;
+      } catch (error) {
+        return (
+          error instanceof Error && Reflect.get(error, 'code') === 'DIRECTIVE'
+        );
+      }
+    });
+    expect(rejected).toBe(true);
+    expect((await metrics()).requests).toHaveLength(0);
+    await page.evaluate(() => {
+      const root = document.getElementById('parent');
+      if (!root) throw new Error('Missing component');
+      window.nvTransportSession.client.set(root, 'query', 'corrected');
+    });
+    const retry = await start();
+    await reply(0);
+    expect(await result(retry)).toEqual({ ok: true, code: null });
+  });
+  it('captures detached input at enqueue and preserves it across earlier renders', async () => {
+    await mount({ timeout: 1000 });
+    await start();
+    await page.evaluate(() => {
+      const root = document.getElementById('parent');
+      if (!root) throw new Error('Missing component');
+      const input = { ids: ['first', 'second'] };
+      const session = window.nvTransportSession;
+      void session.client.call(root, 'save', input).catch(() => undefined);
+      input.ids.reverse();
+      input.ids.push('late');
+      if (Object.isFrozen(input) || Object.isFrozen(input.ids))
+        throw new Error('Caller input must remain mutable');
+    });
+    expect((await metrics()).requests).toHaveLength(1);
+    await reply(0);
+    expect(
+      await page.evaluate(
+        () => window.nvTransportSession.requests[1]?.body.input,
+      ),
+    ).toEqual({ ids: ['first', 'second'] });
+    await reply(1);
+  });
+  it('rejects unsafe input locally without sending or poisoning a valid component', async () => {
+    await mount({ timeout: 1000 });
+    const outcome = await page.evaluate(async () => {
+      const root = document.getElementById('parent');
+      if (!root) throw new Error('Missing component');
+      let reads = 0;
+      const input = Object.defineProperty({}, 'secret', {
+        enumerable: true,
+        get() {
+          reads++;
+          return 'secret';
+        },
+      });
+      try {
+        await window.nvTransportSession.client.call(root, 'save', input);
+        return { rejected: false, reads };
+      } catch {
+        return { rejected: true, reads };
+      }
+    });
+    expect(outcome).toEqual({ rejected: true, reads: 0 });
+    expect((await metrics()).requests).toHaveLength(0);
+    const retry = await start();
+    await reply(0);
+    expect(await result(retry)).toEqual({ ok: true, code: null });
+  });
   it.each([
     { code: 'HTTP', spec: { status: 422 } },
     { code: 'RESPONSE', spec: { raw: '{' } },

@@ -1,5 +1,17 @@
 # @nestvexa/client
 
+[Sorting](../../docs/reference/nv-sort.md) submits bounded item-order proposals
+through the normal protected action queue. `maxSortLists` defaults to 64 (1–256).
+Only server-rendered HTML commits order. `call(element, action, input)` captures
+a detached JSON input at enqueue: at most 16 KiB, depth 8 and 1,000 nodes, without
+invoking getters or freezing caller objects. Combined mutation requests are
+limited to 64 KiB before network dispatch. Server validation remains authoritative.
+
+[Read-only text streams](../../docs/reference/nv-stream.md) use a trusted `streams`
+map and explicit `startStream(target)` / `cancelStream(target)` calls. They never
+parse HTML or automatically retry. See the host route, authorization and provider
+cancellation contract in [the streaming guide](../../docs/guides/text-streams.md).
+
 [Poll](../../docs/reference/nv-poll.md), [intersect](../../docs/reference/nv-intersect.md),
 [offline](../../docs/reference/nv-offline.md), [current](../../docs/reference/nv-current.md)
 and [transition](../../docs/reference/nv-transition.md) directives are implemented.

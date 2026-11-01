@@ -1,5 +1,13 @@
 # nestvexa
 
+Automatic browser startup can register read-only stream endpoints with
+`browser: { streams: { summary: { endpoint: '/reports/summary' } } }` in the Live
+registration. The host implements and authorizes each ordinary Nest POST route.
+Endpoint paths include any public host prefix. See [text streams](../../docs/guides/text-streams.md)
+and [sorting](../../docs/reference/nv-sort.md) for the runnable HBS example,
+security boundaries and limitations. Manual browser mode configures its client
+directly instead of accepting an unused server stream map.
+
 Default Nestvexa distribution. This alpha integrates Handlebars with normal Nest `@Render` controllers and composes explicit Live registration with a shared renderer, client assets and Alpine CSP startup. Host identity, sessions and authorization remain required. The complete Live feature set and frontend framework adapters are not implemented.
 
 ## Installation

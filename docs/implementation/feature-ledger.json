@@ -6747,14 +6747,37 @@
       "id": "DIR-016",
       "priority": "P1",
       "package": "@nestvexa/client",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/client/src/stream.ts",
+        "packages/live/src/text-stream.ts",
+        "packages/live/src/runtime.ts",
+        "packages/nestvexa/src/browser.module.ts"
+      ],
+      "testFiles": [
+        "tests/client-stream.test.ts",
+        "tests/live-stream.test.ts",
+        "tests/browser/stream.spec.ts"
+      ],
+      "docs": [
+        "docs/reference/nv-stream.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/activity-panel.hbs"
+      ],
+      "securityNotes": "Text only; registered same-origin POST endpoint; host read policy, bound snapshot/CSRF/revision checks around each chunk; quotas, deadlines and shutdown cancellation.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T07:42:00.002Z",
+          "report": "docs/implementation/sort-and-stream-checkpoint-evidence-2026-11-01.json"
+        }
+      ],
+      "outstandingIssues": [
+        "Text-only streaming is implemented; HTML-fragment streaming remains unsupported. Remaining Phase4/full release acceptance and platform matrix stay open."
+      ]
     },
     {
       "sourceKey": "d43360ccb7300805e8f26bb1cb1bd8f96f7eed0fc757c4e0c52820f4c11cb39b",
@@ -6767,14 +6790,37 @@
       "id": "DIR-017",
       "priority": "P1",
       "package": "@nestvexa/client",
-      "implementationFiles": [],
-      "testFiles": [],
-      "docs": [],
-      "examples": [],
-      "securityNotes": "",
-      "state": "Pending",
-      "validationEvidence": [],
-      "outstandingIssues": []
+      "implementationFiles": [
+        "packages/client/src/sort.ts",
+        "packages/client/src/action-input.ts",
+        "packages/client/src/index.ts"
+      ],
+      "testFiles": [
+        "tests/client-sort.test.ts",
+        "tests/client-action-input.test.ts",
+        "tests/client-transport-lifecycle.test.ts",
+        "tests/browser/sort.spec.ts"
+      ],
+      "docs": [
+        "docs/reference/nv-sort.md"
+      ],
+      "examples": [
+        "examples/starter-live/src/main.ts",
+        "examples/starter-live/views/activity-panel.hbs"
+      ],
+      "securityNotes": "Stable IDs are proposals, never permission. A normal Nest pipe validates shape; the host action checks its exact authorized set. No optimistic DOM move or automatic retry.",
+      "state": "InProgress",
+      "validationEvidence": [
+        {
+          "command": "pnpm checkpoint:check",
+          "exitCode": 0,
+          "executedAt": "2026-11-01T07:42:00.002Z",
+          "report": "docs/implementation/sort-and-stream-checkpoint-evidence-2026-11-01.json"
+        }
+      ],
+      "outstandingIssues": [
+        "Manual assistive-technology acceptance and the complete Phase4 CRUD/interaction matrix remain open. Vertical same-list native dragging is implemented; touch/grid/cross-list movement is unsupported."
+      ]
     },
     {
       "sourceKey": "6a4d378a2e80a84ed3c16442a4eab09571c5d1337e49f014ecc5cfc40b17c4fb",

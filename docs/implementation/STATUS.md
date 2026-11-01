@@ -1,14 +1,10 @@
 # Implementation status
 
-Checkpoint: **2026-10-31** (Africa/Cairo calendar date). **NOT YET READY — BLOCKERS.** UTC verification timestamps identify individual runs separately.
+Checkpoint: **2026-11-01** (Africa/Cairo calendar date). **NOT YET READY — BLOCKERS.** UTC timestamps identify individual runs.
 
-The [context and observers checkpoint](context-and-observers-hardened-checkpoint-evidence-2026-10-31.json) at **2026-10-31T06:58:56.404Z** passed **1,387 aggregate / 246 three-browser checks**, seven tarballs/four external consumers, frozen install/static/coverage/size/docs/ledger/benchmark/audit gates and the Phase3 regression check. Node **v22.23.4** at **2026-10-31T11:35:12.882Z** and Node **v24.22.1** at **2026-10-31T11:38:17.716Z** each passed strict compilation and the full aggregate on Windows. Eight individual URL/session/directive requirements are accepted; the request lifecycle slice still has broader open requirements. Earlier evidence below is historical.
+The [sorting and text-stream checkpoint](sort-and-stream-checkpoint-evidence-2026-11-01.json) at **2026-11-01T07:42:00.002Z** passes **1582 aggregate / 261 three-browser checks**, seven tarballs/four external consumers, the full implemented-checkpoint commands and isolated Windows Node22/24 strict+aggregate. The [internal review](sort-stream-review-2026-11-01.md) records corrected cleanup, detached-label and editable-target defects. Earlier evidence below is historical.
 
-Phase 4 is **InProgress**, Phase 5 **Pending**. Remaining Phase 4 requirements:
-server nesting/mount keys, reactive/modelable children/events, typed synthesizers,
-sort/stream/navigation, deferred server placeholders, batching/isolation/renderless
-actions, complete progressive mutations/effects, optimistic rollback and the full
-CRUD exit gate. No completed lifecycle/directive slice accepts the whole phase.
+Phase4 is **InProgress**, Phase5 **Pending**. Server nesting/mount keys, reactive/modelable children/events, typed synthesizers, navigation, deferred server placeholders, batching/isolation/renderless actions, complete progressive mutation/effect flows, optimistic rollback and the full CRUD gate remain unfinished. Sorting/streaming scoped implementations have the explicit acceptance limits recorded in the ledger. Phase5 stays Pending until Phase4 exit.
 
 Phase 3 tasks 3.1–3.7 and the reactive form/table exit gate are now accepted on
 the executed Windows environment. The [acceptance review](phase3-acceptance.md)
@@ -32,7 +28,7 @@ The repository contains core configuration/registries, view contracts, an HBS en
 
 ## Resume and audit
 
-Latest ledger: **20 Done / 96 InProgress / 809 Pending** across 925 requirements. Phase4 **InProgress**, Phase5 **Pending**. Server nesting/mount keys, reactive/modelable children/events, typed synthesizers, sort/stream/navigation, server lazy/deferred placeholders, request batching/isolation/renderless actions, complete progressive mutation/effect flows, optimistic rollback and the full CRUD exit gate remain open.
+Latest ledger: **20 Done / 98 InProgress / 807 Pending** across 925 requirements. Server nesting/mount keys, reactive/modelable children/events, typed synthesizers, navigation, deferred server placeholders, batching/isolation/renderless actions, complete progressive mutation/effect flows, optimistic rollback and the full CRUD gate remain unfinished. Sorting/streaming scoped implementations have the explicit acceptance limits recorded in the ledger. Phase5 stays Pending until Phase4 exit.
 
 The canonical bundled client measured **87150 raw / 28561 gzip-estimate bytes**, under the unchanged 35840-byte budget, excluding Alpine/adapter/maps. Selected coverage is **96.62% branches / 98.05% statements across five files only**. Full runtime/action/client/metadata coverage and independent security review remain open. The package test fixture initially used the wrong initialization property name; correction and a fresh full run passed. The offline indicator is hidden in initial/no-JavaScript HTML.
 

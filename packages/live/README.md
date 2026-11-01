@@ -1,5 +1,15 @@
 # @nestvexa/live
 
+Each component operation creates a fresh explicitly registered component using
+the actual Nest request context; request-scoped dependencies remain shared within
+that HTTP request. See [instance isolation](../../docs/guides/component-instance-scope.md).
+
+Ordinary guarded Nest routes can serve [authorized text streams](../../docs/guides/text-streams.md)
+using `LiveRuntime.authorizeStream`, `parseTextStreamRequest` and
+`createTextStreamResponse`. Streams are read-only, bounded, checked around each
+awaited chunk, and cancelled before the HTTP adapter closes. They do not bypass
+host resource policies or claim action-guard execution for a read.
+
 `@Url` and `@Session` pair with explicit public `@State` fields. URL values use
 typed primitive validation; session values use the host-owned session object,
 authoritative identity binding, component/field namespace and TTL. See

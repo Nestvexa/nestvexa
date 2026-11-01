@@ -21,13 +21,64 @@ export interface NestvexaBrowserOptions {
   readonly assetsPath?: string;
   /** Public version-neutral host prefix; override when Live basePath includes a URI version. */
   readonly basePath?: string;
+  /** Trusted explicit public POST paths, including any host prefix. Never taken from markup. */
+  readonly streams?: Readonly<Record<string, { readonly endpoint: string }>>;
 }
 interface BrowserOptions {
   readonly mode: 'alpine' | 'manual';
   readonly path: string;
   readonly basePath: string;
+  readonly streams: Readonly<Record<string, { readonly endpoint: string }>>;
 }
 const BROWSER_OPTIONS = Symbol('nv:browser-options');
+function normalizeStreams(value: unknown): BrowserOptions['streams'] {
+  const result: Record<string, { readonly endpoint: string }> = Object.create(
+    null,
+  ) as Record<string, { readonly endpoint: string }>;
+  if (value === undefined) return Object.freeze(result);
+  const plain = (entry: object): boolean =>
+    Object.getPrototypeOf(entry) === Object.prototype ||
+    Object.getPrototypeOf(entry) === null;
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    !plain(value) ||
+    Reflect.ownKeys(value).length > 64
+  )
+    throw new Error('Invalid browser stream map');
+  for (const key of Reflect.ownKeys(value)) {
+    if (
+      typeof key !== 'string' ||
+      !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(key) ||
+      ['constructor', 'prototype', '__proto__'].includes(key)
+    )
+      throw new Error('Invalid browser stream identifier');
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (!descriptor?.enumerable || !('value' in descriptor))
+      throw new Error('Browser streams require plain data properties');
+    const entry: unknown = descriptor.value;
+    if (
+      !entry ||
+      typeof entry !== 'object' ||
+      !plain(entry) ||
+      Reflect.ownKeys(entry).length !== 1
+    )
+      throw new Error('Invalid browser stream endpoint');
+    const endpoint = Object.getOwnPropertyDescriptor(entry, 'endpoint');
+    if (
+      !endpoint?.enumerable ||
+      !('value' in endpoint) ||
+      typeof endpoint.value !== 'string'
+    )
+      throw new Error('Browser stream endpoint must be a string data property');
+    const path = normalizeAssetOptions({
+      path: endpoint.value,
+      basePath: '',
+    }).path;
+    result[key] = Object.freeze({ endpoint: path });
+  }
+  return Object.freeze(result);
+}
 function attribute(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -75,7 +126,7 @@ export class NestvexaBrowserService implements OnApplicationShutdown {
     return `import {createLiveClient} from ${JSON.stringify(entries.live)};
 import Alpine from ${JSON.stringify(entries.alpine)};
 import {startLiveAlpine} from ${JSON.stringify(entries.alpineAdapter)};
-const app = startLiveAlpine(Alpine, createLiveClient(), {
+const app = startLiveAlpine(Alpine, createLiveClient(${Object.keys(this.options.streams).length ? JSON.stringify({ streams: this.options.streams }).replaceAll('<', '\\u003c') : ''}), {
   configure(Alpine, client) {
     document.dispatchEvent(new CustomEvent('nestvexa:alpine:init', {detail: Object.freeze({Alpine, client})}));
   }
@@ -123,7 +174,9 @@ export class NestvexaBrowserModule {
     for (const key of Reflect.ownKeys(options)) {
       const descriptor = Object.getOwnPropertyDescriptor(options, key);
       if (
-        !['mode', 'path', 'assetsPath', 'basePath'].includes(String(key)) ||
+        !['mode', 'path', 'assetsPath', 'basePath', 'streams'].includes(
+          String(key),
+        ) ||
         typeof key !== 'string' ||
         !descriptor ||
         !('value' in descriptor)
@@ -136,6 +189,11 @@ export class NestvexaBrowserModule {
     const mode = modeValue === undefined ? 'alpine' : modeValue;
     if (mode !== 'alpine' && mode !== 'manual')
       throw new Error('Invalid browser mode');
+    const streams = normalizeStreams(read('streams'));
+    if (mode === 'manual' && Object.keys(streams).length)
+      throw new Error(
+        'Configure streams on the host-owned client in manual browser mode',
+      );
     const prefix = normalizeAssetOptions({
       path: read('path') === undefined ? '/_nestvexa' : read('path'),
       basePath: read('basePath') === undefined ? basePath : read('basePath'),
@@ -162,7 +220,7 @@ export class NestvexaBrowserModule {
       providers: [
         {
           provide: BROWSER_OPTIONS,
-          useValue: Object.freeze({ ...prefix, mode }),
+          useValue: Object.freeze({ ...prefix, mode, streams }),
         },
         NestvexaBrowserService,
       ],

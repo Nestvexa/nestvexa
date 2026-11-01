@@ -10,6 +10,7 @@ import {
   freezeJson,
   LiveProtocolError,
   parseLiveRequest,
+  isSnapshotToken,
 } from './protocol.js';
 import type { JsonValue, LiveRequest } from './protocol.js';
 import { MemoryLiveStore } from './store.js';
@@ -23,6 +24,8 @@ import {
   urlStateEffects,
 } from './state-context.js';
 import type { UrlStateEffect } from './state-context.js';
+import { closeTextStreams } from './text-stream.js';
+import type { TextStreamAuthorization } from './text-stream.js';
 
 export const LIVE_OPTIONS = Symbol('nv:live-options');
 export interface LiveIdentity {
@@ -170,18 +173,106 @@ export class LiveRuntime implements OnApplicationShutdown {
     if (this.closed) fail(503, 'LIVE_SHUTDOWN');
     this.#admissions.set(request, { identity, payload, component, action });
   }
+  /** Authorize a read-only text stream from a normal host Nest route.
+   * Type and stream ID are trusted route constants, never client class/method names.
+   * The host authorizes `$stream:<id>` and owns its route guards, DTO pipes and producer.
+   */
+  async authorizeStream(
+    request: object,
+    type: Type<object>,
+    streamId: string,
+    reference: Readonly<{ snapshot: string; revision: number }>,
+  ): Promise<TextStreamAuthorization> {
+    const component = this.options.definitions.find(
+      (entry) => entry.type === type,
+    );
+    if (!component) {
+      const owner = this.registry.owner(type);
+      if (owner && owner !== this)
+        return owner.authorizeStream(request, type, streamId, reference);
+      throw new Error(
+        'Stream component is not registered in this Nest application',
+      );
+    }
+    if (
+      !/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/.test(streamId) ||
+      ['constructor', 'prototype', '__proto__'].includes(streamId)
+    )
+      throw new Error('Invalid registered stream identifier');
+    if (Reflect.get(request, 'method') !== 'POST') fail(405, 'STREAM_METHOD');
+    if (header(request, 'origin') !== this.options.origin)
+      fail(403, 'ORIGIN_REJECTED');
+    if (
+      !/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(
+        header(request, 'content-type') ?? '',
+      )
+    )
+      fail(415, 'CONTENT_TYPE');
+    try {
+      const ref = cloneState(reference);
+      if (
+        Object.keys(ref).length !== 2 ||
+        !isSnapshotToken(ref['snapshot']) ||
+        typeof ref['revision'] !== 'number' ||
+        !Number.isSafeInteger(ref['revision']) ||
+        ref['revision'] < 0
+      )
+        fail(400, 'INVALID_STREAM_REFERENCE');
+      const token = ref['snapshot'];
+      const revision = ref['revision'];
+      const identity = await this.identity(request);
+      this.limit(identity);
+      const inspect = async (current: LiveIdentity) => {
+        if (!equal(current.binding, identity.binding))
+          fail(403, 'IDENTITY_CHANGED');
+        if (!equal(header(request, 'x-nestvexa-csrf') ?? '', current.csrfToken))
+          fail(403, 'CSRF_REJECTED');
+        const before = this.store.peek(token, current.binding);
+        if (before.name !== component.name) fail(403, 'COMPONENT_MISMATCH');
+        if (before.revision !== revision) fail(409, 'STALE_REVISION');
+        if (
+          !(await this.options.authorize(
+            current,
+            component.name,
+            `$stream:${streamId}`,
+          ))
+        )
+          fail(403, 'STREAM_FORBIDDEN');
+        if (this.closed) fail(503, 'LIVE_SHUTDOWN');
+        const after = this.store.peek(token, current.binding);
+        if (after.revision !== revision || after.id !== before.id)
+          fail(409, 'STALE_REVISION');
+        return after;
+      };
+      const snapshot = await inspect(identity);
+      return Object.freeze({
+        // Registrations in one Nest application share this registry and quota scope.
+        scope: this.registry,
+        componentId: snapshot.id,
+        revision: snapshot.revision,
+        state: snapshot.state,
+        revalidate: async (): Promise<void> => {
+          try {
+            await inspect(await this.identity(request));
+          } catch (error) {
+            mapped(error);
+          }
+        },
+      });
+    } catch (error) {
+      mapped(error);
+    }
+  }
   private async instance(
     component: ComponentDefinition,
     request: object,
   ): Promise<object> {
     const context = this.registry.context(request);
     this.moduleRef.registerRequestByContextId(request, context);
-    const instance = await this.moduleRef.resolve<object>(
-      component.type,
-      context,
-      { strict: true },
-    );
-    return instance;
+    // Only the owning runtime's explicit registration reaches this path.
+    // Creating the component avoids reusing mutable fields across same-type
+    // mounts, while its dependencies still share the actual request context.
+    return this.moduleRef.create(component.type, context);
   }
   private async operation<T>(
     instance: object,
@@ -494,6 +585,10 @@ export class LiveRuntime implements OnApplicationShutdown {
     if (this.closed) fail(503, 'LIVE_SHUTDOWN');
     // Components receive mutable data, independently of the validator's captured references.
     return cloneState(updates);
+  }
+  beforeApplicationShutdown(): void {
+    this.closed = true;
+    closeTextStreams(this.registry);
   }
   onApplicationShutdown(): void {
     this.closed = true;

@@ -2,7 +2,11 @@
 
 Research performed **2026-10-24**; implementation reconciliation **2026-10-29**. Registry metadata establishes available versions, not runtime compatibility. The lockfile and executed test reports determine the tested matrix. No optional renderer is supported merely because its documentation was read. Checkpoint calendar dates follow Africa/Cairo; verification timestamps remain UTC.
 
-## Current context/directive verification
+## Current sorting and text-stream verification
+
+The [2026-11-01 checkpoint](../implementation/sort-and-stream-checkpoint-evidence-2026-11-01.json) passes 1582 aggregate / 261 three-browser checks, seven tarballs/four consumers and isolated v22.23.4/v24.22.1 strict+aggregate on Windows. Dependency versions are unchanged. Browser/pack under both isolated binaries, Linux, Node26 and the full release matrix remain unverified.
+
+## Earlier context/directive verification
 
 The [context and observers checkpoint](../implementation/context-and-observers-hardened-checkpoint-evidence-2026-10-31.json) at **2026-10-31T06:58:56.404Z** passed 1,387 aggregate / 246 three-browser checks and seven tarballs/four consumers. Node **v22.23.4** at **2026-10-31T11:35:12.882Z** and Node **v24.22.1** at **2026-10-31T11:38:17.716Z** each passed strict+aggregate on Windows; full browser/pack under both binaries, Linux and Node26 remain unverified. New build-only esbuild0.28.2 was registry-verified on October31 and its [official build/minification API](https://esbuild.github.io/api/#minify) checked before use. The public entry is a canonical bundle with linked original-source maps; private implementation JS is not published/served. Phase4 remains open and Phase5 Pending.
 

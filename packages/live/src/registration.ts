@@ -4,9 +4,16 @@ import { ContextIdFactory } from '@nestjs/core';
 import type { SafeHtml } from '@nestvexa/views';
 import type { ComponentDefinition } from './metadata.js';
 import { INTERNAL_SYNC_PATH } from './metadata.js';
+import type { TextStreamAuthorization } from './text-stream.js';
 
 export interface LiveRegistrationOwner {
   mount(type: Type<object>, request: object): Promise<SafeHtml>;
+  authorizeStream(
+    request: object,
+    type: Type<object>,
+    streamId: string,
+    reference: Readonly<{ snapshot: string; revision: number }>,
+  ): Promise<TextStreamAuthorization>;
 }
 
 /** One provider instance per Nest application container; it never stores browser-selected classes. */

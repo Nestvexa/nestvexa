@@ -1,5 +1,13 @@
 # Nestvexa
 
+The `/activity` starter also demonstrates [server-approved keyboard/native
+sorting](docs/reference/nv-sort.md) and [authorized read-only text
+streams](docs/reference/nv-stream.md). Streams use explicit host Nest routes and
+registered endpoint IDs; their content is always text. See the
+[instance-scope contract](docs/guides/component-instance-scope.md) for fresh
+components sharing the correct request-scoped services. These additions do not
+accept the remaining Phase 4 or Phase 5 requirements.
+
 Phase 4 now includes URL/session state, request render/error/disposal hooks,
 polling/intersection, visible/idle initialization and offline/current/transition
 directives. Run the default Live starter and open `/activity` for a real flow.
