@@ -56,6 +56,17 @@ export interface LiveHostOptions {
   readonly renderer: ViewEngineAdapter;
   readonly store?: MemoryLiveStore;
   readonly maxRequestsPerMinute?: number;
+  /**
+   * Optional realtime signer (for example `RealtimeService` from
+   * @nestvexa/realtime). Receives the channels a component declares and returns a
+   * subscription token for those the identity may read, or undefined.
+   */
+  readonly realtime?: {
+    sign(
+      identity: LiveIdentity,
+      channels: readonly string[],
+    ): string | undefined | Promise<string | undefined>;
+  };
 }
 export interface RuntimeOptions extends LiveHostOptions {
   readonly definitions: readonly ComponentDefinition[];
@@ -90,6 +101,7 @@ interface Rendered {
   readonly state: Record<string, JsonValue>;
   readonly url: readonly UrlStateEffect[];
   readonly children?: Readonly<Record<string, ChildReference>>;
+  readonly realtime?: string;
 }
 const maxChildDepth = 8;
 /** Rebuild a stored JSON value into the component field type. */
@@ -519,14 +531,50 @@ export class LiveRuntime implements OnApplicationShutdown {
     if (Buffer.byteLength(html) > 1_048_576) fail(413, 'PAYLOAD_TOO_LARGE');
     const url = urlStateEffects(instance, component.stateContext);
     await this.hook(instance, 'afterRender', [Object.freeze({ html })]);
+    const realtime = await this.realtimeToken(
+      instance,
+      component,
+      context.identity,
+    );
     return {
       html,
       state,
       url,
+      ...(realtime === undefined ? {} : { realtime }),
       ...(composed.children === undefined
         ? {}
         : { children: composed.children }),
     };
+  }
+  /** Ask the host signer for a subscription token covering declared channels. */
+  private async realtimeToken(
+    instance: object,
+    component: ComponentDefinition,
+    identity: LiveIdentity,
+  ): Promise<string | undefined> {
+    if (!component.realtime || !this.options.realtime) return undefined;
+    const method: unknown = Reflect.get(instance, component.realtime);
+    if (typeof method !== 'function')
+      throw new Error('Realtime channel method is not callable');
+    const channels: unknown = await Reflect.apply(method, instance, []);
+    if (
+      !Array.isArray(channels) ||
+      channels.length > 32 ||
+      channels.some((channel) => typeof channel !== 'string')
+    )
+      throw new Error('@RealtimeChannels must return up to 32 channel names');
+    if (!channels.length) return undefined;
+    const token = await this.options.realtime.sign(
+      identity,
+      channels as string[],
+    );
+    if (this.closed) fail(503, 'LIVE_SHUTDOWN');
+    if (
+      token !== undefined &&
+      (typeof token !== 'string' || token.length > 8192)
+    )
+      throw new Error('Realtime signer returned an invalid token');
+    return token;
   }
   private definitionOf(type: Type<object>): ComponentDefinition {
     const found = this.options.definitions.find((entry) => entry.type === type);
@@ -635,6 +683,7 @@ export class LiveRuntime implements OnApplicationShutdown {
       readonly model?: { readonly parent: string; readonly child: string };
       readonly lazy?: boolean;
       readonly refresh?: boolean;
+      readonly realtime?: string | undefined;
     } = {},
   ): string {
     const endpoint = `${this.options.basePath ?? ''}${this.options.endpoint ?? '/_nestvexa/live'}/${component.name}`;
@@ -657,6 +706,9 @@ export class LiveRuntime implements OnApplicationShutdown {
         ? []
         : [`data-nv-model="${escapeAttribute(JSON.stringify(extra.model))}"`]),
       ...(extra.refresh ? ['data-nv-refresh=""'] : []),
+      ...(extra.realtime === undefined
+        ? []
+        : [`data-nv-realtime="${escapeAttribute(extra.realtime)}"`]),
       ...(extra.lazy && component.lazy
         ? [`data-nv-lazy="${component.lazy}"`]
         : []),
@@ -735,6 +787,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     );
     return {
       html: this.wrapper(child, snapshot, identity, captured.html, {
+        realtime: captured.realtime,
         key: slot,
         ...(model === undefined ? {} : { model }),
         lazy: true,
@@ -779,6 +832,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     const stub = `<div data-nv-component="${escapeAttribute(current.id)}" data-nv-key="nv-child:${escapeAttribute(slot)}" data-nv-stub=""></div>`;
     if (!changed.length) return { html: stub, reference };
     let result: Awaited<ReturnType<MemoryLiveStore['transaction']>>;
+    let refreshedRealtime: string | undefined;
     try {
       result = await this.store.transaction(
         reference.token,
@@ -818,6 +872,7 @@ export class LiveRuntime implements OnApplicationShutdown {
               depth: context.depth + 1,
               previous: snapshot.children,
             });
+            refreshedRealtime = rendered.realtime;
             return {
               state: rendered.state,
               html: rendered.html,
@@ -837,6 +892,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     }
     return {
       html: this.wrapper(child, result, identity, result.html, {
+        realtime: refreshedRealtime,
         key: slot,
         refresh: true,
         ...(model === undefined ? {} : { model }),
@@ -933,6 +989,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     }
     return SafeHtml.trusted(
       this.wrapper(component, snapshot, identity, captured.html, {
+        realtime: captured.realtime,
         lazy: true,
       }),
     );
@@ -962,6 +1019,7 @@ export class LiveRuntime implements OnApplicationShutdown {
       let events: readonly LiveEvent[] = [];
       let redirect: string | undefined;
       let download: LiveDownload | undefined;
+      let realtime: string | undefined;
       let flash: readonly string[] = [];
       const context: RenderContext = {
         request,
@@ -1049,6 +1107,7 @@ export class LiveRuntime implements OnApplicationShutdown {
                       previous: snapshot.children,
                     });
                 url = captured.url;
+                realtime = captured.realtime;
                 persist = () =>
                   persistStateContext(
                     captured.state,
@@ -1110,6 +1169,7 @@ export class LiveRuntime implements OnApplicationShutdown {
         ...(events.length ? { events } : {}),
         ...(redirect === undefined ? {} : { redirect }),
         ...(attachment === undefined ? {} : { download: attachment }),
+        ...(realtime === undefined ? {} : { realtime }),
       };
     } catch (error) {
       if (completed) await this.observeError(completed, error);

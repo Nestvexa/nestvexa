@@ -23,12 +23,21 @@ export interface NestvexaBrowserOptions {
   readonly basePath?: string;
   /** Trusted explicit public POST paths, including any host prefix. Never taken from markup. */
   readonly streams?: Readonly<Record<string, { readonly endpoint: string }>>;
+  /** Trusted realtime route prefix and transport for @nestvexa/realtime. */
+  readonly realtime?: {
+    readonly endpoint: string;
+    readonly transport?: 'auto' | 'sse' | 'websocket' | 'polling';
+  };
 }
 interface BrowserOptions {
   readonly mode: 'alpine' | 'manual';
   readonly path: string;
   readonly basePath: string;
   readonly streams: Readonly<Record<string, { readonly endpoint: string }>>;
+  readonly realtime?: {
+    readonly endpoint: string;
+    readonly transport: 'auto' | 'sse' | 'websocket' | 'polling';
+  };
 }
 const BROWSER_OPTIONS = Symbol('nv:browser-options');
 function normalizeStreams(value: unknown): BrowserOptions['streams'] {
@@ -126,12 +135,23 @@ export class NestvexaBrowserService implements OnApplicationShutdown {
     return `import {createLiveClient} from ${JSON.stringify(entries.live)};
 import Alpine from ${JSON.stringify(entries.alpine)};
 import {startLiveAlpine} from ${JSON.stringify(entries.alpineAdapter)};
-const app = startLiveAlpine(Alpine, createLiveClient(${Object.keys(this.options.streams).length ? JSON.stringify({ streams: this.options.streams }).replaceAll('<', '\\u003c') : ''}), {
+const app = startLiveAlpine(Alpine, createLiveClient(${this.clientConfig()}), {
   configure(Alpine, client) {
     document.dispatchEvent(new CustomEvent('nestvexa:alpine:init', {detail: Object.freeze({Alpine, client})}));
   }
 });
 export {app};\n`;
+  }
+  private clientConfig(): string {
+    const config = {
+      ...(Object.keys(this.options.streams).length
+        ? { streams: this.options.streams }
+        : {}),
+      ...(this.options.realtime ? { realtime: this.options.realtime } : {}),
+    };
+    return Object.keys(config).length
+      ? JSON.stringify(config).replaceAll('<', '\\u003c')
+      : '';
   }
   onApplicationShutdown(): void {
     this.closed = true;
@@ -174,9 +194,14 @@ export class NestvexaBrowserModule {
     for (const key of Reflect.ownKeys(options)) {
       const descriptor = Object.getOwnPropertyDescriptor(options, key);
       if (
-        !['mode', 'path', 'assetsPath', 'basePath', 'streams'].includes(
-          String(key),
-        ) ||
+        ![
+          'mode',
+          'path',
+          'assetsPath',
+          'basePath',
+          'streams',
+          'realtime',
+        ].includes(String(key)) ||
         typeof key !== 'string' ||
         !descriptor ||
         !('value' in descriptor)
@@ -190,6 +215,31 @@ export class NestvexaBrowserModule {
     if (mode !== 'alpine' && mode !== 'manual')
       throw new Error('Invalid browser mode');
     const streams = normalizeStreams(read('streams'));
+    const realtimeValue = read('realtime');
+    let realtime: BrowserOptions['realtime'];
+    if (realtimeValue !== undefined) {
+      const endpoint: unknown =
+        realtimeValue && typeof realtimeValue === 'object'
+          ? Reflect.get(realtimeValue, 'endpoint')
+          : undefined;
+      const transport: unknown =
+        realtimeValue && typeof realtimeValue === 'object'
+          ? (Reflect.get(realtimeValue, 'transport') ?? 'auto')
+          : undefined;
+      if (
+        typeof endpoint !== 'string' ||
+        !['auto', 'sse', 'websocket', 'polling'].includes(String(transport))
+      )
+        throw new Error('Invalid browser realtime options');
+      if (mode === 'manual')
+        throw new Error(
+          'Configure realtime on the host-owned client in manual browser mode',
+        );
+      realtime = Object.freeze({
+        endpoint: normalizeAssetOptions({ path: endpoint, basePath: '' }).path,
+        transport: transport as 'auto' | 'sse' | 'websocket' | 'polling',
+      });
+    }
     if (mode === 'manual' && Object.keys(streams).length)
       throw new Error(
         'Configure streams on the host-owned client in manual browser mode',
@@ -220,7 +270,12 @@ export class NestvexaBrowserModule {
       providers: [
         {
           provide: BROWSER_OPTIONS,
-          useValue: Object.freeze({ ...prefix, mode, streams }),
+          useValue: Object.freeze({
+            ...prefix,
+            mode,
+            streams,
+            ...(realtime === undefined ? {} : { realtime }),
+          }),
         },
         NestvexaBrowserService,
       ],

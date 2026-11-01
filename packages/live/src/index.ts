@@ -33,6 +33,7 @@ export {
   Reactive,
   Modelable,
   OnEvent,
+  RealtimeChannels,
   type PropMode,
   type ComponentOptions,
   type StateOptions,

@@ -44,6 +44,15 @@ import {
   ProjectsModule,
   ProjectToast,
 } from './projects.js';
+import { RealtimeModule, RealtimeService } from '@nestvexa/realtime';
+import {
+  RealtimeBoard,
+  RealtimeDemoModule,
+  connectReportJobs,
+  guestBinding,
+  publicChannel,
+  reportJobs,
+} from './realtime-board.js';
 
 declare module 'express-session' {
   interface SessionData {
@@ -171,6 +180,21 @@ class Pages {
       title: 'Independent component ownership',
       widget: await this.live.mount(WorkBoard, request),
       secondary: await this.live.mount(Counter, request),
+    };
+  }
+  @Get('realtime')
+  @Header('Cache-Control', 'no-store')
+  @Header(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+  )
+  @Render('projects')
+  async realtime(@Req() request: SessionRequest) {
+    request.session.csrf ??= randomBytes(32).toString('base64url');
+    return {
+      title: 'Realtime activity',
+      flash: [],
+      widget: await this.live.mount(RealtimeBoard, request),
     };
   }
   @Get('projects')
@@ -307,10 +331,20 @@ document.addEventListener('click', async (event) => {
 
 @Module({
   imports: [
+    RealtimeModule.forRoot({
+      secrets: [randomBytes(48).toString('base64url')],
+      origin: `http://127.0.0.1:${port}`,
+      resolveIdentity: (request) => ({ binding: guestBinding(request) }),
+      authorizeChannel: (identity, channel) =>
+        channel === publicChannel || reportJobs.authorize(identity, channel),
+    }),
     NestvexaModule.forRoot(
       { views: { root, layout: 'layout' }, live: { enabled: true } },
       {
-        browser: { streams: { summary: { endpoint: '/activity-stream' } } },
+        browser: {
+          streams: { summary: { endpoint: '/activity-stream' } },
+          realtime: { endpoint: '/_nestvexa/realtime' },
+        },
         components: [
           Counter,
           WorkBoard,
@@ -324,10 +358,13 @@ document.addEventListener('click', async (event) => {
           ProjectBoard,
           ProjectRow,
           ProjectToast,
+          RealtimeBoard,
         ],
-        imports: [ProjectsModule],
-        useFactory: () => ({
+        imports: [ProjectsModule, RealtimeDemoModule],
+        inject: [RealtimeService],
+        useFactory: (realtime: RealtimeService) => ({
           origin: `http://127.0.0.1:${port}`,
+          realtime,
           resolveIdentity(request: object) {
             const value = request as Partial<SessionRequest>;
             if (!value.session?.csrf || !value.sessionID)
@@ -349,6 +386,14 @@ document.addEventListener('click', async (event) => {
                 'toggle',
                 'reorder',
                 '$stream:summary',
+              ].includes(action)) ||
+            (component === 'realtime-board' &&
+              [
+                '$mount',
+                '$sync',
+                'post',
+                'startReport',
+                'cancelReport',
               ].includes(action)) ||
             (component === 'project-board' &&
               [
@@ -427,6 +472,7 @@ app.use(
   }),
 );
 await configureNestvexa(app);
+connectReportJobs(app.get(RealtimeService));
 app.enableShutdownHooks();
 await app.listen(port, '127.0.0.1');
 console.log(`Default Live starter: ${await app.getUrl()}`);

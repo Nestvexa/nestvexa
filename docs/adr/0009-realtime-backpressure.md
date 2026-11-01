@@ -1,6 +1,6 @@
 # ADR 0009: Authorized invalidation events with bounded delivery
 
-Date: 2026-10-25. Status: **planned; no realtime transport/broker implementation is claimed**.
+Date: 2026-10-25; implementation recorded 2026-11-01. Status: **implemented in `@nestvexa/realtime` (experimental); distributed acceptance against a real Redis service remains open**.
 
 ## Decision
 
@@ -21,3 +21,40 @@ Costs include heartbeat/refresh traffic, revocation tracking and deployment-spec
 ## Acceptance gates
 
 No existing MVC test proves realtime behavior. Required evidence is two server processes, a real Redis test service, multiple users/tenants, SSE and WebSocket adapter checks, revocation mid-connection, broker restart, slow-client pressure, deduplication and listener cleanup. The local Linux Docker daemon was unavailable at the compatibility checkpoint; distributed/container tests remain unrun. All realtime feature-ledger units remain unmet until implementation and these tests exist.
+
+## Implementation (2026-11-01)
+
+`@nestvexa/realtime` implements this decision:
+
+- **Invalidation only.** Components declare channels with `@RealtimeChannels()`. The
+  Live runtime asks the host-configured signer for a token covering the channels the
+  identity may read now; events trigger the component's own authorized `$sync`
+  refresh. Event `data` is public JSON (≤16 KiB) delivered as a window event, never
+  applied as component state.
+- **Tokens.** HMAC-SHA256, identity-bound (SHA-256 of the binding), 1–32 channels,
+  default 15-minute expiry, key rotation (first secret signs, all verify). Signed,
+  not encrypted.
+- **Authorization.** Checked at subscribe, before delivery after each revalidation
+  window (default 30 s), and periodically with a fresh identity resolution;
+  `revoke(binding)` and `closeChannel(channel)` close connections immediately.
+- **Bounds.** 1000 connections, 8 per identity, 64 queued events per connection,
+  256 KiB transport buffer; slow consumers are disconnected. Heartbeats every 15 s.
+- **Transports.** SSE and long-polling routes on both Express and Fastify; optional
+  WebSocket upgrade (`ws` peer) with an exact-Origin check against cross-site
+  WebSocket hijacking and identity resolved from the raw upgrade request. Clients
+  reconnect with exponential backoff and jitter, pause offline, deduplicate ids and
+  renew expired tokens through ordinary refreshes.
+- **Brokers.** In-process broker with a bounded replay window (SSE `Last-Event-ID`,
+  poll cursors). `RespRealtimeBroker` speaks the Redis PUBLISH/SUBSCRIBE protocol
+  without a client library; Redis pub/sub is fire-and-forget, so disconnected
+  replicas miss events and clients recover with a fresh refresh.
+- **Jobs.** `JobRunner` is an in-process, owner-bound job runner with progress,
+  bounded retries, cancellation and redacted failures, publishing snapshots to
+  `job:<id>` channels. It does not survive restarts; durable queues (for example
+  BullMQ) are a host adapter behind the same shape.
+
+Evidence: `tests/realtime.test.ts` (tokens, hub limits/revocation/replay, two
+replicas through an in-process RESP **test double**, SSE/poll/WebSocket on both
+adapters, jobs), `tests/realtime-live.test.ts` and `tests/browser/realtime.spec.ts`
+(cross-session SSE refresh, owner job progress, forged/foreign tokens, axe). Still
+unrun: a real Redis server, two separate OS processes, broker restart and load tests.

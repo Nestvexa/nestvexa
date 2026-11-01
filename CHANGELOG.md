@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased: realtime invalidation, Inertia adapter
+
+Added `@nestvexa/realtime` (SSE/poll/WebSocket, identity-bound tokens with key
+rotation, bounded queues, revocation, memory and Redis-protocol brokers, owner-bound
+jobs) and `@RealtimeChannels()` Live integration with a `/realtime` starter page.
+Merged the verified Inertia v3 server adapter `@nestvexa/inertia` with an official
+React client example.
+
 ## Unreleased: navigation, optimistic UI, downloads, flash, pagination and typed state
 
 Added `nv:navigate` (same-origin document swaps with full-load fallback,

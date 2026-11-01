@@ -1,0 +1,35 @@
+<section aria-labelledby="realtime-heading">
+  <h1 id="realtime-heading">Realtime activity</h1>
+  <form nv:submit="post">
+    <label for="realtime-draft">Message</label>
+    <input
+      id="realtime-draft"
+      nv:model="draft"
+      value="{{draft}}"
+      maxlength="80"
+    />
+    <button type="submit">Post update</button>
+  </form>
+  <p>
+    Posted from this browser: <output id="realtime-posted">{{posted}}</output>
+  </p>
+  <ul id="realtime-feed" aria-label="Activity feed" aria-live="polite">
+    {{#each feedItems}}
+    <li data-nv-key="feed-{{id}}">{{text}}</li>
+    {{/each}}
+  </ul>
+  <h2>Report</h2>
+  <button type="button" nv:click="startReport">Generate report</button>
+  <button type="button" nv:click="cancelReport">Cancel report</button>
+  <p role="status">
+    Report: <span id="report-status">{{job.status}}</span>
+    <progress
+      id="report-progress"
+      max="100"
+      value="{{job.progress}}"
+      aria-label="Report progress"
+    >
+      {{job.progress}}%
+    </progress>
+  </p>
+</section>

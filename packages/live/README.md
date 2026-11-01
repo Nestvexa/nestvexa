@@ -70,6 +70,8 @@ Nested components, events, lazy components and redirects: `@LiveComponent({ chil
 
 Downloads, flash messages, pagination and typed state: `downloadLive(this, { filename, contentType?, body })`, `flashLive(this, message)` with `consumeLiveFlash(request)`, `paginate({ page, perPage, total })`, and `@State({ synthesizer: DateSynthesizer | BigIntSynthesizer })`. See the [effects guide](../../docs/guides/live-effects.md).
 
+Realtime: `@RealtimeChannels()` marks a method returning channel names; with the host `realtime` signer option (for example `RealtimeService` from `@nestvexa/realtime`) components refresh when those channels publish. See the [realtime guide](../../docs/guides/realtime.md).
+
 `@State({writable:true})` explicitly allows top-level JSON updates; default state is locked against client writes. `@Locked()` is an equivalent readable state declaration. `@Computed()` supports synchronous getters; `@Computed({async:true})` supports awaited zero-argument methods. `@Action({id?, renderless?})` exposes only registered methods; `renderless: true` acknowledges state without rendering when the client negotiates `renderless-v1` (see the [renderless guide](../../docs/guides/renderless-actions.md)). A single argument may use `@ActionInput(...pipes)`; normal Nest parameter pipes perform transformation and validation. No arbitrary service or class selection is accepted.
 
 Writable state can supply a pure `validate(value)` callback returning `boolean` or `Promise<boolean>`:

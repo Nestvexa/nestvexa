@@ -89,6 +89,8 @@ export interface ComponentDefinition {
   readonly props: ReadonlyMap<string, PropMode>;
   /** Event name → listening action ids. */
   readonly listeners: ReadonlyMap<string, readonly string[]>;
+  /** Method returning the realtime channels that refresh this component. */
+  readonly realtime?: string;
   readonly states: ReadonlyMap<string, StateOptions>;
   readonly computed: ReadonlyMap<string, ComputedDefinition>;
   readonly stateContext: StateContextDefinition;
@@ -111,6 +113,7 @@ const ACTION_DECLARED = Symbol('nv:action-declared');
 const ACTION_RENDERLESS = Symbol('nv:action-renderless');
 const PROPS = Symbol('nv:props');
 const LISTENERS = Symbol('nv:listeners');
+const REALTIME = Symbol('nv:realtime');
 const reservedMembers = new Set([
   ...lifecycleHookNames,
   ...Object.getOwnPropertyNames(Object.prototype),
@@ -347,6 +350,21 @@ export function OnEvent(event: string): MethodDecorator {
     if (!methods.includes(method)) methods.push(method);
     listeners.set(event, methods);
     Reflect.defineMetadata(LISTENERS, listeners, target);
+  };
+}
+/**
+ * Mark a zero-argument method (sync or async) returning server-chosen channel
+ * names. When the host configures `realtime`, events on those channels refresh
+ * the component through its authorized `$sync` route.
+ */
+export function RealtimeChannels(): MethodDecorator {
+  return (target, key, descriptor) => {
+    const name = property(key);
+    if (typeof descriptor.value !== 'function' || descriptor.value.length !== 0)
+      throw new Error('@RealtimeChannels requires a zero-argument method');
+    if (Reflect.getMetadata(REALTIME, target) !== undefined)
+      throw new Error('Only one @RealtimeChannels method per component');
+    Reflect.defineMetadata(REALTIME, name, target);
   };
 }
 /** A synchronous getter, or an explicit async:true zero-argument method, rendered as derived JSON. */
@@ -646,9 +664,29 @@ export function definition(type: Type<object>): ComponentDefinition {
     }
     listeners.set(event, Object.freeze(ids));
   }
+  const realtime: unknown = Reflect.getMetadata(REALTIME, type.prototype);
+  if (typeof realtime === 'string') {
+    if (
+      states.has(realtime) ||
+      computed.has(realtime) ||
+      [...methods.values()].includes(realtime)
+    )
+      throw new Error(`Duplicate live member ${realtime}`);
+    if (
+      hasInvocationMetadata(
+        type,
+        realtime,
+        Reflect.get(type.prototype, realtime) as object,
+      )
+    )
+      throw new Error(
+        '@RealtimeChannels cannot use Nest route/enhancer decorators',
+      );
+  }
   return Object.freeze({
     type,
     name: options.name,
+    ...(typeof realtime === 'string' ? { realtime } : {}),
     view: options.view,
     children: options.children ?? new Map<string, Type<object>>(),
     lazy: options.lazy ?? false,

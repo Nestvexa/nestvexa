@@ -34,6 +34,8 @@ import {
 import { applyUrlEffects } from './url-state.js';
 import { cloneActionInput } from './action-input.js';
 import { createNavigationController } from './navigation.js';
+import { createRealtimeController, tokenChannels } from './realtime.js';
+import type { RealtimeEndpoint } from './realtime.js';
 import { parseOptimisticDirective, projectOptimistic } from './optimistic.js';
 import type { LiveActionInput } from './action-input.js';
 export type { LiveActionInput } from './action-input.js';
@@ -91,7 +93,10 @@ export type {
   ReplacementDirective,
 } from './protocol.js';
 
+export type { RealtimeEndpoint, RealtimeTransport } from './realtime.js';
 export interface LiveClientOptions {
+  /** Trusted realtime route (from @nestvexa/realtime) for component invalidation. */
+  readonly realtime?: RealtimeEndpoint;
   readonly root?: Document | Element;
   readonly fetch?: typeof fetch;
   readonly onError?: (error: Error, component: Element | null) => void;
@@ -457,6 +462,9 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   let sorting: ReturnType<typeof createSortController> | undefined;
   let lazyObserver: IntersectionObserver | undefined;
   let navigation: ReturnType<typeof createNavigationController> | undefined;
+  let realtime: ReturnType<typeof createRealtimeController> | undefined;
+  const realtimeRefresh = new WeakMap<Component, number>();
+  let lastRealtimeRenewal = 0;
   let streaming: ReturnType<typeof createStreamController> | undefined;
   const streams = copyStreamEndpoints(options.streams ?? Object.freeze({}));
   let presentation: ReturnType<typeof createPresentationController> | undefined;
@@ -916,6 +924,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           report(error, element);
         }
       }
+    refreshRealtime();
     try {
       syncDirectListeners();
       background?.refresh(root);
@@ -1334,6 +1343,10 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           detail: { requestId, revision: state.revision },
         }),
       );
+      if (result.realtime !== undefined) {
+        state.root.setAttribute('data-nv-realtime', result.realtime);
+        refreshRealtime();
+      }
       propagateModel(state, previousValues);
       if (result.events?.length) deliverEvents(result.events, state);
       if (result.download) {
@@ -1718,6 +1731,44 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         if (approved && current()) return invoke();
       });
   }
+  function realtimeChannels(state: Component): readonly string[] {
+    const token = state.root.getAttribute('data-nv-realtime');
+    if (token === null) return [];
+    try {
+      return tokenChannels(token);
+    } catch (error) {
+      report(error, state.root);
+      return [];
+    }
+  }
+  function refreshRealtime(): void {
+    if (!realtime) return;
+    const tokens: string[] = [];
+    for (const state of components.values()) {
+      const token = state.root.getAttribute('data-nv-realtime');
+      if (token !== null && usable(state) && realtimeChannels(state).length)
+        tokens.push(token);
+    }
+    try {
+      realtime.update(tokens.slice(0, 32));
+    } catch (error) {
+      report(error, null);
+    }
+  }
+  /** Coalesce bursts: one forced refresh per component per 50 ms window. */
+  function invalidate(state: Component): void {
+    if (realtimeRefresh.has(state)) return;
+    realtimeRefresh.set(
+      state,
+      window.setTimeout(() => {
+        realtimeRefresh.delete(state);
+        if (usable(state) && !failureFor(state))
+          void schedule(state, '_sync', false, null, false, true).catch(
+            () => undefined,
+          );
+      }, 50),
+    );
+  }
   function loadLazy(state: Component): void {
     void schedule(state, '_sync', false, null, false, true).then(
       () => {
@@ -2045,6 +2096,29 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       });
       generation++;
       initializations = 0;
+      if (options.realtime && root.nodeType === 9)
+        realtime = createRealtimeController({
+          ...options.realtime,
+          window,
+          fetch: transport,
+          onMessage: (message) => {
+            window.dispatchEvent(
+              new window.CustomEvent('nestvexa:realtime', {
+                detail: Object.freeze({ ...message }),
+              }),
+            );
+            for (const state of components.values())
+              if (realtimeChannels(state).includes(message.channel))
+                invalidate(state);
+          },
+          onExpired: () => {
+            // Renew tokens through ordinary authorized refreshes, at most every 30 s.
+            if (Date.now() - lastRealtimeRenewal < 30_000) return;
+            lastRealtimeRenewal = Date.now();
+            for (const state of components.values())
+              if (realtimeChannels(state).length) invalidate(state);
+          },
+        });
       if (root.nodeType === 9)
         navigation = createNavigationController({
           window,
@@ -2113,6 +2187,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       lazyObserver = undefined;
       navigation?.dispose();
       navigation = undefined;
+      realtime?.dispose();
+      realtime = undefined;
       dispatcher?.dispose();
       dispatcher = undefined;
       direct.dispose();

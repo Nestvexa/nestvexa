@@ -133,6 +133,15 @@ function validateHost(options: LiveRuntimeFactoryOptions): void {
       options.maxRequestsPerMinute < 1)
   )
     throw new Error('Invalid live rate limit');
+  if (
+    options.realtime !== undefined &&
+    (typeof options.realtime !== 'object' ||
+      options.realtime === null ||
+      typeof options.realtime.sign !== 'function')
+  )
+    throw new Error(
+      'Live realtime option requires a sign(identity, channels) method',
+    );
 }
 
 function factoryOptions(
@@ -150,6 +159,7 @@ function factoryOptions(
     'renderer',
     'store',
     'maxRequestsPerMinute',
+    'realtime',
   ]);
   for (const key of Reflect.ownKeys(options)) {
     if (typeof key !== 'string' || !allowed.has(key))
@@ -196,6 +206,7 @@ function factoryOptions(
     ...(snapshot.maxRequestsPerMinute === undefined
       ? {}
       : { maxRequestsPerMinute: snapshot.maxRequestsPerMinute }),
+    ...(snapshot.realtime === undefined ? {} : { realtime: snapshot.realtime }),
   });
 }
 

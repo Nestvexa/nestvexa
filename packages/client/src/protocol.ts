@@ -120,6 +120,8 @@ export interface LiveResponse {
   readonly events?: readonly LiveEvent[];
   /** Application-relative path to visit after this response commits. */
   readonly redirect?: string;
+  /** Fresh realtime subscription token for this component. */
+  readonly realtime?: string;
   /** Single-use same-origin attachment created by the action. */
   readonly download?: { readonly url: string; readonly filename: string };
 }
@@ -178,6 +180,14 @@ export function parseRedirect(value: unknown): string {
     })
   )
     throw new LiveClientError('RESPONSE', 'Unsafe Live redirect');
+  return value;
+}
+function parseRealtimeToken(value: unknown): string {
+  if (
+    typeof value !== 'string' ||
+    !/^[A-Za-z0-9_-]{1,6000}\.[A-Za-z0-9_-]{20,100}$/.test(value)
+  )
+    throw new LiveClientError('RESPONSE', 'Invalid realtime token');
   return value;
 }
 function parseDownload(value: unknown): {
@@ -262,5 +272,8 @@ export function parseLiveResponse(value: unknown): LiveResponse {
     ...(value['download'] === undefined
       ? {}
       : { download: parseDownload(value['download']) }),
+    ...(value['realtime'] === undefined
+      ? {}
+      : { realtime: parseRealtimeToken(value['realtime']) }),
   };
 }
