@@ -1,0 +1,27 @@
+{
+  "name": "@nestvexa/cache",
+  "version": "0.1.0-alpha.0",
+  "description": "Privacy-scoped render/data cache with tags, single-flight and declared dependency invalidation",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": "^22.13.0 || ^24.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src"
+  }
+}

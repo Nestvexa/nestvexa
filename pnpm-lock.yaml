@@ -234,6 +234,8 @@ importers:
         specifier: ~3.17.5
         version: 3.17.5
 
+  packages/cache: {}
+
   packages/client: {}
 
   packages/core:

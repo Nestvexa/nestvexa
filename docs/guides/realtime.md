@@ -116,3 +116,10 @@ pnpm exec playwright test tests/browser/realtime.spec.ts
 ```
 
 Example: [`/realtime`](../../examples/starter-live/src/realtime-board.ts) in the Live starter. Design record: [ADR 0009](../adr/0009-realtime-backpressure.md). Package reference: [@nestvexa/realtime](../../packages/realtime/README.md).
+
+## Caching with declared dependencies
+
+`@nestvexa/cache` can invalidate realtime subscribers when data changes: pass an
+`onInvalidate` hook that publishes `tagChannel(tag)` and declare the same channels in
+`@RealtimeChannels()`. Dependencies are explicit; nothing is detected automatically.
+See the [cache package](../../packages/cache/README.md).
