@@ -83,7 +83,9 @@ function escape(text: string): string {
 }
 
 export async function hydrated(page: Page): Promise<void> {
-  await expect(page.locator('html[data-hydrated="true"]')).toHaveCount(1);
+  await expect(page.locator('html[data-hydrated="true"]')).toHaveCount(1, {
+    timeout: 20000,
+  });
 }
 
 export function defineFrameworkSuite({

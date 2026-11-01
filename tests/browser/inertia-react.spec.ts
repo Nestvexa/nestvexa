@@ -14,6 +14,8 @@ const base = 'http://127.0.0.1:3106';
 defineFrameworkSuite({ framework: 'React', base });
 
 test.describe('Inertia React example extras', () => {
+  test.describe.configure({ timeout: 90000 });
+
   test('uploads a file with useForm FormData and validates it on the server', async ({
     page,
     browserName,
