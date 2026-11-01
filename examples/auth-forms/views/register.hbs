@@ -1,0 +1,88 @@
+<h1>{{title}}</h1>
+{{#if summary.hasErrors}}
+<div
+  class="summary"
+  id="register-summary"
+  role="group"
+  aria-labelledby="register-summary-title"
+  tabindex="-1"
+  autofocus
+>
+  <h2 id="register-summary-title">{{summary.title}}</h2>
+  <ul>
+    {{#each summary.items}}
+    <li>
+      {{#if href}}<a href="{{href}}">{{label}}: {{message}}</a
+      >{{else}}{{message}}{{/if}}
+    </li>
+    {{/each}}
+  </ul>
+</div>
+{{/if}}
+<form id="register-form" method="post" action="/register" novalidate>
+  <input type="hidden" name="_csrf" value="{{csrf}}" />
+  <input type="hidden" name="_submission" value="{{submission}}" />
+
+  <label for="{{fields.displayName.id}}">Display name</label>
+  <input
+    id="{{fields.displayName.id}}"
+    name="displayName"
+    value="{{old.displayName}}"
+    autocomplete="name"
+    maxlength="60"
+    required
+    aria-invalid="{{fields.displayName.ariaInvalid}}"
+    aria-describedby="{{fields.displayName.errorId}}"
+  />
+  <p class="error" id="{{fields.displayName.errorId}}">
+    {{fields.displayName.message}}
+  </p>
+
+  <label for="{{fields.email.id}}">Email</label>
+  <input
+    id="{{fields.email.id}}"
+    name="email"
+    type="email"
+    value="{{old.email}}"
+    autocomplete="email"
+    maxlength="254"
+    required
+    aria-invalid="{{fields.email.ariaInvalid}}"
+    aria-describedby="{{fields.email.errorId}}"
+  />
+  <p class="error" id="{{fields.email.errorId}}">{{fields.email.message}}</p>
+
+  <label for="{{fields.password.id}}">Password</label>
+  <input
+    id="{{fields.password.id}}"
+    name="password"
+    type="password"
+    autocomplete="new-password"
+    maxlength="128"
+    required
+    aria-invalid="{{fields.password.ariaInvalid}}"
+    aria-describedby="register-password-hint {{fields.password.errorId}}"
+  />
+  <p class="hint" id="register-password-hint">12 to 128 characters.</p>
+  <p class="error" id="{{fields.password.errorId}}">
+    {{fields.password.message}}
+  </p>
+
+  <label for="{{fields.passwordConfirmation.id}}">Confirm password</label>
+  <input
+    id="{{fields.passwordConfirmation.id}}"
+    name="passwordConfirmation"
+    type="password"
+    autocomplete="new-password"
+    maxlength="128"
+    required
+    aria-invalid="{{fields.passwordConfirmation.ariaInvalid}}"
+    aria-describedby="{{fields.passwordConfirmation.errorId}}"
+  />
+  <p class="error" id="{{fields.passwordConfirmation.errorId}}">
+    {{fields.passwordConfirmation.message}}
+  </p>
+
+  <button type="submit">Create account</button>
+</form>
+<p>Already registered? <a href="/login">Sign in</a>.</p>

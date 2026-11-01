@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{title}}</title>
+    <link rel="stylesheet" href="/forms.css" />
+    {{nvScripts}}
+  </head>
+  <body>
+    <header>
+      <nav aria-label="Main">
+        <a href="/">Home</a>
+        {{#if signedIn}}
+        <a href="/profile">Profile</a>
+        <form method="post" action="/logout">
+          <input type="hidden" name="_csrf" value="{{csrf}}" />
+          <button type="submit">Sign out</button>
+        </form>
+        {{else}}
+        <a href="/login">Sign in</a>
+        <a href="/register">Create an account</a>
+        {{/if}}
+      </nav>
+    </header>
+    <main>
+      {{#if flash.length}}
+      <div class="flash" role="status" id="flash">
+        {{#each flash}}
+        <p>{{this}}</p>
+        {{/each}}
+      </div>
+      {{/if}} {{body}}
+    </main>
+  </body>
+</html>

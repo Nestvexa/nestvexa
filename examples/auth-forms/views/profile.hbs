@@ -1,0 +1,14 @@
+<h1>{{title}}</h1>
+{{#if signedOut}}
+<p>
+  <a href="/login">Sign in</a> or <a href="/register">create an account</a> to
+  edit your profile.
+</p>
+{{else}} {{editor}}
+<noscript
+  ><p>
+    JavaScript is off: saving reloads the page, and errors appear after the
+    reload.
+  </p></noscript
+>
+{{/if}}

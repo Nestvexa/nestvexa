@@ -61,6 +61,7 @@ import {
   availableForFocus,
   captureEditorSelection,
   createFocusController,
+  focusFirstInvalid,
   focusMoved,
 } from './focus.js';
 export { LiveHttpError } from './transport.js';
@@ -1683,11 +1684,29 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   function invokeEvent(element: Element, action: string): Promise<void> {
     const state = componentFor(element);
     const invoke = () => {
-      if (element.tagName === 'FORM' && state.submitting)
-        return Promise.resolve();
+      const submit = element.tagName === 'FORM';
+      if (submit && state.submitting) return Promise.resolve();
       const settle = applyOptimistic(state, element, action);
-      return schedule(state, action, element.tagName === 'FORM').then(
-        () => settle(true),
+      const previous = doc.activeElement;
+      const revision = state.revision;
+      return schedule(state, action, submit).then(
+        () => {
+          settle(true);
+          // Accessible validation: move to the first invalid field of the
+          // submitted form unless the user already moved focus.
+          if (
+            submit &&
+            components.get(state.root) === state &&
+            state.revision !== revision
+          )
+            focusFirstInvalid(
+              element,
+              previous,
+              state.root,
+              (node) =>
+                owner(node) === state.root && !ignored(node, state.root),
+            );
+        },
         () => settle(false),
       );
     };

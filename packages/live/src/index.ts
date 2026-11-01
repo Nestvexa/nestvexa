@@ -33,6 +33,8 @@ export {
   Reactive,
   Modelable,
   OnEvent,
+  describeLiveState,
+  type LiveStateDescription,
   type PropMode,
   type ComponentOptions,
   type StateOptions,

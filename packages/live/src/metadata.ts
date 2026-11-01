@@ -289,6 +289,44 @@ export function State(options: StateOptions = {}): PropertyDecorator {
     Reflect.defineMetadata(STATES, states, target);
   };
 }
+/** Public, read-only description of one declared `@State` field. */
+export interface LiveStateDescription {
+  readonly writable: boolean;
+  /** True when the field holds a typed value converted by a synthesizer. */
+  readonly synthesized: boolean;
+}
+/**
+ * Describe a declared `@State` field of a `@LiveComponent` instance, or return
+ * `undefined` for anything else (plain fields, injected services, unknown names,
+ * non-components). Integrations such as `@nestvexa/forms` use it to refuse
+ * reading or writing members that are not public component state.
+ */
+export function describeLiveState(
+  component: object,
+  field: string,
+): LiveStateDescription | undefined {
+  if (
+    component === null ||
+    typeof component !== 'object' ||
+    typeof field !== 'string'
+  )
+    return undefined;
+  const prototype: unknown = Object.getPrototypeOf(component);
+  if (prototype === null || typeof prototype !== 'object') return undefined;
+  const type: unknown = Reflect.get(prototype, 'constructor');
+  if (typeof type !== 'function' || !Reflect.hasMetadata(COMPONENT, type))
+    return undefined;
+  const states: Map<string, StateOptions> | undefined = Reflect.getMetadata(
+    STATES,
+    prototype,
+  );
+  const entry = states?.get(field);
+  if (!entry) return undefined;
+  return Object.freeze({
+    writable: entry.writable === true,
+    synthesized: entry.synthesizer !== undefined,
+  });
+}
 /** Equivalent to read-only public state; it is not an authorization policy. */
 export function Locked(): PropertyDecorator {
   return State({ writable: false });

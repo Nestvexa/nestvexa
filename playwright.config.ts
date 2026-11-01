@@ -29,5 +29,10 @@ export default defineConfig({
       url: 'http://127.0.0.1:3101',
       reuseExistingServer: false,
     },
+    {
+      command: 'pnpm --filter @nestvexa/example-auth-forms start',
+      url: 'http://127.0.0.1:3104/api/health',
+      reuseExistingServer: false,
+    },
   ],
 });

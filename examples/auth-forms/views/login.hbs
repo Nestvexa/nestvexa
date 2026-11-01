@@ -1,0 +1,56 @@
+<h1>{{title}}</h1>
+{{#if summary.hasErrors}}
+<div
+  class="summary"
+  id="login-summary"
+  role="group"
+  aria-labelledby="login-summary-title"
+  tabindex="-1"
+  autofocus
+>
+  <h2 id="login-summary-title">{{summary.title}}</h2>
+  <ul>
+    {{#each summary.items}}
+    <li>
+      {{#if href}}<a href="{{href}}">{{label}}: {{message}}</a
+      >{{else}}{{message}}{{/if}}
+    </li>
+    {{/each}}
+  </ul>
+</div>
+{{/if}}
+<form id="login-form" method="post" action="/login" novalidate>
+  <input type="hidden" name="_csrf" value="{{csrf}}" />
+
+  <label for="{{fields.email.id}}">Email</label>
+  <input
+    id="{{fields.email.id}}"
+    name="email"
+    type="email"
+    value="{{old.email}}"
+    autocomplete="username"
+    maxlength="254"
+    required
+    aria-invalid="{{fields.email.ariaInvalid}}"
+    aria-describedby="{{fields.email.errorId}}"
+  />
+  <p class="error" id="{{fields.email.errorId}}">{{fields.email.message}}</p>
+
+  <label for="{{fields.password.id}}">Password</label>
+  <input
+    id="{{fields.password.id}}"
+    name="password"
+    type="password"
+    autocomplete="current-password"
+    maxlength="128"
+    required
+    aria-invalid="{{fields.password.ariaInvalid}}"
+    aria-describedby="{{fields.password.errorId}}"
+  />
+  <p class="error" id="{{fields.password.errorId}}">
+    {{fields.password.message}}
+  </p>
+
+  <button type="submit">Sign in</button>
+</form>
+<p>New here? <a href="/register">Create an account</a>.</p>

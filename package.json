@@ -44,10 +44,14 @@
     "@nestjs/platform-fastify": "12.2.0",
     "@nestjs/testing": "12.2.0",
     "@playwright/test": "1.64.1",
+    "@types/express-session": "1.19.0",
     "@types/node": "24.19.2",
     "@vitest/coverage-v8": "5.0.5",
+    "class-transformer": "0.5.1",
+    "class-validator": "0.15.1",
     "esbuild": "0.28.2",
     "eslint": "10.13.0",
+    "express-session": "1.19.0",
     "fastify": "5.12.7",
     "prettier": "3.9.10",
     "reflect-metadata": "0.2.2",
@@ -55,6 +59,7 @@
     "tsx": "4.23.15",
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.0",
-    "vitest": "5.0.5"
+    "vitest": "5.0.5",
+    "zod": "4.6.7"
   }
 }
