@@ -1,0 +1,31 @@
+<h1>{{title}}</h1>
+{{#if user}}
+<p id="session">Signed in as <strong>{{user}}</strong></p>
+<form method="post" action="/logout">
+  <input type="hidden" name="_csrf" value="{{csrf}}" />
+  <button type="submit">Sign out</button>
+</form>
+{{else}}
+<p id="session">Browsing as a guest. Cart actions require sign-in.</p>
+<form method="post" action="/login">
+  <input type="hidden" name="_csrf" value="{{csrf}}" />
+  <label>Name <input name="name" value="ada" autocomplete="off" /></label>
+  <button type="submit">Sign in</button>
+</form>
+{{/if}}
+
+<section aria-labelledby="cart-heading">
+  <h2 id="cart-heading">Cart</h2>
+  <p>
+    <button type="button" id="add-mug" data-product="nest-mug">
+      Add a Nest mug
+    </button>
+    <button type="button" id="add-shirt" data-product="vexa-shirt">
+      Add a Vexa shirt
+    </button>
+    <button type="button" id="clear-cart">Clear cart</button>
+  </p>
+  <ul id="cart-lines"></ul>
+  <p>Total: <output id="cart-total">0.00</output></p>
+  <p id="status" role="status" aria-live="polite"></p>
+</section>

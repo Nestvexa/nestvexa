@@ -37,6 +37,15 @@ import {
   parseLoadingDirective,
   parseLoadingTarget,
 } from '@nestvexa/client';
+import {
+  ActionContext as ServerActionContext,
+  ActionGroup,
+  ActionInput as ServerActionInput,
+  ActionsModule,
+  ServerAction,
+} from '@nestvexa/actions';
+import { createActionsClient } from '@nestvexa/actions/client';
+import { generateActionClient } from '@nestvexa/actions/codegen';
 import type {
   LiveDirective,
   LoadingDirective,
@@ -313,4 +322,75 @@ try {
 } finally {
   await app.close();
   await renderer.dispose();
+}
+
+// Universal server actions from the packed tarball: real Nest route, typed
+// client generation from this very file and the browser-safe client in Node.
+@ActionGroup('pack')
+class PackActions {
+  @ServerAction({ id: 'echo', idempotent: true })
+  echo(
+    @ServerActionInput() input: { text: string },
+    @ServerActionContext() context: ServerActionContext,
+  ) {
+    return {
+      text: String(input.text),
+      subject: context.identity.subject,
+      at: new Date(0),
+    };
+  }
+}
+@Module({
+  imports: [
+    ActionsModule.register({
+      groups: [PackActions],
+      origin,
+      resolveIdentity: () => ({ subject: 'packed-user', csrfToken: csrf }),
+      authorize: (_identity, action) => action.group === 'pack',
+    }),
+  ],
+})
+class ActionsApp {}
+const generated = await generateActionClient({
+  files: ['consumer.ts'],
+  outDir: 'generated',
+  write: false,
+});
+assert.ok(generated.ok, JSON.stringify(generated.diagnostics));
+assert.ok(
+  generated.files[1]?.contents.includes(
+    'readonly echo: ActionMethod<{ text: string }, { text: string; subject: string; at: string }>;',
+  ),
+);
+const actionsApp = await NestFactory.create(ActionsApp, { logger: false });
+try {
+  await actionsApp.listen(0, '127.0.0.1');
+  const client = createActionsClient({
+    baseUrl: await actionsApp.getUrl(),
+    csrf,
+    headers: { origin },
+  });
+  const bound = client.bind({
+    pack: {
+      echo: { group: 'pack', action: 'echo', version: null, idempotent: true },
+    },
+  });
+  assert.deepEqual(await bound['pack']?.['echo']?.({ text: 'hi' }), {
+    text: 'hi',
+    subject: 'packed-user',
+    at: '1970-01-01T00:00:00.000Z',
+  });
+  await assert.rejects(
+    client.call(
+      { group: 'pack', action: 'echo', version: null, idempotent: false },
+      { text: 'no idempotency key' },
+    ),
+    (error: unknown) =>
+      error instanceof Error && Reflect.get(error, 'code') === 'VALIDATION',
+  );
+  console.log(
+    'Packed actions consumer passed: explicit group route, generated types from the tarball and typed client.',
+  );
+} finally {
+  await actionsApp.close();
 }
