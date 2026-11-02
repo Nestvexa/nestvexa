@@ -232,7 +232,10 @@ describe('dialog', () => {
     await page.getByRole('button', { name: 'Edit product' }).click();
     // Contrast is only meaningful once the opening fade has finished.
     await page.evaluate(() =>
-      Promise.all(document.getAnimations().map((a) => a.finished)),
+      // Cancelled animations reject `finished` with AbortError; they are done too.
+      Promise.all(
+        document.getAnimations().map((a) => a.finished.catch(() => undefined)),
+      ),
     );
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   });

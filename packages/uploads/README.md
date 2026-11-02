@@ -220,9 +220,13 @@ pnpm exec playwright test tests/browser/uploads.spec.ts
 ```
 
 The S3 suite verifies SigV4 against AWS published vectors and runs against an
-in-process S3-compatible **test double** (`tests/support/fake-s3.ts`). Running the
-same flow against real AWS S3 / MinIO, and `ClamdScanner` against a real clamd,
-are owner/CI steps that have not been run in this repository.
+in-process S3-compatible **test double** (`tests/support/fake-s3.ts`).
+`pnpm test:services` runs `S3Storage` against a real S3-compatible server (signed
+PUT/HEAD/GET/Range/DELETE, presigned URLs, forged-signature rejection) and
+`ClamdScanner` against a real clamd (clean file and EICAR); the 2026-11-02 run used
+SeaweedFS and ClamAV in Docker. See the
+[production services guide](../../docs/guides/production-services.md). Real AWS S3
+has not been exercised.
 
 ## Production caveats
 
