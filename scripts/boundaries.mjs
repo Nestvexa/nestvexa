@@ -122,6 +122,46 @@ for (const entry of await readdir('packages/client/src')) {
   if (/from\s+['"](?:node:|@nestjs\/|@nestvexa\/uploads)/.test(text))
     throw new Error(`Client browser boundary violation: ${entry}`);
 }
+async function files(path, visit) {
+  for (const entry of await readdir(path, { withFileTypes: true })) {
+    const file = join(path, entry.name);
+    if (entry.isDirectory()) await files(file, visit);
+    else if (entry.name.endsWith('.ts'))
+      await visit(file, await readFile(file, 'utf8'));
+  }
+}
+const specifiers = (text) =>
+  [...text.matchAll(/(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g)].map(
+    (match) => match[1],
+  );
+// The browser client (and the wire contract it shares) must stay free of
+// Node, Nest, compiler and server-runtime imports.
+for (const directory of ['client', 'shared'])
+  await files(join('packages/actions/src', directory), (file, text) => {
+    for (const specifier of specifiers(text)) {
+      const allowed =
+        specifier.startsWith('./') ||
+        (directory === 'client' &&
+          /^\.\.\/shared\/[\w-]+\.js$/.test(specifier));
+      if (!allowed)
+        throw new Error(
+          `Browser-safe actions module ${file} imports ${specifier}`,
+        );
+    }
+  });
+// Actions and Live stay independent packages (no cycles, no coupling).
+await files('packages/actions/src', (file, text) => {
+  if (specifiers(text).some((specifier) => specifier.startsWith('@nestvexa/')))
+    throw new Error(
+      `@nestvexa/actions must not import other Nestvexa packages: ${file}`,
+    );
+});
+await files('packages/live/src', (file, text) => {
+  if (specifiers(text).includes('@nestvexa/actions'))
+    throw new Error(
+      `@nestvexa/live must not import @nestvexa/actions: ${file}`,
+    );
+});
 console.log(
-  `Dependency graph checked: ${manifests.size} packages; core, views, engine, Inertia, uploads and client boundaries intact.`,
+  `Dependency graph checked: ${manifests.size} packages; core, views, engine, Inertia, uploads, actions and client boundaries intact.`,
 );

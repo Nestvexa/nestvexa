@@ -54,5 +54,10 @@ export default defineConfig({
       url: 'http://127.0.0.1:3113',
       reuseExistingServer: false,
     },
+    {
+      command: 'pnpm --filter @nestvexa/example-actions-basic start',
+      url: 'http://127.0.0.1:3111/api/health',
+      reuseExistingServer: false,
+    },
   ],
 });
