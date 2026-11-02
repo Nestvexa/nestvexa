@@ -1,0 +1,4 @@
+<p>Count: <output>{{ count }}</output></p>
+<button type="button" nv:click="increment">Increment</button>
+<label>Note <input nv:model.live="note" value="{{ note }}" maxlength="40" /></label>
+<p>Server echo: <span>{{ note }}</span></p>

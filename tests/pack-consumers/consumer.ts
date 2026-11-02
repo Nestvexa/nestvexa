@@ -1,6 +1,9 @@
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   Controller,
   Get,
@@ -14,6 +17,11 @@ import {
 import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { HbsEngine, NestvexaModule, configureNestvexa } from 'nestvexa';
+import { EjsEngine } from '@nestvexa/engine-ejs';
+import { PugEngine } from '@nestvexa/engine-pug';
+import { NunjucksEngine } from '@nestvexa/engine-nunjucks';
+import { SafeHtml, ViewEngineRegistry } from '@nestvexa/views';
+import type { ViewEngineAdapter } from '@nestvexa/views';
 import type {
   ComputedOptions,
   UrlOptions,
@@ -50,9 +58,6 @@ import {
   contentDisposition,
 } from '@nestvexa/uploads';
 import type { FinalizedUpload } from '@nestvexa/uploads';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import {
   FormInputError,
   customAdapter,
@@ -469,4 +474,123 @@ try {
 } finally {
   await uploadsApp.close();
   await rm(uploadsDirectory, { recursive: true, force: true });
+}
+
+// Optional engine tarballs: each renders an escaped Nest/Live view and runs a
+// Live counter action from the external install, without the HBS umbrella.
+const engineRoot = await mkdtemp(join(tmpdir(), 'nestvexa-pack-engines-'));
+try {
+  const sources: Readonly<Record<string, string>> = {
+    'check.ejs': '<p><%= text %></p><%= html %>',
+    'check.pug': 'p= text\n= html',
+    'check.njk': '<p>{{ text }}</p>{{ html }}',
+    'engine-counter.ejs': '<output><%= count %></output>',
+    'engine-counter.pug': 'output= count',
+    'engine-counter.njk': '<output>{{ count }}</output>',
+  };
+  for (const [name, source] of Object.entries(sources))
+    await writeFile(join(engineRoot, name), source);
+  const engines: ViewEngineAdapter[] = [
+    new EjsEngine({ root: engineRoot }),
+    new PugEngine({ root: engineRoot }),
+    new NunjucksEngine({ root: engineRoot, cache: true }),
+  ];
+  const registry = new ViewEngineRegistry();
+  for (const engine of engines) registry.register(engine);
+  await registry.initialize();
+  try {
+    for (const engine of engines) {
+      registry.requireAll(engine.name, ['layouts', 'partials', 'safeHtml']);
+      assert.throws(
+        () => registry.require(engine.name, 'streaming'),
+        /does not support streaming/,
+      );
+      assert.equal(
+        await engine.render('check', {
+          text: '<x>',
+          html: SafeHtml.trusted('<b>ok</b>'),
+        }),
+        '<p>&lt;x&gt;</p><b>ok</b>',
+      );
+      @LiveComponent({ name: 'engine-counter', view: 'engine-counter' })
+      class EngineCounter {
+        @State() count = 0;
+        @Action() increment(): void {
+          this.count++;
+        }
+      }
+      @Controller()
+      class EngineHost {
+        constructor(private readonly live: LiveRuntime) {}
+        @Get()
+        async mount(@Req() request: object) {
+          return {
+            html: (await this.live.mount(EngineCounter, request)).value,
+          };
+        }
+      }
+      @Module({
+        imports: [
+          LiveModule.register({
+            components: [EngineCounter],
+            renderer: engine,
+            origin,
+            resolveIdentity: () => ({
+              binding: 'packed-engine/session/principal',
+              csrfToken: csrf,
+            }),
+            authorize: (_identity, component, action) =>
+              component === 'engine-counter' &&
+              ['$mount', 'increment'].includes(action),
+          }),
+        ],
+        controllers: [EngineHost],
+      })
+      class EngineApp {}
+      const engineApp = await NestFactory.create(EngineApp, { logger: false });
+      try {
+        await engineApp.listen(0, '127.0.0.1');
+        const engineBase = await engineApp.getUrl();
+        const mounted = record(await (await fetch(engineBase)).json());
+        const html = String(mounted['html']);
+        assert.ok(html.includes('<output>0</output></div>'), engine.name);
+        const engineSnapshot = /data-nv-snapshot="([^"]+)"/.exec(html)?.[1];
+        assert.ok(engineSnapshot);
+        const action = await fetch(
+          `${engineBase}/_nestvexa/live/engine-counter/increment`,
+          {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              origin,
+              'x-nestvexa-csrf': csrf,
+            },
+            body: JSON.stringify({
+              protocol: 'nestvexa-live/1',
+              requestId: randomUUID(),
+              snapshot: engineSnapshot,
+              revision: 0,
+              updates: {},
+              input: null,
+            }),
+          },
+        );
+        assert.equal(action.status, 201, engine.name);
+        assert.equal(
+          record(await action.json())['html'],
+          '<output>1</output>',
+          engine.name,
+        );
+      } finally {
+        await engineApp.close();
+      }
+    }
+  } finally {
+    await registry.dispose();
+  }
+  console.log(
+    'Packed optional engines passed: EJS, Pug and Nunjucks escaped rendering, SafeHtml, capability checks and Live counter actions.',
+  );
+} finally {
+  await rm(engineRoot, { recursive: true, force: true });
 }

@@ -62,11 +62,49 @@ export type ViewComposer<Context> = (
   view: string,
   context: Context,
 ) => ViewModel | Promise<ViewModel>;
+const capabilityNames: readonly (keyof ViewCapabilities)[] = Object.freeze([
+  'layouts',
+  'partials',
+  'slots',
+  'asyncComposition',
+  'streaming',
+  'precompilation',
+  'safeHtml',
+  'viewComposers',
+]);
+/** Rejects malformed third-party adapters at registration instead of first render. */
+function assertAdapterShape(engine: ViewEngineAdapter): void {
+  const problems: string[] = [];
+  if (
+    !Array.isArray(engine.extensions) ||
+    !engine.extensions.every(
+      (extension: unknown) =>
+        typeof extension === 'string' && /^\.[a-z0-9]+$/i.test(extension),
+    )
+  )
+    problems.push('extensions must be strings such as ".ejs"');
+  const capabilities: unknown = engine.capabilities;
+  if (typeof capabilities !== 'object' || capabilities === null)
+    problems.push('capabilities must be an object');
+  else
+    for (const key of capabilityNames)
+      if (typeof Reflect.get(capabilities, key) !== 'boolean')
+        problems.push(`capability "${key}" must be declared as a boolean`);
+  for (const method of ['initialize', 'render', 'dispose'] as const)
+    if (typeof engine[method] !== 'function')
+      problems.push(`${method}() must be a function`);
+  if (problems.length)
+    throw new ViewError(
+      'INVALID_VIEW',
+      `Invalid view engine adapter ${engine.name}: ${problems.join('; ')}`,
+    );
+}
 export class ViewEngineRegistry {
   readonly #engines = new Map<string, ViewEngineAdapter>();
   register(engine: ViewEngineAdapter): void {
     if (!/^[a-z][a-z0-9-]*$/.test(engine.name))
       throw new ViewError('INVALID_VIEW', 'Invalid engine name');
+    assertAdapterShape(engine);
     if (this.#engines.has(engine.name))
       throw new ViewError(
         'DUPLICATE_ENGINE',
@@ -81,11 +119,33 @@ export class ViewEngineRegistry {
     return engine;
   }
   require(name: string, capability: keyof ViewCapabilities): void {
-    if (!this.get(name).capabilities[capability])
+    this.requireAll(name, [capability]);
+  }
+  /**
+   * Startup check for every capability an application relies on. Fails once,
+   * naming all missing capabilities and the ones the adapter does declare.
+   */
+  requireAll(
+    name: string,
+    required: readonly (keyof ViewCapabilities)[],
+  ): void {
+    const { capabilities } = this.get(name);
+    for (const capability of required)
+      if (!capabilityNames.includes(capability))
+        throw new ViewError(
+          'UNSUPPORTED_CAPABILITY',
+          `Unknown view capability: ${String(capability)}`,
+        );
+    const missing = required.filter((capability) => !capabilities[capability]);
+    if (missing.length) {
+      const supported = capabilityNames.filter((key) => capabilities[key]);
       throw new ViewError(
         'UNSUPPORTED_CAPABILITY',
-        `Engine ${name} does not support ${capability}`,
+        `Engine ${name} does not support ${missing.join(', ')}. ` +
+          `Declared capabilities: ${supported.join(', ') || 'none'}. ` +
+          'Choose an engine that declares them or remove the dependent feature.',
       );
+    }
   }
   async render<Context>(
     engine: string,
@@ -143,3 +203,14 @@ export class ViewEngineRegistry {
       throw new AggregateError(errors, 'View engine cleanup failed');
   }
 }
+export {
+  TemplateRoot,
+  assertViewAliases,
+  copyViewModel,
+  expressViewModel,
+  invokeViewHelper,
+  normalizeViewId,
+  resolveTemplateReference,
+  type TemplateRootOptions,
+  type ViewModelLimits,
+} from './adapter-kit.js';
