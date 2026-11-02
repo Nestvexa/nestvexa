@@ -24,13 +24,19 @@ describe('package contracts', () => {
     for (const name of names) {
       const manifest: {
         name: string;
-        exports: Record<string, { types: string; import: string }>;
+        exports: Record<string, { types: string; import: string } | string>;
         dependencies?: Record<string, string>;
       } = JSON.parse(
         await readFile(join('packages', name, 'package.json'), 'utf8'),
       );
-      expect(manifest.exports['.']).toBeDefined();
+      expect(manifest.exports['.']).toBeTypeOf('object');
       for (const entry of Object.values(manifest.exports)) {
+        // Only static stylesheet assets may be plain string exports.
+        if (typeof entry === 'string') {
+          expect(entry).toMatch(/^\.\/[\w/-]+\.css$/);
+          await access(join('packages', name, entry));
+          continue;
+        }
         expect(entry.types).toMatch(/\.d\.ts$/);
         expect(entry.import).toMatch(/\.js$/);
         await access(join('packages', name, entry.types));

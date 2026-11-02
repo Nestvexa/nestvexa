@@ -97,6 +97,12 @@ async function packPackages() {
       if (!contents.includes(required))
         throw new Error(tarball + ' missing ' + required);
     }
+    for (const target of Object.values(manifest.exports))
+      if (
+        typeof target === 'string' &&
+        !contents.includes('package/' + target.replace(/^\.\//, ''))
+      )
+        throw new Error(tarball + ' missing asset export ' + target);
     if (
       /^package\/(?:src|tests|node_modules)\/|(?:^|\/)\.env(?:\.|$)/m.test(
         archive.stdout,
@@ -106,9 +112,16 @@ async function packPackages() {
     report.packages.push({
       name: manifest.name,
       version: manifest.version,
-      entryPoints: Object.keys(manifest.exports).map((key) =>
-        key === '.' ? manifest.name : manifest.name + key.slice(1),
-      ),
+      // Static asset exports (for example @nestvexa/ui/theme.css) are not
+      // JavaScript modules; their presence is checked above via contents.
+      entryPoints: Object.entries(manifest.exports)
+        .filter(([, target]) => typeof target !== 'string')
+        .map(([key]) =>
+          key === '.' ? manifest.name : manifest.name + key.slice(1),
+        ),
+      assets: Object.entries(manifest.exports)
+        .filter(([, target]) => typeof target === 'string')
+        .map(([, target]) => target),
       tarball,
       sha256: createHash('sha256')
         .update(await readFile(tarball))
