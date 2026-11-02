@@ -6,7 +6,8 @@ export default defineConfig({
     // Several suites launch real Chromium; bound process contention on developer/CI hosts.
     maxWorkers: 2,
     testTimeout: 15000,
-    hookTimeout: 30000,
+    // Browser launches/pages in hooks can exceed 30s on 2-core hosted runners.
+    hookTimeout: 60000,
     reporters: ['default', 'json'],
     outputFile: { json: 'artifacts/reports/vitest.json' },
   },

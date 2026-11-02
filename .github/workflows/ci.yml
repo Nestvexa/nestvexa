@@ -5,6 +5,8 @@ permissions:
 jobs:
   foundation:
     strategy:
+      # Report every platform even when one fails.
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
         node: [22, 24]
