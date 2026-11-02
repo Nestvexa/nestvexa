@@ -38,7 +38,12 @@ for (const args of commands) {
   const result = spawnSync(process.execPath, [manager, ...args], {
     cwd: process.cwd(),
     encoding: 'utf8',
-    timeout: 600000,
+    // The three-browser e2e matrix and the full suites outgrow 10 minutes.
+    timeout: ['test', 'test:coverage', 'test:e2e', 'test:pack'].includes(
+      args[0],
+    )
+      ? 1800000
+      : 600000,
     maxBuffer: 16 * 1024 * 1024,
   });
   const output =
