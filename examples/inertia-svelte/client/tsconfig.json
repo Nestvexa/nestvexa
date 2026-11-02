@@ -1,0 +1,23 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client", "node", "svelte"],
+    // @inertiajs/svelte 3.10.0 ships dist/components/Render.svelte.d.ts that
+    // fails TS2440 (import conflicts with local declaration). Library
+    // declarations are therefore not checked here; app code still is.
+    "skipLibCheck": true,
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.svelte",
+    "../src/page-types.ts",
+    "../vite.config.ts"
+  ]
+}

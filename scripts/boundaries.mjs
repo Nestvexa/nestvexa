@@ -162,6 +162,49 @@ await files('packages/live/src', (file, text) => {
       `@nestvexa/live must not import @nestvexa/actions: ${file}`,
     );
 });
+
+// Server packages (core, views, Live, Inertia, Vite integration) never import a
+// client framework; frontend adapters own exactly one framework each.
+const frameworkImport =
+  /(?:from\s+|import\s*\(\s*)['"](?:react|react-dom|vue|svelte|@inertiajs\/|@vitejs\/|@sveltejs\/)/;
+for (const name of ['core', 'views', 'live', 'inertia', 'vite'])
+  await forbid(
+    `packages/${name}/src`,
+    frameworkImport,
+    `@nestvexa/${name} imports a client framework`,
+  );
+const adapters = {
+  '@nestvexa/react': /['"](?:vue|svelte|@inertiajs\/(?:vue3|svelte))['"/]/,
+  '@nestvexa/vue':
+    /['"](?:react|react-dom|svelte|@inertiajs\/(?:react|svelte))['"/]/,
+  '@nestvexa/svelte':
+    /['"](?:react|react-dom|vue|@inertiajs\/(?:react|vue3))['"/]/,
+};
+for (const [name, foreign] of Object.entries(adapters)) {
+  const manifest = manifests.get(name);
+  if (!manifest) throw new Error(`Missing frontend adapter ${name}`);
+  await forbid(
+    `packages/${manifest.directory}/src`,
+    new RegExp(`from\\s+${foreign.source}`),
+    `${name} imports another framework`,
+  );
+  // Frameworks are peers so applications never get duplicated runtimes.
+  for (const dependency of Object.keys(manifest.dependencies ?? {}))
+    if (/^(?:react|react-dom|vue|svelte|@inertiajs\/)/.test(dependency))
+      throw new Error(
+        `${name} must declare ${dependency} as a peer dependency`,
+      );
+}
+// The umbrella package must not pull frontend frameworks into default installs.
+const umbrella = manifests.get('nestvexa');
+for (const field of ['dependencies', 'peerDependencies'])
+  for (const dependency of Object.keys(umbrella?.[field] ?? {}))
+    if (
+      /^(?:react|react-dom|vue|svelte|vite|@inertiajs\/|@nestvexa\/(?:react|vue|svelte|vite))$/.test(
+        dependency,
+      )
+    )
+      throw new Error(`nestvexa must not depend on ${dependency}`);
 console.log(
-  `Dependency graph checked: ${manifests.size} packages; core, views, engine, Inertia, uploads, actions and client boundaries intact.`,
+  `Dependency graph checked: ${manifests.size} packages; core, views, engine, Inertia, Vite, frontend adapter, uploads, actions and client boundaries intact.`,
 );

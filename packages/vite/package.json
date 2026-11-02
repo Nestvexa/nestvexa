@@ -1,0 +1,46 @@
+{
+  "name": "@nestvexa/vite",
+  "version": "0.1.0-alpha.0",
+  "description": "Vite manifest tags, immutable static serving, dev server and SSR bundle loading for NestJS hosts",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": "^22.13.0 || ^24.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./pages": {
+      "types": "./dist/pages.d.ts",
+      "import": "./dist/pages.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run ../../tests/vite-manifest.test.ts ../../tests/vite-static.test.ts ../../tests/vite-ssr.test.ts ../../tests/vite-dev.test.ts",
+    "lint": "eslint src"
+  },
+  "peerDependencies": {
+    "vite": "^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "vite": "8.3.5"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

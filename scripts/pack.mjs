@@ -36,6 +36,8 @@ function command(args, cwd, evidence) {
   const result = spawnSync(process.execPath, [pnpm, ...args], {
     cwd,
     encoding: 'utf8',
+    // Full-profile consumers also install the frontend adapters' peers
+    // (React, Vue, Svelte and the official Inertia clients) from the registry.
     timeout: 600000,
   });
   evidence?.push({
@@ -268,6 +270,8 @@ async function consume(manager, profile) {
       .map((name) => 'await import(' + JSON.stringify(name) + ');')
       .join('\n'),
   );
+  // Cold first loads of every entry (including React, Vue and Svelte peers of
+  // the frontend adapters) can exceed 30 s on Windows hosts with file scanning.
   const imports = spawnSync(process.execPath, ['imports.mjs'], {
     cwd: consumer,
     encoding: 'utf8',
