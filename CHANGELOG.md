@@ -1,5 +1,49 @@
 # Changelog
 
+## Unreleased: optional i18n, UI, AI, flags and offline extensions
+
+Added `@nestvexa/i18n` (allowlisted negotiation, catalogs, ICU plural/select
+subset, Intl formatting, RTL, HBS helpers, key extractor), `@nestvexa/ui`
+(unstyled accessible dialog, tabs, combobox, toast, sortable headers, pagination,
+disclosure, progress and a CSP-safe keyboard module), `@nestvexa/ai`
+(provider-neutral streaming chat with server-enforced tool approval),
+`@nestvexa/flags` (fail-closed flags with guard, view and Live helpers) and
+`@nestvexa/offline` (identity-scoped drafts, read-only snapshots, safe reconnect),
+with the `examples/admin-i18n` English/Arabic admin. `HbsEngine.registerHelpers`
+lets optional packages add trusted helpers before initialization.
+
+## Unreleased: React, Vue and Svelte adapters with Vite and SSR
+
+Added `@nestvexa/vite` (manifest tags with CSP nonces, immutable static serving,
+in-process SSR bundles, official Inertia SSR server launcher, dev middleware) and
+`@nestvexa/react`, `@nestvexa/vue` and `@nestvexa/svelte` over the official
+Inertia 3.10 clients with hydration, error boundaries and SSR. Frameworks are peer
+dependencies. Examples: `inertia-react`, `inertia-vue`, `inertia-svelte` and
+`inertia-mixed` (all three frameworks in one host).
+
+## Unreleased: universal server actions
+
+Added `@nestvexa/actions`: explicitly registered, authorization-first server
+actions served by real Nest controllers (guards, pipes, interceptors, filters),
+with strict admission (origin, CSRF, JSON limits, rate limits), timeouts,
+idempotency keys, schema validation, a typed error envelope and a generated typed
+browser client (`@nestvexa/actions/codegen`). Example: `actions-basic`.
+
+## Unreleased: alternative template engines
+
+Added optional EJS, Pug and Nunjucks adapters that escape by default, render
+`SafeHtml` (including Live mounts), confine templates to the configured root and
+report template locations in development. `@nestvexa/views` exposes the shared
+adapter kit. Example: `custom-engine`.
+
+## Unreleased: forms and uploads
+
+Added `@nestvexa/forms` (Zod/class-validator/custom adapters, hardened input,
+Live validation, wizard, drafts, no-JS POST fallback with CSRF and 303 redirects)
+and `@nestvexa/uploads` (streaming limits, magic-byte checks, single-use tokens,
+resumable chunks, quotas, S3 SigV4 without an SDK, scanner hook, Range downloads,
+`nv:upload` directives). Examples: `auth-forms` and `uploads`.
+
 ## Unreleased: islands
 
 Added `@nestvexa/islands` and the `examples/hybrid-dashboard` page with React, Vue
