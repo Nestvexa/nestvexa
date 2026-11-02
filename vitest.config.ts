@@ -4,7 +4,9 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],
     // Several suites launch real Chromium; bound process contention on developer/CI hosts.
-    maxWorkers: 2,
+    // Windows hosts (local and hosted runners) time out under two concurrent
+    // browser-launching workers; one worker trades speed for reliability.
+    maxWorkers: process.platform === 'win32' ? 1 : 2,
     testTimeout: 15000,
     // Browser launches/pages in hooks can exceed 30s on 2-core hosted runners.
     hookTimeout: 60000,
