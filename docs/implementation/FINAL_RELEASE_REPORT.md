@@ -1,4 +1,115 @@
-# Release checkpoint report — 2026-11-01
+# Release checkpoint report — 2026-11-02
+
+**A. Status: NOT YET READY — BLOCKERS** for a stable release. `release:check` still
+fails because most master-prompt requirements are not Done (see section F). With
+the owner's explicit authorization, the packages are published as an
+**experimental `0.1.0-alpha.0` preview** under the npm `alpha` dist-tag. They are
+not production-supported.
+
+## B. What exists
+
+28 ESM packages, all `0.1.0-alpha.0`, in one monorepo at
+[github.com/Nestvexa/nestvexa](https://github.com/Nestvexa/nestvexa):
+
+- **Default distribution:** `nestvexa` (core, views, HBS, Live, client, Alpine
+  assets and the `nestvexa` bin).
+- **Foundations:** `@nestvexa/core`, `views`, `engine-hbs`, `live`, `client` and
+  `alpine`.
+- **Optional engines:** `engine-ejs`, `engine-pug` and `engine-nunjucks`.
+- **Forms and files:** `forms` and `uploads`.
+- **Frontend frameworks:** `inertia`, `vite`, `react`, `vue`, `svelte` and
+  `islands`.
+- **Actions and data:** `actions`, `realtime` and `cache`.
+- **Extensions:** `i18n`, `ui`, `ai`, `flags` and `offline`.
+- **Tooling:** `observability` and `cli`.
+
+15 runnable examples use ports 3100–3113 (see the root README).
+
+## C. Evidence
+
+| Run                                                                          | Result                                                                                                                                                                                                                                               |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Linux full checkpoint (Docker, Ubuntu 24.04, Node 24.22.1, commit `92b5bd3`) | Every gate exit 0 except the intentional `release:check`. See [evidence](linux-checkpoint-2026-11-02.json)                                                                                                                                           |
+| Windows full checkpoint (Windows 11, Node 24.13.0)                           | **Passed** on commit `e3b0727`: every gate exit 0, stable source fingerprint, only the intentional `release:check` fails. See [evidence](release-checkpoint-2026-11-02.json)                                                                         |
+| GitHub Actions (ubuntu/windows × Node 22/24)                                 | All four jobs green on `fb8c8f2` (format, typecheck, lint, unit, coverage, size, three-browser e2e, pack, docs)                                                                                                                                      |
+| Real services (`pnpm test:services`)                                         | Redis 7: delivery across two OS processes and resubscription after a restart. SeaweedFS S3: 7 signed and presigned operations, including forged-signature rejection. ClamAV: clean file and EICAR. See [evidence](services-evidence-2026-11-02.json) |
+
+On Linux:
+
+- **Unit and integration:** 2739 tests in 372 suites; 0 failed, 0 pending.
+- **Browsers:** 498 Playwright checks across Chromium, Firefox and WebKit; 0
+  unexpected, 0 flaky, 0 skipped.
+- **Packaging:** 28 inspected tarballs; npm and pnpm external consumers passed in
+  both the full and minimal profiles.
+- **Dependency audit:** passed at high severity.
+
+Defects these runs found and fixed:
+
+- **Realtime:** the Redis broker never resubscribed after a reconnect.
+  Non-canonical encodings of a valid token signature were accepted.
+- **CLI:** rollback crashed on POSIX when a parent path segment was a file.
+- **Views and Vite:** Windows 8.3 short paths made valid includes look like root
+  escapes and fell outside Vite's serving allow list.
+- **WebKit on Linux:** it displayed `text/plain` attachments inline. The examples
+  now mark download links with the `download` attribute.
+- **Test timing:** several browser tests raced against animations, response
+  bodies and hosted-runner slowness.
+
+## D. Documentation
+
+- Root [README](../../README.md) and a README for every package.
+- Guides under `docs/guides/`, including the new
+  [production services](../guides/production-services.md) guide, plus references
+  and ADRs 0001–0026.
+- [SECURITY.md](../../SECURITY.md), now with GitHub private vulnerability
+  reporting.
+- CHANGELOG and Changesets.
+
+## E. Artifacts
+
+- **Tarballs:** `artifacts/packages/`. **Reports:** `artifacts/reports/`.
+- **Evidence:** the JSON files in `docs/implementation/`.
+- **Not produced:** no SBOM. npm provenance attestations need publishing from CI
+  with OIDC, which is not set up yet.
+
+## F. Known issues and unmet work
+
+- **Ledger:** 925 requirements: 96 Done, 216 InProgress, 613 Pending. Each unfinished row lists its gaps in
+  `outstandingIssues`.
+- **Major gaps:**
+  - Inertia Precognition.
+  - Replica-level realtime acceptance: two Nest replicas behind one browser,
+    presence and rate limits.
+  - A Redis-backed Live state store and a durable queue.
+  - CLI generators for React, Vue, Svelte, actions and islands.
+  - Island SSR state for Vue and Svelte.
+  - More UI primitives.
+- **Unexecuted reviews and checks:**
+  - Independent security review.
+  - Load and memory tests.
+  - Fuzz and mutation testing.
+  - Manual assistive-technology review.
+  - Real AWS S3.
+
+## G. Owner release steps
+
+The `nestvexa` npm organization exists and is owned by `eslamreda542`. The alpha
+publication follows the owner's explicit instruction. Before a stable release:
+
+1. Close the blockers in section F.
+2. Get an independent security review.
+3. Set up npm trusted publishing (OIDC) from `.github/workflows/release.yml`.
+4. Approve the version and tag.
+
+## H. Maintenance
+
+- Version every change with Changesets.
+- Keep `pnpm test:services`, the Linux Docker checkpoint and the CI matrix green.
+- Preserve source-bound evidence.
+
+---
+
+# Earlier checkpoint report (2026-11-01)
 
 **A. Status: NOT YET READY — BLOCKERS.** This accepts only the executed implementation checkpoint. Phase3 remains accepted in its documented scope; Phase4 is InProgress and Phase5 Pending. No publication or push occurred.
 

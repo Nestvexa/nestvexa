@@ -1,0 +1,122 @@
+{
+  "environment": "Windows 11 Pro 10.0.26200, Node v24.13.0, pnpm 10.26.1",
+  "commit": "e3b0727",
+  "timestamp": "2026-11-02T09:37:01.685Z",
+  "passed": true,
+  "sourceSha256": "671c60d2a56a2330509e768ab6c91e5a16efc7f3c83f70bd381ab9221c0bbc09",
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exitCode": 0,
+      "milliseconds": 1134
+    },
+    {
+      "command": "pnpm format:check",
+      "exitCode": 0,
+      "milliseconds": 15397
+    },
+    {
+      "command": "pnpm lint",
+      "exitCode": 0,
+      "milliseconds": 7681
+    },
+    {
+      "command": "pnpm typecheck",
+      "exitCode": 0,
+      "milliseconds": 136508
+    },
+    {
+      "command": "pnpm test",
+      "exitCode": 0,
+      "milliseconds": 321839
+    },
+    {
+      "command": "pnpm test:coverage",
+      "exitCode": 0,
+      "milliseconds": 6576
+    },
+    {
+      "command": "pnpm size:check",
+      "exitCode": 0,
+      "milliseconds": 460
+    },
+    {
+      "command": "pnpm test:e2e",
+      "exitCode": 0,
+      "milliseconds": 500692
+    },
+    {
+      "command": "pnpm test:pack",
+      "exitCode": 0,
+      "milliseconds": 119698
+    },
+    {
+      "command": "pnpm docs:build",
+      "exitCode": 0,
+      "milliseconds": 994
+    },
+    {
+      "command": "pnpm ledger:check",
+      "exitCode": 0,
+      "milliseconds": 883
+    },
+    {
+      "command": "pnpm bench",
+      "exitCode": 0,
+      "milliseconds": 685
+    },
+    {
+      "command": "pnpm audit --audit-level high",
+      "exitCode": 0,
+      "milliseconds": 1779
+    },
+    {
+      "command": "pnpm release:check",
+      "exitCode": 1,
+      "milliseconds": 795
+    }
+  ],
+  "vitest": {
+    "files": 372,
+    "tests": 2739,
+    "failed": 0,
+    "pending": 0
+  },
+  "playwright": {
+    "startTime": "2026-11-02T09:45:12.676Z",
+    "duration": 499389.385,
+    "expected": 498,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "pack": {
+    "tarballs": 28,
+    "consumers": [
+      {
+        "manager": "pnpm",
+        "profile": "full",
+        "passed": true
+      },
+      {
+        "manager": "pnpm",
+        "profile": "minimal",
+        "passed": true
+      },
+      {
+        "manager": "npm",
+        "profile": "full",
+        "passed": true
+      },
+      {
+        "manager": "npm",
+        "profile": "minimal",
+        "passed": true
+      }
+    ]
+  },
+  "releaseCheck": {
+    "ready": false,
+    "failures": 19
+  }
+}

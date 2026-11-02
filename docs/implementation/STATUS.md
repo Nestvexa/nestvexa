@@ -1,54 +1,52 @@
 # Implementation status
 
-Checkpoint: **2026-11-01** (late session). **NOT YET READY — BLOCKERS.** UTC timestamps identify individual runs.
+Checkpoint: **2026-11-02**. **NOT YET READY — BLOCKERS.** UTC timestamps identify individual runs.
 
-## Current state (2026-11-01, after commit 411a653)
+## Current state (2026-11-02)
 
-Work continued from the Codex handoff (last Codex commit `7042e4b`). Since then:
+The repository is public at [github.com/Nestvexa/nestvexa](https://github.com/Nestvexa/nestvexa).
+All agent branches from Phases 5–15 are merged. **Stable release status: NOT YET READY —
+BLOCKERS.** With the owner's authorization, an experimental `0.1.0-alpha.0` preview is
+published under the npm `alpha` tag.
 
-| Commit    | Content                                                                                                                                                                                                                                                                                              |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `946c00b` | Negotiated renderless actions                                                                                                                                                                                                                                                                        |
-| `c00a49e` | Phase 4 completion: nested components (`nvChild`, `@Prop`/`@Reactive`/`@Modelable`), events, lazy, redirects, downloads, flash, pagination, synthesizers, `nv:navigate`, `nv:optimistic`, `/team` and `/projects` starters; client budget 48 KiB ([ADR 0020](../adr/0020-client-budget-revision.md)) |
-| `8787ec6` | Merge: Phase 8 `@nestvexa/inertia` (verified v3 protocol, official React client test)                                                                                                                                                                                                                |
-| `17b1d17` | `@nestvexa/realtime` (SSE/poll/WebSocket, tokens, broker, jobs)                                                                                                                                                                                                                                      |
-| `0ee41cf` | `@nestvexa/cache`                                                                                                                                                                                                                                                                                    |
-| `1cede07` | `@nestvexa/cli` and CommonJS-compatible `default` export conditions                                                                                                                                                                                                                                  |
-| `0b458d0` | `@nestvexa/observability` and Live tracing spans                                                                                                                                                                                                                                                     |
-| `a3df926` | Merge: Phase 6 `@nestvexa/uploads`                                                                                                                                                                                                                                                                   |
-| `411a653` | Merge: Phase 5 `@nestvexa/forms`                                                                                                                                                                                                                                                                     |
+**Executed evidence**
 
-**Executed evidence.** At `c00a49e` the full `pnpm checkpoint:check` passed install, format, lint,
-typecheck, **1926+ vitest tests**, coverage, size and the **full three-browser e2e suite**; its pack step
-failed only because Git Bash's GNU `tar` cannot read `C:` paths, and `pnpm test:pack` then passed from
-PowerShell (7, later 11 tarballs; npm and pnpm full/minimal consumers). After later commits, targeted
-suites and three-browser specs for nesting, projects, realtime, forms and uploads passed; full-suite runs
-during this session showed only 15 s **timeouts** while up to six parallel agents saturated the CPU (the
-same tests pass when re-run). A full checkpoint and evidence snapshot must be repeated on a quiet host
-before ledger rows are marked Done for the new packages.
+| Run                                                     | Result                                                                                                                                |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Windows full checkpoint (`e3b0727`)                     | Passed: 2739 vitest, 498 three-browser e2e, 28 tarballs, 4 external consumers, audit ([evidence](release-checkpoint-2026-11-02.json)) |
+| Linux full checkpoint in Docker (Ubuntu 24.04, Node 24) | Every gate exit 0 ([evidence](linux-checkpoint-2026-11-02.json))                                                                      |
+| GitHub Actions ubuntu/windows × Node 22/24              | All jobs green on `fb8c8f2`                                                                                                           |
+| Real services (`pnpm test:services`)                    | Redis 7, SeaweedFS S3, ClamAV pass ([evidence](services-evidence-2026-11-02.json))                                                    |
 
-**Not executed:** Linux, real Redis/S3/MinIO/ClamAV services, multi-process realtime, load/memory tests,
-manual assistive-technology review. No package has been published.
+These runs found and fixed:
 
-| Phase | State      | Summary                                                                                  |
-| ----- | ---------- | ---------------------------------------------------------------------------------------- |
-| 0–2   | InProgress | Foundations implemented; Linux clean install and full matrix pending                     |
-| 3     | Done       | [Acceptance review](phase3-acceptance.md)                                                |
-| 4     | Done       | [Acceptance review](phase4-acceptance.md); combination-matrix rows tracked in the ledger |
-| 5     | InProgress | Forms merged; quiet-host checkpoint pending                                              |
-| 6     | InProgress | Uploads merged; real S3/clamd runs pending                                               |
-| 7     | InProgress | Engine adapters on an agent branch                                                       |
-| 8     | InProgress | Inertia merged; Precognition, Vue/Svelte clients pending                                 |
-| 9–11  | InProgress | React/Vue/Svelte + Vite/SSR on an agent branch                                           |
-| 12    | InProgress | Universal actions on an agent branch; islands not started                                |
-| 13    | InProgress | Realtime, cache, jobs implemented; distributed acceptance pending                        |
-| 14    | InProgress | i18n/UI kit/AI/flags/offline on an agent branch                                          |
-| 15    | InProgress | CLI and observability implemented; renderer generators pending                           |
-| 16–17 | Pending    | Hardening matrix and release preparation                                                 |
+- **Realtime:** the Redis broker never resubscribed after a reconnect, and
+  non-canonical token signatures were accepted.
+- **CLI:** rollback crashed on POSIX.
+- **Views and Vite:** Windows short paths broke template-root and Vite allow-list
+  checks.
+- **Uploads:** early rejections could surface as connection resets.
+- **WebKit on Linux:** it displayed attachments inline.
+- **Test timing:** several browser tests raced against the page.
 
-Machine-readable state: [progress.json](progress.json). Earlier detailed history follows.
+**Not executed:**
 
----
+- An independent security review.
+- Load, memory, fuzz and mutation testing.
+- A manual assistive-technology review.
+- Real AWS S3.
+- Two Nest replicas serving one browser through Redis.
+
+| Phase | State      | Summary                                                                                                  |
+| ----- | ---------- | -------------------------------------------------------------------------------------------------------- |
+| 0–2   | InProgress | Foundations implemented; Linux and Windows full checkpoints pass; governance rows open                   |
+| 3–4   | Done       | [Phase 3](phase3-acceptance.md), [Phase 4](phase4-acceptance.md)                                         |
+| 5–15  | InProgress | All packages merged and verified; per-requirement gaps in the [ledger](feature-ledger.md) (96 Done rows) |
+| 16    | InProgress | Cross-platform matrix and real services pass; security review, load and fuzz testing open                |
+| 17    | InProgress | Repository public; alpha preview published; stable release gates open                                    |
+
+Machine-readable state: [progress.json](progress.json). The release report is
+[FINAL_RELEASE_REPORT.md](FINAL_RELEASE_REPORT.md).
 
 ## Historical log (Codex sessions and earlier checkpoints)
 
