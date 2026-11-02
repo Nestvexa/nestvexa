@@ -89,9 +89,11 @@ test('uploads several files with progress, finalizes them and downloads with a b
     page.waitForEvent('download'),
     notes.click(),
   ]);
-  // Browsers use the RFC 5987 UTF-8 name; some platforms fall back to the ASCII name.
-  expect(['notes — مرحبا.txt', 'notes _ _____.txt']).toContain(
-    file.suggestedFilename(),
+  // Browsers use the RFC 5987 UTF-8 name; some platforms fall back to the ASCII
+  // name, and Linux WebKit replaces spaces with underscores.
+  const comparable = (name: string) => name.replace(/[ _]+/g, ' ');
+  expect(['notes — مرحبا.txt', 'notes _ _____.txt'].map(comparable)).toContain(
+    comparable(file.suggestedFilename()),
   );
   // Another browser session cannot fetch the file even with the URL.
   const stranger = await page.context().browser()?.newContext();
