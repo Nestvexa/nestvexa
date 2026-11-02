@@ -139,7 +139,7 @@ export class ChangePlan {
       // Roll back everything written so far, newest first.
       for (const { absolute, backup } of backups.reverse()) {
         if (backup) writeFileSync(absolute, readFileSync(backup));
-        else rmSync(absolute, { force: true });
+        else removeIfPresent(absolute);
       }
       throw new CliError(
         `Changes were rolled back: ${error instanceof Error ? error.message : String(error)}`,
@@ -148,6 +148,19 @@ export class ChangePlan {
       for (const { backup } of backups)
         if (backup) rmSync(backup, { force: true });
     }
+  }
+}
+/**
+ * Remove a path that may never have been written. A parent segment that is a
+ * file yields ENOTDIR on POSIX (ENOENT on Windows); both mean "not present".
+ */
+function removeIfPresent(path: string): void {
+  try {
+    rmSync(path, { force: true });
+  } catch (error) {
+    const code: unknown =
+      error instanceof Error ? Reflect.get(error, 'code') : undefined;
+    if (code !== 'ENOTDIR' && code !== 'ENOENT') throw error;
   }
 }
 function readManifest(root: string): {
