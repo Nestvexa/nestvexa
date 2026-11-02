@@ -7,7 +7,9 @@ export async function sourceFingerprint() {
   const paths = [];
   async function visit(directory) {
     for (const entry of await readdir(directory, { withFileTypes: true })) {
-      if (['node_modules', 'dist', '.git'].includes(entry.name)) continue;
+      // Build output, including gitignored code generated during builds.
+      if (['node_modules', 'dist', '.git', 'generated'].includes(entry.name))
+        continue;
       const path = join(directory, entry.name).replaceAll('\\', '/');
       if (entry.isDirectory()) await visit(path);
       else if (/\.(?:ts|mjs|json|hbs|css|yaml)$/.test(path)) paths.push(path);
