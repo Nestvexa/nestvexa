@@ -117,6 +117,8 @@ function header(request: object, name: string): string | undefined {
   const value: unknown = Reflect.get(headers, name);
   return typeof value === 'string' ? value : undefined;
 }
+/** Largest rejected request body that is drained instead of closing the connection. */
+const drainLimit = 2 * 1024 * 1024;
 function rawRequest(value: object): IncomingMessage {
   if (value instanceof IncomingMessage) return value;
   const raw: unknown = Reflect.get(value, 'raw');
@@ -520,8 +522,17 @@ export class UploadsService
   private markClose(request: object, response?: object): void {
     const raw = response ? rawResponse(response) : undefined;
     const incoming = rawRequest(request);
-    if (raw && !incoming.complete && !raw.headersSent)
-      raw.setHeader('Connection', 'close');
+    if (!raw || incoming.complete || raw.headersSent) return;
+    // Closing with unread bytes makes the TCP stack send a reset, and clients
+    // (notably on Windows) then lose the error response. Small remainders are
+    // read and discarded so the client sees the status; large or unknown
+    // remainders still close the connection rather than being drained.
+    const declared = Number(header(request, 'content-length'));
+    if (Number.isSafeInteger(declared) && declared <= drainLimit) {
+      incoming.resume();
+      return;
+    }
+    raw.setHeader('Connection', 'close');
   }
 
   // ------------------------------------------------------------ single file

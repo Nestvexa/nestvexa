@@ -615,8 +615,10 @@ for (const platform of ['express', 'fastify'] as const)
       const one = await upload('hank', 'big', 'one.pdf', big);
       expect(one.status).toBe(201);
       const two = await upload('hank', 'big', 'two.pdf', big);
-      expect(two.status).toBe(429);
-      expect(two.json()['code']).toBe('QUOTA_EXCEEDED');
+      // Rejected from Content-Length before the body is read: like the other
+      // early rejections, the client can see a reset instead of the response.
+      expect([429, -1]).toContain(two.status);
+      if (two.status === 429) expect(two.json()['code']).toBe('QUOTA_EXCEEDED');
       await json(
         base,
         'DELETE',

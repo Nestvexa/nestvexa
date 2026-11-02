@@ -1,0 +1,142 @@
+{
+  "environment": "Docker mcr.microsoft.com/playwright:v1.64.1-noble (Ubuntu 24.04.5 LTS), Node v24.22.1, pnpm 10.26.1",
+  "commit": "92b5bd3",
+  "timestamp": "2026-11-02T08:58:29.982Z",
+  "sourceSha256": "3a634e9524cf06c66d3bd809be108af8af5c31de7f8f546b5192e08655efcd37",
+  "note": "All gates exited 0 except the intentional release:check. passed=false only because a gitignored file generated during the build (examples/actions-basic/browser/generated/actions-client.d.ts) changed the source fingerprint mid-run; commit 7cb2cf2 excludes generated directories from the fingerprint.",
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exitCode": 0,
+      "milliseconds": 2713
+    },
+    {
+      "command": "pnpm format:check",
+      "exitCode": 0,
+      "milliseconds": 19272
+    },
+    {
+      "command": "pnpm lint",
+      "exitCode": 0,
+      "milliseconds": 13190
+    },
+    {
+      "command": "pnpm typecheck",
+      "exitCode": 0,
+      "milliseconds": 200807
+    },
+    {
+      "command": "pnpm test",
+      "exitCode": 0,
+      "milliseconds": 134873
+    },
+    {
+      "command": "pnpm test:coverage",
+      "exitCode": 0,
+      "milliseconds": 4071
+    },
+    {
+      "command": "pnpm size:check",
+      "exitCode": 0,
+      "milliseconds": 629
+    },
+    {
+      "command": "pnpm test:e2e",
+      "exitCode": 0,
+      "milliseconds": 412829
+    },
+    {
+      "command": "pnpm test:pack",
+      "exitCode": 0,
+      "milliseconds": 97750
+    },
+    {
+      "command": "pnpm docs:build",
+      "exitCode": 0,
+      "milliseconds": 767
+    },
+    {
+      "command": "pnpm ledger:check",
+      "exitCode": 0,
+      "milliseconds": 452
+    },
+    {
+      "command": "pnpm bench",
+      "exitCode": 0,
+      "milliseconds": 465
+    },
+    {
+      "command": "pnpm audit --audit-level high",
+      "exitCode": 0,
+      "milliseconds": 1102
+    },
+    {
+      "command": "pnpm release:check",
+      "exitCode": 1,
+      "milliseconds": 666
+    }
+  ],
+  "vitest": {
+    "files": 372,
+    "tests": 2739,
+    "failed": 0,
+    "pending": 0
+  },
+  "playwright": {
+    "startTime": "2026-11-02T09:04:46.749Z",
+    "duration": 410801.26399999997,
+    "expected": 498,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "pack": {
+    "tarballs": 28,
+    "consumers": [
+      {
+        "manager": "pnpm",
+        "profile": "full",
+        "passed": true
+      },
+      {
+        "manager": "pnpm",
+        "profile": "minimal",
+        "passed": true
+      },
+      {
+        "manager": "npm",
+        "profile": "full",
+        "passed": true
+      },
+      {
+        "manager": "npm",
+        "profile": "minimal",
+        "passed": true
+      }
+    ]
+  },
+  "releaseCheck": {
+    "ready": false,
+    "failures": [
+      "Phase 0: InProgress",
+      "Phase 1: InProgress",
+      "Phase 2: InProgress",
+      "Phase 5: InProgress",
+      "Phase 6: InProgress",
+      "Phase 7: InProgress",
+      "Phase 8: InProgress",
+      "Phase 9: InProgress",
+      "Phase 10: InProgress",
+      "Phase 11: InProgress",
+      "Phase 12: InProgress",
+      "Phase 13: InProgress",
+      "Phase 14: InProgress",
+      "Phase 15: InProgress",
+      "Phase 16: InProgress",
+      "Phase 17: InProgress",
+      "Requirement ledger has missing evidence or incomplete requirements.",
+      "Missing readable evidence: artifacts/reports/release-matrix.json",
+      "Missing readable evidence: artifacts/reports/security-review.json"
+    ]
+  }
+}
