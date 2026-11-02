@@ -1,0 +1,35 @@
+{
+  "name": "@nestvexa/engine-pug",
+  "version": "0.1.0-alpha.0",
+  "description": "Isolated Pug view adapter for Nestvexa",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "dependencies": {
+    "@nestvexa/views": "workspace:*",
+    "pug": "3.0.4"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run ../../tests/engine-pug.test.ts ../../tests/engine-live.test.ts",
+    "lint": "eslint src"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

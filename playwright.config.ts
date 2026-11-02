@@ -29,5 +29,10 @@ export default defineConfig({
       url: 'http://127.0.0.1:3101',
       reuseExistingServer: false,
     },
+    {
+      command: 'pnpm --filter @nestvexa/example-custom-engine start',
+      url: 'http://127.0.0.1:3103',
+      reuseExistingServer: false,
+    },
   ],
 });

@@ -20,24 +20,44 @@ function visit(name, stack = []) {
   visited.add(name);
 }
 for (const name of manifests.keys()) visit(name);
-async function sources(path) {
+// Template engines (first-party adapters and their upstream libraries) stay optional.
+const engineImport =
+  /from\s+['"](?:handlebars|ejs|pug|nunjucks|@nestvexa\/engine-[a-z0-9-]+)['"/]/;
+async function sources(path, rules) {
   for (const entry of await readdir(path, { withFileTypes: true })) {
     const file = join(path, entry.name);
-    if (entry.isDirectory()) await sources(file);
+    if (entry.isDirectory()) await sources(file, rules);
     else if (entry.name.endsWith('.ts')) {
       const text = await readFile(file, 'utf8');
-      if (
-        /from\s+['"](?:react|vue|svelte|handlebars|@nestvexa\/(?:live|client|inertia|engine-hbs))/.test(
-          text,
-        )
-      )
-        throw new Error(`Core renderer dependency: ${file}`);
-      if (/\b(?:window|document)\s*\./.test(text))
-        throw new Error(`Core browser dependency: ${file}`);
+      for (const [pattern, message] of rules)
+        if (pattern.test(text)) throw new Error(`${message}: ${file}`);
     }
   }
 }
-await sources('packages/core/src');
+await sources('packages/core/src', [
+  [
+    /from\s+['"](?:react|vue|svelte|@nestvexa\/(?:live|client|inertia))/,
+    'Core renderer dependency',
+  ],
+  [engineImport, 'Core renderer dependency'],
+  [/\b(?:window|document)\s*\./, 'Core browser dependency'],
+]);
+await sources('packages/views/src', [
+  [engineImport, 'Views contract imports a template engine'],
+  [
+    /from\s+['"](?:react|vue|svelte|@nestvexa\/(?:live|client|inertia)|nestvexa['"/])/,
+    'Views contract imports a renderer or runtime',
+  ],
+]);
+// The default distribution keeps alternative engines optional peers of the host.
+for (const [name, manifest] of manifests)
+  if (name === 'nestvexa')
+    for (const dependency of Object.keys({
+      ...manifest.dependencies,
+      ...manifest.peerDependencies,
+    }))
+      if (/^@nestvexa\/engine-(?!hbs$)/.test(dependency))
+        throw new Error(`Umbrella must not depend on optional ${dependency}`);
 console.log(
-  `Dependency graph checked: ${manifests.size} packages; core runtime boundary intact.`,
+  `Dependency graph checked: ${manifests.size} packages; core/views engine boundaries intact.`,
 );

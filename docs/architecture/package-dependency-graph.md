@@ -11,9 +11,17 @@ flowchart TD
   nestvexa --> alpine-csp
   engine-hbs --> views
   engine-hbs --> handlebars
+  engine-ejs --> views
+  engine-ejs --> ejs
+  engine-pug --> views
+  engine-pug --> pug
+  engine-nunjucks --> views
+  engine-nunjucks --> nunjucks
   live --> views
   alpine --> client
 ```
+
+`engine-ejs`, `engine-pug` and `engine-nunjucks` are optional, separately installed adapters. The umbrella does not depend on them, so the default install stays HBS-only; the [boundary script](../../scripts/boundaries.mjs) fails if the umbrella declares one or if core/views import any engine. See the [template engine guide](../guides/template-engines.md).
 
 The graph shows declared runtime package dependencies. `alpine-csp` denotes `@alpinejs/csp`; `alpine` denotes `@nestvexa/alpine`. That bridge also declares optional peer ranges for the CSP and ordinary Alpine distributions. The umbrella pins CSP 3.17.5 for its explicit asset-serving capability. Installing that dependency does not start Alpine or add a SPA renderer. Nest HTTP adapters and the packages' declared Nest/reflect-metadata/RxJS peers remain host-owned.
 

@@ -1,0 +1,35 @@
+{
+  "name": "@nestvexa/engine-ejs",
+  "version": "0.1.0-alpha.0",
+  "description": "Isolated EJS view adapter for Nestvexa",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "dependencies": {
+    "@nestvexa/views": "workspace:*",
+    "ejs": "7.0.2"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run ../../tests/engine-ejs.test.ts ../../tests/engine-live.test.ts",
+    "lint": "eslint src"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
