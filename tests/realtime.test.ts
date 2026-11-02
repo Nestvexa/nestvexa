@@ -68,6 +68,19 @@ describe('subscription tokens', () => {
     expect(() => signer.verify(token, bob)).toThrow(/another identity/);
     expect(() => signer.verify(token.slice(0, -2) + 'AA', alice)).toThrow();
     expect(() => signer.verify(token + '.x', alice)).toThrow();
+    // The last character of a 43-character MAC has two unused bits; flipping
+    // one decodes to the same bytes but is not the canonical spelling.
+    const signature = token.split('.')[1] ?? '';
+    const alphabet =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+    const alias =
+      alphabet[alphabet.indexOf(signature.at(-1) ?? 'A') ^ 1] ?? 'A';
+    expect(Buffer.from(signature.slice(0, -1) + alias, 'base64url')).toEqual(
+      Buffer.from(signature, 'base64url'),
+    );
+    expect(() => signer.verify(token.slice(0, -1) + alias, alice)).toThrow(
+      /Invalid realtime token/,
+    );
     expect(() => signer.verify(token, alice, Date.now() + 901_000)).toThrow(
       /Expired/,
     );

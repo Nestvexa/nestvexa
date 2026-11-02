@@ -81,6 +81,10 @@ export function createTokenSigner(options: {
       if (!body || !signature || extra !== undefined)
         throw new RealtimeTokenError('Invalid realtime token');
       const presented = Buffer.from(signature, 'base64url');
+      // Only the canonical encoding is accepted: the final base64url character
+      // carries unused bits, so alternate spellings of one MAC must not verify.
+      if (presented.toString('base64url') !== signature)
+        throw new RealtimeTokenError('Invalid realtime token');
       const valid = secrets.some((secret) => {
         const expected = mac(secret, body);
         return (

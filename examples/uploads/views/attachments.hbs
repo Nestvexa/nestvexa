@@ -66,7 +66,7 @@
   <ul id="attachment-list">
     {{#each items}}
     <li>
-      <a href="/attachments/{{id}}/download">Download {{name}}</a>
+      <a href="/attachments/{{id}}/download" download>Download {{name}}</a>
       ({{size}}, {{contentType}}) {{#if inline}}
       <a href="/attachments/{{id}}/download?inline=1">View {{name}}</a>
       {{/if}}
