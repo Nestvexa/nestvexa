@@ -1,0 +1,29 @@
+{
+  "name": "@nestvexa/example-hybrid-dashboard",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node build-client.mjs",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@nestjs/common": "12.2.0",
+    "@nestjs/core": "12.2.0",
+    "@nestjs/platform-express": "12.2.0",
+    "@nestvexa/islands": "workspace:*",
+    "express-session": "1.19.0",
+    "nestvexa": "workspace:*",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@types/express-session": "1.19.0",
+    "esbuild": "0.28.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "vue": "3.5.44",
+    "svelte": "5.57.3"
+  }
+}

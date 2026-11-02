@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased: islands
+
+Added `@nestvexa/islands` and the `examples/hybrid-dashboard` page with React, Vue
+and Svelte islands beside a Live component that owns a React island.
+
 ## Unreleased: observability
 
 Live emits `nestvexa.live.mount/action/render` spans through an optional

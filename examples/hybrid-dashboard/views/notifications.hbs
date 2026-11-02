@@ -1,0 +1,6 @@
+<section aria-label="Notifications (Live)">
+  <p>Notifications: <output id="notification-count">{{count}}</output></p>
+  <button type="button" nv:click="notify">Add notification</button>
+  <button type="button" nv:click="toggleChart">Toggle chart</button>
+  {{#if showChart}}{{{chartIsland}}}{{/if}}
+</section>
