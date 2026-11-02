@@ -105,8 +105,11 @@ or the umbrella `browser.realtime` option.
 At-most-once per connected subscriber. The memory broker replays the last 100
 events per channel after reconnect; unknown cursors replay nothing and clients
 refresh. Redis pub/sub is fire-and-forget. `JobRunner` keeps jobs in memory only.
-Not yet verified: a real Redis server, separate OS processes and load testing (the
-tests use an in-process RESP test double).
+The unit tests use an in-process RESP test double. `pnpm test:services`
+([guide](../../docs/guides/production-services.md)) also ran `RespRealtimeBroker` against Redis 7 on 2026-11-02:
+delivery from one OS process to another, and resubscription after a Redis
+restart. Not yet verified: two Nest replicas serving one browser through Redis,
+and load testing.
 
 ## Testing
 

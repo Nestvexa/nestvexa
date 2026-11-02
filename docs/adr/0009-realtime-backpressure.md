@@ -1,6 +1,6 @@
 # ADR 0009: Authorized invalidation events with bounded delivery
 
-Date: 2026-10-25; implementation recorded 2026-11-01. Status: **implemented in `@nestvexa/realtime` (experimental); distributed acceptance against a real Redis service remains open**.
+Date: 2026-10-25; implementation recorded 2026-11-01. Status: **implemented in `@nestvexa/realtime` (experimental); broker-level checks against real Redis pass; replica-level distributed acceptance remains open**.
 
 ## Decision
 
@@ -56,5 +56,8 @@ No existing MVC test proves realtime behavior. Required evidence is two server p
 Evidence: `tests/realtime.test.ts` (tokens, hub limits/revocation/replay, two
 replicas through an in-process RESP **test double**, SSE/poll/WebSocket on both
 adapters, jobs), `tests/realtime-live.test.ts` and `tests/browser/realtime.spec.ts`
-(cross-session SSE refresh, owner job progress, forged/foreign tokens, axe). Still
-unrun: a real Redis server, two separate OS processes, broker restart and load tests.
+(cross-session SSE refresh, owner job progress, forged/foreign tokens, axe).
+`scripts/services-check.mjs` ran against Redis 7 on 2026-11-02: delivery across two OS
+processes and resubscription after a broker restart (the run found and fixed missing
+resubscription). Still unrun: two Nest replicas serving one browser through Redis,
+and load tests.
