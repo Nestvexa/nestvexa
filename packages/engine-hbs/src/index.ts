@@ -142,6 +142,8 @@ export class HbsEngine implements ViewEngineAdapter {
   readonly #cacheEntries: number;
   readonly #maxTemplateBytes: number;
   readonly #precompiled: Map<string, Handlebars.TemplateDelegate> | undefined;
+  readonly #helpers = new Map<string, ViewHelper>();
+  #helpersLocked = false;
   constructor(options: HbsOptions) {
     if (!options.root)
       throw new ViewError('INVALID_VIEW', 'A template root is required');
@@ -165,6 +167,8 @@ export class HbsEngine implements ViewEngineAdapter {
     });
     aliases(this.#options.helpers ?? {});
     aliases(this.#options.partials ?? {});
+    for (const [name, helper] of Object.entries(this.#options.helpers ?? {}))
+      this.#helpers.set(name, helper);
     if (options.precompiled !== undefined) {
       this.#precompiled = new Map();
       for (const [view, spec] of Object.entries(options.precompiled)) {
@@ -185,7 +189,51 @@ export class HbsEngine implements ViewEngineAdapter {
       }
     }
   }
+  /**
+   * Add trusted engine-wide helpers (for example from the optional i18n or UI
+   * kit packages) before initialize() or the first render. Names must be new;
+   * the `nv` + uppercase prefix is reserved for framework helpers.
+   */
+  registerHelpers(helpers: Readonly<Record<string, ViewHelper>>): void {
+    if (this.#helpersLocked)
+      throw new ViewError(
+        'INVALID_VIEW',
+        'Helpers must be registered before initialize() or the first render',
+      );
+    const prototype: unknown =
+      helpers !== null && typeof helpers === 'object'
+        ? Object.getPrototypeOf(helpers)
+        : undefined;
+    if (
+      Array.isArray(helpers) ||
+      (prototype !== Object.prototype && prototype !== null)
+    )
+      throw new ViewError('INVALID_VIEW', 'Helpers must be a plain object');
+    const additions = new Map<string, ViewHelper>();
+    for (const key of Reflect.ownKeys(helpers)) {
+      const descriptor = Object.getOwnPropertyDescriptor(helpers, key);
+      const value: unknown = descriptor?.value;
+      if (
+        typeof key !== 'string' ||
+        !descriptor?.enumerable ||
+        !('value' in descriptor) ||
+        typeof value !== 'function'
+      )
+        throw new ViewError(
+          'INVALID_VIEW',
+          'Helpers must be enumerable function data properties',
+        );
+      if (/^nv[A-Z]/.test(key))
+        throw new ViewError('INVALID_VIEW', `Reserved helper name: ${key}`);
+      if (this.#helpers.has(key))
+        throw new ViewError('INVALID_VIEW', `Duplicate helper: ${key}`);
+      additions.set(key, value as ViewHelper);
+    }
+    aliases(Object.fromEntries(additions));
+    for (const [name, helper] of additions) this.#helpers.set(name, helper);
+  }
   async initialize(): Promise<void> {
+    this.#helpersLocked = true;
     if (this.#precompiled) return;
     if (!(await stat(this.#root)).isDirectory())
       throw new ViewError('INVALID_VIEW', 'Template root is not a directory');
@@ -270,7 +318,11 @@ export class HbsEngine implements ViewEngineAdapter {
       const safe = copyModel(model, new Set(), { nodes: 0 });
       if (safe === null || typeof safe !== 'object' || Array.isArray(safe))
         throw new ViewError('UNSAFE_MODEL', 'View model must be an object');
-      const helpers = { ...this.#options.helpers, ...options.helpers };
+      this.#helpersLocked = true;
+      const helpers = {
+        ...Object.fromEntries(this.#helpers),
+        ...options.helpers,
+      };
       const partialFiles = { ...this.#options.partials, ...options.partials };
       aliases(helpers);
       aliases(partialFiles);
@@ -282,15 +334,18 @@ export class HbsEngine implements ViewEngineAdapter {
       const adaptedHelpers: Record<string, Handlebars.HelperDelegate> =
         Object.create(null) as Record<string, Handlebars.HelperDelegate>;
       for (const [name, helper] of Object.entries(helpers)) {
-        adaptedHelpers[name] = (...args: unknown[]) => {
-          const result = helper(...args);
+        const hbs = this.#hbs;
+        // The Handlebars context is forwarded so trusted block helpers can
+        // render their body with options.fn(this).
+        adaptedHelpers[name] = function (this: unknown, ...args: unknown[]) {
+          const result: unknown = Reflect.apply(helper, this, args);
           if (result instanceof Promise)
             throw new ViewError(
               'RENDER_FAILED',
               'Async helpers are unsupported; use a view composer',
             );
           return result instanceof SafeHtml
-            ? new this.#hbs.SafeString(result.value)
+            ? new hbs.SafeString(result.value)
             : result;
         };
       }
