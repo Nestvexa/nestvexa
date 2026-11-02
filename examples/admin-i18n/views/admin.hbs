@@ -1,0 +1,51 @@
+<h1 id="page-title">{{t "products:heading"}}</h1>
+<noscript><p class="admin-note">{{t "common:noscript"}}</p></noscript>
+{{#uiTabs id="admin" label=(t "common:sections")}} {{#uiTab id="products"
+label=(t "common:tabs.products") selected=true}}
+<div class="admin-actions">
+  {{uiDialogTrigger "product-dialog" label=(t "products:add")
+  href="/admin/products/new" class="nv-button--primary"}} {{#if (flag
+  "bulk-export")}}
+  <a class="nv-button" id="export-link" href="/admin/export.csv"
+    >{{t "common:export"}}</a
+  >
+  {{/if}}
+</div>
+{{table}}
+<section class="admin-activity" aria-labelledby="activity-heading">
+  <h2 id="activity-heading">{{t "common:activity.heading"}}</h2>
+  <button type="button" class="nv-button" id="activity-refresh">
+    {{t "common:activity.refresh"}}
+  </button>
+  <div id="activity" data-offline-label="{{t 'common:activity.offline'}}">
+    {{activity}}
+  </div>
+</section>
+{{/uiTab}} {{#if (flag "ai-assistant")}} {{#uiTab id="assistant" label=(t
+"common:tabs.assistant")}} {{assistant}} {{/uiTab}} {{/if}} {{#uiTab
+id="settings" label=(t "common:tabs.settings")}}
+<h2>{{t "common:tabs.settings"}}</h2>
+<div class="admin-field">
+  <label for="theme-select">{{t "common:theme.label"}}</label>
+  <select id="theme-select">
+    <option value="system">{{t "common:theme.system"}}</option>
+    <option value="light">{{t "common:theme.light"}}</option>
+    <option value="dark">{{t "common:theme.dark"}}</option>
+  </select>
+</div>
+{{uiProgress id="completeness" label=(t "common:completeness")
+value=completeness.active max=completeness.total valueText=completeness.text}}
+<p id="completeness-text">{{completeness.text}}</p>
+<h3>{{t "common:flags.heading"}}</h3>
+<ul id="flag-list">
+  {{#each flagList}}
+  <li data-flag="{{name}}">{{label}}: <strong>{{state}}</strong></li>
+  {{/each}}
+</ul>
+{{#uiDisclosure id="about" summary=(t "common:about")}}
+<p>{{t "common:aboutText"}}</p>
+{{/uiDisclosure}} {{/uiTab}} {{/uiTabs}} {{#uiDialog id="product-dialog"
+title=(t "products:newHeading") closeLabel=(t "common:close")
+closeOn="product-created"}} {{form}} {{/uiDialog}} {{uiToastRegion id="toasts"
+label=(t "common:notifications") dismissLabel=(t "common:dismiss")
+messages=flash}}

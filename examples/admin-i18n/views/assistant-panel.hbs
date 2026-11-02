@@ -1,0 +1,111 @@
+<section
+  class="assistant"
+  data-nv-ai
+  aria-labelledby="assistant-heading"
+  data-nv-ai-turn="{{chat.status}}"
+  data-nv-ai-turn-id="{{turnId}}"
+  data-nv-ai-label-streaming="{{t 'assistant:streaming'}}"
+  data-nv-ai-label-done="{{t 'assistant:done'}}"
+  data-nv-ai-label-cancelled="{{t 'assistant:cancelled'}}"
+  data-nv-ai-label-failed="{{t 'assistant:failed'}}"
+>
+  <h2 id="assistant-heading">{{t "assistant:heading"}}</h2>
+  {{#if testProvider}}
+  <p class="assistant-provider" id="assistant-provider">
+    <strong>{{chat.provider.label}}</strong>
+    {{t "assistant:testProvider"}}
+  </p>
+  {{/if}}
+  <ol
+    class="assistant-log"
+    id="assistant-messages"
+    aria-label="{{t 'assistant:conversation'}}"
+  >
+    {{#each messages}}
+    <li class="assistant-message assistant-message--{{role}}">
+      <span class="assistant-who">{{who}}</span>
+      <span class="assistant-text" dir="auto">{{text}}</span>
+      {{#if incomplete}}
+      <em>{{t "assistant:incomplete"}}</em>
+      {{/if}}
+    </li>
+    {{else}}
+    <li class="assistant-empty">{{t "assistant:empty"}}</li>
+    {{/each}}
+  </ol>
+  <output
+    class="assistant-stream"
+    id="assistant-stream"
+    dir="auto"
+    aria-live="off"
+    data-nv-ai-stream
+    nv:stream="assistant"
+  ></output>
+  <p
+    class="assistant-status"
+    id="assistant-status"
+    data-nv-ai-status
+    role="status"
+  >
+    {{statusText}}
+  </p>
+  <button
+    type="button"
+    class="nv-button"
+    id="assistant-stop"
+    data-nv-ai-cancel
+    disabled
+  >
+    {{t "assistant:stop"}}
+  </button>
+  {{#if pending}}
+  <div
+    class="assistant-approval"
+    id="assistant-approval"
+    role="group"
+    aria-labelledby="approval-heading"
+    aria-describedby="approval-help"
+  >
+    <h3 id="approval-heading">{{t "assistant:approvalHeading"}}</h3>
+    <p id="approval-help">{{t "assistant:approvalHelp"}}</p>
+    <p><code id="approval-summary">{{pending.summary}}</code></p>
+    <button
+      type="button"
+      class="nv-button nv-button--primary"
+      id="assistant-approve"
+      nv:click="approve"
+    >
+      {{t "assistant:approve"}}
+    </button>
+    <button
+      type="button"
+      class="nv-button"
+      id="assistant-reject"
+      nv:click="reject"
+    >
+      {{t "assistant:reject"}}
+    </button>
+  </div>
+  {{/if}} {{#if errorMessage}}
+  <p class="field-error" id="assistant-error" role="alert">{{errorMessage}}</p>
+  {{/if}}
+  <form class="assistant-form" id="assistant-form" nv:submit="ask">
+    <label for="assistant-prompt">{{t "assistant:prompt"}}</label>
+    <textarea
+      id="assistant-prompt"
+      name="prompt"
+      rows="2"
+      maxlength="4000"
+      dir="auto"
+      nv:model="prompt"
+    >
+{{prompt}}</textarea>
+    <button
+      type="submit"
+      class="nv-button nv-button--primary"
+      id="assistant-send"
+    >
+      {{t "assistant:send"}}
+    </button>
+  </form>
+</section>

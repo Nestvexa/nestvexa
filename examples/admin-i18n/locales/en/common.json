@@ -1,0 +1,47 @@
+{
+  "title": "Catalog admin",
+  "skip": "Skip to main content",
+  "language": "Language",
+  "switchTo": "Switch language",
+  "logout": "Log out",
+  "close": "Close",
+  "dismiss": "Dismiss",
+  "notifications": "Notifications",
+  "sections": "Admin sections",
+  "tabs": {
+    "products": "Products",
+    "assistant": "Assistant",
+    "settings": "Settings"
+  },
+  "theme": {
+    "label": "Theme",
+    "system": "Match system",
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "flags": {
+    "heading": "Feature flags",
+    "on": "On",
+    "off": "Off",
+    "ai-assistant": "AI assistant panel",
+    "bulk-export": "Bulk CSV export"
+  },
+  "export": "Export CSV",
+  "completeness": "Catalog completeness",
+  "completenessValue": "{active} of {total} products active",
+  "about": "About this demo",
+  "aboutText": "Guest data lives in this server process only and resets when the server restarts. Drafts are stored on this device, scoped to your session, and cleared when you log out.",
+  "activity": {
+    "heading": "Recent activity",
+    "refresh": "Refresh activity",
+    "empty": "No activity yet.",
+    "offline": "Offline copy. Read-only until the connection returns."
+  },
+  "drafts": {
+    "restored": "Draft restored from this device. Review it, then save.",
+    "interrupted": "Not sent. Your draft is saved on this device. Save again when you are back online.",
+    "reconnected": "Connection restored. Reload the page to review your saved draft, then save again."
+  },
+  "offlineHint": "Connection may be unavailable. Changes are not sent until you try again.",
+  "noscript": "Interactive panels need JavaScript. Every product action also has a plain page."
+}

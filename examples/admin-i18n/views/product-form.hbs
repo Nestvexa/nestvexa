@@ -1,0 +1,98 @@
+<form
+  id="product-form"
+  class="product-form"
+  method="post"
+  action="/admin/products"
+  nv:submit="save"
+  novalidate
+  data-nv-draft="product-form"
+  data-nv-draft-committed="{{committedAt}}"
+  data-nv-draft-message-restored="{{t 'common:drafts.restored'}}"
+  data-nv-draft-message-interrupted="{{t 'common:drafts.interrupted'}}"
+  data-nv-draft-message-reconnected="{{t 'common:drafts.reconnected'}}"
+>
+  <input type="hidden" name="_csrf" value="{{csrf}}" />
+  <p
+    class="draft-status"
+    id="product-draft-status"
+    data-nv-draft-status
+    role="status"
+  ></p>
+  {{#if invalid.any}}
+  <p id="product-form-errors" class="field-error" role="alert">
+    {{t "products:errors.summary"}}
+  </p>
+  {{/if}}
+  <p class="admin-note">{{t "products:form.required"}}</p>
+  <div class="admin-field">
+    <label for="product-name">{{t "products:form.name"}} *</label>
+    <input
+      id="product-name"
+      name="name"
+      value="{{name}}"
+      maxlength="60"
+      required
+      autocomplete="off"
+      aria-invalid="{{invalid.name}}"
+      aria-describedby="product-name-error"
+      nv:model="name"
+      data-nv-draft-field
+    />
+    <p id="product-name-error" class="field-error">{{messages.name}}</p>
+  </div>
+  <div class="admin-field">
+    {{uiCombobox id="product-category" name="category" label=(t
+    "products:form.category") options=categoryOptions value=category
+    placeholder=(t "products:form.categoryPlaceholder") emptyLabel=(t
+    "products:form.categoryEmpty") countLabel=(t "products:form.categoryCount")
+    model="category" required=true describedBy="product-category-error"}}
+    <p id="product-category-error" class="field-error">{{messages.category}}</p>
+    <noscript>
+      <label for="product-category-fallback"
+        >{{t "products:form.category"}} *</label
+      >
+      <select id="product-category-fallback" name="categoryFallback">
+        {{#each categoryOptions}}
+        <option value="{{value}}">{{label}}</option>
+        {{/each}}
+      </select>
+    </noscript>
+  </div>
+  <div class="admin-field">
+    <label for="product-price">{{t "products:form.price"}} *</label>
+    <input
+      id="product-price"
+      name="price"
+      value="{{price}}"
+      inputmode="decimal"
+      maxlength="16"
+      required
+      autocomplete="off"
+      aria-invalid="{{invalid.price}}"
+      aria-describedby="product-price-error"
+      nv:model="price"
+      data-nv-draft-field
+    />
+    <p id="product-price-error" class="field-error">{{messages.price}}</p>
+  </div>
+  <div class="admin-field">
+    <label for="product-notes">{{t "products:form.notes"}}</label>
+    <textarea
+      id="product-notes"
+      name="notes"
+      rows="3"
+      maxlength="500"
+      nv:model="notes"
+      data-nv-draft-field
+    >
+{{notes}}</textarea>
+  </div>
+  <button
+    type="submit"
+    class="nv-button nv-button--primary"
+    id="product-save"
+    nv:loading.attr="disabled"
+  >
+    {{t "products:form.save"}}
+  </button>
+</form>

@@ -1,0 +1,53 @@
+{
+  "heading": "المنتجات",
+  "table": "كتالوج المنتجات",
+  "search": "ابحث في المنتجات",
+  "summary": "{total, plural, =0 {لا توجد منتجات} one {منتج واحد} two {منتجان} few {# منتجات} many {# منتجًا} other {# منتج}}، الصفحة {page} من {pages}",
+  "empty": "لا توجد منتجات تطابق هذا البحث.",
+  "columns": {
+    "name": "الاسم",
+    "category": "الفئة",
+    "price": "السعر",
+    "updated": "آخر تحديث",
+    "status": "الحالة"
+  },
+  "status": {
+    "active": "نشط",
+    "archived": "مؤرشف"
+  },
+  "categories": {
+    "lighting": "إضاءة",
+    "furniture": "أثاث",
+    "office": "مكتب",
+    "kitchen": "مطبخ",
+    "outdoor": "خارجي"
+  },
+  "pagination": "صفحات المنتجات",
+  "previous": "السابق",
+  "next": "التالي",
+  "page": "الصفحة {page}",
+  "add": "إضافة منتج",
+  "newHeading": "منتج جديد",
+  "form": {
+    "name": "اسم المنتج",
+    "category": "الفئة",
+    "categoryPlaceholder": "اكتب لتصفية الفئات",
+    "categoryEmpty": "لا توجد فئات مطابقة",
+    "categoryCount": "{count} فئات متاحة",
+    "price": "السعر (يورو)",
+    "notes": "ملاحظات داخلية",
+    "save": "حفظ المنتج",
+    "saving": "جارٍ الحفظ…",
+    "required": "الحقول المعلّمة بـ * مطلوبة."
+  },
+  "errors": {
+    "nameShort": "أدخل حرفين على الأقل.",
+    "nameLong": "استخدم 60 حرفًا على الأكثر.",
+    "nameTaken": "يوجد منتج بهذا الاسم بالفعل.",
+    "category": "اختر فئة من القائمة.",
+    "price": "أدخل سعرًا من 0.01 إلى 100000.",
+    "summary": "لم يُحفظ المنتج. راجع الحقول المميزة."
+  },
+  "created": "أُضيف {name} إلى الكتالوج.",
+  "archived": "أُرشف {name}."
+}

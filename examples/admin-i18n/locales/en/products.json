@@ -1,0 +1,53 @@
+{
+  "heading": "Products",
+  "table": "Product catalog",
+  "search": "Search products",
+  "summary": "{total, plural, =0 {No products} one {# product} other {# products}}, page {page} of {pages}",
+  "empty": "No products match this search.",
+  "columns": {
+    "name": "Name",
+    "category": "Category",
+    "price": "Price",
+    "updated": "Updated",
+    "status": "Status"
+  },
+  "status": {
+    "active": "Active",
+    "archived": "Archived"
+  },
+  "categories": {
+    "lighting": "Lighting",
+    "furniture": "Furniture",
+    "office": "Office",
+    "kitchen": "Kitchen",
+    "outdoor": "Outdoor"
+  },
+  "pagination": "Product pages",
+  "previous": "Previous",
+  "next": "Next",
+  "page": "Page {page}",
+  "add": "Add product",
+  "newHeading": "New product",
+  "form": {
+    "name": "Product name",
+    "category": "Category",
+    "categoryPlaceholder": "Type to filter categories",
+    "categoryEmpty": "No matching categories",
+    "categoryCount": "{count} categories available",
+    "price": "Price (EUR)",
+    "notes": "Internal notes",
+    "save": "Save product",
+    "saving": "Saving…",
+    "required": "Fields marked * are required."
+  },
+  "errors": {
+    "nameShort": "Enter at least 2 characters.",
+    "nameLong": "Use at most 60 characters.",
+    "nameTaken": "A product with this name already exists.",
+    "category": "Choose a category from the list.",
+    "price": "Enter a price from 0.01 to 100000.",
+    "summary": "The product was not saved. Check the highlighted fields."
+  },
+  "created": "{name} was added to the catalog.",
+  "archived": "{name} was archived."
+}

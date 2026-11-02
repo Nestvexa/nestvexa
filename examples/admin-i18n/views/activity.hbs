@@ -1,0 +1,10 @@
+<ol class="activity-list" id="activity-list">
+  {{#each items}}
+  <li>
+    {{text}}
+    <time datetime="{{at}}">{{formatRelative at}}</time>
+  </li>
+  {{else}}
+  <li>{{t "common:activity.empty"}}</li>
+  {{/each}}
+</ol>

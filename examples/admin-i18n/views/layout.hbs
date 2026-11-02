@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="{{lang}}" dir="{{dir}}">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="nv-draft-scope" content="{{draftScope}}" />
+    <title>{{title}}</title>
+    <link rel="stylesheet" href="/assets/ui.css" />
+    <link rel="stylesheet" href="/assets/admin.css" />
+    {{nvScripts}}
+    <script type="module" src="/assets/admin.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">{{t "common:skip"}}</a>
+    <header class="admin-header">
+      <p class="admin-brand">{{t "common:title"}}</p>
+      <form method="post" action="/locale" class="admin-locale">
+        <input type="hidden" name="_csrf" value="{{csrf}}" />
+        <input type="hidden" name="return" value="{{returnTo}}" />
+        <fieldset>
+          <legend>{{t "common:language"}}</legend>
+          {{#each locales}}
+          <button
+            class="nv-button"
+            type="submit"
+            name="locale"
+            value="{{code}}"
+            lang="{{code}}"
+            dir="{{this.dir}}"
+            aria-pressed="{{pressed}}"
+          >
+            {{label}}
+          </button>
+          {{/each}}
+        </fieldset>
+      </form>
+      <form method="post" action="/logout" data-nv-logout>
+        <input type="hidden" name="_csrf" value="{{csrf}}" />
+        <button type="submit" class="nv-button" id="logout">
+          {{t "common:logout"}}
+        </button>
+      </form>
+    </header>
+    <main id="main" tabindex="-1">{{body}}</main>
+  </body>
+</html>

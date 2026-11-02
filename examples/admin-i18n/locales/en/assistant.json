@@ -1,0 +1,34 @@
+{
+  "heading": "Catalog assistant",
+  "testProvider": "Test provider: deterministic scripted replies, not an AI model.",
+  "conversation": "Conversation",
+  "you": "You",
+  "assistant": "Assistant",
+  "tool": "Tool",
+  "incomplete": "(stopped, incomplete)",
+  "empty": "Ask about the catalog. Try “archive the desk lamp” or “write a long report”.",
+  "prompt": "Message",
+  "send": "Send",
+  "stop": "Stop",
+  "streaming": "Generating a reply…",
+  "done": "Reply complete.",
+  "cancelled": "Stopped. The partial reply is kept.",
+  "failed": "The reply stopped. Ask again to continue.",
+  "approvalHeading": "Approval required",
+  "approvalNotice": "Approval required: {summary}",
+  "approvalHelp": "The assistant asked to run this action. Nothing happens unless you approve.",
+  "approve": "Approve",
+  "reject": "Reject",
+  "toolStatus": {
+    "executed": "Action approved and completed.",
+    "failed": "Action approved but failed.",
+    "denied": "Action not permitted for this account.",
+    "rejected": "Action rejected. Nothing was changed."
+  },
+  "errors": {
+    "PROMPT": "Write a message of up to 4000 characters.",
+    "BUSY": "Wait for the current reply or decision to finish.",
+    "APPROVAL": "This decision is no longer valid. Nothing was changed.",
+    "CONVERSATION": "The conversation expired. Reload the page."
+  }
+}

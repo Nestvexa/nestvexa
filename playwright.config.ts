@@ -34,5 +34,10 @@ export default defineConfig({
       url: 'http://127.0.0.1:3103',
       reuseExistingServer: false,
     },
+    {
+      command: 'pnpm --filter @nestvexa/example-admin-i18n start',
+      url: 'http://127.0.0.1:3110/api/health',
+      reuseExistingServer: false,
+    },
   ],
 });
