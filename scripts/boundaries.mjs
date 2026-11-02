@@ -69,6 +69,68 @@ for (const field of ['dependencies', 'peerDependencies']) {
     if (/^(?:react|react-dom|vue|svelte|@inertiajs\/)/.test(name))
       throw new Error(`@nestvexa/inertia must not depend on ${name}`);
 }
+// Phase 14 optional extensions (ADR 0026): never part of the default install,
+// never imported by framework packages, and browser modules stay browser-only.
+const extensions = [
+  '@nestvexa/i18n',
+  '@nestvexa/ui',
+  '@nestvexa/ai',
+  '@nestvexa/flags',
+  '@nestvexa/offline',
+];
+for (const [name, manifest] of manifests) {
+  if (extensions.includes(name)) continue;
+  for (const field of [
+    'dependencies',
+    'peerDependencies',
+    'optionalDependencies',
+  ])
+    for (const dependency of Object.keys(manifest[field] ?? {}))
+      if (extensions.includes(dependency))
+        throw new Error(
+          `${name} must not depend on optional extension ${dependency}`,
+        );
+}
+for (const directory of [
+  'core',
+  'views',
+  'engine-hbs',
+  'live',
+  'client',
+  'alpine',
+  'nestvexa',
+]) {
+  await forbid(
+    join('packages', directory, 'src'),
+    /from\s+['"]@nestvexa\/(?:i18n|ui|ai|flags|offline)\b/,
+    'Framework package imports an optional extension',
+  );
+}
+const nodeOrNest =
+  /(?:from\s+|import\s*\(\s*)['"](?:node:|@nestjs\/|@nestvexa\/(?:core|live|views|engine-hbs|realtime|i18n|flags)\b|express|fastify)/;
+await forbid(
+  'packages/ui/src/browser',
+  nodeOrNest,
+  'Browser module imports Node or Nest',
+);
+await forbid(
+  'packages/ai/src/browser',
+  nodeOrNest,
+  'Browser module imports Node or Nest',
+);
+for (const entry of await readdir('packages/offline/src', {
+  withFileTypes: true,
+}))
+  if (
+    entry.isFile() &&
+    entry.name.endsWith('.ts') &&
+    nodeOrNest.test(
+      await readFile(join('packages/offline/src', entry.name), 'utf8'),
+    )
+  )
+    throw new Error(
+      `Browser module imports Node or Nest: packages/offline/src/${entry.name}`,
+    );
 console.log(
-  `Dependency graph checked: ${manifests.size} packages; core, view and Inertia adapter boundaries intact.`,
+  `Dependency graph checked: ${manifests.size} packages; core, view, Inertia adapter and optional extension boundaries intact.`,
 );
