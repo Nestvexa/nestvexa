@@ -133,6 +133,49 @@ importers:
         specifier: 0.28.2
         version: 0.28.2
 
+  examples/admin-i18n:
+    dependencies:
+      '@nestjs/common':
+        specifier: 12.2.0
+        version: 12.2.0(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/core':
+        specifier: 12.2.0
+        version: 12.2.0(@nestjs/common@12.2.0(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@12.2.0)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/platform-express':
+        specifier: 12.2.0
+        version: 12.2.0(@nestjs/common@12.2.0(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@12.2.0)
+      '@nestvexa/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
+      '@nestvexa/flags':
+        specifier: workspace:*
+        version: link:../../packages/flags
+      '@nestvexa/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
+      '@nestvexa/offline':
+        specifier: workspace:*
+        version: link:../../packages/offline
+      '@nestvexa/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      express-session:
+        specifier: 1.19.0
+        version: 1.19.0
+      nestvexa:
+        specifier: workspace:*
+        version: link:../../packages/nestvexa
+      reflect-metadata:
+        specifier: 0.2.2
+        version: 0.2.2
+      rxjs:
+        specifier: 7.8.2
+        version: 7.8.2
+    devDependencies:
+      '@types/express-session':
+        specifier: 1.19.0
+        version: 1.19.0
+
   examples/auth-forms:
     dependencies:
       '@nestjs/common':
@@ -696,6 +739,18 @@ importers:
         specifier: ^6.0.0
         version: 6.0.3
 
+  packages/ai:
+    dependencies:
+      '@nestjs/common':
+        specifier: ^12.0.0
+        version: 12.2.0(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+      rxjs:
+        specifier: ^7.8.2
+        version: 7.8.2
+
   packages/alpine:
     dependencies:
       '@alpinejs/csp':
@@ -770,6 +825,21 @@ importers:
         specifier: 3.0.4
         version: 3.0.4
 
+  packages/flags:
+    dependencies:
+      '@nestjs/common':
+        specifier: ^12.0.0
+        version: 12.2.0(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/core':
+        specifier: ^12.0.0
+        version: 12.2.0(@nestjs/common@12.2.0(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@12.2.0)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+      rxjs:
+        specifier: ^7.8.2
+        version: 7.8.2
+
   packages/forms:
     dependencies:
       '@nestjs/common':
@@ -788,6 +858,24 @@ importers:
       zod:
         specifier: 4.6.7
         version: 4.6.7
+
+  packages/i18n:
+    dependencies:
+      '@nestjs/common':
+        specifier: ^12.0.0
+        version: 12.2.0(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/core':
+        specifier: ^12.0.0
+        version: 12.2.0(@nestjs/common@12.2.0(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@12.2.0)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestvexa/views':
+        specifier: workspace:*
+        version: link:../views
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+      rxjs:
+        specifier: ^7.8.2
+        version: 7.8.2
 
   packages/inertia:
     dependencies:
@@ -905,6 +993,8 @@ importers:
         specifier: ^7.8.2
         version: 7.8.2
 
+  packages/offline: {}
+
   packages/react:
     dependencies:
       '@nestvexa/vite':
@@ -967,6 +1057,12 @@ importers:
       svelte:
         specifier: 5.57.3
         version: 5.57.3(@typescript-eslint/types@8.72.0)
+
+  packages/ui:
+    dependencies:
+      '@nestvexa/views':
+        specifier: workspace:*
+        version: link:../views
 
   packages/uploads:
     dependencies:

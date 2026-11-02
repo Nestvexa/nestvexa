@@ -1,0 +1,31 @@
+{
+  "name": "@nestvexa/offline",
+  "version": "0.1.0-alpha.0",
+  "description": "Optional identity-scoped Live form drafts, read-only HTML snapshots and safe reconnect for Nestvexa",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": "^22.13.0 || ^24.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.server.json",
+    "lint": "eslint src"
+  }
+}

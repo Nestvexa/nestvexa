@@ -1,0 +1,63 @@
+<section class="product-table" aria-labelledby="products-caption">
+  <form role="search" method="get" action="/admin" nv:submit="search">
+    <label for="product-search">{{t "products:search"}}</label>
+    <input
+      id="product-search"
+      name="q"
+      type="search"
+      value="{{query}}"
+      maxlength="40"
+      nv:model.live.debounce.250ms="query"
+    />
+  </form>
+  <p id="product-summary" role="status">{{summary}}</p>
+  <p class="admin-offline" nv:offline role="status">
+    {{t "common:offlineHint"}}
+  </p>
+  <div
+    class="table-scroll"
+    role="region"
+    aria-labelledby="products-caption"
+    tabindex="0"
+  >
+    <table class="nv-table" id="product-table">
+      <caption id="products-caption">
+        {{t "products:table"}}
+      </caption>
+      <thead>
+        <tr>
+          {{uiSortHeader label=(t "products:columns.name") key="name" sort=sort
+          direction=direction action="sortByName"}}
+          <th scope="col">{{t "products:columns.category"}}</th>
+          {{uiSortHeader label=(t "products:columns.price") key="price"
+          sort=sort direction=direction action="sortByPrice"}} {{uiSortHeader
+          label=(t "products:columns.updated") key="updated" sort=sort
+          direction=direction action="sortByUpdated"}}
+          <th scope="col">{{t "products:columns.status"}}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each rows}}
+        <tr id="product-{{id}}" data-status="{{statusLabel}}">
+          <th scope="row">{{name}}</th>
+          <td>{{categoryLabel}}</td>
+          <td class="numeric">{{formatCurrency price "EUR"}}</td>
+          <td>
+            <time datetime="{{updatedAt}}"
+              >{{formatDate updatedAt dateStyle="medium"}}</time
+            >
+          </td>
+          <td>{{statusLabel}}</td>
+        </tr>
+        {{else}}
+        <tr>
+          <td colspan="5">{{t "products:empty"}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </div>
+  {{uiPagination pagination label=(t "products:pagination") previousLabel=(t
+  "products:previous") nextLabel=(t "products:next") pageLabel=(t
+  "products:page") href=pageHref}}
+</section>
