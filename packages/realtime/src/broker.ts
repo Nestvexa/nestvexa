@@ -194,6 +194,8 @@ export class RespRealtimeBroker implements RealtimeBroker {
     reject: (error: Error) => void;
   }[] = [];
   #closed = false;
+  #resubscribeTimer: ReturnType<typeof setTimeout> | undefined;
+  #resubscribeDelay = 100;
   constructor(options: RespBrokerOptions = {}) {
     this.#options = {
       host: options.host ?? '127.0.0.1',
@@ -247,16 +249,48 @@ export class RespRealtimeBroker implements RealtimeBroker {
         }
         resolve(socket);
       });
-      socket.once('error', reject);
+      // Errors after connecting are followed by 'close'; keep a listener so a
+      // reset never becomes an uncaught exception.
+      socket.on('error', reject);
       socket.on('close', () => {
-        if (subscriber) this.#subscriber = undefined;
-        else {
+        if (subscriber) {
+          if (this.#subscriber === socket) this.#subscriber = undefined;
+          this.#scheduleResubscribe();
+        } else {
           this.#publisher = undefined;
           for (const pending of this.#pending.splice(0))
             pending.reject(new Error('Realtime broker connection closed'));
         }
       });
     });
+  }
+  /**
+   * Reconnect the subscriber with bounded exponential backoff and restore every
+   * channel subscription. Events published while disconnected are not recovered.
+   */
+  #scheduleResubscribe(): void {
+    if (this.#closed || this.#resubscribeTimer || !this.#subscribed.size)
+      return;
+    const wait = this.#resubscribeDelay;
+    this.#resubscribeDelay = Math.min(wait * 2, 5_000);
+    this.#resubscribeTimer = setTimeout(() => {
+      this.#resubscribeTimer = undefined;
+      if (this.#closed || this.#subscriber) return;
+      this.#connect(true).then(
+        (socket) => {
+          if (this.#closed) {
+            socket.destroy();
+            return;
+          }
+          this.#subscriber = socket;
+          this.#resubscribeDelay = 100;
+          for (const name of this.#subscribed)
+            socket.write(command('SUBSCRIBE', this.#options.prefix + name));
+        },
+        () => this.#scheduleResubscribe(),
+      );
+    }, wait);
+    this.#resubscribeTimer.unref();
   }
   #onMessage(reply: Reply): void {
     if (!Array.isArray(reply) || reply[0] !== 'message') return;
@@ -320,6 +354,7 @@ export class RespRealtimeBroker implements RealtimeBroker {
   }
   async close(): Promise<void> {
     this.#closed = true;
+    clearTimeout(this.#resubscribeTimer);
     this.#publisher?.destroy();
     this.#subscriber?.destroy();
     await this.#local.close();

@@ -1,0 +1,37 @@
+{
+  "timestamp": "2026-11-02T07:47:42.178Z",
+  "node": "v24.13.0",
+  "platform": "win32",
+  "passed": true,
+  "services": [
+    {
+      "name": "redis",
+      "passed": true,
+      "steps": [
+        "cross-process publish delivered to a second Node process",
+        "subscriber resubscribed and received events after a broker restart"
+      ]
+    },
+    {
+      "name": "s3",
+      "passed": true,
+      "steps": [
+        "signed PUT",
+        "signed HEAD",
+        "signed GET and Range GET",
+        "presigned GET with attachment disposition",
+        "presigned PUT enforces the signed length",
+        "signed DELETE",
+        "request signed with a wrong secret is rejected"
+      ]
+    },
+    {
+      "name": "clamd",
+      "passed": true,
+      "steps": [
+        "clean file reported clean",
+        "EICAR test file reported infected: Eicar-Test-Signature"
+      ]
+    }
+  ]
+}

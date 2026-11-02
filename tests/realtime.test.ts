@@ -219,9 +219,20 @@ describe('realtime hub', () => {
 });
 
 /** In-process RESP test double implementing SUBSCRIBE/PUBLISH only. Not Redis. */
-async function fakeRedis(): Promise<{ port: number; server: Server }> {
+async function fakeRedis(): Promise<{
+  port: number;
+  server: Server;
+  /** Resets every client connection, like a server restart. */
+  drop: () => void;
+}> {
   const subscribers = new Map<string, Set<Socket>>();
+  const connections = new Set<Socket>();
   const server = createServer((socket) => {
+    connections.add(socket);
+    socket.on('close', () => {
+      connections.delete(socket);
+      for (const set of subscribers.values()) set.delete(socket);
+    });
     let buffer = '';
     socket.on('data', (chunk) => {
       buffer += chunk.toString();
@@ -263,7 +274,13 @@ async function fakeRedis(): Promise<{ port: number; server: Server }> {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('No port');
-  return { port: address.port, server };
+  return {
+    port: address.port,
+    server,
+    drop: () => {
+      for (const socket of connections) socket.destroy();
+    },
+  };
 }
 
 describe('RESP broker (two replicas, test double server)', () => {
@@ -295,6 +312,34 @@ describe('RESP broker (two replicas, test double server)', () => {
     });
     expect(isolated).toEqual([]);
     expect(b.replay('orders:tenant-a', 'unknown')).toEqual([]);
+  });
+
+  it('resubscribes after the server drops every connection', async () => {
+    const redis = await fakeRedis();
+    cleanup.push(
+      () => new Promise<void>((resolve) => redis.server.close(() => resolve())),
+    );
+    const a = new RespRealtimeBroker({ port: redis.port });
+    const b = new RespRealtimeBroker({ port: redis.port });
+    cleanup.push(
+      () => a.close(),
+      () => b.close(),
+    );
+    const received: unknown[] = [];
+    await b.subscribe('board:1', (event) => received.push(event.data));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    redis.drop();
+    // Events published while disconnected are lost; later ones must arrive.
+    await expect
+      .poll(
+        async () => {
+          await a.publish('board:1', { after: 'restart' }).catch(() => 0);
+          return received.length;
+        },
+        { timeout: 5000, interval: 150 },
+      )
+      .toBeGreaterThan(0);
+    expect(received[0]).toEqual({ after: 'restart' });
   });
 });
 

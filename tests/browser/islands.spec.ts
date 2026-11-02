@@ -118,6 +118,8 @@ test('a failing island keeps its fallback and does not affect others', async ({
 test('accessibility: hybrid dashboard passes automated checks', async ({
   page,
 }) => {
+  // Three framework islands plus axe can exceed 30s in Firefox on loaded hosts.
+  test.setTimeout(60_000);
   await page.goto(url);
   await expect(page.locator('#chart-title')).toBeVisible();
   await page

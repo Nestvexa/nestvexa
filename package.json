@@ -21,6 +21,7 @@
     "test:compat": "pnpm build && pnpm test:integration && pnpm test:pack",
     "test:accessibility": "playwright test --grep accessibility",
     "test:pack": "node scripts/pack.mjs",
+    "test:services": "node scripts/services-check.mjs",
     "lint": "eslint packages tests examples scripts *.ts *.mjs && node scripts/boundaries.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
