@@ -138,8 +138,10 @@ export class TemplateRoot {
   /** Synchronous variant for engines whose include hooks are synchronous. */
   resolveSync(view: string, extension = this.extension): string {
     const candidate = this.#candidate(view, extension);
-    const filename = realpathSync(candidate);
-    if (!inside(realpathSync(this.path), filename))
+    // The native variant matches async realpath (libuv): it expands Windows 8.3
+    // short names, so sync and async resolution agree.
+    const filename = realpathSync.native(candidate);
+    if (!inside(realpathSync.native(this.path), filename))
       throw new ViewError('INVALID_VIEW', 'Template symlink escapes root');
     return filename;
   }
@@ -176,7 +178,7 @@ export class TemplateRoot {
   }
   #roots(): string[] {
     try {
-      const real = realpathSync(this.path);
+      const real = realpathSync.native(this.path);
       return real === this.path ? [this.path] : [this.path, real];
     } catch {
       return [this.path];

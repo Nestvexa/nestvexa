@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { isAbsolute } from 'node:path';
 import { ViteConfigurationError, ViteUnavailableError } from './errors.js';
@@ -101,7 +102,7 @@ export async function createViteDevServer(
       'Loaded module is not Vite (no createServer)',
     );
   const server = await loaded.createServer({
-    root: options.root,
+    root: canonicalRoot(options.root),
     ...(options.configFile === undefined
       ? {}
       : { configFile: options.configFile }),
@@ -130,4 +131,17 @@ export async function createViteDevServer(
     },
     close: () => server.close(),
   };
+}
+
+/**
+ * Vite canonicalizes served files with the native realpath; pass the root in the
+ * same form (for example, Windows 8.3 short names expanded) so its fs allow list
+ * matches. Falls back to the given path when it cannot be resolved.
+ */
+function canonicalRoot(root: string): string {
+  try {
+    return realpathSync.native(root);
+  } catch {
+    return root;
+  }
 }
