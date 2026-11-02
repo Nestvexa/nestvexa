@@ -3,6 +3,20 @@
   "version": "0.1.0-alpha.0",
   "description": "Vite manifest tags, immutable static serving, dev server and SSR bundle loading for NestJS hosts",
   "license": "MIT",
+  "author": "Nestvexa contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nestvexa/nestvexa.git",
+    "directory": "packages/vite"
+  },
+  "homepage": "https://github.com/Nestvexa/nestvexa/tree/main/packages/vite#readme",
+  "bugs": {
+    "url": "https://github.com/Nestvexa/nestvexa/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  },
   "type": "module",
   "sideEffects": false,
   "engines": {
@@ -39,8 +53,5 @@
   },
   "devDependencies": {
     "vite": "8.3.5"
-  },
-  "publishConfig": {
-    "access": "public"
   }
 }

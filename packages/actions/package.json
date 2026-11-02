@@ -3,6 +3,20 @@
   "version": "0.1.0-alpha.0",
   "description": "Authorization-first NestJS server actions with explicit registration and a generated typed browser client",
   "license": "MIT",
+  "author": "Nestvexa contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nestvexa/nestvexa.git",
+    "directory": "packages/actions"
+  },
+  "homepage": "https://github.com/Nestvexa/nestvexa/tree/main/packages/actions#readme",
+  "bugs": {
+    "url": "https://github.com/Nestvexa/nestvexa/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  },
   "type": "module",
   "sideEffects": false,
   "engines": {

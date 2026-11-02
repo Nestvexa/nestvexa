@@ -3,6 +3,20 @@
   "version": "0.1.0-alpha.0",
   "description": "Hardened form validation for NestJS and Nestvexa Live: Zod and class-validator adapters, accessible error bags, wizards, drafts and a no-JS POST fallback",
   "license": "MIT",
+  "author": "Nestvexa contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nestvexa/nestvexa.git",
+    "directory": "packages/forms"
+  },
+  "homepage": "https://github.com/Nestvexa/nestvexa/tree/main/packages/forms#readme",
+  "bugs": {
+    "url": "https://github.com/Nestvexa/nestvexa/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  },
   "type": "module",
   "sideEffects": false,
   "engines": {

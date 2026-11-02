@@ -3,6 +3,20 @@
   "version": "0.1.0-alpha.0",
   "description": "Optional locale negotiation, ICU-style catalogs, Intl formatting and RTL helpers for Nestvexa",
   "license": "MIT",
+  "author": "Nestvexa contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nestvexa/nestvexa.git",
+    "directory": "packages/i18n"
+  },
+  "homepage": "https://github.com/Nestvexa/nestvexa/tree/main/packages/i18n#readme",
+  "bugs": {
+    "url": "https://github.com/Nestvexa/nestvexa/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  },
   "type": "module",
   "sideEffects": false,
   "engines": {

@@ -3,6 +3,20 @@
   "version": "0.1.0-alpha.0",
   "description": "Inertia.js v3 server adapter for NestJS controllers on Express and Fastify",
   "license": "MIT",
+  "author": "Nestvexa contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nestvexa/nestvexa.git",
+    "directory": "packages/inertia"
+  },
+  "homepage": "https://github.com/Nestvexa/nestvexa/tree/main/packages/inertia#readme",
+  "bugs": {
+    "url": "https://github.com/Nestvexa/nestvexa/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  },
   "type": "module",
   "sideEffects": false,
   "engines": {
@@ -34,8 +48,5 @@
     "@nestjs/core": "^12.0.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
-  },
-  "publishConfig": {
-    "access": "public"
   }
 }

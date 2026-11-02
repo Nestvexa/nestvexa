@@ -3,6 +3,20 @@
   "version": "0.1.0-alpha.0",
   "description": "Official @inertiajs/vue3 client and SSR entry helpers for Nestvexa Inertia hosts built with Vite",
   "license": "MIT",
+  "author": "Nestvexa contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nestvexa/nestvexa.git",
+    "directory": "packages/vue"
+  },
+  "homepage": "https://github.com/Nestvexa/nestvexa/tree/main/packages/vue#readme",
+  "bugs": {
+    "url": "https://github.com/Nestvexa/nestvexa/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  },
   "type": "module",
   "sideEffects": false,
   "engines": {
@@ -46,8 +60,5 @@
     "@inertiajs/core": "3.10.0",
     "@inertiajs/vue3": "3.10.0",
     "vue": "3.5.44"
-  },
-  "publishConfig": {
-    "access": "public"
   }
 }

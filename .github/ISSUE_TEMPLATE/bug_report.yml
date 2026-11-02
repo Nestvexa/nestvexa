@@ -1,0 +1,34 @@
+name: Bug report
+description: Something in a Nestvexa package does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Security problems must be reported privately; see SECURITY.md.
+  - type: input
+    id: packages
+    attributes:
+      label: Packages and versions
+      placeholder: nestvexa 0.1.0-alpha.0, @nestvexa/live 0.1.0-alpha.0
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: Node 24, NestJS 12.2, Express, Windows 11 / Ubuntu 24.04
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Steps or a repository link that reproduce the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true

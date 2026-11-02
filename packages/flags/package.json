@@ -3,6 +3,20 @@
   "version": "0.1.0-alpha.0",
   "description": "Optional server-enforced feature flags with view, guard and Live policy helpers",
   "license": "MIT",
+  "author": "Nestvexa contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nestvexa/nestvexa.git",
+    "directory": "packages/flags"
+  },
+  "homepage": "https://github.com/Nestvexa/nestvexa/tree/main/packages/flags#readme",
+  "bugs": {
+    "url": "https://github.com/Nestvexa/nestvexa/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  },
   "type": "module",
   "sideEffects": false,
   "engines": {

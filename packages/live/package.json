@@ -3,6 +3,20 @@
   "version": "0.1.0-alpha.0",
   "description": "Explicit NestJS live component routes with bound server-side state",
   "license": "MIT",
+  "author": "Nestvexa contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nestvexa/nestvexa.git",
+    "directory": "packages/live"
+  },
+  "homepage": "https://github.com/Nestvexa/nestvexa/tree/main/packages/live#readme",
+  "bugs": {
+    "url": "https://github.com/Nestvexa/nestvexa/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  },
   "type": "module",
   "sideEffects": false,
   "engines": {

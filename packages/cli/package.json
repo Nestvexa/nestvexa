@@ -3,6 +3,20 @@
   "version": "0.1.0-alpha.0",
   "description": "Nestvexa command line: init, doctor, add, make:*, inspect and safe removal",
   "license": "MIT",
+  "author": "Nestvexa contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nestvexa/nestvexa.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/Nestvexa/nestvexa/tree/main/packages/cli#readme",
+  "bugs": {
+    "url": "https://github.com/Nestvexa/nestvexa/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  },
   "type": "module",
   "sideEffects": false,
   "engines": {

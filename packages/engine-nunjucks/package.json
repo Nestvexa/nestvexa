@@ -3,6 +3,20 @@
   "version": "0.1.0-alpha.0",
   "description": "Isolated Nunjucks view adapter for Nestvexa",
   "license": "MIT",
+  "author": "Nestvexa contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nestvexa/nestvexa.git",
+    "directory": "packages/engine-nunjucks"
+  },
+  "homepage": "https://github.com/Nestvexa/nestvexa/tree/main/packages/engine-nunjucks#readme",
+  "bugs": {
+    "url": "https://github.com/Nestvexa/nestvexa/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  },
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -31,8 +45,5 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run ../../tests/engine-nunjucks.test.ts ../../tests/engine-live.test.ts",
     "lint": "eslint src"
-  },
-  "publishConfig": {
-    "access": "public"
   }
 }

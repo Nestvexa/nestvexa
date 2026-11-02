@@ -3,6 +3,20 @@
   "version": "0.1.0-alpha.0",
   "description": "Official @inertiajs/svelte client and SSR entry helpers for Nestvexa Inertia hosts built with Vite",
   "license": "MIT",
+  "author": "Nestvexa contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nestvexa/nestvexa.git",
+    "directory": "packages/svelte"
+  },
+  "homepage": "https://github.com/Nestvexa/nestvexa/tree/main/packages/svelte#readme",
+  "bugs": {
+    "url": "https://github.com/Nestvexa/nestvexa/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  },
   "type": "module",
   "sideEffects": false,
   "engines": {
@@ -46,8 +60,5 @@
     "@inertiajs/core": "3.10.0",
     "@inertiajs/svelte": "3.10.0",
     "svelte": "5.57.3"
-  },
-  "publishConfig": {
-    "access": "public"
   }
 }

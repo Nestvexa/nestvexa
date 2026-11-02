@@ -3,6 +3,20 @@
   "version": "0.1.0-alpha.0",
   "description": "Official @inertiajs/react client and SSR entry helpers for Nestvexa Inertia hosts built with Vite",
   "license": "MIT",
+  "author": "Nestvexa contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nestvexa/nestvexa.git",
+    "directory": "packages/react"
+  },
+  "homepage": "https://github.com/Nestvexa/nestvexa/tree/main/packages/react#readme",
+  "bugs": {
+    "url": "https://github.com/Nestvexa/nestvexa/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  },
   "type": "module",
   "sideEffects": false,
   "engines": {
@@ -50,8 +64,5 @@
     "@types/react-dom": "19.3.0",
     "react": "19.3.1",
     "react-dom": "19.3.1"
-  },
-  "publishConfig": {
-    "access": "public"
   }
 }
