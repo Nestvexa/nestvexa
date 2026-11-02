@@ -12,17 +12,20 @@ test('a renderless action updates bound text from state without morphing server 
   await page
     .locator('#activity-query')
     .evaluate((element) => element.setAttribute('data-local-marker', 'kept'));
-  const reply = page.waitForResponse(
-    (response) =>
-      response.url().endsWith('/_nestvexa/live/activity-panel/like') &&
-      response.request().method() === 'POST',
-  );
+  // Capture the reply through a pass-through route: Chromium may evict a
+  // response body once later traffic arrives, so reading it afterwards races.
+  let capabilities: string | undefined;
+  let captured: unknown;
+  await page.route('**/_nestvexa/live/activity-panel/like', async (route) => {
+    capabilities = route.request().headers()['x-nestvexa-capabilities'];
+    const response = await route.fetch();
+    captured ??= await response.json();
+    await route.fulfill({ response });
+  });
   await page.getByRole('button', { name: 'Like activity' }).click();
-  const response = await reply;
-  expect(response.request().headers()['x-nestvexa-capabilities']).toBe(
-    'renderless-v1',
-  );
-  const body = (await response.json()) as {
+  await expect.poll(() => captured).toBeDefined();
+  expect(capabilities).toBe('renderless-v1');
+  const body = captured as {
     html: string;
     renderless?: boolean;
     state: { likes: number };

@@ -28,6 +28,13 @@ function draftKeys(page: Page) {
   );
 }
 async function axe(page: Page) {
+  // Contrast is only meaningful once opening/locale transitions have finished;
+  // cancelled animations reject `finished` and count as done.
+  await page.evaluate(() =>
+    Promise.all(
+      document.getAnimations().map((a) => a.finished.catch(() => undefined)),
+    ),
+  );
   const result = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
     .analyze();
