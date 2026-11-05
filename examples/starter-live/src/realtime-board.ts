@@ -36,12 +36,27 @@ let publisher: RealtimeService | undefined;
 export function connectReportJobs(service: RealtimeService): void {
   publisher = service;
 }
-/** Owner-bound demo jobs; progress snapshots invalidate the owner's job channel. */
+/**
+ * Owner-bound demo jobs; progress snapshots invalidate the owner's job channel.
+ * As a Nest provider the runner is closed on application shutdown.
+ */
 export const reportJobs = new JobRunner({
   concurrency: 2,
   notify: (channel, snapshot) => {
     void publisher?.publish(channel, { status: snapshot.status });
   },
+}).register('report', async (context) => {
+  const failing =
+    context.input !== null &&
+    typeof context.input === 'object' &&
+    Reflect.get(context.input, 'fail') === true;
+  for (let step = 1; step <= 4; step++) {
+    await delay(150, undefined, { signal: context.signal });
+    // The failing demo breaks halfway through every attempt.
+    if (failing && step === 2) throw new Error('demo report source offline');
+    context.progress(step * 25);
+  }
+  return { rows: 42 };
 });
 export const REPORT_JOBS = Symbol('report-jobs');
 
@@ -75,6 +90,8 @@ export class RealtimeBoard {
   draft = '';
   @State() jobId = '';
   @State() posted = 0;
+  /** Owner-only job view, refreshed before every render. */
+  @State() job = { status: '', progress: 0, attempts: 0, error: '' };
 
   @RealtimeChannels() channels(): string[] {
     return this.jobId
@@ -84,11 +101,19 @@ export class RealtimeBoard {
   @Computed() get feedItems(): { id: number; text: string }[] {
     return this.feed.list().map((item) => ({ ...item }));
   }
-  @Computed() get job(): { status: string; progress: number } {
+  async dehydrate(): Promise<void> {
     const job = this.jobId
-      ? this.jobs.get({ binding: guestBinding(this.request) }, this.jobId)
+      ? await this.jobs.get({ binding: guestBinding(this.request) }, this.jobId)
       : undefined;
-    return { status: job?.status ?? '', progress: job?.progress ?? 0 };
+    this.job = {
+      status: job?.status ?? '',
+      progress: job?.progress ?? 0,
+      attempts: job?.attempts ?? 0,
+      error: job?.error ?? '',
+    };
+  }
+  @Computed() get canRetry(): boolean {
+    return this.job.status === 'failed' || this.job.status === 'cancelled';
   }
 
   @Action() async post(): Promise<void> {
@@ -98,20 +123,35 @@ export class RealtimeBoard {
     this.draft = '';
     this.posted++;
     // Other subscribed browsers refresh through their own authorized $sync route.
-    await this.realtime.publish(publicChannel, null);
+    await this.realtime.publish(publicChannel, null, {
+      identity: { binding: guestBinding(this.request) },
+    });
   }
-  @Action() startReport(): void {
+  async #start(fail: boolean): Promise<void> {
     const identity = { binding: guestBinding(this.request) };
-    this.jobId = this.jobs.enqueue(identity, 'report', async (context) => {
-      for (let step = 1; step <= 4; step++) {
-        await delay(150, undefined, { signal: context.signal });
-        context.progress(step * 25);
-      }
-      return { rows: 42 };
-    }).id;
+    // Two attempts: a transient failure is retried automatically.
+    this.jobId = (
+      await this.jobs.enqueue(identity, 'report', {
+        input: { fail },
+        maxAttempts: 2,
+      })
+    ).id;
   }
-  @Action() cancelReport(): void {
+  @Action() async startReport(): Promise<void> {
+    await this.#start(false);
+  }
+  @Action() async startFailingReport(): Promise<void> {
+    await this.#start(true);
+  }
+  /** User-initiated retry after a failed or cancelled report. */
+  @Action() async retryReport(): Promise<void> {
+    if (this.canRetry) await this.#start(false);
+  }
+  @Action() async cancelReport(): Promise<void> {
     if (this.jobId)
-      this.jobs.cancel({ binding: guestBinding(this.request) }, this.jobId);
+      await this.jobs.cancel(
+        { binding: guestBinding(this.request) },
+        this.jobId,
+      );
   }
 }

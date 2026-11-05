@@ -8,12 +8,34 @@ export interface RealtimeIdentity {
 }
 export type IdentityResolver = () =>
   RealtimeIdentity | Promise<RealtimeIdentity>;
+/** Public descriptor of a connected identity; never the binding itself. */
+export interface PresenceMember {
+  /** Stable public member id (1–128 of `A-Z a-z 0-9 _ . : @ -`). */
+  readonly id: string;
+  /** Optional public display label (≤128 characters). */
+  readonly label?: string;
+}
+export interface PresenceSnapshot {
+  readonly channel: string;
+  /** Distinct members sorted by id, at most `maxPresenceMembers`. */
+  readonly members: readonly PresenceMember[];
+  /** Distinct members connected, before truncation. */
+  readonly total: number;
+  readonly truncated: boolean;
+}
 export interface RealtimePolicy {
   /** Re-checked on subscribe, periodically and before delivery (cached per revalidation window). */
   readonly authorizeChannel: (
     identity: RealtimeIdentity,
     channel: string,
   ) => boolean | Promise<boolean>;
+  /**
+   * Optional presence descriptor resolved once per connection. Identities for
+   * which it returns undefined are connected but not listed.
+   */
+  readonly describePresence?: (
+    identity: RealtimeIdentity,
+  ) => PresenceMember | undefined | Promise<PresenceMember | undefined>;
 }
 export interface HubLimits {
   readonly maxConnections: number;
@@ -21,6 +43,12 @@ export interface HubLimits {
   readonly queueLimit: number;
   readonly heartbeatMs: number;
   readonly revalidateMs: number;
+  /** Subscription attempts per identity per minute (default 60). */
+  readonly subscribesPerMinute?: number;
+  /** Identity-attributed publishes per identity per minute (default 120). */
+  readonly publishesPerMinute?: number;
+  /** Members returned by one presence query (default 100). */
+  readonly maxPresenceMembers?: number;
 }
 /** Transport-specific writer. `send` returns false when the client cannot keep up. */
 export interface RealtimeSink {
@@ -46,6 +74,7 @@ interface Connection {
   readonly resolve: IdentityResolver;
   readonly channels: ReadonlySet<string>;
   readonly sink: RealtimeSink;
+  readonly member: PresenceMember | undefined;
   readonly expiresAt: number;
   readonly authorized: Map<string, number>;
   pending: number;
@@ -56,6 +85,52 @@ interface Connection {
 }
 function key(binding: string): string {
   return createHash('sha256').update(binding).digest('base64url');
+}
+function presenceMember(value: unknown): PresenceMember | undefined {
+  if (value === undefined) return undefined;
+  const id: unknown =
+    value && typeof value === 'object' ? Reflect.get(value, 'id') : undefined;
+  const label: unknown =
+    value && typeof value === 'object'
+      ? Reflect.get(value, 'label')
+      : undefined;
+  if (
+    typeof id !== 'string' ||
+    !/^[A-Za-z0-9_.:@-]{1,128}$/.test(id) ||
+    (label !== undefined && (typeof label !== 'string' || label.length > 128))
+  )
+    throw new Error('Invalid realtime presence member');
+  return Object.freeze(label === undefined ? { id } : { id, label });
+}
+/** Bounded fixed-window counters keyed by identity hash. */
+class RateWindow {
+  readonly #buckets = new Map<string, { start: number; count: number }>();
+  constructor(
+    private readonly limit: number,
+    private readonly windowMs = 60_000,
+    private readonly maxKeys = 10_000,
+  ) {}
+  /** Count one attempt; false once the identity exceeded its window budget. */
+  take(identityKey: string, now = Date.now()): boolean {
+    let bucket = this.#buckets.get(identityKey);
+    if (bucket && now - bucket.start >= this.windowMs) {
+      this.#buckets.delete(identityKey);
+      bucket = undefined;
+    }
+    if (!bucket) {
+      if (this.#buckets.size >= this.maxKeys)
+        for (const [entry, value] of this.#buckets)
+          if (now - value.start >= this.windowMs) this.#buckets.delete(entry);
+      // Fail closed rather than grow without bound under an identity flood.
+      if (this.#buckets.size >= this.maxKeys) return false;
+      bucket = { start: now, count: 0 };
+      this.#buckets.set(identityKey, bucket);
+    }
+    return ++bucket.count <= this.limit;
+  }
+  clear(): void {
+    this.#buckets.clear();
+  }
 }
 
 /**
@@ -69,12 +144,31 @@ export class RealtimeHub {
     { readonly connections: Set<Connection>; release?: () => void }
   >();
   #closing = false;
+  readonly #subscribes: RateWindow;
+  readonly #publishes: RateWindow;
+  readonly #maxPresence: number;
   constructor(
     private readonly broker: RealtimeBroker,
     private readonly signer: TokenSigner,
     private readonly policy: RealtimePolicy,
     private readonly limits: HubLimits,
-  ) {}
+  ) {
+    const positive = (value: number, name: string) => {
+      if (!Number.isSafeInteger(value) || value < 1)
+        throw new Error(`Invalid realtime limit ${name}`);
+      return value;
+    };
+    this.#subscribes = new RateWindow(
+      positive(limits.subscribesPerMinute ?? 60, 'subscribesPerMinute'),
+    );
+    this.#publishes = new RateWindow(
+      positive(limits.publishesPerMinute ?? 120, 'publishesPerMinute'),
+    );
+    this.#maxPresence = positive(
+      limits.maxPresenceMembers ?? 100,
+      'maxPresenceMembers',
+    );
+  }
   get size(): number {
     return this.#connections.size;
   }
@@ -105,6 +199,10 @@ export class RealtimeHub {
     if (!Array.isArray(tokens) || !tokens.length || tokens.length > 32)
       throw new RealtimeRejection(400, 'INVALID_SUBSCRIPTION');
     const identity = await this.#identity(resolve);
+    // Every attempt counts, including rejected tokens: bounds token guessing
+    // and reconnect storms per identity.
+    if (!this.#subscribes.take(key(identity.binding)))
+      throw new RealtimeRejection(429, 'RATE_LIMITED');
     const channels = new Set<string>();
     let expiresAt = Number.MAX_SAFE_INTEGER;
     for (const token of tokens) {
@@ -128,6 +226,12 @@ export class RealtimeHub {
         throw new RealtimeRejection(403, 'CHANNEL_FORBIDDEN');
       authorized.set(channel, now);
     }
+    let member: PresenceMember | undefined;
+    try {
+      member = presenceMember(await this.policy.describePresence?.(identity));
+    } catch {
+      throw new RealtimeRejection(403, 'PRESENCE_REJECTED');
+    }
     if (this.#closing) throw new RealtimeRejection(503, 'REALTIME_SHUTDOWN');
     const identityKey = key(identity.binding);
     if (this.#connections.size >= this.limits.maxConnections)
@@ -143,6 +247,7 @@ export class RealtimeHub {
       resolve,
       channels,
       sink,
+      member,
       expiresAt,
       authorized,
       pending: 0,
@@ -276,6 +381,34 @@ export class RealtimeHub {
       // A failed transport close must not prevent subscription cleanup.
     }
   }
+  /**
+   * Charge one identity-attributed publish. Returns false when the identity
+   * exceeded `publishesPerMinute`.
+   */
+  takePublish(identity: RealtimeIdentity): boolean {
+    return this.#publishes.take(key(identity.binding));
+  }
+  /**
+   * Distinct presence members currently connected to `channel` on this hub
+   * (this process). The caller must authorize the reader; see
+   * `RealtimeService.presence`.
+   */
+  presence(channel: string): PresenceSnapshot {
+    const name = parseChannel(channel);
+    const members = new Map<string, PresenceMember>();
+    for (const connection of this.#channels.get(name)?.connections ?? [])
+      if (!connection.closed && connection.member)
+        members.set(connection.member.id, connection.member);
+    const sorted = [...members.values()].sort((a, b) =>
+      a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
+    );
+    return Object.freeze({
+      channel: name,
+      members: Object.freeze(sorted.slice(0, this.#maxPresence)),
+      total: sorted.length,
+      truncated: sorted.length > this.#maxPresence,
+    });
+  }
   /** Close every connection for an identity binding, for example on logout. */
   revoke(binding: string): number {
     const identityKey = key(binding);
@@ -297,5 +430,7 @@ export class RealtimeHub {
     this.#closing = true;
     for (const connection of [...this.#connections])
       this.#close(connection, 'shutdown');
+    this.#subscribes.clear();
+    this.#publishes.clear();
   }
 }

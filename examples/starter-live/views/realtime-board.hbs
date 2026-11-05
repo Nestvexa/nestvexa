@@ -20,9 +20,19 @@
   </ul>
   <h2>Report</h2>
   <button type="button" nv:click="startReport">Generate report</button>
+  <button type="button" nv:click="startFailingReport">
+    Generate failing report
+  </button>
   <button type="button" nv:click="cancelReport">Cancel report</button>
+  {{#if canRetry}}
+  <button type="button" nv:click="retryReport">Retry report</button>
+  {{/if}}
   <p role="status">
-    Report: <span id="report-status">{{job.status}}</span>
+    Report: <span id="report-status">{{job.status}}</span> (attempts:
+    <span id="report-attempts">{{job.attempts}}</span>) {{#if job.error}}<span
+      id="report-error"
+      >{{job.error}}</span
+    >{{/if}}
     <progress
       id="report-progress"
       max="100"

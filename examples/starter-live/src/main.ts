@@ -393,6 +393,8 @@ document.addEventListener('click', async (event) => {
                 '$sync',
                 'post',
                 'startReport',
+                'startFailingReport',
+                'retryReport',
                 'cancelReport',
               ].includes(action)) ||
             (component === 'project-board' &&
