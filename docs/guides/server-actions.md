@@ -171,3 +171,7 @@ Run `pnpm build` then `pnpm --filter @nestvexa/example-actions-basic start` and
 open <http://127.0.0.1:3111>. The [Playwright spec](../../tests/browser/actions.spec.ts)
 signs in, calls the typed client, and verifies that guest, CSRF-less, forged-token
 and cross-origin calls fail without side effects.
+
+## CLI
+
+`nestvexa make:action <Name>` generates an `@ActionGroup`, appends it to `actionGroups` and the deny-by-default `allowedActions` in `src/nestvexa/actions.config.ts` and registers `ActionsModule` once. See the [CLI reference](../reference/cli.md).

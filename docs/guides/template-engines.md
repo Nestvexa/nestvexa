@@ -141,3 +141,7 @@ Checklist for adapter authors: declare only capabilities you implement; never pa
 - `nestvexa add engine <name>` CLI commands (Phase 15) are not implemented; install and wire adapters manually as above.
 - Umbrella `NestvexaModule.forRoot({ views: { engine } })` selection of a non-HBS engine is not implemented.
 - Streaming, async helpers/filters and precompilation for EJS, Pug and Nunjucks are unsupported.
+
+## CLI
+
+`nestvexa add engine ejs|pug|nunjucks` adds the adapter, `src/nestvexa/engines/<engine>.engine.ts` (registered for Express in `main.ts`) and `views/layouts/main.<ext>`; `nestvexa make:page <Name> --renderer <engine>` generates a controller rendering `views/pages/<name>.<ext>`. See the [CLI reference](../reference/cli.md).

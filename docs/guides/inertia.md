@@ -213,3 +213,7 @@ official client (the server only needs the protocol pieces listed);
   configuration error.
 - A deferred scroll prop is labelled `<path>.<wrapper>` on the full visit (the
   reference adapter labels the root path there; full visits ignore labels).
+
+## CLI
+
+`nestvexa add react|vue|svelte` creates an independent Inertia root (Vite entry and config, scripts, a Welcome page) per framework; `nestvexa make:page <Name> --renderer react|vue|svelte` adds pages to it. See the [CLI reference](../reference/cli.md).
