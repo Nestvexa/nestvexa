@@ -43,6 +43,9 @@
     "test": "vitest run ../../tests/vite-manifest.test.ts ../../tests/vite-static.test.ts ../../tests/vite-ssr.test.ts ../../tests/vite-dev.test.ts",
     "lint": "eslint src"
   },
+  "dependencies": {
+    "@nestvexa/views": "workspace:*"
+  },
   "peerDependencies": {
     "vite": "^8.0.0"
   },

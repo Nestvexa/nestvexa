@@ -1086,6 +1086,10 @@ importers:
   packages/views: {}
 
   packages/vite:
+    dependencies:
+      '@nestvexa/views':
+        specifier: workspace:*
+        version: link:../views
     devDependencies:
       vite:
         specifier: 8.3.5
