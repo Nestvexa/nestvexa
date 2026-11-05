@@ -103,8 +103,10 @@ or the umbrella `browser.realtime` option.
 ## Delivery semantics and limits
 
 At-most-once per connected subscriber. The memory broker replays the last 100
-events per channel after reconnect; unknown cursors replay nothing and clients
-refresh. Redis pub/sub is fire-and-forget. `JobRunner` keeps jobs in memory only.
+events per channel (`replaySize`) after reconnect, for at most 10,000 channels
+(`replayChannels`; the least recently published channel's history is evicted
+first, so per-user channel names cannot grow memory without bound); unknown or
+evicted cursors replay nothing and clients refresh. Redis pub/sub is fire-and-forget. `JobRunner` keeps jobs in memory only.
 The unit tests use an in-process RESP test double. `pnpm test:services`
 ([guide](../../docs/guides/production-services.md)) also ran `RespRealtimeBroker` against Redis 7 on 2026-11-02:
 delivery from one OS process to another, and resubscription after a Redis

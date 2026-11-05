@@ -5,6 +5,7 @@ import {
   createTokenSigner,
   parseChannel,
 } from '../packages/realtime/src/token.js';
+import { MemoryRealtimeBroker } from '../packages/realtime/src/broker.js';
 
 /**
  * Property-based checks for realtime subscription tokens: integrity under any
@@ -140,6 +141,65 @@ describe('Realtime token properties', () => {
         else expect(() => parseChannel(value)).toThrow(RealtimeTokenError);
       }),
       runs,
+    );
+  });
+});
+
+describe('memory broker replay bounds', () => {
+  it('regression: replay history is bounded across unbounded distinct channels', async () => {
+    // Before the fix every channel ever published kept up to 100 events forever.
+    const broker = new MemoryRealtimeBroker({
+      replaySize: 3,
+      replayChannels: 50,
+    });
+    for (let index = 0; index < 5_000; index++)
+      await broker.publish(`user:${index}`, { index });
+    expect(broker.replayChannels).toBe(50);
+    const first = await broker.publish('orders:a', 1);
+    await broker.publish('orders:a', 2);
+    for (let index = 0; index < 49; index++)
+      await broker.publish(`noise:${index}`, index);
+    // Recently published channels keep their cursor and replay normally.
+    expect(
+      broker.replay('orders:a', first.id).map((event) => event.data),
+    ).toEqual([2]);
+    await broker.publish('noise:last', 0);
+    expect(broker.replay('orders:a', first.id)).toEqual([]);
+    expect(() => new MemoryRealtimeBroker({ replayChannels: 0 })).toThrow();
+  });
+
+  it('keeps per-channel order and at most replaySize events for any publish sequence', async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        fc.array(fc.constantFrom('a', 'b', 'c', 'd'), {
+          minLength: 1,
+          maxLength: 60,
+        }),
+        fc.integer({ min: 1, max: 5 }),
+        fc.integer({ min: 1, max: 3 }),
+        async (sequence, replaySize, replayChannels) => {
+          const broker = new MemoryRealtimeBroker({
+            replaySize,
+            replayChannels,
+          });
+          const ids = new Map<string, string[]>();
+          for (const channel of sequence) {
+            const event = await broker.publish(channel, channel);
+            ids.set(channel, [...(ids.get(channel) ?? []), event.id]);
+          }
+          expect(broker.replayChannels).toBeLessThanOrEqual(replayChannels);
+          for (const [channel, published] of ids) {
+            const cursor = published.at(-replaySize - 1);
+            if (cursor === undefined) continue;
+            const replayed = broker
+              .replay(channel, cursor)
+              .map((event) => event.id);
+            if (replayed.length)
+              expect(replayed).toEqual(published.slice(-replaySize));
+          }
+        },
+      ),
+      { numRuns: 200 },
     );
   });
 });
