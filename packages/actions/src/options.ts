@@ -1,8 +1,50 @@
 import type { ActionIdempotencyStore } from './idempotency.js';
+import type { ActionJobQueue, ActionJobsOptions } from './jobs.js';
 import type { ActionRateLimit } from './limits.js';
 import type { ActionDescriptor, ActionGroupDefinition } from './metadata.js';
 import type { ActionIdentity } from './state.js';
 import type { ActionErrorCode } from './shared/protocol.js';
+
+/**
+ * Span attributes are small primitives chosen by the runtime (group, action,
+ * version, request id, status, code). Inputs, outputs and identities never
+ * appear. Structurally identical to `@nestvexa/observability`'s
+ * `SpanAttributes`, so `MemoryInstrumentation`,
+ * `openTelemetryInstrumentation(tracer)` and `combineInstrumentation(...)`
+ * can be passed as `instrumentation` without a package dependency.
+ */
+export type ActionSpanAttributes = Readonly<
+  Record<string, string | number | boolean>
+>;
+export interface ActionSpan {
+  end(outcome: 'ok' | 'error', attributes?: ActionSpanAttributes): void;
+}
+export interface ActionsInstrumentation {
+  start(name: string, attributes: ActionSpanAttributes): ActionSpan;
+}
+/** Structurally compatible with `@nestvexa/observability`'s `StructuredLogger`. */
+export interface ActionsLogger {
+  info(message: string, fields?: Record<string, unknown>): void;
+  warn(message: string, fields?: Record<string, unknown>): void;
+  error(message: string, fields?: Record<string, unknown>): void;
+}
+/**
+ * One structured record per call, logged as `nestvexa.action` (info for
+ * 2xx, warn for 4xx, error for 5xx). Redaction is by construction: the
+ * record has no input, output, identity, header or error message fields.
+ */
+export interface ActionCallLog {
+  readonly requestId: string;
+  readonly group: string;
+  readonly action: string;
+  readonly version: number | null;
+  readonly status: number;
+  readonly code: ActionErrorCode | 'OK' | 'ACCEPTED';
+  readonly reason?: string;
+  readonly durationMs: number;
+  readonly replayed: boolean;
+  readonly jobId?: string;
+}
 
 export interface ActionLimits {
   /** Maximum JSON request body bytes (declared and re-serialized), default 65536. */
@@ -64,6 +106,12 @@ export interface ActionsHostOptions {
   readonly exposeErrorDetails?: boolean;
   /** Observe failures (structured logging/tracing). Default logs 5xx through Nest's Logger. */
   readonly onError?: (event: ActionErrorEvent) => void;
+  /** Tracing: one `nestvexa.action` span per call, ended with the HTTP status. */
+  readonly instrumentation?: ActionsInstrumentation;
+  /** Structured per-call logs (`ActionCallLog` fields only; inputs are never logged). */
+  readonly logger?: ActionsLogger;
+  /** Queue for `job: true` actions (202 job tickets, status polling, cancellation). */
+  readonly jobs?: ActionJobsOptions;
 }
 
 export type ActionsErrorEnvelopeMode = 'actions' | 'host';
@@ -88,9 +136,15 @@ export interface NormalizedActionsOptions {
   readonly idempotencyTtlMs: number;
   readonly exposeErrorDetails: boolean;
   readonly onError: ActionsHostOptions['onError'];
+  readonly instrumentation: ActionsInstrumentation | undefined;
+  readonly logger: ActionsLogger | undefined;
+  readonly jobQueue: ActionJobQueue | undefined;
+  readonly jobChannel: ((id: string) => string) | undefined;
+  readonly jobOwner: ActionJobsOptions['owner'];
+  readonly jobPollAfterMs: number;
 }
 
-const HOST_KEYS: ReadonlySet<string> = new Set([
+export const HOST_KEYS: ReadonlySet<string> = new Set([
   'origin',
   'resolveIdentity',
   'authorize',
@@ -100,7 +154,18 @@ const HOST_KEYS: ReadonlySet<string> = new Set([
   'idempotency',
   'exposeErrorDetails',
   'onError',
+  'instrumentation',
+  'logger',
+  'jobs',
 ]);
+
+function hasMethods(value: unknown, names: readonly string[]): boolean {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    names.every((name) => typeof Reflect.get(value, name) === 'function')
+  );
+}
 
 function integer(
   value: unknown,
@@ -231,6 +296,33 @@ export function normalizeHostOptions(
     typeof options['onError'] !== 'function'
   )
     throw new Error('Actions onError must be a function');
+  const instrumentation = options['instrumentation'];
+  if (instrumentation !== undefined && !hasMethods(instrumentation, ['start']))
+    throw new Error(
+      'Actions instrumentation must implement start(name, attributes)',
+    );
+  const logger = options['logger'];
+  if (logger !== undefined && !hasMethods(logger, ['info', 'warn', 'error']))
+    throw new Error('Actions logger must implement info, warn and error');
+  const jobs = dataRecord(options['jobs'], 'jobs');
+  for (const key of Object.keys(jobs))
+    if (!['queue', 'channel', 'pollAfterMs', 'owner'].includes(key))
+      throw new Error(`Unknown actions jobs option ${key}`);
+  const queue = jobs['queue'];
+  if (options['jobs'] !== undefined && !hasMethods(queue, ['enqueue', 'get']))
+    throw new Error('Actions jobs.queue must implement enqueue and get');
+  if (
+    queue !== undefined &&
+    Reflect.get(queue as object, 'cancel') !== undefined &&
+    typeof Reflect.get(queue as object, 'cancel') !== 'function'
+  )
+    throw new Error('Actions jobs.queue.cancel must be a function');
+  const channel = jobs['channel'];
+  if (channel !== undefined && typeof channel !== 'function')
+    throw new Error('Actions jobs.channel must be a function');
+  const owner = jobs['owner'];
+  if (owner !== undefined && typeof owner !== 'function')
+    throw new Error('Actions jobs.owner must be a function');
   return Object.freeze({
     origins: origins(options['origin']),
     resolveIdentity: options[
@@ -286,5 +378,17 @@ export function normalizeHostOptions(
     ),
     exposeErrorDetails: options['exposeErrorDetails'] === true,
     onError: options['onError'] as ActionsHostOptions['onError'],
+    instrumentation: instrumentation as ActionsInstrumentation | undefined,
+    logger: logger as ActionsLogger | undefined,
+    jobQueue: queue as ActionJobQueue | undefined,
+    jobChannel: channel as ((id: string) => string) | undefined,
+    jobOwner: owner as ActionJobsOptions['owner'],
+    jobPollAfterMs: integer(
+      jobs['pollAfterMs'],
+      'jobs.pollAfterMs',
+      1_000,
+      100,
+      60_000,
+    ),
   });
 }
