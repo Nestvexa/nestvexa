@@ -85,6 +85,28 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 180000,
     },
+    // Client-only mode (SSR disabled) of the same three builds.
+    {
+      command: 'pnpm --filter @nestvexa/example-inertia-react start:csr',
+      url: 'http://127.0.0.1:3210',
+      env: { PORT: '3210' },
+      reuseExistingServer: false,
+      timeout: 180000,
+    },
+    {
+      command: 'pnpm --filter @nestvexa/example-inertia-vue start:csr',
+      url: 'http://127.0.0.1:3211',
+      env: { PORT: '3211' },
+      reuseExistingServer: false,
+      timeout: 180000,
+    },
+    {
+      command: 'pnpm --filter @nestvexa/example-inertia-svelte start:csr',
+      url: 'http://127.0.0.1:3212',
+      env: { PORT: '3212' },
+      reuseExistingServer: false,
+      timeout: 180000,
+    },
     {
       command: 'pnpm --filter @nestvexa/example-inertia-mixed start',
       url: 'http://127.0.0.1:3109/api/health',

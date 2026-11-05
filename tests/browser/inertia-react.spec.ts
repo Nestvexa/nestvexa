@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { defineClientOnlySuite } from './inertia-feature-smoke.js';
 import {
   defineFrameworkSuite,
   exampleUrl,
@@ -9,10 +10,15 @@ import {
 
 // examples/inertia-react: Vite production build, official @inertiajs/react
 // 3.10.0 client, SSR through the official Inertia SSR server process
-// (dist/ssr/ssr.js on 127.0.0.1:13716) reached via HttpSsrGateway.
+// (dist/ssr/ssr.js on 127.0.0.1:13716) reached via HttpSsrGateway. A second
+// instance (`start:csr`) serves the same build with SSR disabled.
 const base = exampleUrl('REACT', 3106);
 
 defineFrameworkSuite({ framework: 'React', base });
+defineClientOnlySuite({
+  framework: 'React',
+  base: exampleUrl('REACT_CSR', 3210),
+});
 
 test.describe('Inertia React example extras', () => {
   test.describe.configure({ timeout: 90000 });
