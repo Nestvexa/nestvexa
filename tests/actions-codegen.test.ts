@@ -13,6 +13,7 @@ const fixtures = resolve('tests/fixtures/actions-codegen');
 const shop = join(fixtures, 'shop.actions.ts');
 const orders = join(fixtures, 'orders.actions.ts');
 const invalid = join(fixtures, 'invalid.actions.ts');
+const reports = join(fixtures, 'reports.actions.ts');
 const tsc = join(root, 'node_modules/typescript/bin/tsc');
 const cli = join(root, 'packages/actions/dist/cli.js');
 const directories: string[] = [];
@@ -128,6 +129,82 @@ export async function run(): Promise<unknown[]> {
 }
 `;
 
+const targetConsumer = `import { createActionsClient, settle } from '@nestvexa/actions/client';
+import { createActions } from './actions-client.js';
+import type { CartAddItemError, CartAddItemOptimistic, CartSummaryDto, ReportFile } from './actions-client.js';
+import { createActionHooks } from './actions-client.react.js';
+import { createActionComposables } from './actions-client.vue.js';
+import { createActionStores } from './actions-client.svelte.js';
+import { createActionBindings } from './actions-client.live.js';
+
+const actions = createActions(createActionsClient());
+const optimistic: CartAddItemOptimistic = (current, input) =>
+  current ?? { lines: [], total: { amount: input.quantity, currency: 'EUR' }, updatedAt: '', coupon: null };
+
+export function field(error: CartAddItemError): 'giftWrap' | 'productId' | 'quantity' | 'tags' | undefined {
+  return error.issues[0]?.path[0];
+}
+export function hook() {
+  const add = createActionHooks(actions).useCartAddItem({
+    optimistic,
+    onError: (error) => field(error),
+  });
+  const pending: boolean = add.pending;
+  const data: CartSummaryDto | undefined = add.data;
+  void add.run({ productId: 'p', quantity: 1, tags: [] });
+  return [pending, data];
+}
+export function composable() {
+  const rename = createActionComposables(actions).useReportsRename();
+  const title: string | undefined = rename.state.value.data?.title;
+  return title;
+}
+export function store() {
+  const add = createActionStores(actions).cartAddItem();
+  return add.subscribe((state) => state.error?.issues[0]?.path[0] === 'quantity');
+}
+export function live(form: HTMLFormElement) {
+  return createActionBindings(actions).bindReportsRename(form, {
+    input: (element) => ({ title: String(new FormData(element as HTMLFormElement).get('title')), tags: [] }),
+  });
+}
+export async function job(): Promise<ReportFile> {
+  const handle = await actions.reports.export({ rows: 10 });
+  const channel: string | undefined = handle.stream?.channel;
+  void channel;
+  return handle.wait({ intervalMs: 500 });
+}
+export async function settled() {
+  const outcome = await settle(actions.reports.rename({ title: 't', tags: [] }));
+  return outcome.ok ? outcome.data.title : outcome.error.code;
+}
+`;
+
+// Every line marked EXPECT must produce a compiler error, and no other line may.
+const badTargetConsumer = `import { createActionsClient } from '@nestvexa/actions/client';
+import { createActions } from './actions-client.js';
+import type { CartAddItemError, CartAddItemOptimistic } from './actions-client.js';
+import { createActionHooks } from './actions-client.react.js';
+import { createActionStores } from './actions-client.svelte.js';
+import { createActionBindings } from './actions-client.live.js';
+
+const actions = createActions(createActionsClient());
+export function run(error: CartAddItemError, form: HTMLFormElement) {
+  const wrong: 'sku' | undefined = error.issues[0]?.path[0]; // EXPECT
+  const optimistic: CartAddItemOptimistic = () => ({ lines: 'none' }); // EXPECT
+  createActionHooks(actions).useCartRemove(); // EXPECT
+  createActionHooks(actions).useCartAddItem().run({ productId: 1 }); // EXPECT
+  createActionStores(actions).reportsRename().run({ title: 1, tags: [] }); // EXPECT
+  createActionBindings(actions).bindReportsRename(form, { input: () => ({ title: 'x' }) }); // EXPECT
+  return [wrong, optimistic];
+}
+export async function job() {
+  const handle = await actions.reports.export({ rows: 1 });
+  const rows: string = (await handle.wait()).rows; // EXPECT
+  return rows;
+}
+`;
+
 // Each generation builds a full TypeScript program (Nest declarations included).
 describe('action client generation', { timeout: 120_000 }, () => {
   it('produces deterministic output independent of root file order', async () => {
@@ -179,12 +256,15 @@ describe('action client generation', { timeout: 120_000 }, () => {
     );
     expect(dts).toContain('export interface Money_2 {\n  cents: number;\n}');
     expect(dts).toContain("export type Currency = 'EUR' | 'USD';");
-    expect(dts).toContain('readonly clear: ActionMethod<void, null>;');
+    expect(dts).toContain('readonly clear: ActionMethod<void, null, never>;');
     expect(dts).toContain(
-      'readonly checkout: ActionMethod<{ coupon?: string | null } | undefined, { orderId: string } | null>;',
+      "readonly checkout: ActionMethod<{ coupon?: string | null } | undefined, { orderId: string } | null, 'coupon'>;",
     );
     expect(dts).toContain(
-      'readonly rename: ActionMethod<{ displayName: string }, { displayName: string; length?: number }>;',
+      "readonly rename: ActionMethod<{ displayName: string }, { displayName: string; length?: number }, 'displayName'>;",
+    );
+    expect(dts).toContain(
+      "export type CartAddItemError = ActionFailure<ActionFieldOf<NestvexaActions['cart']['addItem']>>;",
     );
     expect(dts).toContain('state: OrderState;');
     expect(dts).toContain("export type OrderState = 'open' | 'shipped';");
@@ -283,6 +363,147 @@ describe('action client generation', { timeout: 120_000 }, () => {
       'csrf-token-0123456789',
     );
     expect(requests[2]?.body).toBe('{}');
+  });
+
+  it('emits typed framework targets, validation unions, optimistic types and job handles', async () => {
+    const out = await temporary();
+    const result = await generateActionClient({
+      files: [shop, reports],
+      outDir: out,
+      targets: ['svelte', 'react', 'live', 'vue', 'react'],
+    });
+    expect(result.diagnostics).toEqual([]);
+    expect(
+      result.files.map((file) => file.path.slice(out.length + 1)).sort(),
+    ).toEqual(
+      [
+        'actions-client.d.ts',
+        'actions-client.js',
+        ...['live', 'react', 'svelte', 'vue'].flatMap((target) => [
+          `actions-client.${target}.d.ts`,
+          `actions-client.${target}.js`,
+        ]),
+      ].sort(),
+    );
+    const read = (name: string) =>
+      readFile(join(out, `actions-client.${name}`), 'utf8');
+    const dts = await read('d.ts');
+    expect(dts).toContain(
+      "readonly export: ActionMethod<ReportRequest, ActionJobHandle<ReportFile>, 'format' | 'rows'>;",
+    );
+    expect(dts).toContain(
+      "readonly addItem: ActionMethod<AddItemInput, CartSummaryDto, 'giftWrap' | 'productId' | 'quantity' | 'tags'>;",
+    );
+    expect(await read('react.js')).toContain("from 'react'");
+    expect(await read('vue.js')).toContain("from 'vue'");
+    // Declarations depend on the client package only, never on a framework.
+    for (const target of ['react', 'vue', 'svelte', 'live'])
+      expect(await read(`${target}.d.ts`)).not.toMatch(
+        /from '(?:react|vue|svelte)'/,
+      );
+    await writeFile(join(out, 'consumer.ts'), targetConsumer);
+    await writeFile(
+      join(out, 'tsconfig.json'),
+      consumerTsconfig(['consumer.ts']),
+    );
+    const good = typecheck(out);
+    expect(good.output).toBe('');
+    await writeFile(join(out, 'consumer.ts'), badTargetConsumer);
+    const bad = typecheck(out);
+    const expected = badTargetConsumer
+      .split('\n')
+      .flatMap((line, index) =>
+        line.includes('// EXPECT') ? [index + 1] : [],
+      );
+    const reported = [
+      ...new Set(
+        [...bad.output.matchAll(/consumer\.ts\((\d+),\d+\): error TS\d+/g)].map(
+          (match) => Number(match[1]),
+        ),
+      ),
+    ].sort((left, right) => left - right);
+    expect(reported).toEqual(expected);
+
+    // Runtime: the generated Svelte stores drive the shared controller.
+    const clientUrl = pathToFileURL(
+      join(root, 'packages/actions/dist/client/index.js'),
+    ).href;
+    const storesFile = join(out, 'stores.mjs');
+    await writeFile(
+      storesFile,
+      (await read('svelte.js')).replace(
+        "'@nestvexa/actions/client'",
+        `'${clientUrl}'`,
+      ),
+    );
+    const { createActionStores } = (await import(
+      pathToFileURL(storesFile).href
+    )) as {
+      createActionStores: (actions: unknown) => Record<
+        string,
+        (options?: object) => {
+          subscribe(
+            run: (state: { status: string; data: unknown }) => void,
+          ): () => void;
+          run(input: unknown): Promise<{ ok: boolean }>;
+        }
+      >;
+    };
+    const { createActions } = (await import(
+      pathToFileURL(join(out, 'actions-client.js')).href
+    )) as { createActions: (client: ActionsClient) => unknown };
+    let fail = false;
+    const actions = createActions(
+      createActionsClient({
+        baseUrl: 'http://app.test',
+        csrf: 'csrf-token-0123456789',
+        fetch: (async () =>
+          new Response(
+            JSON.stringify(
+              fail
+                ? {
+                    protocol: 'nestvexa-actions/1',
+                    ok: false,
+                    requestId: 'r',
+                    error: {
+                      code: 'VALIDATION',
+                      message: 'Invalid',
+                      issues: [{ path: ['title'], message: 'Required' }],
+                    },
+                  }
+                : {
+                    protocol: 'nestvexa-actions/1',
+                    ok: true,
+                    requestId: 'r',
+                    data: { title: 'Server' },
+                  },
+            ),
+            { status: fail ? 400 : 200 },
+          )) as typeof fetch,
+      }),
+    );
+    const stores = createActionStores(actions);
+    const store = stores['reportsRename']?.({
+      optimistic: (_current: unknown, input: { title: string }) => ({
+        title: `${input.title} (saving)`,
+      }),
+    });
+    const seen: string[] = [];
+    const stop = store?.subscribe((state) =>
+      seen.push(`${state.status}:${JSON.stringify(state.data ?? null)}`),
+    );
+    await store?.run({ title: 'Draft', tags: [] });
+    fail = true;
+    await store?.run({ title: 'Broken', tags: [] });
+    stop?.();
+    expect(seen).toEqual([
+      'idle:null',
+      'pending:{"title":"Draft (saving)"}',
+      'success:{"title":"Server"}',
+      'pending:{"title":"Broken (saving)"}',
+      // Failure rolls the optimistic value back to the last server data.
+      'error:{"title":"Server"}',
+    ]);
   });
 
   it('reports contract diagnostics and never writes invalid output', async () => {
