@@ -168,11 +168,102 @@ generic sign-in error, a dummy hash for unknown accounts, failed-attempt
 throttling, session regeneration and CSRF rotation on sign-in, sign-out by POST
 with CSRF. It is illustrative, not a production identity provider.
 
+## 7. One form-state object
+
+`defineForm` bundles fields, defaults, file fields, the adapter and client
+hints; its snapshots are plain JSON (store them in a read-only Live `@State()`
+or the session):
+
+```ts
+const profile = defineForm({
+  fields: { name: '', email: '', tags: [] },
+  files: { avatar: { max: 1 } },
+  adapter: zodAdapter(schema),
+  hints: zodHints(schema),
+});
+@State() form = profile.create({ email: user.email });
+
+@Action() async save() {
+  const { state, ok } = await profile.submit(this.form, async (value) => {
+    const files = await finalizeFileField(profile, this.form, 'avatar', (token) =>
+      this.uploads.finalize(this.request, token, { purpose: 'profile.avatar' }),
+    );
+    if (!files.ok) return { errors: files.errors };
+    await this.users.save(value, files.files);
+  });
+  this.form = ok ? profile.reset(state, state.values) : state;
+}
+```
+
+A snapshot holds `values`, `initial`, `errors`, `touched`, `dirty`,
+`submitted`, `submitCount` and `pending`. `update`, `touch`, `reset` (to the
+baseline or a new baseline), `clear` (empty values, baseline kept), `begin`
+(refuses a second submit while `pending`), `finish`, `validate`, `submit` and
+`view` (field views with visibility rules, summary, hints, `dirty`, `valid`)
+return new frozen snapshots. Undeclared fields are refused; snapshots read back
+from storage are rebuilt from declared fields only.
+
+### File fields
+
+A file field stores `@nestvexa/uploads` references (`''`, `nvu_...` or a comma
+list, the same format as `uploadReferenceField`). `validate` checks their shape;
+`finalizeFileField` finalizes each token and turns `UploadError`s into field
+errors (`uploadFormErrors(error, field, messages?)`, `defaultUploadMessages`);
+other errors propagate. Neither package depends on the other: upload errors are
+recognized structurally. Finalization re-verifies identity, purpose, expiry
+and content on the server.
+
+## 8. Actions and Nest pipes
+
+```ts
+@ServerAction({ id: 'save', input: actionSchema(profileAdapter) })
+save(@ActionInput() input: Profile) { ... }               // issues keep paths
+
+@ServerAction({ id: 'add' })
+add(@ActionInput(new FormValidationPipe(classValidatorAdapter(AddItem))) input: AddItem) { ... }
+
+@Post() create(@Body(new FormValidationPipe(contactAdapter)) body: Contact) { ... }
+```
+
+`actionSchema(adapter)` is a `safeParseAsync`-compatible view of any adapter,
+accepted by `@nestvexa/actions` as an input schema; hardening violations become
+issues instead of 500s. `FormValidationPipe` throws `BadRequestException` with
+`{ message: string[], errors: FormErrors }`. `@nestvexa/forms` and
+`@nestvexa/actions` do not import each other.
+
+## 9. Client validation hints
+
+`zodHints(schema)`, `classValidatorHints(Dto, { groups })` and
+`hintsFromJsonSchema(jsonSchema)` derive `required`, `minlength`/`maxlength`,
+`min`/`max`/`step`, `type` (`email`, `url`, `number`) and `pattern` per field.
+They are generated conservatively so the browser is never stricter than the
+server: regexes with flags, alternations or inner anchors are dropped, and Zod
+patterns are opt-in (`zodHints(schema, { patterns: true })`) because Zod's JSON
+Schema export drops regex flags. Render them with `hintAttributes(hint)` (a
+name -> value map) or `hintAttributeString(hint)` (escaped markup for a trusted
+helper). Keep `novalidate` if you prefer server messages only; the server
+always validates again.
+
+## 10. Autofill and browser history
+
+Form controls should carry `autocomplete` tokens (`name`, `email`,
+`username`, `new-password`, `current-password`) so password managers can fill
+them. Chromium, Firefox and WebKit dispatch `input`/`change` for autofilled
+controls; the Live client records those values even for `nv:model.blur`
+fields that never receive focus and sends them with the next submit. A tool
+that sets values silently (no events) is only observed by native form
+submission (the no-JS route). Pages are `Cache-Control: no-store` and errors,
+old input and flash are read once, so Back after a successful post-redirect
+shows a fresh form and never re-posts. `tests/browser/forms-history.spec.ts`
+covers these flows on the auth example.
+
 ## Limits
 
 - Live `nv:model` binds top-level fields only; Live repeaters need actions or
   child components. Nested paths work for no-JS bodies and adapters.
-- File fields are not handled here.
+- File fields hold upload references; the bytes are handled by
+  `@nestvexa/uploads`.
+- Live does not observe values set without `input`/`change` events.
 - In-memory ledger, draft store and example throttle are single-process.
 - Accessibility checks cover the example pages with axe and keyboard focus
   assertions; this is not a WCAG certification.

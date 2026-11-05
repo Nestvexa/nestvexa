@@ -18,7 +18,7 @@ Server-authoritative form validation for NestJS and Nestvexa Live. It provides:
   messages, plus optional single-use submission tokens.
 
 Status: `0.1.0-alpha.0`, experimental, ESM only. The server always validates;
-nothing here generates client-side validation or trusts the browser.
+derived client hints are conveniences and the browser is never trusted.
 
 ## Install
 
@@ -208,6 +208,17 @@ obsolete validation cannot overwrite newer input; stale requests get `409`.
   `{ hasErrors, count, title, items: [{ path, label, message, href }] }`
   (form-level messages first, links to `#<control id>`).
 
+### Form state object, actions bridge, hints and file fields
+
+| Export                                                                                                                                   | Description                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `defineForm({ fields, files?, adapter?, hints?, limits? })`                                                                              | Definition with `create`, `update`, `touch`, `reset`, `clear`, `begin` (refuses while `pending`), `finish`, `validate`, `submit(state, handle)`, `files(state, field)` and `view(state, options?)`. `FormSnapshot` is JSON: `values`, `initial`, `errors`, `touched`, `dirty`, `submitted`, `submitCount`, `pending`. |
+| `actionSchema(adapter, { limits? })`                                                                                                     | `safeParseAsync` view of an adapter for `@ServerAction({ input })` in `@nestvexa/actions`; issues keep dotted paths as segments.                                                                                                                                                                                      |
+| `FormValidationPipe(adapter, { limits? })`                                                                                               | Nest pipe for `@Body(...)` or `@ActionInput(...)`; throws `BadRequestException` `{ message, errors }`.                                                                                                                                                                                                                |
+| `zodHints(schema, { patterns? })`, `classValidatorHints(Dto, { groups? })`, `hintsFromJsonSchema(schema)`                                | Conservative `FormHints` (`required`, `minLength`, `maxLength`, `min`, `max`, `step`, `type`, `pattern`).                                                                                                                                                                                                             |
+| `hintAttributes(hint)`, `hintAttributeString(hint)`                                                                                      | Attribute map / escaped attribute markup.                                                                                                                                                                                                                                                                             |
+| `finalizeFileField(form, state, field, finalize)`, `uploadFormErrors(error, field, messages?)`, `isUploadError`, `defaultUploadMessages` | File fields hold `nvu_...` upload references; upload failures become field errors without depending on `@nestvexa/uploads`.                                                                                                                                                                                           |
+
 ### Form state, wizard and drafts
 
 - `createFormMeta`, `touchFields`, `recordSubmit`, `visibleFields`,
@@ -267,8 +278,8 @@ obsolete validation cannot overwrite newer input; stale requests get `409`.
 
 ```sh
 pnpm build
-pnpm exec vitest run tests/forms-adapters.test.ts tests/forms-hardening.test.ts tests/forms-state.test.ts tests/forms-progressive.test.ts tests/forms-live.test.ts tests/client-form-focus.test.ts
-pnpm exec playwright test tests/browser/forms.spec.ts
+pnpm exec vitest run tests/forms-adapters.test.ts tests/forms-hardening.test.ts tests/forms-state.test.ts tests/forms-state-object.test.ts tests/forms-actions.test.ts tests/forms-progressive.test.ts tests/forms-live.test.ts tests/client-form-focus.test.ts
+pnpm exec playwright test tests/browser/forms.spec.ts tests/browser/forms-history.spec.ts
 ```
 
 ## Caveats
@@ -280,7 +291,10 @@ pnpm exec playwright test tests/browser/forms.spec.ts
   wizard UI.
 - The default `MemorySubmissionLedger`, `MemoryDraftStore` and the example
   throttle are single-process.
-- File inputs are out of scope (Phase 6 uploads).
+- File fields carry upload references only; uploading, scanning and storage
+  are `@nestvexa/uploads`.
+- Zod regex patterns become hints only with `patterns: true` (Zod's JSON
+  Schema drops regex flags).
 
 See the [forms guide](../../docs/guides/forms.md) and
 [ADR 0022](../../docs/adr/0022-forms-and-validation.md).

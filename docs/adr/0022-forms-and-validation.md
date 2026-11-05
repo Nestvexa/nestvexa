@@ -79,3 +79,19 @@ messages × 500 characters; old input ≤ 16 KiB; drafts ≤ 64 KiB by default.
 single-process. File fields are not covered (Phase 6). The example auth policy
 is illustrative only. Tests: `tests/forms-*.test.ts`,
 `tests/client-form-focus.test.ts`, `tests/browser/forms.spec.ts`.
+
+## Amendment (v1): derived hints, form state object, actions bridge
+
+- Client hints are now derived (`zodHints`, `classValidatorHints`,
+  `hintsFromJsonSchema`) as conservative conveniences only: rules that cannot
+  be expressed exactly in HTML (regex flags, alternation, inner anchors) are
+  dropped so the browser is never stricter than the server, and the server
+  still validates every submission. Zod patterns are opt-in because Zod's
+  JSON Schema export drops regex flags.
+- `defineForm` adds a single JSON form-state object (values, baseline,
+  errors, touched, dirty, submitted, pending). File fields hold
+  `@nestvexa/uploads` references and upload errors are mapped structurally,
+  so neither package depends on the other.
+- `actionSchema(adapter)` exposes any adapter as a `safeParseAsync` schema for
+  `@nestvexa/actions`; `FormValidationPipe` is a Nest pipe. Forms and actions
+  still do not import each other.
