@@ -153,6 +153,23 @@ switches scroll props to `prependProps`. Top-level dotted keys
 - `flash()` data is consumed by the next rendered page and survives redirects
   and version-mismatch reloads.
 
+### Precognition
+
+`@Precognitive(validator, { input? })` makes a route answer the official
+client's `Precognition: true` validation requests before pipes and the
+handler run: `204` + `Precognition-Success: true` when the fields named by
+`Precognition-Validate-Only` (or all fields) pass, otherwise `422`
+`{ message, errors }` with message arrays. Every response of the route gets
+`Vary: Precognition`. `validator` is a function `(input, request) => errors |
+undefined` or any `{ validate(input) }` schema returning `{ ok, errors }`, so
+`@nestvexa/forms` adapters work without a dependency on that package. Also
+exported: `PrecognitionHeader`, `isPrecognitionRequest`,
+`parsePrecognitionRequest`, `selectPrecognitionErrors`, and
+`InertiaService.isPrecognitive()/precognition()/precognitionReply()`.
+`InertiaValidationFilter` answers `InertiaValidationException` on any
+precognitive request with the `422` reply. See the
+[guide](../../docs/guides/inertia.md#precognition-live-validation).
+
 ### SSR contract (Phase 9 supplies renderers)
 
 `InertiaSsrRenderer.render(page, pageJson, { request, app })` returns
@@ -186,22 +203,31 @@ SSR is never invoked for `X-Inertia` visits.
   in `X-XSRF-TOKEN`; verify it with a guard (see the guide and
   `examples/inertia-basic`).
 - History encryption is performed by the official client with `crypto.subtle`
-  (HTTPS only); the server only emits `encryptHistory`/`clearHistory`.
+  (secure contexts: HTTPS or localhost); the server only emits
+  `encryptHistory`/`clearHistory`. The React browser tour verifies the client
+  stores an encrypted `ArrayBuffer` in `history.state` and refetches old
+  entries after `clearHistory`. Nothing stops a user with access to the
+  browser profile while the tab's session key exists.
+- Precognition requests never reach the handler on `@Precognitive` routes;
+  malformed `Precognition-Validate-Only` headers are a 400 and validator
+  failures are a 500 without details.
 - Partial reloads evaluate only requested props; deferred and optional props
   are never evaluated on a full visit (tested with call counters).
 
 ## Testing
 
-`pnpm build`, then `pnpm vitest run tests/inertia-golden.test.ts tests/inertia-http.test.ts tests/inertia-security.test.ts tests/inertia-protocol.test.ts`
+`pnpm build`, then `pnpm vitest run tests/inertia-golden.test.ts tests/inertia-http.test.ts tests/inertia-security.test.ts tests/inertia-protocol.test.ts tests/inertia-precognition.test.ts`
 and `pnpm exec playwright test tests/browser/inertia.spec.ts` (official
-`@inertiajs/react` client against `examples/inertia-basic`). Golden vectors in
+`@inertiajs/react` client against `examples/inertia-basic`); client-owned
+features are verified in `tests/browser/inertia-react-features.spec.ts` and
+`tests/browser/inertia-feature-smoke.ts`. Golden vectors in
 `tests/fixtures/inertia/` cite the upstream document or test they come from.
 
 ## Caveats and compatibility
 
 - Inertia protocol v3 only (clients 3.x; verified with 3.10.0). Nest 12 on
   Express and Fastify. No Inertia v1/v2 compatibility mode.
-- Not implemented: Precognition, Laravel's automatic "empty response → back",
+- Not implemented: Laravel's automatic "empty response → back",
   `shareOnce` sugar (use `once()` in `share`), previous-URL storage, error-page
   rendering helpers (use a Nest filter with `InertiaService.render`).
 - URLs in redirects and `X-Inertia-Location` are relative (upstream emits

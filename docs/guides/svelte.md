@@ -67,3 +67,16 @@ node is adopted by hydration and was verified to catch a deliberate mismatch.
 `pnpm build`. Because `@inertiajs/svelte` 3.10.0 ships a declaration that fails
 TS2440, that tsconfig sets `skipLibCheck: true`; application `.svelte`/`.ts`
 files are still checked strictly.
+
+## Client features and client-only mode
+
+`/features` in the example exercises client-owned Inertia features with the
+official Svelte client: hover prefetch reused on click, `usePoll` partial
+reloads, `<WhenVisible>` over an `optional()` prop and `<InfiniteScroll>` over
+a `scroll()` prop (`defineFeatureSmoke` in
+`tests/browser/inertia-feature-smoke.ts`; the React example covers the full
+tour). `pnpm start:csr` serves the same build with SSR disabled; the
+client-only browser test checks the empty root mounts, navigates and
+round-trips validation. `tests/vite-builds.test.ts` checks the production build
+for source maps, duplicate modules/runtimes and browser-only code in the SSR
+bundle.

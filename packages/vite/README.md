@@ -129,6 +129,13 @@ remediation, and `NODE_ENV=production` refuses dev mode unless
   the request nonce, the SSR head and body. It omits its own `<title>` when the
   SSR head already has one. `app` defaults to the Inertia app key.
 
+- `viteViewHelpers(assets, { name = 'viteTags', app? })` returns a trusted
+  view helper for HBS/Live (and EJS/Pug/Nunjucks) pages:
+  `{{viteTags "live" nonce=cspNonce}}` prints the same tags as `tags()` as
+  `SafeHtml`. Register it with `engine.registerHelpers(...)` before the engine
+  initializes. The app name may be omitted when one app is configured (or
+  `app` is given); invalid nonces, unknown apps and extra options throw.
+
 ### Page registry (`@nestvexa/vite/pages`, browser-safe)
 
 `createPageRegistry(import.meta.glob('./pages/**/*.tsx'), { base: './pages/', extensions? })`
@@ -158,7 +165,10 @@ Also exports `isPageName` and the shared types `InertiaPageLike`,
 `tests/vite-manifest.test.ts`, `tests/vite-static.test.ts` (raw-socket
 traversal corpus, Nest Express host), `tests/vite-ssr.test.ts` (fallback/strict
 through `@nestvexa/inertia`), `tests/vite-dev.test.ts` (real Vite middleware
-mode and SSR reload). Browser coverage: `tests/browser/inertia-*.spec.ts`.
+mode and SSR reload), `tests/vite-builds.test.ts` (source maps, duplicate
+modules/runtimes and browser-only code in SSR bundles of the real example
+builds). Browser coverage: `tests/browser/inertia-*.spec.ts` (the mixed host's
+`/live` route loads its assets through `viteTags`).
 
 ## Caveats and compatibility
 

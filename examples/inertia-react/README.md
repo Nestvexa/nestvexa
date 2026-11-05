@@ -11,6 +11,14 @@ props, shared props, typed page props (`src/page-types.ts`), CSP with a
 per-request nonce, an error boundary page (`/broken`, SSR fallback) and asset
 version 409s.
 
+`/features` is a tour of client-owned Inertia v3 features driven by the
+official client (prefetch, instant and manual visits, non-GET links, view
+transitions, polling, infinite scroll and merge props, `WhenVisible`,
+remembered state, once props, history encryption + `clearHistory`,
+optimistic updates, Precognition with `@nestvexa/forms`, a 2.6 MB payload);
+see `src/features.ts` and `tests/browser/inertia-react-features.spec.ts`.
+`pnpm start:csr` serves the build with SSR disabled.
+
 ```sh
 pnpm --filter @nestvexa/example-inertia-react build
 pnpm --filter @nestvexa/example-inertia-react start:ssr   # SSR on 127.0.0.1:13716

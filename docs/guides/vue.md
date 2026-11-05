@@ -72,3 +72,16 @@ Vue can share a Nest backend with React and Svelte: give each root its own
 `paths`, Vite config, `base` and manifest. Navigation inside a root is XHR;
 crossing roots is a full load (see the [Inertia guide](inertia.md#multiple-roots)
 and `examples/inertia-mixed`).
+
+## Client features and client-only mode
+
+`/features` in the example exercises client-owned Inertia features with the
+official Vue client: hover prefetch reused on click, `usePoll` partial
+reloads, `<WhenVisible>` over an `optional()` prop and `<InfiniteScroll>` over
+a `scroll()` prop (`defineFeatureSmoke` in
+`tests/browser/inertia-feature-smoke.ts`; the React example covers the full
+tour). `pnpm start:csr` serves the same build with SSR disabled; the
+client-only browser test checks the empty root mounts, navigates and
+round-trips validation. `tests/vite-builds.test.ts` checks the production build
+for source maps, duplicate modules/runtimes and browser-only code in the SSR
+bundle.
