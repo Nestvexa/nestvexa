@@ -333,6 +333,7 @@ export class ActionsModule {
       'idempotency',
       'exposeErrorDetails',
       'onError',
+      'instrumentation',
     ]);
     snapshot(
       options,

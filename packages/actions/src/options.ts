@@ -1,4 +1,6 @@
 import type { ActionIdempotencyStore } from './idempotency.js';
+import { isInstrumentation } from './instrumentation.js';
+import type { ActionInstrumentation } from './instrumentation.js';
 import type { ActionRateLimit } from './limits.js';
 import type { ActionDescriptor, ActionGroupDefinition } from './metadata.js';
 import type { ActionIdentity } from './state.js';
@@ -64,6 +66,12 @@ export interface ActionsHostOptions {
   readonly exposeErrorDetails?: boolean;
   /** Observe failures (structured logging/tracing). Default logs 5xx through Nest's Logger. */
   readonly onError?: (event: ActionErrorEvent) => void;
+  /**
+   * Optional structural tracing hook (for example from
+   * @nestvexa/observability). Emits `nestvexa.action` spans with the group
+   * and action ids; inputs, results and identities are never attached.
+   */
+  readonly instrumentation?: ActionInstrumentation;
 }
 
 export type ActionsErrorEnvelopeMode = 'actions' | 'host';
@@ -88,6 +96,7 @@ export interface NormalizedActionsOptions {
   readonly idempotencyTtlMs: number;
   readonly exposeErrorDetails: boolean;
   readonly onError: ActionsHostOptions['onError'];
+  readonly instrumentation: ActionInstrumentation | undefined;
 }
 
 const HOST_KEYS: ReadonlySet<string> = new Set([
@@ -100,6 +109,7 @@ const HOST_KEYS: ReadonlySet<string> = new Set([
   'idempotency',
   'exposeErrorDetails',
   'onError',
+  'instrumentation',
 ]);
 
 function integer(
@@ -231,6 +241,9 @@ export function normalizeHostOptions(
     typeof options['onError'] !== 'function'
   )
     throw new Error('Actions onError must be a function');
+  const instrumentation = options['instrumentation'];
+  if (instrumentation !== undefined && !isInstrumentation(instrumentation))
+    throw new Error('Actions instrumentation must implement start()');
   return Object.freeze({
     origins: origins(options['origin']),
     resolveIdentity: options[
@@ -286,5 +299,6 @@ export function normalizeHostOptions(
     ),
     exposeErrorDetails: options['exposeErrorDetails'] === true,
     onError: options['onError'] as ActionsHostOptions['onError'],
+    instrumentation,
   });
 }

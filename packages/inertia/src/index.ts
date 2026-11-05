@@ -113,3 +113,7 @@ export type {
   InertiaVersion,
   ResolvedOptions,
 } from './options.js';
+export type {
+  InertiaInstrumentation,
+  InertiaSpanAttributes,
+} from './instrumentation.js';

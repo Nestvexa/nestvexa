@@ -11,6 +11,7 @@ import type {
   ActionIdempotencyStore,
   StoredActionOutcome,
 } from './idempotency.js';
+import { traced } from './instrumentation.js';
 import { KeyedMutex, createFixedWindowRateLimit } from './limits.js';
 import type { ActionRateLimit } from './limits.js';
 import type {
@@ -422,6 +423,25 @@ export class ActionsRuntime
    * the application's interceptors, pipes and handler.
    */
   async run(
+    request: object,
+    response: unknown,
+    invoke: () => Promise<unknown>,
+  ): Promise<ActionSuccessEnvelope> {
+    const hook = this.options.instrumentation;
+    const admitted = hook ? admissionFor(request) : undefined;
+    if (!hook || !admitted) return this.#run(request, response, invoke);
+    return traced(
+      hook,
+      'nestvexa.action',
+      {
+        'nestvexa.action_group': admitted.group.id,
+        'nestvexa.action': admitted.action.id,
+      },
+      () => this.#run(request, response, invoke),
+    );
+  }
+
+  async #run(
     request: object,
     response: unknown,
     invoke: () => Promise<unknown>,

@@ -225,6 +225,10 @@ describe('Live runtime spans', () => {
     expect(
       memory.records[0]?.attributes['nestvexa.html_bytes'],
     ).toBeGreaterThan(0);
+    // Size of the public state sent to the browser, for render budgets.
+    expect(
+      memory.records[0]?.attributes['nestvexa.state_bytes'],
+    ).toBeGreaterThan(20);
     const serialized = JSON.stringify(memory.records);
     for (const secret of [
       'do-not-trace-this-value',

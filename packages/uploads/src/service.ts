@@ -24,6 +24,8 @@ import type {
   UploadIdentity,
 } from './options.js';
 import { UPLOAD_SESSION_PATTERN, UPLOAD_TOKEN_PATTERN } from './references.js';
+import { traced } from './instrumentation.js';
+import type { UploadSpanAttributes } from './instrumentation.js';
 import { sendDownload } from './download.js';
 import type { ScanVerdict } from './scanner.js';
 import type { ByteRange } from './storage.js';
@@ -38,6 +40,14 @@ export interface UploadReceipt {
   readonly size: number;
   readonly contentType: string;
   readonly expiresAt: number;
+}
+/** Span attributes for a received upload: purpose and size, never the name. */
+function receiptAttributes(receipt: UploadReceipt): UploadSpanAttributes {
+  return {
+    'nestvexa.upload.purpose': receipt.purpose,
+    'nestvexa.upload.bytes': receipt.size,
+    'nestvexa.upload.files': 1,
+  };
 }
 /** A finalized upload. Persist these fields in your own database. */
 export interface FinalizedUpload {
@@ -542,7 +552,13 @@ export class UploadsService
     response?: object,
   ): Promise<UploadReceipt> {
     try {
-      return await this.#receiveFile(request);
+      return await traced(
+        this.options.instrumentation,
+        'nestvexa.upload.receive',
+        { 'nestvexa.upload.mode': 'direct' },
+        () => this.#receiveFile(request),
+        receiptAttributes,
+      );
     } catch (error) {
       this.markClose(request, response);
       throw error;
@@ -792,6 +808,19 @@ export class UploadsService
     session: unknown,
     body: unknown,
   ): Promise<UploadReceipt> {
+    return traced(
+      this.options.instrumentation,
+      'nestvexa.upload.receive',
+      { 'nestvexa.upload.mode': 'chunked' },
+      () => this.#completeSession(request, session, body),
+      receiptAttributes,
+    );
+  }
+  async #completeSession(
+    request: object,
+    session: unknown,
+    body: unknown,
+  ): Promise<UploadReceipt> {
     const identity = await this.admit(request, true);
     this.json(request);
     const input = plainBody(body ?? {}, ['digest'], []);
@@ -943,6 +972,23 @@ export class UploadsService
   ): Promise<FinalizedUpload> {
     if (!options || typeof options.purpose !== 'string')
       throw new Error('finalize requires a purpose');
+    return traced(
+      this.options.instrumentation,
+      'nestvexa.upload.finalize',
+      {},
+      () => this.#finalize(request, token, options),
+      (file) => ({
+        'nestvexa.upload.purpose': file.purpose,
+        'nestvexa.upload.bytes': file.size,
+        'nestvexa.upload.scan': file.scan,
+      }),
+    );
+  }
+  async #finalize(
+    request: object,
+    token: string,
+    options: { readonly purpose: string },
+  ): Promise<FinalizedUpload> {
     const identity = await this.identity(request);
     const { key, record } = this.owned('file', identity, token);
     if (record.purpose !== options.purpose) fail(403, 'PURPOSE_MISMATCH');
@@ -1083,7 +1129,19 @@ export class UploadsService
     response?: object,
   ): Promise<FormUploadResult> {
     try {
-      return await this.#receiveForm(request, options);
+      return await traced(
+        this.options.instrumentation,
+        'nestvexa.upload.receive',
+        { 'nestvexa.upload.mode': 'form' },
+        () => this.#receiveForm(request, options),
+        (result) => ({
+          'nestvexa.upload.files': result.files.length,
+          'nestvexa.upload.bytes': result.files.reduce(
+            (sum, file) => sum + file.size,
+            0,
+          ),
+        }),
+      );
     } catch (error) {
       this.markClose(request, response);
       throw error;
