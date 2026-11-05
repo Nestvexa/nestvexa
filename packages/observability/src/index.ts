@@ -5,3 +5,14 @@ export {
   renderDevtools,
   type DevtoolsOptions,
 } from './devtools.js';
+export {
+  DevErrorFilter,
+  describeError,
+  renderDevErrorPage,
+  templateFailure,
+  type DevErrorEditor,
+  type DevErrorOptions,
+  type DevErrorReport,
+  type SourceLocation,
+  type TemplateLocation,
+} from './dev-errors.js';
