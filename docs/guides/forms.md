@@ -176,3 +176,7 @@ with CSRF. It is illustrative, not a production identity provider.
 - In-memory ledger, draft store and example throttle are single-process.
 - Accessibility checks cover the example pages with axe and keyboard focus
   assertions; this is not a WCAG certification.
+
+## CLI
+
+`nestvexa make:form <Name>` generates a Live form with a Zod schema, `validateField`/`validateLive`, an accessible view and its Live registration. See the [CLI reference](../reference/cli.md).

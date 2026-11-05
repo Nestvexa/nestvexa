@@ -198,7 +198,7 @@ describe('nestvexa init and generators on a fresh CommonJS Nest app', () => {
     expect(run(['make:component', 'bad name!'], root).exitCode).toBe(1);
     expect(run(['make:page', 'Reports'], root).exitCode).toBe(0);
     expect(
-      run(['make:page', 'Admin', '--renderer', 'react'], root).exitCode,
+      run(['make:page', 'Admin', '--renderer', 'jsx'], root).exitCode,
     ).toBe(2);
     expect(run(['make:policy', 'Editors'], root).exitCode).toBe(0);
     expect(run(['make:resource', 'Invoice'], root).exitCode).toBe(0);

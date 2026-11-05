@@ -104,3 +104,7 @@ Vue and Svelte islands next to a Live component that owns a React island. Its
 browser tests cover independent mounts, retention across Live updates, removal and
 reinsertion, the event bridge, separate framework chunks, error fallback and axe
 checks. Package: [@nestvexa/islands](../../packages/islands/README.md).
+
+## CLI
+
+`nestvexa add islands` generates the server registry, the client allowlist, `vite.islands.config.ts` and static serving; `nestvexa make:island <Name> --renderer react|vue|svelte` adds the component and both registry entries. See the [CLI reference](../reference/cli.md).
