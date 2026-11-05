@@ -1,0 +1,118 @@
+{
+  "title": "Nestvexa",
+  "tagline": "Build full-stack. Stay in Nest.",
+  "repository": "https://github.com/Nestvexa/nestvexa",
+  "branch": "main",
+  "sections": [
+    {
+      "title": "Start here",
+      "pages": [
+        "README.md",
+        "docs/getting-started/README.md",
+        "docs/getting-started/mvc.md",
+        "docs/getting-started/live.md",
+        "docs/getting-started/inertia.md",
+        "docs/getting-started/hybrid.md",
+        "docs/getting-started/api.md"
+      ]
+    },
+    {
+      "title": "Tutorials",
+      "pages": [
+        "docs/tutorials/README.md",
+        "docs/tutorials/crud-app.md",
+        "docs/tutorials/realtime.md",
+        "docs/tutorials/uploads.md",
+        "docs/tutorials/deploy.md"
+      ],
+      "include": "docs/tutorials/*.md"
+    },
+    { "title": "Guides", "include": "docs/guides/*.md" },
+    {
+      "title": "Reference",
+      "pages": ["docs/reference/cli.md", "docs/reference/directives.md"],
+      "links": [
+        { "title": "API reference (generated)", "href": "api/index.html" }
+      ],
+      "include": "docs/reference/*.md"
+    },
+    {
+      "title": "Deployment",
+      "pages": [
+        "docs/deployment/README.md",
+        "docs/deployment/node-process-managers.md",
+        "docs/deployment/docker.md",
+        "docs/deployment/reverse-proxy.md",
+        "docs/deployment/multi-replica-redis.md",
+        "docs/deployment/csp-and-headers.md"
+      ],
+      "include": "docs/deployment/*.md"
+    },
+    {
+      "title": "Testing",
+      "pages": ["docs/testing/guide.md"],
+      "include": "docs/testing/*.md"
+    },
+    {
+      "title": "Security",
+      "pages": [
+        "docs/security/guide.md",
+        "docs/security/hardening.md",
+        "docs/security/threat-model.md"
+      ],
+      "include": "docs/security/*.md"
+    },
+    {
+      "title": "Migration",
+      "pages": [
+        "docs/migration/from-nest-mvc.md",
+        "docs/migration/from-livewire.md",
+        "docs/migration/from-inertia-laravel.md"
+      ],
+      "include": "docs/migration/*.md"
+    },
+    {
+      "title": "Architecture",
+      "pages": [
+        "docs/architecture/overview.md",
+        "docs/architecture/package-dependency-graph.md",
+        "docs/architecture/upstream-compatibility.md",
+        "docs/feature-matrix.md",
+        "docs/adr/README.md"
+      ],
+      "include": "docs/architecture/*.md"
+    },
+    { "title": "Decision records", "include": "docs/adr/*.md" },
+    { "title": "Packages", "include": "packages/*/README.md" },
+    { "title": "Examples", "include": "examples/*/README.md" },
+    {
+      "title": "Contributing",
+      "pages": [
+        "CONTRIBUTING.md",
+        "docs/contributing/README.md",
+        "docs/contributing/development-setup.md",
+        "docs/contributing/test-matrix.md",
+        "docs/contributing/ports.md",
+        "docs/contributing/release-process.md",
+        "apps/docs/README.md",
+        "GOVERNANCE.md",
+        "CODE_OF_CONDUCT.md",
+        "SECURITY.md",
+        "SUPPORT.md",
+        "ROADMAP.md",
+        "CHANGELOG.md",
+        "THIRD_PARTY_NOTICES.md"
+      ],
+      "include": "docs/contributing/*.md"
+    },
+    {
+      "title": "Project status",
+      "pages": [
+        "docs/implementation/STATUS.md",
+        "docs/implementation/FINAL_RELEASE_REPORT.md",
+        "docs/implementation/feature-ledger.md"
+      ],
+      "include": "docs/implementation/**/*.md"
+    }
+  ]
+}
