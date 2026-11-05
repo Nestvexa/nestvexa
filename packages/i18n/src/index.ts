@@ -10,6 +10,8 @@ export {
   type NegotiatedLocale,
   type NegotiationOptions,
   type LocaleCookieOptions,
+  type HydrationSelection,
+  type LocaleHydration,
 } from './i18n.js';
 export { loadCatalogs, type CatalogInput } from './catalog.js';
 export {
