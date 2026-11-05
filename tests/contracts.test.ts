@@ -24,7 +24,10 @@ describe('package contracts', () => {
     for (const name of names) {
       const manifest: {
         name: string;
-        exports: Record<string, { types: string; import: string } | string>;
+        exports: Record<
+          string,
+          { types: string; import: string; default?: string } | string
+        >;
         dependencies?: Record<string, string>;
       } = JSON.parse(
         await readFile(join('packages', name, 'package.json'), 'utf8'),
@@ -39,6 +42,8 @@ describe('package contracts', () => {
         }
         expect(entry.types).toMatch(/\.d\.ts$/);
         expect(entry.import).toMatch(/\.js$/);
+        // CommonJS hosts load ESM through require(esm), which needs `default`.
+        expect(entry.default).toBe(entry.import);
         await access(join('packages', name, entry.types));
         await access(join('packages', name, entry.import));
       }

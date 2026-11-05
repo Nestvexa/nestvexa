@@ -25,11 +25,13 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./extract": {
       "types": "./dist/extract.d.ts",
-      "import": "./dist/extract.js"
+      "import": "./dist/extract.js",
+      "default": "./dist/extract.js"
     }
   },
   "types": "./dist/index.d.ts",
