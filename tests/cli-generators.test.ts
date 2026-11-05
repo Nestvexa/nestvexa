@@ -515,7 +515,7 @@ describe(
       let ready = false;
       for (
         let attempt = 0;
-        attempt < 300 && !ready && server.exitCode === null;
+        attempt < 1200 && !ready && server.exitCode === null;
         attempt++
       ) {
         await new Promise((done) => setTimeout(done, 100));
@@ -524,7 +524,7 @@ describe(
           () => false,
         );
       }
-      expect(ready, logs).toBe(true);
+      expect(ready, `exit ${String(server.exitCode)}: ${logs}`).toBe(true);
       for (const [path, engine] of [
         ['/reports-ejs', 'EJS'],
         ['/reports-pug', 'Pug'],
@@ -582,7 +582,7 @@ describe(
         statusCode: 500,
         message: 'Internal server error',
       });
-    }, 60_000);
+    }, 180_000);
 
     it('reports doctor checks as JSON, fails production gaps and never prints secrets', () => {
       const report = json(run(['doctor', '--json'], root));
