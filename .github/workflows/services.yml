@@ -1,0 +1,44 @@
+name: Services
+# Real-service acceptance: Redis pub/sub across processes, the Redis Live
+# state store and two Nest replicas serving browsers through one Redis.
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  redis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      NESTVEXA_REDIS_PORT: '6379'
+      NESTVEXA_REDIS_HOST: 127.0.0.1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:services
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: services-evidence
+          path: |
+            artifacts/reports/services.json
+            artifacts/reports/playwright-services.json
+            test-results/

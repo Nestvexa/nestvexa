@@ -16,9 +16,9 @@ Realtime presence, rate limits, graceful shutdown and a pluggable job queue.
   on open streams before the HTTP server closes.
 - **Breaking (alpha):** `JobRunner` runs over a `JobQueue` interface
   (`MemoryJobQueue` default). Handlers are registered by name with
-  `register(name, handler)` and receive JSON `input`; `enqueue(identity, name,
-  { input, idempotencyKey, maxAttempts })`, `get`, `cancel` and `authorize` are
-  asynchronous. Owner-scoped idempotency keys, leases with renewal,
+  `register(name, handler)` and receive JSON `input`;
+  `enqueue(identity, name, options)` (`input`, `idempotencyKey`,
+  `maxAttempts`), `get`, `cancel` and `authorize` are asynchronous. Owner-scoped idempotency keys, leases with renewal,
   cross-worker cancellation, `start()` polling for other processes, an
   optional `instrumentation` span `nestvexa.job.run`, and `close()` /
   `onApplicationShutdown()` that hand running jobs back to the queue.
