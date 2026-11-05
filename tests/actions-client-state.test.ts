@@ -147,6 +147,13 @@ describe('framework-neutral action controller', () => {
     expect(await settle(Promise.resolve(1))).toEqual({ ok: true, data: 1 });
     const failed = await settle<number, 'title'>(Promise.reject(validation()));
     expect(!failed.ok && failed.error.issues[0]?.path[0]).toBe('title');
+    // An error from another bundled copy of the client (separate island chunk).
+    const foreign = Object.defineProperty(
+      Object.assign(new Error('Invalid'), { code: 'VALIDATION', issues: [] }),
+      Symbol.for('nestvexa.actions.ActionClientError'),
+      { value: true },
+    );
+    expect((await settle(Promise.reject(foreign))).ok).toBe(false);
     await expect(settle(Promise.reject(new TypeError('bug')))).rejects.toThrow(
       'bug',
     );

@@ -137,7 +137,7 @@ export async function settle<Output, Field extends string = string>(
   try {
     return { ok: true, data: await call };
   } catch (error) {
-    if (error instanceof ActionClientError)
+    if (isActionClientError(error))
       return { ok: false, error: error as ActionFailure<Field> };
     if (
       typeof error === 'object' &&
@@ -269,13 +269,24 @@ export class ActionClientError extends Error {
     this.issues = details.issues ?? [];
     this.requestId = details.requestId;
     this.detail = details.detail;
+    Object.defineProperty(this, CLIENT_ERROR_BRAND, { value: true });
   }
 }
 
+// Registered symbol: errors created by another bundled copy of this module
+// (for example a separately built island chunk) are still recognized.
+const CLIENT_ERROR_BRAND = Symbol.for('nestvexa.actions.ActionClientError');
+
+/** True for `ActionClientError`, including instances from another bundle copy. */
 export function isActionClientError(
   value: unknown,
 ): value is ActionClientError {
-  return value instanceof ActionClientError;
+  return (
+    value instanceof ActionClientError ||
+    (typeof value === 'object' &&
+      value !== null &&
+      Reflect.get(value, CLIENT_ERROR_BRAND) === true)
+  );
 }
 
 function record(value: unknown): value is Record<string, unknown> {
