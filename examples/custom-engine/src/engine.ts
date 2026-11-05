@@ -191,6 +191,11 @@ export class TokenEngine implements ViewEngineAdapter {
         'UNSUPPORTED_CAPABILITY',
         'The tokens engine has no helpers; compute values in the view model',
       );
+    if (options.theme !== undefined)
+      throw new ViewError(
+        'UNSUPPORTED_CAPABILITY',
+        'The tokens engine has no theme override directories',
+      );
     try {
       const trusted = (html: SafeHtml) => new TrustedMarkup(html.value);
       const scope = copyViewModel(model, trusted);

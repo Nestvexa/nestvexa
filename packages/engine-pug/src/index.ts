@@ -42,6 +42,10 @@ export interface PugOptions {
   readonly filters?: Readonly<Record<string, PugTextFilter>>;
   /** Pug doctype for attribute serialization, for example `html`. */
   readonly doctype?: string;
+  /** Namespace -> trusted directory, addressed as `admin::users/index`. */
+  readonly namespaces?: Readonly<Record<string, string>>;
+  /** Theme -> trusted override directory, selected per render with `RenderOptions.theme`. */
+  readonly themes?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -110,6 +114,8 @@ export class PugEngine implements ViewEngineAdapter {
   readonly #filters: Readonly<Record<string, PugFilter>>;
   readonly #templates = new Map<string, PugTemplate>();
   readonly #plugin: PugPlugin;
+  /** Theme of the synchronous compilation in progress (includes resolve at compile time). */
+  #compileTheme: string | undefined;
   constructor(options: PugOptions) {
     this.#root = new TemplateRoot({
       root: options.root,
@@ -117,6 +123,10 @@ export class PugEngine implements ViewEngineAdapter {
       ...(options.maxTemplateBytes === undefined
         ? {}
         : { maxTemplateBytes: options.maxTemplateBytes }),
+      ...(options.namespaces === undefined
+        ? {}
+        : { namespaces: options.namespaces }),
+      ...(options.themes === undefined ? {} : { themes: options.themes }),
     });
     this.#cacheEntries = options.cacheEntries ?? 256;
     if (!Number.isSafeInteger(this.#cacheEntries) || this.#cacheEntries < 1)
@@ -180,8 +190,9 @@ export class PugEngine implements ViewEngineAdapter {
     this.clearCache();
   }
   /**
-   * Pug `include`/`extends`: `/x` is root-relative, other references are
-   * relative to the including file. Pug appends `.pug` to extensionless
+   * Pug `include`/`extends`: `/x` is relative to the including file's
+   * namespace root, `ns::x` names a namespace, other references are relative
+   * to the including file; the compiling theme's overrides apply. Pug appends `.pug` to extensionless
    * references; raw includes keep their own extension. Traversal, absolute,
    * drive, backslash and NUL references are rejected before any file access.
    */
@@ -192,10 +203,34 @@ export class PugEngine implements ViewEngineAdapter {
     return this.#root.resolveSync(
       resolveTemplateReference(parent, reference),
       '',
+      this.#compileTheme,
     );
   }
-  #compile(source: string, filename: string): PugTemplate {
-    const body = pug.compileClient(source, {
+  #compile(
+    source: string,
+    filename: string,
+    theme: string | undefined,
+  ): PugTemplate {
+    const previous = this.#compileTheme;
+    this.#compileTheme = theme;
+    let body: string;
+    try {
+      body = this.#compileClient(source, filename);
+    } finally {
+      this.#compileTheme = previous;
+    }
+    // Same construction as Pug's own compile()/pug-runtime/wrap, but bound to
+    // this adapter's runtime so trusted markup bypasses escaping deliberately.
+    const factory = new Function('pug', `${body}\nreturn template;`) as (
+      runtime: object,
+    ) => unknown;
+    const template = factory(runtime);
+    if (typeof template !== 'function')
+      throw new ViewError('RENDER_FAILED', 'Pug produced no template function');
+    return template as PugTemplate;
+  }
+  #compileClient(source: string, filename: string): string {
+    return pug.compileClient(source, {
       filename,
       basedir: this.#root.path,
       compileDebug: this.#debug,
@@ -209,29 +244,27 @@ export class PugEngine implements ViewEngineAdapter {
         ? {}
         : { doctype: this.#options.doctype }),
     });
-    // Same construction as Pug's own compile()/pug-runtime/wrap, but bound to
-    // this adapter's runtime so trusted markup bypasses escaping deliberately.
-    const factory = new Function('pug', `${body}\nreturn template;`) as (
-      runtime: object,
-    ) => unknown;
-    const template = factory(runtime);
-    if (typeof template !== 'function')
-      throw new ViewError('RENDER_FAILED', 'Pug produced no template function');
-    return template as PugTemplate;
   }
-  async #template(view: string): Promise<PugTemplate> {
-    const filename = await this.#root.resolve(view);
-    const cached = this.#options.cache
-      ? this.#templates.get(filename)
-      : undefined;
+  async #template(
+    view: string,
+    theme: string | undefined,
+  ): Promise<PugTemplate> {
+    const filename = await this.#root.resolve(view, undefined, theme);
+    // Includes are inlined at compile time, so the theme is part of the key.
+    const key = `${theme ?? ''}\0${filename}`;
+    const cached = this.#options.cache ? this.#templates.get(key) : undefined;
     if (cached) return cached;
-    const compiled = this.#compile(await this.#root.read(filename), filename);
+    const compiled = this.#compile(
+      await this.#root.read(filename),
+      filename,
+      theme,
+    );
     if (this.#options.cache) {
       if (this.#templates.size >= this.#cacheEntries) {
         const oldest = this.#templates.keys().next().value;
         if (oldest !== undefined) this.#templates.delete(oldest);
       }
-      this.#templates.set(filename, compiled);
+      this.#templates.set(key, compiled);
     }
     return compiled;
   }
@@ -246,6 +279,7 @@ export class PugEngine implements ViewEngineAdapter {
           'UNSUPPORTED_CAPABILITY',
           'Pug resolves partials at compile time; use `include` or mixins instead of RenderOptions.partials',
         );
+      const theme = this.#root.theme(options.theme);
       const safe = copyViewModel(model, trusted);
       for (const key of Object.keys(safe))
         if (reserved(key))
@@ -273,9 +307,11 @@ export class PugEngine implements ViewEngineAdapter {
         };
       }
       context['slots'] = copyViewModel(slots, trusted);
-      const main = await this.#template(view);
+      const main = await this.#template(view, theme);
       const layoutView = options.layout ?? this.#options.defaultLayout;
-      const layout = layoutView ? await this.#template(layoutView) : undefined;
+      const layout = layoutView
+        ? await this.#template(layoutView, theme)
+        : undefined;
       const html = this.#run(main, context);
       if (!layout) return html;
       return this.#run(

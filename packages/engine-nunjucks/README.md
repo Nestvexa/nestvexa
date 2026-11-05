@@ -98,3 +98,7 @@ Never render templates from browser input (`renderString` with user text is code
 ## Testing
 
 From the repository root: `pnpm --filter @nestvexa/views --filter @nestvexa/engine-nunjucks build`, then `pnpm exec vitest run tests/engine-nunjucks.test.ts tests/engine-live.test.ts`. See the [template engine guide](../../docs/guides/template-engines.md), [views API](../views/README.md) and [changelog](../../CHANGELOG.md).
+
+## Namespaces and themes
+
+`namespaces` (name -> directory) and `themes` (name -> override directory) options resolve `admin::users/index` views and per-render `RenderOptions.theme` overrides for the view, its layout and its includes, with the same containment rules as the root. See the [template engine guide](../../docs/guides/template-engines.md#namespaces-and-themes) for the include rules specific to Nunjucks. Covered by `tests/views-composition.test.ts`.

@@ -34,9 +34,17 @@ The first-party EJS, Pug and Nunjucks adapters and the [custom engine example](.
 
 See the [template engine guide](../../docs/guides/template-engines.md) for the adapter-author checklist and engine comparison.
 
+## Namespaces, themes, helpers and error pages
+
+- `TemplateRoot({ root, extension, namespaces?, themes? })` resolves `admin::users/index` inside a registered namespace directory, lets the application override namespaced views at `<root>/vendor/<namespace>/...`, and searches a theme override directory first when `resolve(view, extension, theme)` (or `RenderOptions.theme`) names a registered theme. `parseViewName`, `normalizeQualifiedViewId` and the namespace-aware `resolveTemplateReference` are exported for adapters. Unknown namespaces and themes fail with `INVALID_VIEW`.
+- `RouteTable` + `routeHelpers` (`route(name, params?)`), `routesFromControllers(controllers, { prefix, name })` (reads Nest `@Controller`/`@Get` path metadata), `pageMetaHelpers` (`pageTitle`, `metaTags`), `permissionHelpers(check)` (`can`/`cannot`, fail-closed), `grantPermissions(check, abilities)` (precomputed view data for `@Render`), `assetHelpers(provider)` (`assetTags(name, nonce?)` over the `ViewAssetProvider` interface that `ViteAssets` matches) and `helperArguments` (Handlebars hash / Nunjucks keywords / plain arguments). All are synchronous; markup they build is escaped.
+- `ViewErrorPageFilter` (structural catch-all Nest filter) and `renderErrorPage(error, { render, views, development })`: configurable production 404/5xx views with a fixed `{ status, title, message? }` model, Nest JSON bodies for non-HTML requests, and an escaped development page naming the failing template and line (`templateLocation(error)`).
+
+See the [template engine guide](../../docs/guides/template-engines.md#namespaces-and-themes) for search order, engine differences and examples. Tests: `tests/views-composition.test.ts`, `tests/views-error-pages.test.ts`.
+
 `render(engine, view, model, context, composers?, options?)` executes composers sequentially for each request. Later composers override earlier values; explicit model values override composers. Context is passed through without storage. Do not cache private composed props across requests. Root accessors and prototype-pollution keys are rejected before copying; adapters must independently validate their model contract.
 
-`RenderOptions` supports layout ID or false, partial alias -> view ID, synchronous helpers, and named `SafeHtml` slots. Adapter capabilities determine support. No decorators are exported.
+`RenderOptions` supports layout ID or false, partial alias -> view ID, synchronous helpers, named `SafeHtml` slots and a registered `theme`. Adapter capabilities determine support. No decorators are exported. This package still has no Nest dependency: the error filter and controller-route reader are structural.
 
 `SafeHtml.trusted(markup)` is an explicit escape bypass for application-generated HTML. It does **not** sanitize HTML or make browser text safe. Use ordinary strings for user text. This is a TypeScript application trust boundary, not a sandbox against trusted plugins.
 

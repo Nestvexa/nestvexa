@@ -60,6 +60,9 @@ describe('third-party custom engine example', () => {
     await expect(
       engine.render('page', {}, { helpers: { a: () => 1 } }),
     ).rejects.toMatchObject({ code: 'UNSUPPORTED_CAPABILITY' });
+    await expect(
+      engine.render('page', {}, { theme: 'dark' }),
+    ).rejects.toMatchObject({ code: 'UNSUPPORTED_CAPABILITY' });
     for (const name of ['../x', '/x', 'a\\b', 'C:/x', 'x\0'])
       await expect(engine.render(name, {})).rejects.toMatchObject({
         code: 'INVALID_VIEW',
