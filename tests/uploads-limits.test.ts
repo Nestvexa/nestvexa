@@ -49,7 +49,7 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
 
-const avatarForm = defineForm({
+const avatarForm = defineForm<{ caption: string; avatar: string }>({
   fields: { caption: '' },
   files: { avatar: { max: 1 } },
 });
@@ -82,7 +82,7 @@ async function start(quotas: UploadQuotaOptions) {
       if (!files.ok) return { ok: false, errors: files.errors };
       return {
         ok: true,
-        caption: result.value['caption'],
+        caption: result.value.caption,
         files: files.files.map((file) => ({
           size: file.size,
           contentType: file.contentType,
