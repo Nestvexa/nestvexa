@@ -185,9 +185,7 @@ export class ChangePlan {
           continue;
         }
         mkdirSync(dirname(absolute), { recursive: true });
-        const temporary = `${absolute}.nestvexa-tmp`;
-        writeFileSync(temporary, change.content ?? '');
-        renameSync(temporary, absolute);
+        replaceFile(absolute, change.content ?? '');
         if (change.generated)
           manifest.files[change.path] = {
             sha256: sha256(change.content ?? ''),
@@ -221,6 +219,38 @@ export class ChangePlan {
         if (backup) rmSync(backup, { force: true });
     }
   }
+}
+function errorCode(error: unknown): unknown {
+  return error instanceof Error ? Reflect.get(error, 'code') : undefined;
+}
+function pause(milliseconds: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
+}
+/**
+ * Write through a temporary file and rename it into place. On Windows a rename
+ * onto a file another process (indexer, antivirus, editor) briefly holds open
+ * fails with EPERM/EACCES/EBUSY: retry with backoff, then fall back to an
+ * in-place write. Plan-level rollback still covers every outcome.
+ */
+function replaceFile(absolute: string, content: string): void {
+  const temporary = `${absolute}.nestvexa-tmp`;
+  writeFileSync(temporary, content);
+  for (let attempt = 1; ; attempt++) {
+    try {
+      renameSync(temporary, absolute);
+      return;
+    } catch (error) {
+      const code = errorCode(error);
+      if (code !== 'EPERM' && code !== 'EACCES' && code !== 'EBUSY') {
+        rmSync(temporary, { force: true });
+        throw error;
+      }
+      if (attempt >= 8) break;
+      pause(25 * attempt);
+    }
+  }
+  rmSync(temporary, { force: true });
+  writeFileSync(absolute, content);
 }
 /**
  * Remove a path that may never have been written. A parent segment that is a
