@@ -1042,6 +1042,15 @@ importers:
         specifier: 8.22.0
         version: 8.22.0
 
+  packages/realtime-redis:
+    devDependencies:
+      '@nestvexa/live':
+        specifier: workspace:*
+        version: link:../live
+      '@nestvexa/realtime':
+        specifier: workspace:*
+        version: link:../realtime
+
   packages/svelte:
     dependencies:
       '@nestvexa/vite':

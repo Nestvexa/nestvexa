@@ -45,6 +45,8 @@ export {
 export {
   parseLiveRequest,
   cloneState,
+  freezeJson,
+  isSnapshotToken,
   LiveProtocolError,
   type JsonValue,
   type LiveRequest,
@@ -71,9 +73,19 @@ export {
 } from './pagination.js';
 export {
   MemoryLiveStore,
+  isLiveStateStore,
+  assertLiveComponentName,
+  liveStateUnavailable,
+  liveBindingHash,
+  freezeStateSnapshot,
+  freezeChildReferences,
   type ChildReference,
   type StateSnapshot,
+  type LiveStateStore,
+  type LiveTransactionCallback,
+  type LiveTransactionCommit,
   type LiveTransactionResult,
+  type MemoryLiveStoreOptions,
 } from './store.js';
 export {
   createTextStreamResponse,

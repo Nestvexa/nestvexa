@@ -9,6 +9,7 @@ import { request as httpRequest } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { memoryStore } from './support/memory-store.js';
 import { HbsEngine } from '../packages/engine-hbs/dist/index.js';
 import {
   Action,
@@ -406,10 +407,12 @@ describe.each(['express', 'fastify'] as const)(
       // Child state is stored independently and child actions use child routes.
       const item = found[1];
       if (!item?.snapshot) throw new Error('Missing item');
-      expect(f.runtime.store.peek(item.snapshot, binding).state).toEqual({
-        title: 'Alpha',
-        done: false,
-      });
+      expect(memoryStore(f.runtime).peek(item.snapshot, binding).state).toEqual(
+        {
+          title: 'Alpha',
+          done: false,
+        },
+      );
       const toggled = await f.act('item', 'toggle', {
         snapshot: item.snapshot,
         revision: 0,
@@ -483,7 +486,9 @@ describe.each(['express', 'fastify'] as const)(
         'nv-child:picker:main',
       ]);
       const removedToken = initial[1]?.snapshot ?? '';
-      expect(() => f.runtime.store.peek(removedToken, binding)).toThrow();
+      expect(() =>
+        memoryStore(f.runtime).peek(removedToken, binding),
+      ).toThrow();
       const added = await f.act('list', 'add', {
         snapshot: mounted.snapshot,
         revision: 1,
@@ -508,7 +513,9 @@ describe.each(['express', 'fastify'] as const)(
       const mounted = await f.mount(f.List);
       const picker = roots(mounted.html)[5];
       if (!picker?.snapshot) throw new Error('Missing picker');
-      expect(f.runtime.store.peek(picker.snapshot, binding).state).toEqual({
+      expect(
+        memoryStore(f.runtime).peek(picker.snapshot, binding).state,
+      ).toEqual({
         value: 'none',
       });
       const chosen = await f.act('picker', 'choose', {
@@ -542,9 +549,9 @@ describe.each(['express', 'fastify'] as const)(
     it('authorizes every child mount and cleans up partially mounted trees', async () => {
       const f = await fixture(platform);
       f.settings.denyChildMount = true;
-      const sizeBefore = f.runtime.store.size;
+      const sizeBefore = memoryStore(f.runtime).size;
       await expect(f.mount(f.List)).rejects.toMatchObject({ status: 403 });
-      expect(f.runtime.store.size).toBe(sizeBefore);
+      expect(memoryStore(f.runtime).size).toBe(sizeBefore);
     });
 
     it('returns bounded events and listener markers; payloads stay untrusted action input', async () => {

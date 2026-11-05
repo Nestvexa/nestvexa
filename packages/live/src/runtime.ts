@@ -19,7 +19,12 @@ import {
 } from './protocol.js';
 import type { JsonValue, LiveRequest } from './protocol.js';
 import { MemoryLiveStore } from './store.js';
-import type { ChildReference, StateSnapshot } from './store.js';
+import type {
+  ChildReference,
+  LiveStateStore,
+  LiveTransactionResult,
+  StateSnapshot,
+} from './store.js';
 import type { ComponentDefinition } from './metadata.js';
 import { beginEffects, persistFlash, takeEffects } from './effects.js';
 import type { LiveDownload, LiveEvent } from './effects.js';
@@ -54,7 +59,12 @@ export interface LiveHostOptions {
     action: string,
   ) => boolean | Promise<boolean>;
   readonly renderer: ViewEngineAdapter;
-  readonly store?: MemoryLiveStore;
+  /**
+   * Server-side state storage (default: a process-local `MemoryLiveStore`).
+   * Multi-replica deployments need a shared store such as `RedisLiveStore`
+   * from @nestvexa/realtime-redis.
+   */
+  readonly store?: LiveStateStore;
   readonly maxRequestsPerMinute?: number;
   /**
    * Optional realtime signer (for example `RealtimeService` from
@@ -242,7 +252,7 @@ function escapeAttribute(value: string): string {
 @Injectable()
 export class LiveRuntime implements OnApplicationShutdown {
   private closed = false;
-  readonly store: MemoryLiveStore;
+  readonly store: LiveStateStore;
   readonly #admissions = new WeakMap<object, Admission>();
   readonly #rate = new Map<string, { start: number; count: number }>();
   readonly #computed = new WeakMap<object, () => void>();
@@ -321,7 +331,10 @@ export class LiveRuntime implements OnApplicationShutdown {
     let payload: LiveRequest;
     try {
       payload = parseLiveRequest(Reflect.get(request, 'body'));
-      const snapshot = this.store.peek(payload.snapshot, identity.binding);
+      const snapshot = await this.store.peek(
+        payload.snapshot,
+        identity.binding,
+      );
       if (snapshot.name !== component.name) fail(403, 'COMPONENT_MISMATCH');
     } catch (error) {
       mapped(error);
@@ -387,7 +400,7 @@ export class LiveRuntime implements OnApplicationShutdown {
           fail(403, 'IDENTITY_CHANGED');
         if (!equal(header(request, 'x-nestvexa-csrf') ?? '', current.csrfToken))
           fail(403, 'CSRF_REJECTED');
-        const before = this.store.peek(token, current.binding);
+        const before = await this.store.peek(token, current.binding);
         if (before.name !== component.name) fail(403, 'COMPONENT_MISMATCH');
         if (before.revision !== revision) fail(409, 'STALE_REVISION');
         if (
@@ -399,7 +412,7 @@ export class LiveRuntime implements OnApplicationShutdown {
         )
           fail(403, 'STREAM_FORBIDDEN');
         if (this.closed) fail(503, 'LIVE_SHUTDOWN');
-        const after = this.store.peek(token, current.binding);
+        const after = await this.store.peek(token, current.binding);
         if (after.revision !== revision || after.id !== before.id)
           fail(409, 'STALE_REVISION');
         return after;
@@ -839,7 +852,7 @@ export class LiveRuntime implements OnApplicationShutdown {
             previous: undefined,
           });
     });
-    const snapshot = this.store.create(
+    const snapshot = await this.store.create(
       child.name,
       identity.binding,
       captured.state,
@@ -880,8 +893,10 @@ export class LiveRuntime implements OnApplicationShutdown {
     const { identity, request } = context;
     let current: StateSnapshot;
     try {
-      current = this.store.peek(reference.token, identity.binding);
-    } catch {
+      current = await this.store.peek(reference.token, identity.binding);
+    } catch (error) {
+      // A shared store outage must surface, not silently reset child state.
+      if (!(error instanceof LiveProtocolError)) throw error;
       // Expired or revoked child state: mount a fresh child for this key.
       return this.mountChild(
         child,
@@ -899,7 +914,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     );
     const stub = `<div data-nv-component="${escapeAttribute(current.id)}" data-nv-key="nv-child:${escapeAttribute(slot)}" data-nv-stub=""></div>`;
     if (!changed.length) return { html: stub, reference };
-    let result: Awaited<ReturnType<MemoryLiveStore['transaction']>>;
+    let result: LiveTransactionResult;
     let refreshedRealtime: string | undefined;
     try {
       result = await this.store.transaction(
@@ -1045,12 +1060,12 @@ export class LiveRuntime implements OnApplicationShutdown {
           : this.render(instance, component, context);
       });
     } catch (error) {
-      for (const token of context.created) this.store.delete(token);
+      await this.discard(context.created);
       mapped(error);
     }
-    let snapshot: ReturnType<MemoryLiveStore['create']> | undefined;
+    let snapshot: StateSnapshot | undefined;
     try {
-      snapshot = this.store.create(
+      snapshot = await this.store.create(
         component.name,
         identity.binding,
         captured.state,
@@ -1064,8 +1079,9 @@ export class LiveRuntime implements OnApplicationShutdown {
         identity.binding,
       );
     } catch (error) {
-      if (snapshot) this.store.delete(snapshot.snapshot);
-      for (const token of context.created) this.store.delete(token);
+      await this.discard(
+        snapshot ? [snapshot.snapshot, ...context.created] : context.created,
+      );
       await this.observeError(instance, error);
       mapped(error);
     }
@@ -1234,8 +1250,8 @@ export class LiveRuntime implements OnApplicationShutdown {
             return capturedOperation;
           },
         )
-        .catch((error: unknown) => {
-          for (const token of context.created) this.store.delete(token);
+        .catch(async (error: unknown) => {
+          await this.discard(context.created);
           throw error;
         });
       try {
@@ -1244,11 +1260,10 @@ export class LiveRuntime implements OnApplicationShutdown {
       } catch (error) {
         // The action may have performed effects. Revoke the advanced token rather
         // than returning a retryable response for an uncommitted host session.
-        this.store.delete(result.snapshot);
-        for (const token of context.created) this.store.delete(token);
+        await this.discard([result.snapshot, ...context.created]);
         throw error;
       }
-      for (const token of context.removed) this.store.delete(token);
+      await this.discard(context.removed);
       const attachment = download
         ? this.storeDownload(identity, component, download)
         : undefined;
@@ -1333,7 +1348,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     identity: LiveIdentity,
     payload: LiveRequest,
   ): Promise<Record<string, JsonValue>> {
-    const snapshot = this.store.peek(payload.snapshot, identity.binding);
+    const snapshot = await this.store.peek(payload.snapshot, identity.binding);
     if (snapshot.revision !== payload.revision) fail(409, 'STALE_REVISION');
     // A validation callback may retain its input; expose detached immutable data only.
     const updates = freezeJson(cloneState(payload.updates));
@@ -1361,15 +1376,32 @@ export class LiveRuntime implements OnApplicationShutdown {
     // Components receive mutable data, independently of the validator's captured references.
     return cloneState(updates);
   }
+  /**
+   * Best-effort deletion of snapshot tokens created by a failed operation. A
+   * store failure here must not mask the original error; entries left behind
+   * still expire with the store TTL.
+   */
+  private async discard(tokens: readonly string[]): Promise<void> {
+    await Promise.all(
+      tokens.map(async (token) => {
+        try {
+          await this.store.delete(token);
+        } catch {
+          // Unreachable shared store: the entry expires with its TTL.
+        }
+      }),
+    );
+  }
   beforeApplicationShutdown(): void {
     this.closed = true;
     closeTextStreams(this.registry);
   }
-  onApplicationShutdown(): void {
+  async onApplicationShutdown(): Promise<void> {
     this.closed = true;
     this.registry.release(this);
-    this.store.clear();
     this.#rate.clear();
     this.#downloads.clear();
+    // Memory stores discard state; shared stores close connections only.
+    await this.store.close();
   }
 }

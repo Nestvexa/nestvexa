@@ -32,6 +32,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { tap } from 'rxjs';
 import { afterEach, describe, expect, it } from 'vitest';
+import { memoryStore } from './support/memory-store.js';
 import { HbsEngine } from '../packages/engine-hbs/dist/index.js';
 import {
   Action,
@@ -566,9 +567,9 @@ describe.each(['express', 'fastify'] as const)(
       expect(Object.values(f.session)).toEqual([
         expect.objectContaining({ value: 'changed' }),
       ]);
-      expect(f.runtime.store.peek(reply.snapshot, binding).state).toEqual(
-        reply.state,
-      );
+      expect(
+        memoryStore(f.runtime).peek(reply.snapshot, binding).state,
+      ).toEqual(reply.state);
       const second = await f.post({ snapshot: reply.snapshot, revision: 1 });
       const next = (await second.json()) as Reply;
       expect(next.component.revision).toBe(2);
@@ -576,7 +577,7 @@ describe.each(['express', 'fastify'] as const)(
       f.settings.throwRender = false;
       const mounted = await f.mount();
       expect(
-        f.runtime.store.peek(mounted.snapshot, binding).state['label'],
+        memoryStore(f.runtime).peek(mounted.snapshot, binding).state['label'],
       ).toBe('changed');
     });
 
@@ -649,9 +650,9 @@ describe.each(['express', 'fastify'] as const)(
       expect((await f.post()).status).toBe(403);
       expect(f.hooks).toEqual([]);
       expect(f.renders()).toBe(0);
-      expect(f.runtime.store.peek(f.initial.snapshot, binding).revision).toBe(
-        0,
-      );
+      expect(
+        memoryStore(f.runtime).peek(f.initial.snapshot, binding).revision,
+      ).toBe(0);
       f.settings.deny = false;
       expect((await f.post()).status).toBe(201);
     });
@@ -715,7 +716,7 @@ describe.each(['express', 'fastify'] as const)(
 
     it('checks schema before effects and revokes incompatible snapshots', async () => {
       const f = await fixture(platform);
-      const incompatible = f.runtime.store.create('editor', binding, {
+      const incompatible = memoryStore(f.runtime).create('editor', binding, {
         removed: true,
       });
       const response = await f.post({
