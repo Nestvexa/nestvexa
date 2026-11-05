@@ -10,8 +10,9 @@ import {
 } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
-import { resolve, join } from 'node:path';
+import { resolve, join, relative } from 'node:path';
 import { tmpdir } from 'node:os';
+import { sbomContext, writeSbom } from './sbom.mjs';
 
 const pnpm = process.env.npm_execpath;
 if (!pnpm)
@@ -125,11 +126,38 @@ async function packPackages() {
         .filter(([, target]) => typeof target === 'string')
         .map(([, target]) => target),
       tarball,
+      directory: cwd,
       sha256: createHash('sha256')
         .update(await readFile(tarball))
         .digest('hex'),
       contents,
     });
+  }
+}
+
+/**
+ * CycloneDX 1.6 SBOM per tarball from the committed lockfile, written after
+ * every tarball exists so workspace siblings carry their tarball hashes.
+ */
+async function writeSboms() {
+  const context = sbomContext(root);
+  const tarballHashes = new Map(report.packages.map((p) => [p.name, p.sha256]));
+  for (const entry of report.packages) {
+    const sbom = await writeSbom(context, {
+      dir: entry.directory,
+      tarball: entry.tarball,
+      tarballSha256: entry.sha256,
+      timestamp: report.timestamp,
+      out: resolve('artifacts/sbom'),
+      tarballHashes,
+    });
+    entry.sbom = {
+      format: 'CycloneDX 1.6 JSON',
+      file: relative(root, sbom.file).replaceAll('\\', '/'),
+      sha256: sbom.sha256,
+      components: sbom.components,
+    };
+    delete entry.directory;
   }
 }
 
@@ -310,6 +338,7 @@ async function consume(manager, profile) {
 await mkdir('artifacts/reports', { recursive: true });
 try {
   await packPackages();
+  await writeSboms();
   for (const manager of ['pnpm', 'npm'])
     for (const profile of ['full', 'minimal']) await consume(manager, profile);
   report.passed = true;
