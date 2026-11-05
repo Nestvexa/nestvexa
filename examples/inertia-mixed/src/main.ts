@@ -3,9 +3,12 @@ import {
   Controller,
   Get,
   Header,
+  Inject,
   Logger,
   Module,
   Render,
+  Req,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -18,13 +21,25 @@ import {
   moduleSsrRenderer,
   viteInertiaRootView,
   viteStaticMiddleware,
+  viteViewHelpers,
 } from '@nestvexa/vite';
-import { NestvexaModule, configureNestvexa } from 'nestvexa';
+import session from 'express-session';
+import {
+  Action,
+  HbsEngine,
+  LiveComponent,
+  LiveRuntime,
+  NestvexaModule,
+  State,
+  configureNestvexa,
+} from 'nestvexa';
+import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// One Nest backend, five rendering modes side by side: an HBS route, and React,
-// Vue and Svelte Inertia roots on separate path prefixes. Each root has its own
+// One Nest backend, five rendering modes side by side: an HBS route, a Live
+// route (HBS + Live component, assets from its own Vite manifest), React, Vue
+// and Svelte Inertia roots on separate path prefixes, and a JSON API route. Each root has its own
 // Vite build, manifest, asset version and in-process SSR bundle, so a visit
 // that crosses roots gets a 409 version conflict and a full page load.
 
@@ -40,18 +55,44 @@ const frameworks = {
 } as const;
 type Framework = keyof typeof frameworks;
 
+declare module 'express-session' {
+  interface SessionData {
+    csrf?: string;
+  }
+}
+interface SessionRequest {
+  session: session.Session & Partial<session.SessionData>;
+  sessionID: string;
+}
+
 const assets = new ViteAssets({
-  apps: Object.fromEntries(
-    Object.entries(frameworks).map(([key, { entry }]) => [
-      key,
-      {
-        entries: [entry],
-        base: `/build/${key}/`,
-        manifest: join(root, `dist/${key}/client/.vite/manifest.json`),
-      },
-    ]),
-  ),
+  apps: {
+    ...Object.fromEntries(
+      Object.entries(frameworks).map(([key, { entry }]) => [
+        key,
+        {
+          entries: [entry],
+          base: `/build/${key}/`,
+          manifest: join(root, `dist/${key}/client/.vite/manifest.json`),
+        },
+      ]),
+    ),
+    // Framework-free assets of the HBS/Live page (vite.live.config.ts).
+    live: {
+      entries: ['client/live/app.ts', 'client/live/widgets.ts'],
+      base: '/build/live/',
+      manifest: join(root, 'dist/live/client/.vite/manifest.json'),
+    },
+  },
 });
+
+@LiveComponent({ name: 'mixed-counter', view: 'live-counter' })
+class MixedCounter {
+  @State() count = 0;
+  @Action() increment(): void {
+    this.count++;
+  }
+}
 
 function inertiaApp(key: Framework): InertiaAppOptions {
   return {
@@ -79,11 +120,27 @@ function pageProps(key: Framework, page: string) {
 
 @Controller()
 class MixedController {
+  constructor(@Inject(LiveRuntime) private readonly live: LiveRuntime) {}
+
   @Get()
   @Header('Cache-Control', 'no-store')
   @Render('index')
   index() {
     return { title: 'Nestvexa mixed host (HBS)' };
+  }
+
+  /** HBS page with a Live component; its assets come through `viteTags`. */
+  @Get('live')
+  @Header('Cache-Control', 'no-store')
+  @Render('live')
+  async liveRoute(@Req() request: SessionRequest) {
+    request.session.csrf ??= randomBytes(32).toString('base64url');
+    return {
+      title: 'Nestvexa mixed host (Live)',
+      live: true,
+      cspNonce: cspNonce(request),
+      widget: await this.live.mount(MixedCounter, request),
+    };
   }
 
   @Get('react')
@@ -130,12 +187,30 @@ class MixedController {
 
 @Module({
   imports: [
-    NestvexaModule.forRoot({
-      views: {
-        root: join(root, 'views'),
-        layout: 'layouts/main',
+    NestvexaModule.forRoot(
+      {
+        views: { root: join(root, 'views'), layout: 'layouts/main' },
+        live: { enabled: true },
       },
-    }),
+      {
+        components: [MixedCounter],
+        useFactory: () => ({
+          origin: `http://127.0.0.1:${port}`,
+          resolveIdentity(request: object) {
+            const value = request as Partial<SessionRequest>;
+            if (!value.session?.csrf || !value.sessionID)
+              throw new UnauthorizedException();
+            return {
+              binding: `guest-session:${value.sessionID}`,
+              csrfToken: value.session.csrf,
+            };
+          },
+          authorize: (_identity, component, action) =>
+            component === 'mixed-counter' &&
+            ['$mount', 'increment'].includes(action),
+        }),
+      },
+    ),
     InertiaModule.forRoot({
       apps: {
         react: inertiaApp('react'),
@@ -155,9 +230,21 @@ class AppModule {}
 const app = await NestFactory.create<NestExpressApplication>(AppModule, {
   logger: ['error', 'warn', 'log'],
 });
+// Local guest demonstration: production hosts supply authentication, a
+// persistent session store, a deployment secret and HTTPS cookies.
+app.use(
+  session({
+    secret: randomBytes(48).toString('base64url'),
+    resave: false,
+    saveUninitialized: false,
+    cookie: { httpOnly: true, sameSite: 'strict', secure: false },
+  }),
+);
+// Optional helpers register before the shared HBS engine initializes.
+app.get(HbsEngine).registerHelpers(viteViewHelpers(assets));
 await configureNestvexa(app);
 app.use(cspNonceMiddleware());
-for (const key of Object.keys(frameworks))
+for (const key of [...Object.keys(frameworks), 'live'])
   app.use(
     viteStaticMiddleware({
       root: join(root, `dist/${key}/client`),

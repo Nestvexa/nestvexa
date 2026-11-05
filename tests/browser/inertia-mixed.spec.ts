@@ -3,6 +3,7 @@ import type { Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
+  cspViolations,
   exampleUrl,
   inertiaRequests,
   markDocument,
@@ -150,5 +151,98 @@ test.describe('mixed Nest host: HBS + React + Vue + Svelte roots', () => {
     expect(
       observed.console.filter((line) => !line.includes('status of 409')),
     ).toEqual([]);
+  });
+
+  test('the Live route loads its Vite manifest assets through viteTags with the CSP nonce', async ({
+    request,
+  }) => {
+    const response = await request.get(`${base}/live`);
+    expect(response.status()).toBe(200);
+    const html = await response.text();
+    const nonce =
+      /'nonce-([^']+)'/.exec(
+        response.headers()['content-security-policy'] ?? '',
+      )?.[1] ?? '';
+    expect(nonce).not.toBe('');
+    const head = html.slice(0, html.indexOf('</head>'));
+    const tags = (pattern: RegExp) =>
+      [...head.matchAll(pattern)].map((match) => match[0]);
+    // Live boot module (nvScripts) plus the Live app's manifest tags, each
+    // module carrying this response's nonce.
+    expect(head).toContain(`<meta property="csp-nonce" nonce="${nonce}">`);
+    expect(
+      tags(/<script type="module" src="([^"]+)" nonce="([^"]+)"><\/script>/g),
+    ).toHaveLength(3);
+    for (const tag of tags(/<script type="module"[^>]*>/g))
+      expect(tag).toContain(`nonce="${nonce}"`);
+    expect(head).toContain('src="/_nestvexa/boot.js"');
+    expect(
+      tags(/<script type="module" src="\/build\/live\/assets\/[^"]+\.js"/g),
+    ).toHaveLength(2);
+    expect(
+      tags(/<link rel="stylesheet" href="\/build\/live\/assets\/[^"]+\.css">/g),
+    ).toHaveLength(1);
+    const preloads = tags(
+      /<link rel="modulepreload" href="\/build\/live\/assets\/[^"]+\.js"[^>]*>/g,
+    );
+    expect(preloads).toHaveLength(1);
+    expect(preloads[0]).toContain(`nonce="${nonce}"`);
+    for (const root of roots) expect(html).not.toContain(`/build/${root}/`);
+    expect(html).toContain('id="live-count"');
+  });
+
+  test('a Live component works next to the Inertia roots and the API route is preserved', async ({
+    page,
+    request,
+  }) => {
+    const observed = await observe(page);
+    await page.goto(`${base}/live`);
+    await wait(page.locator('html')).toHaveAttribute(
+      'data-enhanced',
+      'live-assets widgets',
+    );
+    expect(
+      await page.evaluate(() =>
+        getComputedStyle(document.documentElement)
+          .getPropertyValue('--live-assets')
+          .trim(),
+      ),
+    ).toBe('loaded');
+    await page.getByRole('button', { name: 'Increment' }).click();
+    await wait(page.locator('#live-count')).toHaveText('1');
+    await page.getByRole('button', { name: 'Increment' }).click();
+    await wait(page.locator('#live-count')).toHaveText('2');
+    expect(await cspViolations(page)).toEqual([]);
+    expect(observed.errors).toEqual([]);
+    // The JSON API route keeps answering plain JSON to browser code on a page
+    // served by the same host (no page object, no Inertia headers).
+    const fromPage = await page.evaluate(async () => {
+      const response = await fetch('/api/health', {
+        headers: { Accept: 'application/json' },
+      });
+      return {
+        status: response.status,
+        type: response.headers.get('content-type'),
+        body: (await response.json()) as unknown,
+      };
+    });
+    expect(fromPage.status).toBe(200);
+    expect(fromPage.type).toMatch(/^application\/json/);
+    expect(fromPage.body).toEqual({
+      status: 'ok',
+      roots: ['react', 'vue', 'svelte'],
+    });
+    const direct = await request.get(`${base}/api/health`);
+    expect(direct.status()).toBe(200);
+    expect(await direct.json()).toEqual({
+      status: 'ok',
+      roots: ['react', 'vue', 'svelte'],
+    });
+    expect(direct.headers()['x-inertia']).toBeUndefined();
+    // From the Live page a plain link opens the React root (full load).
+    await markDocument(page);
+    await page.getByRole('link', { name: 'React root' }).click();
+    await hydratedAs(page, 'react');
+    expect(await sameDocument(page)).toBe(false);
   });
 });
