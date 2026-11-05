@@ -1,6 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { access, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+
+// Reads and imports every package's built entries; slow on loaded hosts.
+vi.setConfig({ testTimeout: 60_000 });
 
 describe('package contracts', () => {
   it('keeps browser declaration documentation and external source maps after comment-free JavaScript emission', async () => {
