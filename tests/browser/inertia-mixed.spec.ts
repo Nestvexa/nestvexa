@@ -3,6 +3,7 @@ import type { Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
+  exampleUrl,
   inertiaRequests,
   markDocument,
   observe,
@@ -12,7 +13,7 @@ import {
 // examples/inertia-mixed: one Nest backend serving an HBS route plus React,
 // Vue and Svelte Inertia roots on /react, /vue and /svelte. Each root is a
 // separate Vite build with its own manifest, asset version and SSR bundle.
-const base = 'http://127.0.0.1:3109';
+const base = exampleUrl('MIXED', 3109);
 // Full document loads across roots are slow on loaded hosts.
 const wait = expect.configure({ timeout: 20000 });
 const roots = ['react', 'vue', 'svelte'] as const;

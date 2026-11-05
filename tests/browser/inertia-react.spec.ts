@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
   defineFrameworkSuite,
+  exampleUrl,
   hydrated,
   markDocument,
   sameDocument,
@@ -9,7 +10,7 @@ import {
 // examples/inertia-react: Vite production build, official @inertiajs/react
 // 3.10.0 client, SSR through the official Inertia SSR server process
 // (dist/ssr/ssr.js on 127.0.0.1:13716) reached via HttpSsrGateway.
-const base = 'http://127.0.0.1:3106';
+const base = exampleUrl('REACT', 3106);
 
 defineFrameworkSuite({ framework: 'React', base });
 
