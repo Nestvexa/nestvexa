@@ -47,6 +47,26 @@
       "types": "./dist/svelte.d.ts",
       "import": "./dist/svelte.js",
       "default": "./dist/svelte.js"
+    },
+    "./react-server": {
+      "types": "./dist/react-server.d.ts",
+      "import": "./dist/react-server.js",
+      "default": "./dist/react-server.js"
+    },
+    "./vue-server": {
+      "types": "./dist/vue-server.d.ts",
+      "import": "./dist/vue-server.js",
+      "default": "./dist/vue-server.js"
+    },
+    "./svelte-server": {
+      "types": "./dist/svelte-server.d.ts",
+      "import": "./dist/svelte-server.js",
+      "default": "./dist/svelte-server.js"
+    },
+    "./build": {
+      "types": "./dist/build.d.ts",
+      "import": "./dist/build.js",
+      "default": "./dist/build.js"
     }
   },
   "types": "./dist/index.d.ts",
