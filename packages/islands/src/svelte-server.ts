@@ -2,6 +2,9 @@ import type { Component } from 'svelte';
 import { render } from 'svelte/server';
 import type { IslandServerRenderer } from './index.js';
 import { serverIslandContext } from './server-context.js';
+import type { IslandRendererOptions } from './server-context.js';
+
+export type { IslandRendererOptions } from './server-context.js';
 
 /**
  * Server renderer for `IslandRegistry({ renderers })`; pair with
@@ -10,9 +13,10 @@ import { serverIslandContext } from './server-context.js';
  */
 export function svelteIslandRenderer(
   component: Component<Record<string, unknown>>,
+  options: IslandRendererOptions = {},
 ): IslandServerRenderer {
   return (props, context) =>
     render(component, {
-      props: { ...props, island: serverIslandContext(context) },
+      props: { ...props, island: serverIslandContext(context, options) },
     }).body;
 }

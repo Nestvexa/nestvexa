@@ -3,9 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="nestvexa-csrf" content="{{csrf}}" />
     <title>{{title}}</title>
-    {{nvScripts}}
-    <script type="module" src="/islands/islands.js"></script>
+    {{{islandContext}}} {{nvScripts}}
+    <script type="module" src="/islands-loader.js"></script>
   </head>
   <body>
     <main>{{body}}</main>
