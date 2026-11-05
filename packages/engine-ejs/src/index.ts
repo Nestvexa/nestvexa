@@ -71,6 +71,11 @@ function trusted(html: SafeHtml): TrustedMarkup {
   return new TrustedMarkup(html.value);
 }
 type Aliases = Readonly<Record<string, string>>;
+interface Compiled {
+  readonly render: EjsTemplateFunction;
+  /** Real path of the template; parent of its relative includes. */
+  readonly filename: string;
+}
 
 /** Each instance owns its compiled templates; EJS's process-global cache is never used. */
 export class EjsEngine implements ViewEngineAdapter {
@@ -81,7 +86,7 @@ export class EjsEngine implements ViewEngineAdapter {
   readonly #options: EjsOptions;
   readonly #cacheEntries: number;
   readonly #debug: boolean;
-  readonly #templates = new Map<string, EjsTemplateFunction>();
+  readonly #templates = new Map<string, Compiled>();
   readonly #sources = new Map<string, string>();
   /** Partial aliases of the synchronous render currently executing. */
   #activeAliases: Aliases | undefined;
@@ -139,12 +144,21 @@ export class EjsEngine implements ViewEngineAdapter {
     }
     cache.set(key, value);
   }
-  #compile(source: string, filename: string): EjsTemplateFunction {
-    return ejs.compile(source, {
+  #compile(source: string, filename: string): Compiled {
+    const render = ejs.compile(source, {
+      // Only used for compileDebug line diagnostics.
       filename,
       root: this.#root.path,
       escape: escapeHtml,
-      includer: (reference, parsed) => this.#include(reference, parsed),
+      // Templates call the engine-owned `include` local (see #execute), so
+      // EJS's own include path, which probes `fs.existsSync` with the raw
+      // reference before any includer runs, is never reached. Fail closed if it is.
+      includer: () => {
+        throw new ViewError(
+          'INVALID_VIEW',
+          'EJS include must use the engine include function',
+        );
+      },
       compileDebug: this.#debug,
       strict: false,
       _with: true,
@@ -153,8 +167,9 @@ export class EjsEngine implements ViewEngineAdapter {
       async: false,
       rmWhitespace: false,
     });
+    return Object.freeze({ render, filename });
   }
-  async #template(view: string): Promise<EjsTemplateFunction> {
+  async #template(view: string): Promise<Compiled> {
     const filename = await this.#root.resolve(view);
     const cached = this.#options.cache
       ? this.#templates.get(filename)
@@ -165,13 +180,16 @@ export class EjsEngine implements ViewEngineAdapter {
     return compiled;
   }
   /**
-   * EJS include hook. Aliases resolve first; `/x` is root-relative; other
-   * references are relative to the including template. Traversal, absolute,
-   * drive, backslash and NUL references are rejected before any file access.
+   * Resolve an include reference. Aliases resolve first; `/x` is root-relative;
+   * other references are relative to the including template. Traversal,
+   * absolute, UNC, drive, backslash, control and NUL references are rejected by
+   * pure string validation before any filesystem call (including existence
+   * probes, which on Windows could reach a remote SMB share or abort the
+   * process for U+10FFFF).
    */
   #include(
     reference: string,
-    parsed: string | undefined,
+    parent: string,
   ): {
     filename: string;
     template: string;
@@ -180,16 +198,10 @@ export class EjsEngine implements ViewEngineAdapter {
     let id: string;
     if (alias !== undefined) id = alias;
     else {
-      const local = resolveTemplateReference(undefined, reference);
-      if (reference.startsWith('/')) id = this.#root.id(local);
-      else {
-        if (parsed === undefined)
-          throw new Error(`EJS include not found: ${reference}`);
-        const relative = this.#root.viewFromFile(parsed);
-        if (relative === undefined)
-          throw new ViewError('INVALID_VIEW', 'Template include escapes root');
-        id = this.#root.id(relative);
-      }
+      const parentId = this.#root.viewFromFile(parent);
+      if (parentId === undefined)
+        throw new ViewError('INVALID_VIEW', 'Template include escapes root');
+      id = this.#root.id(resolveTemplateReference(parentId, reference));
     }
     const filename = this.#root.resolveSync(id);
     const cached = this.#options.cache
@@ -199,18 +211,54 @@ export class EjsEngine implements ViewEngineAdapter {
     if (cached === undefined) this.#remember(this.#sources, filename, template);
     return { filename, template };
   }
+  /**
+   * Runs one compiled template with an `include(reference, data?)` local bound
+   * to that template's file. It shadows EJS's generated `include` parameter
+   * inside `with (locals)`, mirroring EJS semantics: the child receives a
+   * shallow copy of the caller's locals merged with `data`.
+   */
+  #execute(compiled: Compiled, locals: Record<string, unknown>): string {
+    const scope = Object.assign(
+      Object.create(null) as Record<string, unknown>,
+      locals,
+    );
+    scope['include'] = (reference: unknown, data?: unknown): string => {
+      if (typeof reference !== 'string')
+        throw new ViewError(
+          'INVALID_VIEW',
+          'Template include reference must be a string',
+        );
+      if (
+        data !== undefined &&
+        data !== null &&
+        (typeof data !== 'object' || Array.isArray(data))
+      )
+        throw new ViewError('INVALID_VIEW', 'Include data must be an object');
+      const { filename, template } = this.#include(
+        reference,
+        compiled.filename,
+      );
+      const child = Object.assign(
+        Object.create(null) as Record<string, unknown>,
+        scope,
+        data ?? {},
+      );
+      return this.#execute(this.#compile(template, filename), child);
+    };
+    const html: unknown = compiled.render(scope);
+    if (typeof html !== 'string')
+      throw new ViewError('RENDER_FAILED', 'EJS returned non-string output');
+    return html;
+  }
   #run(
-    template: EjsTemplateFunction,
+    compiled: Compiled,
     context: Record<string, unknown>,
     aliases: Aliases,
   ): string {
     const previous = this.#activeAliases;
     this.#activeAliases = aliases;
     try {
-      const html: unknown = template(context);
-      if (typeof html !== 'string')
-        throw new ViewError('RENDER_FAILED', 'EJS returned non-string output');
-      return html;
+      return this.#execute(compiled, context);
     } finally {
       this.#activeAliases = previous;
     }
