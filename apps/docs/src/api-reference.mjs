@@ -107,6 +107,9 @@ export function extractApi(root, entries) {
       module: ts.ModuleKind.NodeNext,
       moduleResolution: ts.ModuleResolutionKind.NodeNext,
       types: [],
+      // Declaration text and TSDoc need no lib types; skipping lib.d.ts keeps
+      // the extraction fast.
+      noLib: true,
     },
   );
   const checker = program.getTypeChecker();

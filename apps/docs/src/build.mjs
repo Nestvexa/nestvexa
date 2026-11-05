@@ -23,14 +23,15 @@ import { analyse, escapeHtml, render } from './markdown.mjs';
 import { page, relativeUrl } from './layout.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const root = resolve(here, '../../..');
 const args = process.argv.slice(2);
+const option = (name) => {
+  const index = args.indexOf(name);
+  return index >= 0 ? args[index + 1] : undefined;
+};
+// --root lets the tests run the checks against a fixture repository.
+const root = resolve(option('--root') ?? resolve(here, '../../..'));
 const checkOnly = args.includes('--check-only');
-const outIndex = args.indexOf('--out');
-const outDir = resolve(
-  root,
-  outIndex >= 0 && args[outIndex + 1] ? args[outIndex + 1] : 'artifacts/docs',
-);
+const outDir = resolve(root, option('--out') ?? 'artifacts/docs');
 const site = JSON.parse(await readFile(join(here, '..', 'nav.json'), 'utf8'));
 const rootDocuments = [
   'README.md',
@@ -69,12 +70,15 @@ async function sourceDocuments() {
   const documents = await walk('docs');
   for (const file of rootDocuments)
     if (existsSync(join(root, file))) documents.push(file);
-  for (const group of ['packages', 'examples'])
+  for (const group of ['packages', 'examples']) {
+    if (!existsSync(join(root, group))) continue;
     for (const directory of await readdir(join(root, group))) {
       const readme = `${group}/${directory}/README.md`;
       if (existsSync(join(root, readme))) documents.push(readme);
     }
-  documents.push('apps/docs/README.md');
+  }
+  if (existsSync(join(root, 'apps/docs/README.md')))
+    documents.push('apps/docs/README.md');
   return documents.sort();
 }
 
@@ -304,12 +308,14 @@ for (const file of [
   const cliFile = 'docs/reference/cli.md';
   const bin = join(root, 'packages/cli/dist/bin.js');
   const reference = documents.get(cliFile);
-  if (!existsSync(bin))
+  if (!reference) {
+    // No CLI reference page, nothing to verify.
+  } else if (!existsSync(bin))
     problem(
       cliFile,
       'packages/cli is not built; run `pnpm build` before `pnpm docs:build`',
     );
-  else if (reference) {
+  else {
     const help = execFileSync(process.execPath, [bin, '--help'], {
       cwd: root,
       encoding: 'utf8',
@@ -408,12 +414,9 @@ if (problems.length > 0) {
   process.exit(1);
 }
 
-const rootManifest = JSON.parse(
-  await readFile(join(root, 'packages/nestvexa/package.json'), 'utf8'),
-);
 const shell = {
   ...site,
-  status: `${rootManifest.version} (alpha, not release-ready)`,
+  status: `${manifests.get('nestvexa')?.version ?? 'unreleased'} (alpha, not release-ready)`,
   sections,
 };
 

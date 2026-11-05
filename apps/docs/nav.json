@@ -94,6 +94,7 @@
         "docs/contributing/test-matrix.md",
         "docs/contributing/ports.md",
         "docs/contributing/release-process.md",
+        "apps/docs/README.md",
         "GOVERNANCE.md",
         "CODE_OF_CONDUCT.md",
         "SECURITY.md",
