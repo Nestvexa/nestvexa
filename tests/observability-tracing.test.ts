@@ -144,7 +144,7 @@ describe('trace context propagation', () => {
         };
       },
     };
-    let active: unknown;
+    let active: unknown = undefined;
     const api = {
       context: { active: () => ({ root: true }) },
       trace: {
