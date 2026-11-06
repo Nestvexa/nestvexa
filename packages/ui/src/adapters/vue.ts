@@ -324,11 +324,22 @@ export const DatePicker = defineComponent({
   setup(props, { emit }) {
     const root = useConnection();
     const initial = props.defaultValue;
-    useDomEvent(root, 'change', (event) => {
+    // Browsers without a native date control (Playwright WebKit on Windows)
+    // render a text input that commits with `input`; report each value once.
+    let reported = initial ?? '';
+    const changed = (event: Event) => {
       const target = event.target;
-      if (target instanceof HTMLInputElement && target.type === 'date')
+      if (
+        target instanceof HTMLInputElement &&
+        target.matches('input[type="date"]') &&
+        target.value !== reported
+      ) {
+        reported = target.value;
         emit('change', target.value);
-    });
+      }
+    };
+    useDomEvent(root, 'input', changed);
+    useDomEvent(root, 'change', changed);
     return (): VNodeChild =>
       render(
         datePickerMarkup(

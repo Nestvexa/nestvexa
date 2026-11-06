@@ -81,7 +81,9 @@ export function defineFormsUploadsSuite({ framework, base }: FrameworkSuite) {
       const text = 'nestvexa '.repeat(4000);
       reply = precognition(page, 'attachment');
       await upload(page, 'notes.txt', 'text/plain', Buffer.from(text));
-      await wait(page.locator('#document-file-status')).toHaveText('Uploaded notes.txt');
+      await wait(page.locator('#document-file-status')).toHaveText(
+        'Uploaded notes.txt',
+      );
       await expect(page.getByLabel('Upload progress')).toHaveJSProperty(
         'value',
         100,
@@ -143,12 +145,17 @@ export function defineFormsUploadsSuite({ framework, base }: FrameworkSuite) {
       );
       // Store one document, then reuse its title: a form-level (`_form`) error.
       await upload(page, 'pixel.png', 'image/png', PNG);
-      await wait(page.locator('#document-file-status')).toHaveText('Uploaded pixel.png');
+      await wait(page.locator('#document-file-status')).toHaveText(
+        'Uploaded pixel.png',
+      );
       await page.getByRole('button', { name: 'Save document' }).click();
       await wait(page.getByTestId('flash')).toHaveText(`Stored ${name}`);
       await page.getByLabel('Title').fill(name);
-      await upload(page, 'pixel.png', 'image/png', PNG);
-      await wait(page.locator('#document-file-status')).toHaveText('Uploaded pixel.png');
+      // A different file, so the input's selection always changes.
+      await upload(page, 'pixel-2.png', 'image/png', PNG);
+      await wait(page.locator('#document-file-status')).toHaveText(
+        'Uploaded pixel-2.png',
+      );
       await page.getByRole('button', { name: 'Save document' }).click();
       await wait(page.getByTestId('form-error')).toHaveText(
         'A document with this title already exists.',

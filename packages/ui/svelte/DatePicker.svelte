@@ -56,13 +56,24 @@
     const root = element;
     if (!root) return;
     const release = connectUi(root);
+    // Browsers without a native date control (Playwright WebKit on Windows)
+    // render a text input that commits with `input`; report each value once.
+    let reported = initial ?? '';
     const changed = (event: Event) => {
       const target = event.target;
-      if (target instanceof HTMLInputElement && target.type === 'date')
+      if (
+        target instanceof HTMLInputElement &&
+        target.matches('input[type="date"]') &&
+        target.value !== reported
+      ) {
+        reported = target.value;
         onchange?.(target.value);
+      }
     };
+    root.addEventListener('input', changed);
     root.addEventListener('change', changed);
     return () => {
+      root.removeEventListener('input', changed);
       root.removeEventListener('change', changed);
       release();
     };

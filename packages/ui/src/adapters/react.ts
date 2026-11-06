@@ -325,15 +325,22 @@ export interface DatePickerProps {
 export function DatePicker(props: DatePickerProps): ReactElement {
   const ref = useRef<Element | null>(null);
   const [initial] = useState(props.defaultValue);
-  useDomEvent(ref, 'change', (event) => {
+  // Browsers without a native date control (Playwright WebKit on Windows)
+  // render a text input that commits with `input`; report each value once.
+  const reported = useRef(props.defaultValue ?? '');
+  const changed = (event: Event) => {
     const target = event.target;
     if (
       target instanceof HTMLInputElement &&
-      target.type === 'date' &&
-      props.onChange
-    )
-      props.onChange(target.value);
-  });
+      target.matches('input[type="date"]') &&
+      target.value !== reported.current
+    ) {
+      reported.current = target.value;
+      props.onChange?.(target.value);
+    }
+  };
+  useDomEvent(ref, 'input', changed);
+  useDomEvent(ref, 'change', changed);
   return useMarkup(
     datePickerMarkup({
       id: props.id,
