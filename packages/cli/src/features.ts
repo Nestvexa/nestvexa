@@ -220,6 +220,7 @@ export function ensureFramework(
     app.inertiaApp(framework),
   );
   plan.ensure(`${directory}/setup.ts`, app.inertiaSetup(framework));
+  plan.ensure(app.ssrEntry(framework), app.inertiaSsr(framework));
   plan.ensure(
     `${directory}/tsconfig.json`,
     app.inertiaClientTsconfig(framework),
@@ -234,13 +235,13 @@ export function ensureFramework(
         config,
         'inertiaFrameworks',
         framework,
-        `{ entry: '${directory}/${meta.entry}', devPort: ${meta.devPort} }`,
+        `{ entry: '${directory}/${meta.entry}', ssr: '${app.ssrEntry(framework)}', devPort: ${meta.devPort} }`,
         'inertia-apps',
       ),
     );
   addScripts(plan, {
     [`dev:${framework}`]: `vite -c vite.${framework}.config.ts`,
-    [`build:${framework}`]: `vite build -c vite.${framework}.config.ts`,
+    [`build:${framework}`]: `vite build -c vite.${framework}.config.ts && vite build -c vite.${framework}.config.ts --ssr ${app.ssrEntry(framework)}`,
     [`typecheck:${framework}`]: typecheckCommand(framework),
   });
   extendScript(plan, 'build:client', run(project, `build:${framework}`));
@@ -413,7 +414,9 @@ export function ensureActions(
   notes: Notes,
 ): void {
   addDependencies(plan, { '@nestvexa/actions': range });
-  if (plan.ensure(actionsConfigPath(project), app.actionsConfig(project.platform)))
+  if (
+    plan.ensure(actionsConfigPath(project), app.actionsConfig(project.platform))
+  )
     notes.push(
       `Created ${actionsConfigPath(project)}. ActionsModule is registered with your first \`nestvexa make:action\` (it requires a non-empty group list).`,
     );
@@ -633,11 +636,9 @@ function addRedis(plan: ChangePlan, project: ProjectInfo, notes: Notes): void {
       'realtimeBroker()',
     );
     if (next !== realtimeText)
-      next = ensureImport(
-        next,
-        relativeImport(realtime, file, project.esm),
-        ['realtimeBroker'],
-      );
+      next = ensureImport(next, relativeImport(realtime, file, project.esm), [
+        'realtimeBroker',
+      ]);
     plan.update(realtime, next);
   }
   const live = liveConfigPath(project);
@@ -645,7 +646,12 @@ function addRedis(plan: ChangePlan, project: ProjectInfo, notes: Notes): void {
   let next =
     liveText === undefined
       ? undefined
-      : addFactoryResultProperty(liveText, 'nestvexaLive', 'store', 'liveStore()');
+      : addFactoryResultProperty(
+          liveText,
+          'nestvexaLive',
+          'store',
+          'liveStore()',
+        );
   if (liveText !== undefined && next !== undefined) {
     if (next !== liveText)
       next = ensureImport(next, relativeImport(live, file, project.esm), [

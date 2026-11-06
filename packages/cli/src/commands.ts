@@ -112,9 +112,7 @@ export function init(context: CommandContext): CommandResult {
   );
   if (main !== mainText && fastify) {
     main = ensureImport(main, 'nestvexa', ['configureNestvexa']);
-    main = ensureImport(main, `./nestvexa/session${ext}`, [
-      'configureSession',
-    ]);
+    main = ensureImport(main, `./nestvexa/session${ext}`, ['configureSession']);
   } else if (main !== mainText) {
     main = ensureImport(main, 'nestvexa', ['configureNestvexa']);
     main = ensureImport(main, `./nestvexa/nestvexa.config${ext}`, [

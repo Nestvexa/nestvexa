@@ -465,6 +465,24 @@ export function doctor(context: CommandContext): CommandResult {
       'Set REALTIME_SECRET to a random value of at least 32 bytes; rotate by listing old secrets after the new one.',
     );
   }
+  if (project.dependencies['@nestvexa/realtime-redis']) {
+    // The URL carries credentials: only its shape is reported.
+    const url = process.env['REDIS_URL'];
+    const valid =
+      url !== undefined &&
+      URL.canParse(url) &&
+      new URL(url).protocol === 'redis:';
+    add(
+      'redis',
+      url === undefined || url === '' ? 'warn' : valid ? 'pass' : 'fail',
+      url === undefined || url === ''
+        ? 'REDIS_URL is not set: Live state and realtime stay in this process (single replica only)'
+        : valid
+          ? 'REDIS_URL is set (value not displayed)'
+          : 'REDIS_URL is not a redis:// URL',
+      'Set REDIS_URL=redis://[user:password@]host:port[/db] on every replica, or keep one replica.',
+    );
+  }
 
   // Built frontend assets.
   const inertiaConfig = [...sources].find(([path]) =>
