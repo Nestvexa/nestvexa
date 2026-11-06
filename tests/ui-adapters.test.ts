@@ -404,7 +404,9 @@ describe.each(selected)('UI kit wrappers in %s', (engine) => {
         // React's development build marks render phases with
         // console.timeStamp('Hydrated', …); Firefox surfaces those as console
         // messages. They are performance-track labels, not hydration errors.
-        if (message.type() === 'timeStamp') return;
+        // (Playwright's ConsoleMessage type union does not list `timeStamp`.)
+        const type: string = message.type();
+        if (type === 'timeStamp') return;
         if (message.type() === 'error' || /hydrat/i.test(message.text()))
           errors.push(message.text());
       });
