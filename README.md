@@ -141,7 +141,37 @@ pnpm --filter @nestvexa/example-admin-i18n start      # http://127.0.0.1:3110 i1
 pnpm --filter @nestvexa/example-actions-basic start   # http://127.0.0.1:3111 universal server actions
 pnpm --filter @nestvexa/example-hybrid-dashboard start # http://127.0.0.1:3112/hybrid Live + islands
 pnpm --filter @nestvexa/example-custom-engine start   # http://127.0.0.1:3113 EJS/Pug/Nunjucks
+pnpm --filter @nestvexa/example-starter-ejs start     # http://127.0.0.1:3114 EJS MVC + Live
+pnpm --filter @nestvexa/example-live-crud start       # http://127.0.0.1:3115/tasks Live CRUD
+pnpm --filter @nestvexa/example-realtime-dashboard start # http://127.0.0.1:3116 SSE dashboard
+pnpm --filter @nestvexa/example-upload-to-s3 start    # http://127.0.0.1:3117 S3 uploads (needs S3_* env)
+pnpm --filter @nestvexa/example-multi-tenant start    # http://127.0.0.1:3119 tenants and roles
+pnpm --filter @nestvexa/example-express-host start    # http://127.0.0.1:3120 same app on Express
+pnpm --filter @nestvexa/example-fastify-host start    # http://127.0.0.1:3121 same app on Fastify
+pnpm --filter @nestvexa/example-offline-progressive start # http://127.0.0.1:3122 offline/no-JS
+pnpm --filter @nestvexa/example-integration-matrix start  # http://127.0.0.1:3123 every renderer in one server
 ```
+
+Every example has a README (what it shows, how to run it, security notes) and a
+Playwright spec under `tests/browser/` with an axe accessibility check. The
+names in the planned repository layout map to these directories:
+
+| Planned name                    | Example                                                                                                                                                                                                                         |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `starter-hbs`                   | [starter-hbs](examples/starter-hbs/README.md) (MVC) and [starter-live](examples/starter-live/README.md) (default Live setup)                                                                                                    |
+| `starter-ejs`                   | [starter-ejs](examples/starter-ejs/README.md)                                                                                                                                                                                   |
+| `live-counter`                  | [live-counter](examples/live-counter/README.md)                                                                                                                                                                                 |
+| `live-crud`                     | [live-crud](examples/live-crud/README.md); a smaller board is `/projects` in starter-live                                                                                                                                       |
+| `auth-forms`                    | [auth-forms](examples/auth-forms/README.md)                                                                                                                                                                                     |
+| `inertia-react/vue/svelte`      | [inertia-react](examples/inertia-react/README.md), [inertia-vue](examples/inertia-vue/README.md), [inertia-svelte](examples/inertia-svelte/README.md); all three in one host: [inertia-mixed](examples/inertia-mixed/README.md) |
+| `hybrid-dashboard`              | `examples/hybrid-dashboard` (`/hybrid`, Live + React/Vue/Svelte islands)                                                                                                                                                        |
+| `realtime-dashboard`            | [realtime-dashboard](examples/realtime-dashboard/README.md)                                                                                                                                                                     |
+| `upload-to-s3`                  | [upload-to-s3](examples/upload-to-s3/README.md); local-disk storage: [uploads](examples/uploads/README.md)                                                                                                                      |
+| `multi-tenant`                  | [multi-tenant](examples/multi-tenant/README.md)                                                                                                                                                                                 |
+| `express-host` / `fastify-host` | [express-host](examples/express-host/README.md) / [fastify-host](examples/fastify-host/README.md) (one shared `app.ts`)                                                                                                         |
+| `offline-progressive`           | [offline-progressive](examples/offline-progressive/README.md)                                                                                                                                                                   |
+| `integration-matrix`            | [integration-matrix](examples/integration-matrix/README.md)                                                                                                                                                                     |
+| `apps/playground`               | Not a separate app: [integration-matrix](examples/integration-matrix/README.md) is the one-server playground                                                                                                                    |
 
 The Live starter contains `/board`, `/team` (nested components), `/projects` (CRUD
 board: search, sort, pagination, validation, events, optimistic UI, downloads),
