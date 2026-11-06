@@ -7,7 +7,9 @@ picker, file uploader, step wizard, data table (sortable headers, search,
 filters, row selection), pagination and progress. Markup is rendered on the server by
 trusted Handlebars helpers. A small optional browser module adds keyboard and
 focus behavior, and an optional stylesheet adds a theme with dark mode, RTL and
-reduced-motion support. Alpha software.
+reduced-motion support. Thin React, Vue and Svelte wrappers render the same
+markup for the main primitives (dialog, tabs, menu, toast, date picker, data
+table) and reuse the same keyboard module. Alpha software.
 
 This package is **not** part of the `nestvexa` default install. Installing it
 changes nothing until you register its helpers and, if you want keyboard
@@ -20,7 +22,8 @@ After owner-authorized publication: `npm install @nestvexa/ui`,
 workspace or packed tarballs. Node `^22.13.0 || ^24.0.0`, ESM only.
 
 - Runtime dependency: `@nestvexa/views` (for `SafeHtml`).
-- No peer dependencies. The helpers work with any `ViewEngineAdapter` that
+- Optional peers, only for the framework wrappers: `react` `^19`, `vue`
+  `^3.5`, `svelte` `^5`. HBS-only hosts install none of them. The helpers work with any `ViewEngineAdapter` that
   forwards Handlebars helper calls, which in practice means
   `@nestvexa/engine-hbs` (directly or through the `nestvexa` umbrella).
 - The browser module has no dependencies and does not import
@@ -28,12 +31,16 @@ workspace or packed tarballs. Node `^22.13.0 || ^24.0.0`, ESM only.
 
 ## Entry points
 
-| Entry                     | Runs in | Contents                                                    |
-| ------------------------- | ------- | ----------------------------------------------------------- |
-| `@nestvexa/ui`            | Node    | `uiHelpers`, `UiError`, `escapeHtml`                        |
-| `@nestvexa/ui/browser`    | Browser | `initUi`, `openDialog`, `closeDialog`, `showToast`          |
-| `@nestvexa/ui/theme.css`  | Browser | Optional stylesheet (plain CSS, no build)                   |
-| `@nestvexa/ui/tokens.css` | Browser | Design tokens only (custom properties, no component styles) |
+| Entry                     | Runs in | Contents                                                                         |
+| ------------------------- | ------- | -------------------------------------------------------------------------------- |
+| `@nestvexa/ui`            | Node    | `uiHelpers`, `UiError`, `escapeHtml`                                             |
+| `@nestvexa/ui/browser`    | Browser | `initUi`, `connectUi`, `openDialog`, `closeDialog`, `showToast`, `menuSelection` |
+| `@nestvexa/ui/markup`     | Both    | Markup contract: `dialogMarkup`, `tabsMarkup`, … and `renderMarkup`              |
+| `@nestvexa/ui/react`      | Both    | React wrappers (SSR and hydration)                                               |
+| `@nestvexa/ui/vue`        | Both    | Vue 3 wrappers (SSR and hydration)                                               |
+| `@nestvexa/ui/svelte`     | Both    | Svelte 5 wrappers, shipped as `.svelte` source                                   |
+| `@nestvexa/ui/theme.css`  | Browser | Optional stylesheet (plain CSS, no build)                                        |
+| `@nestvexa/ui/tokens.css` | Browser | Design tokens only (custom properties, no component styles)                      |
 
 `@nestvexa/ui/browser` is a single self-contained ES module
 (`dist/browser/index.js`) with no relative imports, so it can be served as one
@@ -221,6 +228,39 @@ function showToast(
   `data-nv-ui-event` and whose payload is `{ message: string, tone? }`. Other
   payloads are ignored.
 
+## Framework wrappers (`/react`, `/vue`, `/svelte`)
+
+The wrappers render the trees of `@nestvexa/ui/markup` (the builders the HBS
+helpers print, so markup cannot drift) and call `connectUi(element)` on mount
+([ADR 0033](../../docs/adr/0033-ui-kit-framework-wrappers.md)). Include
+`theme.css` (or your own styles) as with HBS.
+
+| Component                                                                                                                                  | Props beyond the HBS hash names                                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| `Dialog`, `Drawer`, `DialogTrigger`                                                                                                        | body as children/default slot; `onClose` (Vue `close`, Svelte `onclose`)                    |
+| `Tabs`                                                                                                                                     | `tabs: [{ id, label, selected?, content }]` (Vue slot `panel-<id>`, Svelte `panel` snippet) |
+| `Menu`                                                                                                                                     | `items: [{ label, href or value, disabled? }]`, `onSelect(value)`                           |
+| `ToastRegion`                                                                                                                              | handle `show(message, { tone, timeout })` via `ref` / Vue `expose` / `bind:this`            |
+| `DatePicker`                                                                                                                               | `defaultValue` (read once), `onChange(value)`                                               |
+| `DataTable`, `TableSearch`, `TableFilter` (`field` = `key`), `SelectAll`, `SelectRow` (`defaultChecked`), `SortHeader` (`sortKey`, `href`) | table body as children/default slot                                                         |
+
+React uses `className`; Vue and Svelte use `class`/`className` as listed in
+their types. Live-only options (`model`, `action`) are not available.
+
+```tsx
+import { Dialog, DialogTrigger, Menu } from '@nestvexa/ui/react';
+
+<DialogTrigger target="edit" label="Edit" />
+<Dialog id="edit" title="Edit item" closeLabel="Close" onClose={() => setOpen(false)}>
+  <EditForm />
+</Dialog>
+<Menu id="row" label="Actions" items={[{ label: 'Archive', value: 'archive' }]} onSelect={archive} />
+```
+
+Svelte: `import { Dialog } from '@nestvexa/ui/svelte'` resolves to `.svelte`
+source through the `svelte` export condition, compiled by your Svelte/Vite
+toolchain.
+
 ## Live integration
 
 - **Dialogs**: keep the `<dialog>` element **outside** a Live component root
@@ -322,9 +362,9 @@ number of listeners per root. Combobox filtering is linear in the option count
 pnpm --filter @nestvexa/views build
 pnpm --filter @nestvexa/engine-hbs build
 pnpm --filter @nestvexa/ui build
-pnpm exec vitest run tests/ui-helpers.test.ts tests/ui-primitives.test.ts tests/ui-browser.test.ts tests/ui-primitives-browser.test.ts
+pnpm exec vitest run tests/ui-helpers.test.ts tests/ui-primitives.test.ts tests/ui-browser.test.ts tests/ui-primitives-browser.test.ts tests/ui-adapters.test.ts
 # every browser engine for the second slice:
-NV_UI_BROWSERS=chromium,firefox,webkit pnpm exec vitest run tests/ui-primitives-browser.test.ts
+NV_UI_BROWSERS=chromium,firefox,webkit pnpm exec vitest run tests/ui-primitives-browser.test.ts tests/ui-adapters.test.ts
 ```
 
 [`tests/ui-primitives.test.ts`](../../tests/ui-primitives.test.ts) covers the
@@ -334,6 +374,12 @@ runs keyboard, focus, RTL, no-JavaScript and axe checks under a strict CSP in
 Chromium, Firefox and WebKit, and
 [`tests/browser/admin-ui-kit.spec.ts`](../../tests/browser/admin-ui-kit.spec.ts)
 exercises the primitives in the admin example.
+
+[`tests/ui-adapters.test.ts`](../../tests/ui-adapters.test.ts) bundles React,
+Vue and Svelte fixtures, checks that their SSR output is canonically equal to
+the HBS helpers' markup, hydrates them under a strict CSP and drives the
+dialog, tabs, menu, toasts, date picker and data table from the keyboard with
+axe checks and unmount/remount.
 
 [`tests/ui-helpers.test.ts`](../../tests/ui-helpers.test.ts) renders through a
 real `HbsEngine`: markup contracts, escaping, rejected ids, hrefs and action
@@ -361,7 +407,12 @@ theme preferences and axe.
 - Tabs use automatic activation. Manual activation is not configurable.
 - The keyboard module is tested in Chromium here, and in Chromium, Firefox and
   WebKit through the admin example's Playwright suite.
-- No SPA (React/Vue/Svelte) adapter is shipped for these primitives.
+- The framework wrappers cover dialog/drawer, dialog trigger, tabs, menu,
+  toast region, date picker and the data table pieces. Accordion, popover,
+  tooltip, breadcrumbs, badge, alert, file upload, wizard, combobox,
+  pagination and progress are HBS-only for now.
+- Wrappers are uncontrolled (the keyboard module owns open/selected state);
+  changing their props re-renders the attributes they own.
 
 ## Compatibility
 

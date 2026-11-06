@@ -243,6 +243,102 @@ from `@nestvexa/i18n`.
   filtering, and put `uiSelectAll`/`uiSelectRow` in a `<form>` so a bulk
   action is a plain POST. See `examples/admin-i18n` (`/admin/kit`).
 
+## 9. React, Vue and Svelte pages
+
+Inertia roots and islands use the same primitives through
+`@nestvexa/ui/react`, `@nestvexa/ui/vue` and `@nestvexa/ui/svelte`. The
+wrappers render the markup contract of `@nestvexa/ui/markup` (the builders the
+HBS helpers print) and connect each component to the keyboard module on
+mount, so markup, keyboard behavior and the theme are the same as on HBS and
+Live pages ([ADR 0033](../adr/0033-ui-kit-framework-wrappers.md)). Install the
+framework you use (an optional peer) and import `@nestvexa/ui/theme.css` in
+your entry.
+
+```tsx
+// React (an Inertia page)
+import { useRef } from 'react';
+import {
+  DataTable,
+  Dialog,
+  DialogTrigger,
+  Menu,
+  SelectAll,
+  SelectRow,
+  TableSearch,
+  ToastRegion,
+} from '@nestvexa/ui/react';
+import type { ToastHandle } from '@nestvexa/ui/react';
+
+export default function Products({ products }: Props) {
+  const toasts = useRef<ToastHandle>(null);
+  return (
+    <>
+      <Menu
+        id="bulk"
+        label="Actions"
+        items={[{ label: 'Archive', value: 'archive' }]}
+        onSelect={() => toasts.current?.show('Archived', { tone: 'success' })}
+      />
+      <TableSearch
+        table="products"
+        label="Search"
+        client
+        resultsLabel="{count} results"
+      />
+      <DataTable
+        id="products"
+        caption="Products"
+        selectionLabel="{count} selected"
+      >
+        <thead>
+          <tr>
+            <SelectAll table="products" label="Select all" />
+            <th scope="col">Name</th>
+          </tr>
+        </thead>
+        <tbody>
+          {products.map((product) => (
+            <tr key={product.id}>
+              <SelectRow
+                name="ids"
+                value={product.id}
+                label={`Select ${product.name}`}
+              />
+              <td>{product.name}</td>
+            </tr>
+          ))}
+        </tbody>
+      </DataTable>
+      <DialogTrigger target="help" label="Help" />
+      <Dialog id="help" title="Help" closeLabel="Close">
+        <p>Select rows, then choose an action.</p>
+      </Dialog>
+      <ToastRegion
+        id="toasts"
+        label="Notifications"
+        dismissLabel="Dismiss"
+        ref={toasts}
+      />
+    </>
+  );
+}
+```
+
+Vue uses the same names with slots (`<Dialog>` default slot, `<Tabs>` slots
+named `panel-<id>`) and events (`@select`, `@change`, `@close`); a
+`ToastRegion` template ref exposes `show()`. Svelte uses snippets
+(`{#snippet panel(tab)}` for `Tabs`), callback props (`onselect`, `onchange`,
+`onclose`) and `bind:this` for `show()`; the components ship as `.svelte`
+source and are compiled by your Svelte toolchain.
+
+The wrappers are uncontrolled: the keyboard module owns open and selected
+state, `defaultValue`/`defaultChecked`/`messages` are read once, and changing
+props re-renders the attributes the component owns. Live-only options (`model`,
+`action`) are HBS features. The wrapped set is dialog/drawer, dialog trigger,
+tabs, menu, toast region, date picker and the data table pieces; the other
+primitives are HBS-only for now. A runnable page is `/kit` in
+`examples/inertia-react`.
+
 ## Limits
 
 No chart wrapper or form-field wrappers yet. The combobox needs JavaScript to
