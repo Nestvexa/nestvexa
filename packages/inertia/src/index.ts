@@ -89,10 +89,12 @@ export {
   InertiaValidationException,
   InertiaValidationFilter,
   flattenValidationErrors,
+  inertiaValidate,
   inertiaValidationExceptionFactory,
 } from './validation.js';
 export type {
   InertiaValidationOptions,
+  InertiaValidationSchema,
   ValidationErrorLike,
 } from './validation.js';
 export { InertiaService } from './service.js';

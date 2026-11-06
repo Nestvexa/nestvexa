@@ -4,6 +4,14 @@ import type {
   ExecutionContext,
   NestInterceptor,
 } from '@nestjs/common';
+import {
+  HTTP_CODE_METADATA,
+  REDIRECT_METADATA,
+  RENDER_METADATA,
+  ROUTE_ARGS_METADATA,
+  SSE_METADATA,
+} from '@nestjs/common/constants.js';
+import { RouteParamtypes } from '@nestjs/common/enums/route-paramtypes.enum.js';
 import { Reflector } from '@nestjs/core';
 import { from, mergeMap, of } from 'rxjs';
 import type { Observable } from 'rxjs';
@@ -17,7 +25,11 @@ import {
 } from './precognition.js';
 import type { PrecognitionMetadata } from './precognition.js';
 import { isPlainObject } from './resolver.js';
-import { InertiaPageResult, isInertiaResult } from './results.js';
+import {
+  InertiaBackResult,
+  InertiaPageResult,
+  isInertiaResult,
+} from './results.js';
 import { InertiaService } from './service.js';
 import { InertiaValidationException } from './validation.js';
 import type { InertiaErrors } from './validation-types.js';
@@ -64,7 +76,14 @@ export class InertiaInterceptor implements NestInterceptor {
               .handle()
               .pipe(
                 mergeMap((value) =>
-                  this.#after(request, response, metadata, value),
+                  this.#after(
+                    request,
+                    response,
+                    metadata,
+                    value === undefined && this.#autoBack(context, request)
+                      ? new InertiaBackResult()
+                      : value,
+                  ),
                 ),
               )
           : of(conflict),
@@ -125,6 +144,39 @@ export class InertiaInterceptor implements NestInterceptor {
     const reply = this.inertia.precognitionReply(request, errors);
     this.inertia.applyHead(response, reply);
     return reply.body;
+  }
+
+  /**
+   * Empty-response handling (as `inertia-laravel`'s `onEmptyResponse`): an
+   * Inertia request whose handler returned nothing is redirected back. Never
+   * applies to `@InertiaPage` routes, handlers that own the response
+   * (`@Res()`/`@Next()`), or handlers that declare `@HttpCode`, `@Redirect`,
+   * `@Render` or `@Sse`.
+   */
+  #autoBack(context: ExecutionContext, request: object): boolean {
+    if (this.inertia.emptyResponse !== 'back') return false;
+    if (!this.inertia.requestInfo(request).inertia) return false;
+    const handler = context.getHandler();
+    for (const key of [
+      INERTIA_PAGE_METADATA,
+      HTTP_CODE_METADATA,
+      REDIRECT_METADATA,
+      RENDER_METADATA,
+      SSE_METADATA,
+    ])
+      if (this.reflector.get<unknown>(key, handler) !== undefined) return false;
+    const args: unknown = Reflect.getMetadata(
+      ROUTE_ARGS_METADATA,
+      context.getClass(),
+      handler.name,
+    );
+    if (typeof args === 'object' && args !== null)
+      for (const key of Object.keys(args)) {
+        const type = Number(key.split(':')[0]);
+        if (type === RouteParamtypes.RESPONSE || type === RouteParamtypes.NEXT)
+          return false;
+      }
+    return true;
   }
 
   async #after(
