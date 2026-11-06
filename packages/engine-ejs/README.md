@@ -66,7 +66,7 @@ EJS evaluates templates with `with (locals)`: an **undefined top-level name thro
 
 ## Includes, layouts, partials and helpers
 
-- `include('/partials/footer')` is root-relative; `include('card')` is relative to the including template; a registered alias (`partials` option or `RenderOptions.partials`) wins. `..`, `.`, absolute OS paths, drive letters, backslashes and NUL bytes are rejected before any file is read, and real-path checks reject symlink/junction escapes. Includes must be `.ejs` files.
+- `include('/partials/footer')` is root-relative; `include('card')` is relative to the including template; a registered alias (`partials` option or `RenderOptions.partials`) wins. `..`, `.`, absolute OS paths, drive letters, backslashes, control characters, unpaired surrogates and noncharacters are rejected before any filesystem call, and real-path checks reject symlink/junction escapes. Includes must be `.ejs` files. The adapter supplies its own `include` (same arguments and data merging as EJS) because EJS's built-in include probes `fs.existsSync` with the raw reference before any containment hook runs; never pass unvalidated request data to `include()`.
 - `defaultLayout` / `RenderOptions.layout` wrap the view; the layout receives the rendered view as trusted `body`. `layout: false` opts out. Layout nesting is composed explicitly (render a layout as a view).
 - `helpers` (engine) and `RenderOptions.helpers` (per render) are trusted synchronous functions exposed as locals. A helper name colliding with a model key is rejected. Async helpers are rejected; load data in `ViewEngineRegistry` composers.
 
