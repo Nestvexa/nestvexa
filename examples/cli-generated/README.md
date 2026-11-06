@@ -19,6 +19,7 @@ nestvexa make:form Contact
 nestvexa make:action Greeter
 nestvexa make:island Clicker --renderer react
 nestvexa make:resource Task --crud
+nestvexa make:policy Owner
 nestvexa add realtime
 nestvexa add uploads
 nestvexa add i18n

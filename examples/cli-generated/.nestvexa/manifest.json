@@ -226,6 +226,12 @@
       "sha256": "5ed238f83a2a36a3a77be6da82212b32499495ecd9333f4e061c40b2e4102413",
       "feature": "page:vue-dashboard"
     },
+    "src/policies/owner.policy.ts": {
+      "sha256": "c113ee69e02b14aa490a7fda4b4c578ffe387be33e7e2e929fb2bfcf261705be",
+      "feature": "policy:owner",
+      "template": "policy.guard",
+      "templateVersion": 1
+    },
     "src/task/task-table.component.ts": {
       "sha256": "36536443921f006b7246ae534aadf42045a895166d018e3ed2e997ec649cd06f",
       "feature": "resource:task",

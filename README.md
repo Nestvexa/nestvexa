@@ -172,6 +172,7 @@ pnpm --filter @nestvexa/example-express-host start    # http://127.0.0.1:3120 sa
 pnpm --filter @nestvexa/example-fastify-host start    # http://127.0.0.1:3121 same app on Fastify
 pnpm --filter @nestvexa/example-offline-progressive start # http://127.0.0.1:3122 offline/no-JS
 pnpm --filter @nestvexa/example-integration-matrix start  # http://127.0.0.1:3123 every renderer in one server
+NESTVEXA_ASSETS=build PORT=3126 pnpm --filter @nestvexa/example-cli-generated start # CLI output only (see its README)
 ```
 
 Every example has a README (what it shows, how to run it, security notes) and a

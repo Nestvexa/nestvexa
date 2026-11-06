@@ -20,8 +20,8 @@ import {
   repo,
 } from './support/cli-fixture.js';
 
-// Assigned port range for this suite: 3240-3259.
-const port = 3241;
+// Port of the booted fixture (DX round 2 range 3480-3499).
+const port = 3484;
 const freshApp = (name: string, type: 'module' | 'commonjs' = 'module') =>
   fixtureApp(name, { type });
 

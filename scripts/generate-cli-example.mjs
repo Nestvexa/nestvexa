@@ -44,6 +44,7 @@ export const steps = [
   ['make:action', 'Greeter'],
   ['make:island', 'Clicker', '--renderer', 'react'],
   ['make:resource', 'Task', '--crud'],
+  ['make:policy', 'Owner'],
   ['add', 'realtime'],
   ['add', 'uploads'],
   ['add', 'i18n'],
