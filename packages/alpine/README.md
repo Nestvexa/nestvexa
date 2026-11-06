@@ -27,6 +27,10 @@ For a fresh document whose startup is delegated to Nestvexa, replace those three
 
 One document owns one application, including across copies of the bootstrap package. A repeated startup with the same Alpine returns the existing application; a different runtime or visible host `window.Alpine` rejects. Undisclosed already-started Alpine cannot be detected using public APIs, so delegated mode requires fresh startup. Persisted pagehide retains the same client/drafts for BFCache; nonpersisted departure disposes Live and removes its page listener. This does not stop or destroy Alpine DOM. Failed/disposed startup leaves a reload-only tombstone, preventing unsafe partial restart. Cleanup failures are surfaced. Existing host startup must keep using `installLiveAlpine`.
 
+### Host-owned Alpine
+
+`adoptLiveAlpine(alpine, client, { document?, configure? })` binds Live to an Alpine the page already owns (a CDN build or an application bundle): it validates the supported version and extension APIs, registers `$live`, mounts the client and never calls `start()`. Adopt before the page starts Alpine so first-render expressions see `$live`. It shares document ownership with `startLiveAlpine`: adopting the Alpine that `startLiveAlpine` already started returns that application, and `startLiveAlpine` refuses an adopted host. `hostAlpine()` returns `window.Alpine` only when it is a plain data property (accessors are never invoked). The default `boot.js` adopts a host Alpine when present and starts the bundled CSP Alpine otherwise. Only Alpine 3.17.x is accepted and tested; other versions are rejected before mounting.
+
 ## Local DOM ownership
 
 This initial integration requires Alpine markup inside an `nv:ignore` subtree nested under a Live component:

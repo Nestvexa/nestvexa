@@ -49,9 +49,36 @@ and cancellation, and request deduplication without duplicating payment/order ac
 
 - Replays and identity locks are per process. Multi-replica deployments need sticky
   sessions until a shared Live store exists (DATA-004/005).
-- The browser runtime does not retry automatically; replay serves programmatic clients
-  and network retries.
+- The browser runtime retries only server-declared idempotent actions (see the amendment
+  below); everything else is never retried automatically.
 - `timeoutMs` abandons, but cannot undo, work that ignores the abort signal.
+
+## Amendment (2026-11-06): browser negotiation, safe retries and bundling
+
+- **Advertisement.** Successful action and `$sync` replies carry `x-nestvexa-protocol`
+  and `x-nestvexa-capabilities`. The client reports another advertised major or a `426`
+  as `PROTOCOL` and suspends, so a stale tab reloads instead of misreading a reply. Error
+  replies come from exception filters without these headers; the status is the signal.
+- **Safe retries.** The wrapper lists idempotent action ids in `data-nv-idempotent`. Only
+  those are resent, with identical bytes and `requestId`, after a dropped connection,
+  timeout, `409`, `429`, `502`, `503` or `504`, at most twice with full jitter
+  (100 ms + up to 400 ms × 2^attempt). Replay makes a lost reply safe; a forged marker
+  cannot make a non-idempotent action run twice because its duplicate is `409`.
+  Rejected: retrying `$sync` (it writes state without replay) and retrying by status
+  alone without a server declaration.
+- **Bundling.** Each request carries every draft at the moment it starts, so a queued
+  `$sync` folds into any queued request of the same component that has not started.
+  Cross-component batching is rejected for now: each component has its own snapshot,
+  revision, authorization and failure scope, and a batch route would need per-item
+  admission and partial-failure semantics (spec 8.4 allows batching only then).
+- **Size.** These features plus nested paths, checkbox groups, restored drafts, progress
+  events and development inspection raised the bundle from 45,445 to 46,550 gzip
+  bytes, inside the 49,152-byte budget of [ADR 0020](0020-client-budget-revision.md).
+
+Evidence: [client transport guide](../guides/client-transport.md),
+[negotiation tests](../../tests/live-client-negotiation.test.ts), transport rows of the
+[directive matrix](../../tests/client-directive-combinations.test.ts) and the real-server
+retry in [the directive lab](../../tests/browser/directive-lab.spec.ts).
 
 ## Evidence
 

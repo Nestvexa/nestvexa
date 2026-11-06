@@ -100,6 +100,14 @@ TypeScript emits documented declarations; esbuild creates one minified canonical
 
 Server-mounted child roots are independent components. Empty `data-nv-stub` roots keep the existing child DOM; `data-nv-refresh` roots replace it; unmatched stubs are rejected before any DOM change. Responses may carry bounded `events` (delivered to `@OnEvent` listener actions and as a window `nestvexa:event`) and an application-relative `redirect`. `client.dispatch(name, payload)` delivers browser events. Lazy roots (`data-nv-lazy`) load through `$sync`. See the [nested components guide](../../docs/guides/nested-components.md).
 
+## Nested paths, checkbox groups and restored drafts
+
+`nv:model`, `nv:text`, `nv:show`, `nv:bind` and `nv:dirty` accept dotted paths (`address.city`, at most eight identifier segments). A nested draft is sent as its whole top-level field and the server accepts it only through `@State({ writable: ['city'] })`. Checkboxes modelling array state form value groups; file inputs use `nv:upload`; `contenteditable` is not modelled. Values the browser restores before mount become drafts announced by `nestvexa:restored`. See [nested models](../../docs/guides/nested-models.md).
+
+## Transport: bundling, retries, negotiation, progress
+
+A queued `$sync` folds into a request of the same component that has not started. Only server-declared idempotent actions (`data-nv-idempotent`) are resent, with the same `requestId`, after drops, timeouts and `409/429/502/503/504` (two resends, full jitter). Another advertised protocol major or a `426` reports `PROTOCOL`. Each root dispatches `nestvexa:request` (`start`/`retry`/`end`) events without payloads. `createLiveClient({ development: true })` enables `inspect()` (names, never values or tokens) and console warnings. See [client transport](../../docs/guides/client-transport.md) and [diagnostics](../../docs/guides/client-diagnostics.md).
+
 ## Navigation and optimistic updates
 
 `nv:navigate` links swap same-origin documents with full-load fallback ([reference](../../docs/reference/nv-navigate.md)); `client.navigate(url)` visits programmatically. `nv:optimistic.toggle|set|increment|decrement` projects display bindings until an action settles and emits `nestvexa:rollback` on failure ([reference](../../docs/reference/nv-optimistic.md)). Responses with `download` trigger a single-use attachment.

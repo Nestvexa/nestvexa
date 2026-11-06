@@ -1079,11 +1079,11 @@ const modelRows: Row[] = [
     name: 'an action cancels a pending model timer and carries the draft',
     state: { query: '', count: 0 },
     actions: { increment: { increment: 'count' } },
-    html: `${output}<input id="query" aria-label="Query" nv:model.live.debounce.300ms="query"><button id="go" type="button" nv:click="increment">Go</button>`,
+    html: `${output}<input id="query" aria-label="Query" nv:model.live.debounce.2000ms="query"><button id="go" type="button" nv:click="increment">Go</button>`,
     steps: [
       { fill: '#query', value: 'x' },
       { click: '#go' },
-      { wait: 500 },
+      { wait: 2300 },
       { expect: { actions: ['increment'], updates: [{ query: 'x' }] } },
     ],
   },
@@ -1159,7 +1159,15 @@ const structureRows: Row[] = [
     steps: [
       { fill: '#street', value: 'Nile' },
       { wait: 300 },
-      { expect: { actions: [], errors: ['DIRECTIVE'] } },
+      // Firefox's fill dispatches more than one input event; each is refused.
+      {
+        expect: {
+          actions: [],
+          values: {
+            "nvHarness.errors.length > 0 && nvHarness.errors.every((code) => code === 'DIRECTIVE')": true,
+          },
+        },
+      },
     ],
   },
   {

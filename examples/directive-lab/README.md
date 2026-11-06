@@ -10,6 +10,7 @@ One real Nest/Express Live component combines directives and modifiers under a s
 - `nv:submit` with native `required`/`type=email` validation, a deferred `nv:model`, `nv:dirty` and a targeted submit `disabled` effect;
 - `nv:model.live.debounce.100ms` with a `$sync` loading target, and `nv:model.blur.number`;
 - `nv:confirm` through the native dialog, `nv:show` with a CSS leave transition, `nv:bind="aria-expanded:open"` and a polite live region updated in place;
+- nested model paths (`address.city`, `address.zip`) checked by a server allowlist that keeps `address.verified` server-owned, a checkbox group over `topics` validated by count and allowlist, an idempotent `deposit` action retried safely after dropped requests and lost replies, and an `nv:sort` list reordered by keyboard and pointer;
 - an action that throws, demonstrating suspension without a false `nv:offline` hint;
 - `nv:navigate` to `/about` and back without reloading the client.
 

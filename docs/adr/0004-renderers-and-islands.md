@@ -34,6 +34,25 @@ Failure modes include detached listeners, leaked framework roots, focus/caret lo
 
 The 2026-10-29 selection amendment retains native anchor/focus node references and offsets for one owned inner light-DOM editing host. Cloning a live Range was rejected because DOM mutation can adjust its endpoints; serializing HTML or remapping offsets into replacement nodes was rejected because that would invent rich-text state semantics and cross ownership/reset boundaries. Restoration is scoped to retained valid nodes, skips host callback overrides, and precedes explicit focus to handle WebKit's caret ordering. This adds request-local presentation bookkeeping without a dependency, public directive or server state field. Cross-editor/multi-range/plugin/shadow/iframe selection remains outside the contract. See [selection rules and regressions](../guides/focus-restoration.md#local-editable-selection).
 
+## Amendment (2026-11-06): checkbox groups, nested paths and portals
+
+Checkboxes whose field holds array state now form value groups with the same bounds,
+uniqueness, casts and membership projection as multiple selects; a single checkbox stays
+boolean. Model and binding names accept dotted paths of up to eight identifier segments;
+the client keeps one draft per path and sends the whole top-level field, and the server
+accepts it only through a `@State({ writable: [...] })` nested allowlist compared with
+the stored value. File inputs remain outside `nv:model` (use `nv:upload`), and
+`contenteditable` is not modelled. Rejected: array-index paths and deep generic setters
+(ambiguous identity under reordering), and per-leaf patches on the wire (a protocol change
+and a second authorization surface).
+
+Portals: there is no `nv:teleport`. Server-rendered Live markup moved outside its root by
+another library is not owned (its directives are inert) and the next morph re-renders the
+server copy; portal targets belong inside an `nv:ignore` subtree, where Alpine or an
+island owns them. Island subtrees keep their DOM across morphs and are torn down with an
+enclosing `nv:replace`. See [nested models](../guides/nested-models.md) and the
+ownership rows of the [directive matrix](../reference/directive-matrix.md).
+
 ## Evidence and compatibility
 
 The multiple-select amendment uses bounded unique scalar arrays with ordered equality and value-membership projection, preserving array order until the next native control read. Arbitrary deep equality, generic object setters, ambiguous duplicate/coerced option values and checkbox/file arrays were rejected to keep state shape and DOM projection deterministic. Aliases require identical array shape/cast but may expose different catalogs; unknown newer values remain in state for server validation. Native reset aliases require equal ordered defaults. This adds bounded per-control validation work and changes previously rejected multiple model controls into supported explicit bindings; see [rules and tests](../guides/multiple-select.md). A two-pass TypeScript build strips source comments only from browser JavaScript, retaining declaration JSDoc and maps to stay inside the unchanged runtime size budget.
