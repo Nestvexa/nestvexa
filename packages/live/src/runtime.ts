@@ -808,6 +808,11 @@ export class LiveRuntime implements OnApplicationShutdown {
   ): string {
     const endpoint = `${this.options.basePath ?? ''}${this.options.endpoint ?? '/_nestvexa/live'}/${component.name}`;
     const listeners = Object.fromEntries(component.listeners);
+    // Idempotent actions replay their committed result for an identical retry,
+    // so the browser may resend exactly the same request after a lost reply.
+    const idempotent = [...component.actions]
+      .filter(([, entry]) => entry.idempotent === true)
+      .map(([id]) => id);
     const attributes = [
       `data-nv-component="${escapeAttribute(snapshot.id)}"`,
       `data-nv-name="${component.name}"`,
@@ -821,6 +826,11 @@ export class LiveRuntime implements OnApplicationShutdown {
         : [`data-nv-key="nv-child:${escapeAttribute(extra.key)}"`]),
       ...(component.listeners.size
         ? [`data-nv-listeners="${escapeAttribute(JSON.stringify(listeners))}"`]
+        : []),
+      ...(idempotent.length
+        ? [
+            `data-nv-idempotent="${escapeAttribute(JSON.stringify(idempotent))}"`,
+          ]
         : []),
       ...(extra.model === undefined
         ? []

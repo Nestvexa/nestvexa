@@ -37,6 +37,18 @@ import {
 } from './route-conflicts.js';
 import type { LiveHostOptions } from './runtime.js';
 import { isLiveStateStore } from './store.js';
+import { LIVE_CAPABILITIES, LIVE_PROTOCOL } from './protocol.js';
+
+/**
+ * Successful action and $sync responses advertise the protocol major and the
+ * capability tokens this server honours, so clients can detect a version skew
+ * (for example a long-lived tab after a deploy) instead of misreading a reply.
+ */
+const protocolHeaders = [
+  ['Cache-Control', 'no-store'],
+  ['x-nestvexa-protocol', LIVE_PROTOCOL],
+  ['x-nestvexa-capabilities', LIVE_CAPABILITIES.join(',')],
+] as const;
 
 const ROUTE = Symbol('nv:route');
 const DOWNLOAD_ACTION = '$download';
@@ -339,11 +351,8 @@ function generatedController(
       );
     Req()(LiveController.prototype, entry.method, entry.input ? 1 : 0);
     Post(action)(LiveController.prototype, entry.method, descriptor);
-    Header('Cache-Control', 'no-store')(
-      LiveController.prototype,
-      entry.method,
-      descriptor,
-    );
+    for (const [name, value] of protocolHeaders)
+      Header(name, value)(LiveController.prototype, entry.method, descriptor);
     Reflect.defineMetadata(ROUTE, { component, action }, handler);
   }
   const syncMethod = '__nestvexaSync';
@@ -363,11 +372,8 @@ function generatedController(
     syncMethod,
     syncDescriptor,
   );
-  Header('Cache-Control', 'no-store')(
-    LiveController.prototype,
-    syncMethod,
-    syncDescriptor,
-  );
+  for (const [name, value] of protocolHeaders)
+    Header(name, value)(LiveController.prototype, syncMethod, syncDescriptor);
   Reflect.defineMetadata(
     ROUTE,
     { component, action: INTERNAL_SYNC_ACTION },

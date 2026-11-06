@@ -86,13 +86,28 @@ describe('closed model directive grammar', () => {
   ])('rejects unsupported or contradictory %s', (name) => {
     expect(() => parseModelDirective(name, 'field')).toThrow();
   });
+  it('accepts dotted nested paths of at most eight identifier segments', () => {
+    expect(parseModelDirective('nv:model.live', 'address.city').field).toBe(
+      'address.city',
+    );
+    expect(parseModelDirective('nv:model', 'a.b.c.d.e.f.g.h').field).toBe(
+      'a.b.c.d.e.f.g.h',
+    );
+  });
   it.each([
     '',
     '__proto__',
     'constructor',
     'prototype',
-    'form.name',
     'name()',
+    'a..b',
+    'a.',
+    '.a',
+    'a.__proto__',
+    'a.constructor.b',
+    'items.0',
+    'a.b-c d',
+    'a.b.c.d.e.f.g.h.i',
     'x y',
   ])('rejects unsafe state identifier %s', (field) => {
     expect(() => parseModelDirective('nv:model.live', field)).toThrow();
@@ -195,7 +210,7 @@ describe('native browser model control readers', () => {
         '<input nv:model="name" nv:model.live="name" />',
         '<input type="file" nv:model="file" />',
         '<button nv:model="name">Button</button>',
-        '<input type="checkbox" nv:model.number="amount" />',
+        '<div contenteditable="true" nv:model="name"></div>',
         '<svg><g nv:model="name"></g></svg>',
       ];
       return cases.map((html) => {
@@ -525,6 +540,145 @@ describe('native browser model control readers', () => {
         );
       }),
     ).toBe(true);
+  });
+  it('reads checkbox groups as ordered unique arrays with the declared cast', async () => {
+    expect(
+      await page.evaluate(() => {
+        const read = (html: string) => {
+          const template = document.createElement('template');
+          template.innerHTML = html;
+          const group = [...template.content.querySelectorAll('input')];
+          const first = group[0];
+          if (!first) throw new Error('Missing checkbox');
+          const directive = window.nvModelFixture.getModelDirective(first);
+          if (!directive) throw new Error('Missing directive');
+          try {
+            const value = window.nvModelFixture.readModelValue(
+              first,
+              directive,
+              group,
+            );
+            return { value, frozen: Object.isFrozen(value) };
+          } catch (error) {
+            return { error: String(Reflect.get(Object(error), 'code')) };
+          }
+        };
+        return [
+          read(
+            '<input type="checkbox" nv:model="tags" value="b" checked><input type="checkbox" nv:model="tags" value="a"><input type="checkbox" nv:model="tags" value="c" checked>',
+          ),
+          read(
+            '<input type="checkbox" nv:model.number="ids" value="2" checked><input type="checkbox" nv:model.number="ids" value="10" checked>',
+          ),
+          read('<input type="checkbox" nv:model="tags" value="a">'),
+          read(
+            '<input type="checkbox" nv:model="tags" value="a" checked><input type="checkbox" nv:model="tags" value="a" checked>',
+          ),
+          read(
+            '<input type="checkbox" nv:model.number="ids" value="x" checked>',
+          ),
+        ];
+      }),
+    ).toEqual([
+      { value: ['b', 'c'], frozen: true },
+      { value: [2, 10], frozen: true },
+      { value: [], frozen: true },
+      { error: 'DIRECTIVE' },
+      { error: 'DIRECTIVE' },
+    ]);
+  });
+  it('keeps single checkboxes boolean and rejects numeric single checkboxes when read', async () => {
+    expect(
+      await page.evaluate(() => {
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        box.checked = true;
+        box.setAttribute('nv:model.number', 'amount');
+        const directive = window.nvModelFixture.getModelDirective(box);
+        if (!directive) throw new Error('Missing directive');
+        try {
+          window.nvModelFixture.readModelValue(box, directive);
+          return 'accepted';
+        } catch (error) {
+          return String(Reflect.get(Object(error), 'code'));
+        }
+      }),
+    ).toBe('DIRECTIVE');
+  });
+  it('projects checkbox group membership from array state matching the cast', async () => {
+    expect(
+      await page.evaluate(() => {
+        const make = (value: string) => {
+          const box = document.createElement('input');
+          box.type = 'checkbox';
+          box.value = value;
+          return box;
+        };
+        const text = window.nvModelFixture.parseModelDirective(
+          'nv:model',
+          'tags',
+        );
+        const numeric = window.nvModelFixture.parseModelDirective(
+          'nv:model.number',
+          'ids',
+        );
+        const a = make('a');
+        const b = make('b');
+        b.checked = true;
+        window.nvModelFixture.planModelSelection(a, text, ['a'])?.();
+        window.nvModelFixture.planModelSelection(b, text, ['a'])?.();
+        const two = make('2');
+        window.nvModelFixture.planModelSelection(two, numeric, [2])?.();
+        let mismatch = 'accepted';
+        try {
+          window.nvModelFixture.planModelSelection(make('2'), numeric, ['2']);
+        } catch (error) {
+          mismatch = String(Reflect.get(Object(error), 'code'));
+        }
+        const scalar =
+          window.nvModelFixture.planModelSelection(make('a'), text, true) ===
+          undefined;
+        return {
+          a: a.checked,
+          b: b.checked,
+          two: two.checked,
+          defaults: a.defaultChecked || b.defaultChecked,
+          mismatch,
+          scalar,
+        };
+      }),
+    ).toEqual({
+      a: true,
+      b: false,
+      two: true,
+      defaults: false,
+      mismatch: 'DIRECTIVE',
+      scalar: true,
+    });
+  });
+  it('points file inputs at nv:upload and rejects contenteditable models', async () => {
+    expect(
+      await page.evaluate(() =>
+        [
+          '<input type="file" nv:model="avatar">',
+          '<div contenteditable="true" nv:model="bio"></div>',
+        ].map((html) => {
+          const template = document.createElement('template');
+          template.innerHTML = html;
+          const element = template.content.firstElementChild;
+          if (!element) throw new Error('Missing control');
+          try {
+            window.nvModelFixture.getModelDirective(element);
+            return 'accepted';
+          } catch (error) {
+            return error instanceof Error ? error.message : 'unknown';
+          }
+        }),
+      ),
+    ).toEqual([
+      'File inputs use nv:upload, which models upload tokens',
+      'Unsupported model form control',
+    ]);
   });
 });
 

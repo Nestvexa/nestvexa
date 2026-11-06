@@ -4,7 +4,7 @@
  * deterministic in-page fake Live server so rows can hold, fail or reorder
  * responses. Server-protocol conformance is covered by the Nest suites.
  */
-import { chromium, expect } from '@playwright/test';
+import { chromium, expect, firefox, webkit } from '@playwright/test';
 import type { Browser, Page } from '@playwright/test';
 import { createServer } from 'node:http';
 import type { OutgoingHttpHeaders, Server } from 'node:http';
@@ -28,6 +28,19 @@ export interface ActionSpec {
   readonly stale?: true;
   /** Hold the reply until `release()`. */
   readonly hold?: true;
+  /**
+   * Fail the first `times` calls with a dropped connection or an HTTP status.
+   * With `commit`, the first failure happens after the state change (a lost
+   * reply); an identical retry (same requestId) then gets the stored reply,
+   * like an idempotent server action.
+   */
+  readonly fail?: {
+    readonly times: number;
+    readonly with: 'network' | number;
+    readonly commit?: true;
+  };
+  /** Advertise this protocol major in the x-nestvexa-protocol reply header. */
+  readonly protocol?: string;
 }
 export interface MatrixComponent {
   /** Inner template: `{{field}}` (escaped), `{{#field}}…{{/field}}`, `{{^field}}…{{/field}}`. */
@@ -43,11 +56,21 @@ export interface MatrixComponent {
   readonly domErrors?: boolean;
   /** Extra attributes for the component root, e.g. a scroll container class. */
   readonly rootClass?: string;
+  /**
+   * Emulate browser form restoration before mount: selector → restored value
+   * (string) or checkedness (boolean); option selectors toggle `selected`.
+   */
+  readonly restore?: Readonly<Record<string, string | boolean>>;
+  /** Create the client with `development: true`. */
+  readonly development?: boolean;
+  /** Server-declared idempotent actions (the data-nv-idempotent marker). */
+  readonly idempotent?: readonly string[];
 }
 export interface MatrixRequest {
   readonly action: string;
   readonly updates: Readonly<Record<string, unknown>>;
   readonly input: unknown;
+  readonly requestId: string;
 }
 export interface MatrixSnapshot {
   readonly requests: readonly MatrixRequest[];
@@ -78,13 +101,27 @@ const css =
 
 export interface MatrixFixture {
   readonly browser: Browser;
+  readonly engine: MatrixBrowser;
   readonly base: string;
   /** Respond to `/` with this extra header set (for CSP rows). */
   headers: OutgoingHttpHeaders;
   close(): Promise<void>;
 }
 
-export async function startMatrix(): Promise<MatrixFixture> {
+export type MatrixBrowser = 'chromium' | 'firefox' | 'webkit';
+/** Browsers for matrix suites; `NESTVEXA_MATRIX_BROWSERS=chromium` narrows a local run. */
+export const matrixBrowsers: readonly MatrixBrowser[] = (
+  process.env['NESTVEXA_MATRIX_BROWSERS'] ?? 'chromium,firefox,webkit'
+)
+  .split(',')
+  .filter(
+    (name): name is MatrixBrowser =>
+      name === 'chromium' || name === 'firefox' || name === 'webkit',
+  );
+
+export async function startMatrix(
+  engine: MatrixBrowser = 'chromium',
+): Promise<MatrixFixture> {
   const bundle = new URL(
     '../../packages/client/dist/index.js',
     import.meta.url,
@@ -133,9 +170,10 @@ export async function startMatrix(): Promise<MatrixFixture> {
   const address = server.address();
   if (!address || typeof address === 'string')
     throw new Error('Missing matrix fixture port');
-  const browser = await chromium.launch();
+  const browser = await { chromium, firefox, webkit }[engine].launch();
   return {
     browser,
+    engine,
     base: `http://127.0.0.1:${address.port}`,
     get headers() {
       return fixture.headers;
@@ -171,15 +209,25 @@ export async function mountMatrix(
     const state: Record<string, unknown> = structuredClone(config.state);
     const escape = (value: string): string =>
       value.replace(/[&<>"']/g, (character) => `&#${character.charCodeAt(0)};`);
+    const lookup = (path: string): unknown =>
+      path
+        .split('.')
+        .reduce<unknown>(
+          (value, key) =>
+            value && typeof value === 'object'
+              ? Reflect.get(value, key)
+              : undefined,
+          state,
+        );
     const render = (): string =>
       config.html
         .replace(
-          /\{\{([#^])(\w+)\}\}([\s\S]*?)\{\{\/\2\}\}/g,
+          /\{\{([#^])([\w.]+)\}\}([\s\S]*?)\{\{\/\2\}\}/g,
           (_match, kind: string, field: string, body: string) =>
-            Boolean(state[field]) === (kind === '#') ? body : '',
+            Boolean(lookup(field)) === (kind === '#') ? body : '',
         )
-        .replace(/\{\{(\w+)\}\}/g, (_match, field: string) => {
-          const value = state[field];
+        .replace(/\{\{([\w.]+)\}\}/g, (_match, field: string) => {
+          const value = lookup(field);
           return escape(
             typeof value === 'string'
               ? value
@@ -200,6 +248,11 @@ export async function mountMatrix(
     };
     for (const [name, value] of Object.entries(markers))
       root.setAttribute(name, value);
+    if (config.idempotent)
+      root.setAttribute(
+        'data-nv-idempotent',
+        JSON.stringify(config.idempotent),
+      );
     if (config.rootClass) root.className = config.rootClass;
     root.innerHTML = render();
     host.append(root);
@@ -213,20 +266,33 @@ export async function mountMatrix(
       'nestvexa:rollback',
       'nestvexa:before-remove',
       'nestvexa:after-insert',
+      'nestvexa:request',
+      'nestvexa:restored',
     ])
       document.addEventListener(name, (event) => {
+        const detail: unknown = (event as CustomEvent).detail;
         events.push(
-          name === 'nestvexa:error'
-            ? `${name}:${JSON.stringify((event as CustomEvent).detail)}`
+          name === 'nestvexa:error' ||
+            name === 'nestvexa:request' ||
+            name === 'nestvexa:restored'
+            ? `${name}:${JSON.stringify(detail)}`
             : name,
         );
       });
-    const json = (body: unknown, status = 200): Response =>
+    const calls = new Map<string, number>();
+    const replies = new Map<string, Response>();
+    const json = (body: unknown, status = 200, protocol?: string): Response =>
       new Response(JSON.stringify(body), {
         status,
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          ...(protocol === undefined
+            ? {}
+            : { 'x-nestvexa-protocol': protocol }),
+        },
       });
     const client = window.nvMatrixClient.createLiveClient({
+      ...(config.development ? { development: true } : {}),
       ...(config.requestTimeoutMs === undefined
         ? {}
         : { requestTimeoutMs: config.requestTimeoutMs }),
@@ -249,8 +315,23 @@ export async function mountMatrix(
           updates: Record<string, unknown>;
           input: unknown;
         };
-        requests.push({ action, updates: body.updates, input: body.input });
+        requests.push({
+          action,
+          updates: body.updates,
+          input: body.input,
+          requestId: body.requestId,
+        });
         const spec = config.actions?.[action] ?? {};
+        const replayed = replies.get(body.requestId);
+        if (replayed) return Promise.resolve(replayed.clone());
+        const call = (calls.get(action) ?? 0) + 1;
+        calls.set(action, call);
+        const failure =
+          spec.fail && call <= spec.fail.times ? spec.fail : undefined;
+        if (failure && !(failure.commit && call === 1))
+          return failure.with === 'network'
+            ? Promise.reject(new TypeError('Failed to fetch'))
+            : Promise.resolve(json({}, failure.with));
         if (spec.network)
           return Promise.reject(new TypeError('Failed to fetch'));
         if (spec.never) return new Promise<Response>(() => undefined);
@@ -263,19 +344,30 @@ export async function mountMatrix(
           if (spec.toggle) state[spec.toggle] = !state[spec.toggle];
           if (spec.copy) state[spec.copy[1]] = state[spec.copy[0]];
           if (spec.set) Object.assign(state, structuredClone(spec.set));
-          return json({
-            protocol: 'nestvexa-live/1',
-            requestId: body.requestId,
-            component: {
-              id: markers['data-nv-component'],
-              name: 'matrix',
-              revision: body.revision + (spec.stale ? 0 : 1),
+          return json(
+            {
+              protocol: 'nestvexa-live/1',
+              requestId: body.requestId,
+              component: {
+                id: markers['data-nv-component'],
+                name: 'matrix',
+                revision: body.revision + (spec.stale ? 0 : 1),
+              },
+              snapshot: body.snapshot,
+              state,
+              html: render(),
             },
-            snapshot: body.snapshot,
-            state,
-            html: render(),
-          });
+            200,
+            spec.protocol,
+          );
         };
+        if (failure) {
+          // A committed change whose reply is lost; the identical retry replays it.
+          replies.set(body.requestId, reply());
+          return failure.with === 'network'
+            ? Promise.reject(new TypeError('Failed to fetch'))
+            : Promise.resolve(json({}, failure.with));
+        }
         if (!config.hold && !spec.hold) return Promise.resolve(reply());
         return new Promise<Response>((resolve) =>
           pending.push(() => resolve(reply())),
@@ -298,6 +390,23 @@ export async function mountMatrix(
       },
       render,
     };
+    for (const [selector, value] of Object.entries(config.restore ?? {})) {
+      const control = root.querySelector(selector);
+      if (control instanceof HTMLOptionElement && typeof value === 'boolean')
+        control.selected = value;
+      else if (
+        control instanceof HTMLInputElement &&
+        typeof value === 'boolean'
+      )
+        control.checked = value;
+      else if (
+        (control instanceof HTMLInputElement ||
+          control instanceof HTMLTextAreaElement) &&
+        typeof value === 'string'
+      )
+        control.value = value;
+      else throw new Error(`Cannot restore ${selector}`);
+    }
     client.mount();
   }, component);
 }

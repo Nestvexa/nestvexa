@@ -1,4 +1,4 @@
-import { LiveClientError, parseIdentifier } from './grammar.js';
+import { LiveClientError, parseIdentifier, parsePath } from './grammar.js';
 import { createFocusController } from './focus.js';
 import type { FocusController } from './focus.js';
 
@@ -38,20 +38,20 @@ function invalid(message: string): never {
   throw new LiveClientError('DIRECTIVE', message);
 }
 
-/** Parse configuration only: no expressions, property paths, modifiers or executable code. */
+/** Parse configuration only: no expressions, indices, modifiers or executable code; fields may be dotted paths. */
 export function parseBindingDirective(
   name: string,
   value: string,
 ): BindingDirective {
   switch (name) {
     case 'nv:text':
-      return { kind: 'text', field: parseIdentifier(value) };
+      return { kind: 'text', field: parsePath(value) };
     case 'nv:show':
-      return { kind: 'show', field: parseIdentifier(value) };
+      return { kind: 'show', field: parsePath(value) };
     case 'nv:dirty':
       return value === ''
         ? { kind: 'dirty' }
-        : { kind: 'dirty', field: parseIdentifier(value) };
+        : { kind: 'dirty', field: parsePath(value) };
     case 'nv:cloak':
       if (value !== '') invalid('nv:cloak must have an empty value');
       return { kind: 'cloak' };
@@ -74,7 +74,7 @@ export function parseBindingDirective(
       return {
         kind: 'bind',
         attribute: attribute as BindingAttribute,
-        field: parseIdentifier(field),
+        field: parsePath(field),
       };
     }
     default:

@@ -1,4 +1,4 @@
-import { LiveClientError, parseIdentifier } from './grammar.js';
+import { LiveClientError, parsePath } from './grammar.js';
 
 export interface ModelDirective {
   readonly field: string;
@@ -146,7 +146,7 @@ export function parseModelDirective(
   mode ??= timing ? 'live' : 'defer';
   if (mode === 'live' && !timing) debounceMs = 150;
   return Object.freeze({
-    field: parseIdentifier(value),
+    field: parsePath(value),
     mode,
     cast,
     ...(debounceMs === undefined ? {} : { debounceMs }),
@@ -198,22 +198,18 @@ const inputTypes = new Set([
   'url',
   'password',
 ]);
-function control(
-  element: Element,
-  directive: ModelDirective,
-): 'INPUT' | 'TEXTAREA' | 'SELECT' {
+function control(element: Element): 'INPUT' | 'TEXTAREA' | 'SELECT' {
   if (element.namespaceURI !== 'http://www.w3.org/1999/xhtml')
     invalid('Models require an HTML form control');
   const tag = element.tagName;
   if (tag === 'TEXTAREA') return tag;
   if (tag === 'SELECT') return tag;
   if (tag !== 'INPUT' || !inputTypes.has((element as HTMLInputElement).type))
-    invalid('Unsupported model form control');
-  if (
-    (element as HTMLInputElement).type === 'checkbox' &&
-    directive.cast === 'number'
-  )
-    invalid('Checkbox models support boolean values, not numeric casts');
+    invalid(
+      (element as HTMLInputElement).type === 'file'
+        ? 'File inputs use nv:upload, which models upload tokens'
+        : 'Unsupported model form control',
+    );
   return tag;
 }
 
@@ -258,18 +254,62 @@ export function getModelDirective(
   const attribute = attributes[0];
   if (!attribute) return undefined;
   const directive = parseModelDirective(attribute.name, attribute.value);
-  const tag = control(element, directive);
+  const tag = control(element);
   if (tag === 'SELECT' && (element as HTMLSelectElement).multiple)
     multipleOptions(element as HTMLSelectElement, directive);
   return directive;
 }
 
-/** Unchecked radio controls do not produce a state delta. Empty numeric controls are invalid, never zero. */
+/**
+ * Whether the browser moved a control away from its server-rendered default,
+ * as form restoration (reload, history, autofill) or typing before mount do.
+ */
+export function changedFromDefault(element: Element): boolean {
+  if (element.tagName === 'SELECT') {
+    const select = element as HTMLSelectElement;
+    const options = [...select.options];
+    if (select.multiple)
+      return options.some(
+        (option) => option.selected !== option.defaultSelected,
+      );
+    // A single select shows its last default option, else its first option.
+    let fallback = 0;
+    options.forEach((option, index) => {
+      if (option.defaultSelected) fallback = index;
+    });
+    return select.selectedIndex !== fallback;
+  }
+  const field = element as HTMLInputElement;
+  return field.type === 'checkbox' || field.type === 'radio'
+    ? field.checked !== field.defaultChecked
+    : field.value !== field.defaultValue;
+}
+/** True for a checkbox: with array state it is one member of a value group. */
+export function isCheckbox(element: Element): element is HTMLInputElement {
+  return (
+    element.tagName === 'INPUT' &&
+    (element as HTMLInputElement).type === 'checkbox'
+  );
+}
+/**
+ * Unchecked radio controls do not produce a state delta. Empty numeric controls
+ * are invalid, never zero. A checkbox `group` (every owned checkbox modelling
+ * one array field) yields its checked values in document order.
+ */
 export function readModelValue(
   element: Element,
   directive: ModelDirective,
+  group?: readonly Element[],
 ): ModelValue | undefined {
-  const tag = control(element, directive);
+  const tag = control(element);
+  if (group)
+    return copyModelArray(
+      group
+        .filter((member) => isCheckbox(member) && member.checked)
+        .map((member) =>
+          coerceModelValue((member as HTMLInputElement).value, directive.cast),
+        ),
+    );
   if (tag === 'SELECT' && (element as HTMLSelectElement).multiple) {
     const values: ModelScalar[] = [];
     for (const [option, value] of multipleOptions(
@@ -282,8 +322,11 @@ export function readModelValue(
   if (tag === 'INPUT') {
     const input = element as HTMLInputElement;
     if (input.type === 'radio' && !input.checked) return undefined;
-    if (input.type === 'checkbox')
+    if (input.type === 'checkbox') {
+      if (directive.cast === 'number')
+        invalid('Checkbox models support boolean values, not numeric casts');
       return coerceModelValue(input.checked, directive.cast);
+    }
     return coerceModelValue(
       input.value,
       directive.cast === 'auto' && input.type === 'number'
@@ -303,16 +346,26 @@ export function planModelSelection(
   directive: ModelDirective,
   raw: unknown,
 ): (() => void) | undefined {
+  const box = isCheckbox(element) && Array.isArray(raw);
   if (
     element.namespaceURI !== 'http://www.w3.org/1999/xhtml' ||
-    element.tagName !== 'SELECT' ||
-    !(element as HTMLSelectElement).multiple
+    (!box &&
+      (element.tagName !== 'SELECT' ||
+        !(element as HTMLSelectElement).multiple))
   )
     return undefined;
   const values = copyModelArray(raw);
   const expected = directive.cast === 'auto' ? 'string' : directive.cast;
   if (values.some((value) => typeof value !== expected))
-    invalid('Multiple-select model array values must match the declared cast');
+    invalid('Model array values must match the declared cast');
+  if (box) {
+    const checked = values.includes(
+      coerceModelValue(element.value, directive.cast),
+    );
+    return () => {
+      if (element.checked !== checked) element.checked = checked;
+    };
+  }
   const choices = multipleOptions(element as HTMLSelectElement, directive);
   const desired = new Set(values);
   return () => {

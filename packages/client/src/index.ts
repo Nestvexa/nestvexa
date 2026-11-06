@@ -14,7 +14,12 @@ import type { EventDispatcher, EventDirective, LiveConfirm } from './events.js';
 export type { LiveConfirmation, LiveConfirm } from './events.js';
 import { createDirectEventListeners } from './listeners.js';
 import type { DirectEventBinding } from './listeners.js';
-import { getModelDirective, readModelValue } from './models.js';
+import {
+  changedFromDefault,
+  getModelDirective,
+  isCheckbox,
+  readModelValue,
+} from './models.js';
 import {
   copyModelArray,
   planModelSelection,
@@ -89,7 +94,7 @@ import {
   parseLiveResponse,
 } from './protocol.js';
 import type { LiveEvent } from './protocol.js';
-import { trustedHTML } from './grammar.js';
+import { parsePath, readPath, trustedHTML } from './grammar.js';
 export {
   LiveClientError,
   parseDirective,
@@ -128,6 +133,26 @@ export interface LiveClientOptions {
   readonly streams?: Readonly<Record<string, StreamEndpoint>>;
   /** Trusted same-origin upload API prefix for `nv:upload` (from @nestvexa/uploads). */
   readonly uploads?: UploadEndpoint;
+  /**
+   * Development instrumentation (keep false in production): enables inspect()
+   * and mirrors reported errors to console.warn. Neither exposes state values,
+   * snapshot references, CSRF tokens, endpoints or payloads.
+   */
+  readonly development?: boolean;
+}
+/** Development-only, sanitized description of one registered component. */
+export interface LiveInspection {
+  readonly id: string;
+  readonly name: string;
+  readonly revision: number;
+  /** Queued or running requests per action (`$sync` for model synchronization). */
+  readonly pending: Readonly<Record<string, number>>;
+  /** Names (never values) of fields and nested paths with local drafts. */
+  readonly dirty: readonly string[];
+  readonly invalid: number;
+  /** Error code that suspended the component, if any. */
+  readonly failure: string | null;
+  readonly idempotent: readonly string[];
 }
 /** One bounded timing sample per phase of a dispatched request; no retained buffer. */
 export interface LiveDiagnostic {
@@ -135,6 +160,23 @@ export interface LiveDiagnostic {
   readonly outcome: 'succeeded' | 'failed' | 'cancelled';
   readonly milliseconds: number;
 }
+/**
+ * Detail of the bubbling `nestvexa:request` event dispatched on a component
+ * root: `start` before the first attempt, `retry` before each automatic resend
+ * of an idempotent action (1-based attempt), `end` after application/cleanup.
+ * It carries no state, tokens, URLs or payloads.
+ */
+export type LiveRequestProgress =
+  | {
+      readonly action: string;
+      readonly phase: 'start' | 'retry';
+      readonly attempt: number;
+    }
+  | {
+      readonly action: string;
+      readonly phase: 'end';
+      readonly outcome: LiveDiagnostic['outcome'];
+    };
 export interface LiveClient {
   mount(): void;
   dispose(): void;
@@ -158,6 +200,8 @@ export interface LiveClient {
   dispatch(name: string, payload?: unknown): void;
   /** Visit a same-origin path with `nv:navigate` semantics (full-load fallback). */
   navigate(url: string): Promise<void>;
+  /** Development only (`development: true`): sanitized component summaries. */
+  inspect(): readonly LiveInspection[];
 }
 type Field = ModelValue;
 const componentOwners = new WeakMap<Element, symbol>();
@@ -198,6 +242,20 @@ interface Component {
   /** Parent model binding for a @Modelable child. */
   readonly model?:
     { readonly parent: string; readonly child: string } | undefined;
+  /** Server-declared idempotent actions: only these are retried automatically. */
+  readonly idempotent: ReadonlySet<string>;
+  /** The newest queued request that has not started; later syncs fold into it. */
+  waiting?: Promise<void> | undefined;
+}
+function parseIdempotent(value: string | null): ReadonlySet<string> {
+  const actions: unknown = JSON.parse(value ?? '[]');
+  if (
+    !Array.isArray(actions) ||
+    actions.length > 64 ||
+    actions.some((action) => typeof action !== 'string')
+  )
+    throw new LiveClientError('MARKER', 'Invalid Live idempotent marker');
+  return new Set(actions.map((action: string) => parseIdentifier(action)));
 }
 function parseListeners(value: string | null): Map<string, readonly string[]> {
   const listeners = new Map<string, readonly string[]>();
@@ -395,8 +453,11 @@ function modelSelections(
     if (invalid.has(element)) continue;
     const directive = getModelDirective(element);
     if (!directive) continue;
+    // Multiple selects and checkbox groups (checkboxes modelling array state).
     const multiple =
-      element.tagName === 'SELECT' && (element as HTMLSelectElement).multiple;
+      (element.tagName === 'SELECT' &&
+        (element as HTMLSelectElement).multiple) ||
+      (isCheckbox(element) && Array.isArray(read(directive.field)));
     const entries = groups.get(directive.field) ?? [];
     entries.push({ multiple, cast: directive.cast });
     groups.set(directive.field, entries);
@@ -412,9 +473,25 @@ function modelSelections(
     )
       throw new LiveClientError(
         'DIRECTIVE',
-        'Multiple-select aliases require the same array shape and cast',
+        'Array model aliases require the same array shape and cast',
       );
   return operations;
+}
+
+/** A path is covered by itself and by each ancestor path; every path by `undefined`. */
+function covers(field: string | undefined, key: string): boolean {
+  return field === undefined || key === field || key.startsWith(`${field}.`);
+}
+/** Whether a covered draft differs from the server value at its own path. */
+function changed(
+  drafts: Iterable<readonly [string, unknown]>,
+  values: unknown,
+  field?: string,
+): boolean {
+  for (const [key, value] of drafts)
+    if (covers(field, key) && !sameModelValue(value, readPath(values, key)))
+      return true;
+  return false;
 }
 
 /** Explicit, idempotent browser startup. Importing this module does not touch DOM globals. */
@@ -548,7 +625,10 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         )
           continue;
         try {
-          const value = resetValue(entry.controls);
+          const value = resetValue(
+            entry.controls,
+            Array.isArray(current(state, entry.field)),
+          );
           state.dirty.set(entry.field, {
             value,
             version: ++state.fieldVersion,
@@ -594,7 +674,9 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     )
       return;
     try {
-      const fields = planFormReset(form, resetOwner);
+      const fields = planFormReset(form, resetOwner, (state, field) =>
+        Array.isArray(current(state, field)),
+      );
       if (!fields.length) return;
       if (!resets.has(form) && resets.size >= 1000)
         throw new LiveClientError(
@@ -602,7 +684,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           'Native reset queue capacity reached',
         );
       for (const entry of fields)
-        if (!Object.hasOwn(entry.owner.values, entry.field))
+        if (readPath(entry.owner.values, entry.field) === undefined)
           throw new LiveClientError('DIRECTIVE', 'Unknown public state field');
       resets.set(form, { event, fields, generation });
       window.queueMicrotask(flushResets);
@@ -660,6 +742,12 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       error instanceof Error
         ? error
         : new LiveClientError('RESPONSE', 'Live request failed');
+    if (options.development)
+      window.console.warn(
+        '[nestvexa]',
+        safe instanceof LiveClientError ? safe.code : safe.name,
+        safe.message,
+      );
     if (options.onError) options.onError(safe, component);
     else
       component?.dispatchEvent(
@@ -934,6 +1022,9 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
               element.getAttribute('data-nv-listeners'),
             ),
             optimistic: new Map(),
+            idempotent: parseIdempotent(
+              element.getAttribute('data-nv-idempotent'),
+            ),
             ...(element.hasAttribute('data-nv-model')
               ? {
                   model: parseModelMarker(
@@ -945,10 +1036,18 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           const lazyTiming = element.getAttribute('data-nv-lazy');
           if (lazyTiming !== null && !['load', 'visible'].includes(lazyTiming))
             throw new LiveClientError('MARKER', 'Invalid Live lazy marker');
+          const restored = restoreDrafts(state);
           refreshBindings(state);
           components.set(element, state);
           componentOwners.set(element, ownership);
           busy(state);
+          if (restored.length)
+            element.dispatchEvent(
+              new window.CustomEvent('nestvexa:restored', {
+                bubbles: true,
+                detail: Object.freeze({ fields: Object.freeze(restored) }),
+              }),
+            );
           if (lazyTiming === 'visible' && window.IntersectionObserver) {
             lazyObserver ??= new window.IntersectionObserver((entries) => {
               for (const entry of entries)
@@ -1050,6 +1149,15 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       }
     }
   }
+  /** Progress hook for UI: `nestvexa:request` with the action name and phase only. */
+  function progress(state: Component, detail: LiveRequestProgress): void {
+    state.root.dispatchEvent(
+      new window.CustomEvent('nestvexa:request', {
+        bubbles: true,
+        detail: Object.freeze(detail),
+      }),
+    );
+  }
   function diagnostic(
     phase: LiveDiagnostic['phase'],
     outcome: LiveDiagnostic['outcome'],
@@ -1093,18 +1201,34 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         'DIRECTIVE',
         'Correct invalid model values before submitting',
       );
-    modelSelections(state.root, (field) =>
-      state.dirty.has(field)
-        ? state.dirty.get(field)?.value
-        : state.values[field],
-    );
+    modelSelections(state.root, (field) => current(state, field));
     if (action === '_sync' && !force && !hasChanges(state)) return;
     const sent = new Map(state.dirty);
-    const updates: Record<string, Field> = Object.create(null) as Record<
-      string,
-      Field
-    >;
-    for (const [key, field] of sent) updates[key] = field.value;
+    const updates = Object.create(null) as Record<string, unknown>;
+    // Nested model paths are sent as their whole top-level field: the current
+    // server value with every dirty leaf applied. The server accepts it only
+    // when each difference lies on a writable path of its allowlist.
+    for (const [key, field] of sent) {
+      const path = key.split('.');
+      const top = path.shift() ?? key;
+      const leaf = path.pop();
+      if (leaf === undefined) {
+        updates[top] = field.value;
+        continue;
+      }
+      let target = (updates[top] ??= structuredClone(state.values[top]));
+      for (const part of path) target = readPath(target, part);
+      if (
+        !target ||
+        typeof target !== 'object' ||
+        readPath(target, leaf) === undefined
+      )
+        throw new LiveClientError(
+          'DIRECTIVE',
+          'Nested model path is not public object state',
+        );
+      Reflect.set(target, leaf, field.value);
+    }
     const requestId = window.crypto.randomUUID();
     const body = JSON.stringify({
       protocol: 'nestvexa-live/1',
@@ -1119,8 +1243,10 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         'DIRECTIVE',
         'Live request exceeds the 65536-byte envelope limit',
       );
-    const abort = new AbortController();
+    let abort = new AbortController();
     state.request = abort;
+    const name = action === '_sync' ? '$sync' : action;
+    progress(state, { action: name, phase: 'start', attempt: 0 });
     const startedAt = options.onDiagnostic
       ? window.performance.now()
       : undefined;
@@ -1129,30 +1255,62 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     let applied = false;
     let failed = false;
     try {
-      const payload = await requestLive(
-        transport,
-        `${state.endpoint}/${action}`,
-        {
-          method: 'POST',
-          credentials: 'same-origin',
-          redirect: 'error',
-          headers: {
-            'content-type': 'application/json',
-            'x-nestvexa-csrf': state.csrf,
-            ...(allowRenderless
-              ? { 'x-nestvexa-capabilities': 'renderless-v1' }
-              : {}),
-          },
-          body,
-        },
-        abort,
-        {
-          setTimeout: (callback, milliseconds) =>
-            window.setTimeout(callback, milliseconds),
-          clearTimeout: (timer) => window.clearTimeout(timer),
-        },
-        timeout,
-      );
+      let payload: unknown;
+      for (let attempt = 0; ; attempt++)
+        try {
+          payload = await requestLive(
+            transport,
+            `${state.endpoint}/${action}`,
+            {
+              method: 'POST',
+              credentials: 'same-origin',
+              redirect: 'error',
+              headers: {
+                'content-type': 'application/json',
+                'x-nestvexa-csrf': state.csrf,
+                ...(allowRenderless
+                  ? { 'x-nestvexa-capabilities': 'renderless-v1' }
+                  : {}),
+              },
+              body,
+            },
+            abort,
+            {
+              setTimeout: (callback, milliseconds) =>
+                window.setTimeout(callback, milliseconds),
+              clearTimeout: (timer) => window.clearTimeout(timer),
+            },
+            timeout,
+          );
+          break;
+        } catch (error) {
+          // Only server-declared idempotent actions are resent, with the same
+          // requestId and bytes: the server replays a committed result instead
+          // of running it twice. Two retries with full jitter, never for $sync.
+          if (
+            attempt > 1 ||
+            !state.idempotent.has(action) ||
+            !(error instanceof LiveClientError) ||
+            !(error instanceof LiveHttpError
+              ? [409, 429, 502, 503, 504].includes(error.status)
+              : error.code === 'NETWORK' || error.code === 'TIMEOUT')
+          )
+            throw error;
+          progress(state, {
+            action: name,
+            phase: 'retry',
+            attempt: attempt + 1,
+          });
+          await new Promise((resolve) =>
+            window.setTimeout(
+              resolve,
+              100 + Math.random() * 400 * 2 ** attempt,
+            ),
+          );
+          if (!usable(state) || failureFor(state)) throw error;
+          abort = new AbortController();
+          state.request = abort;
+        }
       responseAt = options.onDiagnostic ? window.performance.now() : undefined;
       if (!usable(state)) return;
       // A parent may suspend this registration after the transport race won
@@ -1183,12 +1341,12 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       for (const element of owned(state.root))
         if (composing.has(element)) {
           const model = getModelDirective(element);
-          if (model)
-            dirty.set(
-              model.field,
-              state.dirty.get(model.field)?.value ?? state.values[model.field],
-            );
+          if (model) dirty.set(model.field, current(state, model.field));
         }
+      const read = (field: string): unknown =>
+        dirty.has(field) ? dirty.get(field) : readPath(result.state, field);
+      const differs = (field?: string): boolean =>
+        changed(dirty, result.state, field);
       // Binding visibility changes can trigger browser scroll anchoring.
       let retainedScroll: { top: number; left: number } | undefined;
       if (result.renderless) {
@@ -1200,21 +1358,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           left: state.root.scrollLeft,
         };
         validateDirectives(state.root, streams, uploadEndpoint !== undefined);
-        const read = (field: string): unknown =>
-          dirty.has(field) ? dirty.get(field) : result.state[field];
         modelSelections(state.root, read, state.invalid);
-        prepareBindings(
-          state.root,
-          read,
-          (field) =>
-            field === undefined
-              ? [...dirty].some(
-                  ([key, value]) => !sameModelValue(value, result.state[key]),
-                )
-              : dirty.has(field) &&
-                !sameModelValue(dirty.get(field), result.state[field]),
-          focus,
-        );
+        prepareBindings(state.root, read, differs, focus);
       } else {
         const template = doc.createElement('template');
         template.innerHTML = trustedHTML(window, result.html);
@@ -1245,21 +1390,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           )
             dirty.delete(model.field);
         }
-        const differs = (field: string): boolean =>
-          dirty.has(field) &&
-          !sameModelValue(dirty.get(field), result.state[field]);
-        const read = (field: string): unknown =>
-          dirty.has(field) ? dirty.get(field) : result.state[field];
         const selections = modelSelections(preview, read);
-        applyBindings(
-          preview,
-          read,
-          (field) =>
-            field === undefined
-              ? [...dirty.keys()].some(differs)
-              : differs(field),
-          focus,
-        );
+        applyBindings(preview, read, differs, focus);
         for (const apply of selections) apply();
         const focused = state.root.contains(doc.activeElement)
           ? doc.activeElement
@@ -1455,6 +1587,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         responseAt ?? finishedAt,
       );
       diagnostic('morph', outcome, morphAt, finishedAt);
+      progress(state, { action: name, phase: 'end', outcome });
     }
   }
   function schedule(
@@ -1469,6 +1602,10 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     if (failure) return Promise.reject(failure);
     if (action !== '_sync')
       for (const element of owned(state.root)) models.cancel(element);
+    // Bundling: every request carries all drafts at the moment it starts, so a
+    // model synchronization queued behind a request that has not started yet
+    // is redundant and folds into it (one request instead of several).
+    if (action === '_sync' && !force && state.waiting) return state.waiting;
     if (state.pending >= 16)
       throw new LiveClientError('DIRECTIVE', 'Live request queue is full');
     if (submit && state.submitting) return Promise.resolve();
@@ -1492,10 +1629,11 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     const queuedAt = options.onDiagnostic
       ? window.performance.now()
       : undefined;
-    const task = state.queue
-      .then(() =>
-        invoke(state, action, queuedAt, input, allowRenderless, force),
-      )
+    const task: Promise<void> = state.queue
+      .then(() => {
+        if (state.waiting === task) state.waiting = undefined;
+        return invoke(state, action, queuedAt, input, allowRenderless, force);
+      })
       .finally(() => {
         state.pending--;
         const count = (state.pendingActions.get(targetAction) ?? 1) - 1;
@@ -1504,6 +1642,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         if (submit) state.submitting = false;
         if (state.active && mounted) busy(state);
       });
+    state.waiting = task;
     state.queue = task.catch((error: unknown) => {
       if (state.active && mounted && error !== failureFor(state))
         report(error, state.root);
@@ -1536,16 +1675,20 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       }
       if (!directive) return;
       const name = directive.field;
-      if (!Object.hasOwn(state.values, name))
+      const previous = current(state, name);
+      if (readPath(state.values, name) === undefined)
         throw new LiveClientError('DIRECTIVE', 'Unknown public state field');
       let value: Field | undefined;
       try {
-        value = readModelValue(element, directive);
+        value = readModelValue(
+          element,
+          directive,
+          group(state, element, name, previous),
+        );
       } catch (error) {
         state.invalid.set(element, name);
         models.cancel(element);
         // Preserve an invalid in-progress edit against an older response without sending it.
-        const previous = state.dirty.get(name)?.value ?? state.values[name];
         if (
           typeof previous === 'string' ||
           typeof previous === 'number' ||
@@ -1563,7 +1706,6 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       }
       if (value === undefined) return;
       state.invalid.delete(element);
-      const previous = state.dirty.get(name)?.value ?? state.values[name];
       if (!sameModelValue(previous, value))
         state.dirty.set(name, { value, version: ++state.fieldVersion });
       refreshBindings(state);
@@ -1706,9 +1848,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     const read = (field: string): unknown =>
       state.optimistic.has(field)
         ? state.optimistic.get(field)?.value
-        : state.dirty.has(field)
-          ? state.dirty.get(field)?.value
-          : state.values[field];
+        : current(state, field);
     const projected = new Map<string, unknown>();
     for (const directive of directives) {
       if (!Object.hasOwn(state.values, directive.field))
@@ -1912,15 +2052,72 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     refreshBindings(parentState);
     void schedule(parentState, '_sync', false).catch(() => undefined);
   }
+  /** Every owned checkbox of an array field, when `element` is one of them. */
+  function group(
+    state: Component,
+    element: Element,
+    field: string,
+    value: unknown,
+  ): Element[] | undefined {
+    return isCheckbox(element) && Array.isArray(value)
+      ? owned(state.root).filter(
+          (item) =>
+            isCheckbox(item) && getModelDirective(item)?.field === field,
+        )
+      : undefined;
+  }
+  /**
+   * Values the browser restored into model controls before mount (reload,
+   * history or autofill form restoration) differ from server state without a
+   * user edit in this lifecycle. Keep them as drafts, so nv:dirty shows them
+   * and the next request carries them, and announce the fields.
+   */
+  function restoreDrafts(state: Component): readonly string[] {
+    const fields: string[] = [];
+    for (const element of owned(state.root)) {
+      const directive = getModelDirective(element);
+      if (!directive || !changedFromDefault(element)) continue;
+      const field = directive.field;
+      try {
+        const prior = current(state, field);
+        const value = readModelValue(
+          element,
+          directive,
+          group(state, element, field, prior),
+        );
+        if (
+          value !== undefined &&
+          prior !== undefined &&
+          !sameModelValue(value, prior)
+        ) {
+          state.dirty.set(field, { value, version: ++state.fieldVersion });
+          fields.push(field);
+        }
+      } catch {
+        // An unrepresentable restored value stays native-only and is never sent.
+      }
+    }
+    return fields;
+  }
+  /** The local draft of a field or nested path, else its server value. */
+  function current(state: Component, field: string): unknown {
+    return state.dirty.has(field)
+      ? state.dirty.get(field)?.value
+      : readPath(state.values, field);
+  }
+  /** nv:dirty for a field also reflects drafts of its nested paths. */
+  function isDirty(state: Component, field?: string): boolean {
+    return (
+      [...state.invalid.values()].some((key) => covers(field, key)) ||
+      changed(
+        [...state.dirty].map(([key, item]) => [key, item.value] as const),
+        state.values,
+        field,
+      )
+    );
+  }
   function refreshBindings(state: Component): void {
-    const differs = (field: string): boolean =>
-      [...state.invalid.values()].includes(field) ||
-      (state.dirty.has(field) &&
-        !sameModelValue(state.dirty.get(field)?.value, state.values[field]));
-    const read = (field: string): unknown =>
-      state.dirty.has(field)
-        ? state.dirty.get(field)?.value
-        : state.values[field];
+    const read = (field: string): unknown => current(state, field);
     // Optimistic projections affect display bindings only, never sent drafts.
     const display = (field: string): unknown =>
       state.optimistic.has(field)
@@ -1930,10 +2127,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     applyBindings(
       state.root,
       display,
-      (field) =>
-        field === undefined
-          ? [...state.dirty.keys()].some(differs)
-          : differs(field),
+      (field) => isDirty(state, field),
       focus,
       (element, shown, apply) => {
         if (presentation) presentation.show(element, shown, apply);
@@ -1943,12 +2137,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     for (const apply of selections) apply();
   }
   function hasChanges(state: Component): boolean {
-    return (
-      state.invalid.size > 0 ||
-      [...state.dirty].some(
-        ([field, item]) => !sameModelValue(item.value, state.values[field]),
-      )
-    );
+    return state.invalid.size > 0 || isDirty(state);
   }
   const api: LiveClient = {
     refs(element: Element): ReadonlyMap<string, Element> {
@@ -1976,6 +2165,32 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     },
     cancelUpload(element: Element): void {
       uploading?.cancel(element);
+    },
+    inspect(): readonly LiveInspection[] {
+      if (options.development !== true)
+        throw new LiveClientError(
+          'DIRECTIVE',
+          'inspect() requires the development option',
+        );
+      return Object.freeze(
+        [...components.values()].map((state) => {
+          const failure = failureFor(state);
+          return Object.freeze({
+            id: state.id,
+            name: state.name,
+            revision: state.revision,
+            pending: Object.freeze(Object.fromEntries(state.pendingActions)),
+            dirty: Object.freeze([...state.dirty.keys()]),
+            invalid: state.invalid.size,
+            failure: failure
+              ? failure instanceof LiveClientError
+                ? failure.code
+                : failure.name
+              : null,
+            idempotent: Object.freeze([...state.idempotent]),
+          });
+        }),
+      );
     },
     navigate(url: string): Promise<void> {
       if (!navigation)
@@ -2012,12 +2227,10 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     get(element: Element, name: string): unknown {
       flushResets();
       const state = componentFor(element);
-      const key = parseIdentifier(name);
-      if (!Object.hasOwn(state.values, key))
+      const key = parsePath(name);
+      if (readPath(state.values, key) === undefined)
         throw new LiveClientError('DIRECTIVE', 'Unknown public state field');
-      return structuredClone(
-        state.dirty.has(key) ? state.dirty.get(key)?.value : state.values[key],
-      );
+      return structuredClone(current(state, key));
     },
     set(
       element: Element,
@@ -2026,8 +2239,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     ): void {
       flushResets();
       const state = componentFor(element);
-      const key = parseIdentifier(name);
-      if (!Object.hasOwn(state.values, key))
+      const key = parsePath(name);
+      if (readPath(state.values, key) === undefined)
         throw new LiveClientError('DIRECTIVE', 'Unknown public state field');
       if (
         !['string', 'boolean', 'number'].includes(typeof value) ||
@@ -2040,11 +2253,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       // Preserve the previous valid draft if a primitive cannot describe an
       // active multiple-select field. Public set remains primitive-only.
       modelSelections(state.root, (field) =>
-        field === key
-          ? value
-          : state.dirty.has(field)
-            ? state.dirty.get(field)?.value
-            : state.values[field],
+        field === key ? value : current(state, field),
       );
       state.dirty.set(key, { value, version: ++state.fieldVersion });
       refreshBindings(state);
