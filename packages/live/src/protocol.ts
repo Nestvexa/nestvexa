@@ -2,11 +2,21 @@
 export type JsonValue =
   null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 export const LIVE_PROTOCOL = 'nestvexa-live/1' as const;
+/** Request envelope limits enforced before any component code runs. */
 export const LIVE_LIMITS = Object.freeze({
   maxBytes: 65_536,
   maxDepth: 16,
   maxNodes: 5_000,
 });
+/**
+ * Optional, versioned behaviours a client may request with the
+ * `x-nestvexa-capabilities` header. The protocol major (`nestvexa-live/1`)
+ * changes only for incompatible envelopes; additive behaviour is negotiated
+ * per request through these tokens and never changes the default response.
+ */
+export const LIVE_CAPABILITIES = Object.freeze(['renderless-v1'] as const);
+export type LiveCapability = (typeof LIVE_CAPABILITIES)[number];
+const capabilityToken = /^[a-z][a-z0-9-]{0,47}-v[1-9][0-9]{0,2}$/;
 
 /** Safe protocol diagnostics: never embed tokens, state, bindings or thrown action details. */
 export class LiveProtocolError extends Error {
@@ -195,4 +205,37 @@ export function parseLiveRequest(input: unknown): LiveRequest {
       : {}),
   };
   return Object.freeze(request);
+}
+
+/**
+ * Parse a comma-separated capability header. Absent or empty means none.
+ * Well-formed tokens this server does not implement are ignored so newer
+ * clients keep working against older servers; malformed or oversized headers
+ * are rejected with 400 `INVALID_CAPABILITIES` before any component runs.
+ */
+export function parseLiveCapabilities(
+  header: unknown,
+): ReadonlySet<LiveCapability> {
+  const accepted = new Set<LiveCapability>();
+  if (header === undefined || header === '') return accepted;
+  if (typeof header !== 'string' || header.length > 512)
+    throw new LiveProtocolError(
+      'INVALID_CAPABILITIES',
+      400,
+      'Invalid Live capability header',
+    );
+  const tokens = header.split(',').map((token) => token.trim());
+  if (
+    tokens.length > 16 ||
+    tokens.some((token) => !capabilityToken.test(token))
+  )
+    throw new LiveProtocolError(
+      'INVALID_CAPABILITIES',
+      400,
+      'Invalid Live capability header',
+    );
+  const known: readonly string[] = LIVE_CAPABILITIES;
+  for (const token of tokens)
+    if (known.includes(token)) accepted.add(token as LiveCapability);
+  return accepted;
 }
