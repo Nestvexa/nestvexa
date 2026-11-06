@@ -982,14 +982,29 @@ class Generator {
       `export type ${this.#reserve(`${name}Error`)} = ActionFailure<ActionFieldOf<${method}>>;`,
       `export type ${this.#reserve(`${name}Optimistic`)} = ActionOptimisticUpdate<ActionOutputOf<${method}>, Parameters<${method}>[0]>;`,
     ]);
-    const dts = [
-      HEADER,
-      `import type { ActionFailure, ActionFieldOf, ActionJobHandle, ActionMethod, ActionOptimisticUpdate, ActionOutputOf, ActionsClient } from ${quote(clientModule)};\n`,
+    const body = [
       ...declarations.map((text) => `${text}\n`),
       `export interface NestvexaActions {\n${interfaceLines.join('\n')}${interfaceLines.length ? '\n' : ''}}\n`,
       ...(aliases.length ? [`${aliases.join('\n')}\n`] : []),
       `export declare const actionManifest: {\n${manifestTypes.join('\n')}${manifestTypes.length ? '\n' : ''}};\n`,
       'export declare function createActions(client: ActionsClient): NestvexaActions;\n',
+    ];
+    // Import only the client types the declarations use (lint-clean output).
+    const used = [
+      'ActionFailure',
+      'ActionFieldOf',
+      'ActionJobHandle',
+      'ActionMethod',
+      'ActionOptimisticUpdate',
+      'ActionOutputOf',
+      'ActionsClient',
+    ].filter((name) =>
+      body.some((text) => new RegExp(`\\b${name}\\b`).test(text)),
+    );
+    const dts = [
+      HEADER,
+      `import type { ${used.join(', ')} } from ${quote(clientModule)};\n`,
+      ...body,
     ].join('\n');
     const js = [
       HEADER,
