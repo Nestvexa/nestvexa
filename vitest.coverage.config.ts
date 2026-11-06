@@ -10,6 +10,7 @@ export default defineConfig({
       'tests/live-computed-integration.test.ts',
       'tests/live-state-context.test.ts',
       'tests/live-state-context-integration.test.ts',
+      'tests/high-risk-source.test.ts',
     ],
     testTimeout: 15000,
     hookTimeout: 30000,

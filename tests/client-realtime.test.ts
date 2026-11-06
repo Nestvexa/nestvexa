@@ -298,10 +298,12 @@ describe('browser realtime controller', () => {
       events: [{ channel: 'orders', id: '7', data: null }],
       cursor: 'x',
     });
-    await flush();
-    expect(f.messages).toEqual([{ channel: 'orders', id: '7', data: null }]);
+    // Reading a real Response body is not bounded by a fixed number of microtasks.
+    await vi.waitFor(() =>
+      expect(f.messages).toEqual([{ channel: 'orders', id: '7', data: null }]),
+    );
     // The next long-poll carries the cursor of delivered events.
-    expect(f.http.polls[1]?.url).toContain('&cursor=');
+    await vi.waitFor(() => expect(f.http.polls[1]?.url).toContain('&cursor='));
     // Later token changes stay on polling.
     f.instance.update([token(['other'])]);
     expect(FakeEventSource.instances).toHaveLength(1);
@@ -334,8 +336,7 @@ describe('browser realtime controller', () => {
     expect(f.instance.transport).toBe('polling');
     f.instance.update([token(['orders'])]);
     f.http.polls[0]?.respond(403);
-    await flush();
-    expect(f.expired()).toBe(1);
+    await vi.waitFor(() => expect(f.expired()).toBe(1));
     const failing = controller('polling');
     failing.instance.update([token(['orders'])]);
     failing.http.polls[0]?.fail();

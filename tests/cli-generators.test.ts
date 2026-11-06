@@ -719,8 +719,10 @@ describe(
     });
 
     it('accepts backslash and relative --cwd paths and refuses traversal names', () => {
-      const windows = root.replaceAll('/', '\\');
-      ok(run(['doctor', '--json', '--cwd', windows], repo));
+      // A backslash separates paths only on Windows; elsewhere it is a filename character.
+      const native =
+        process.platform === 'win32' ? root.replaceAll('/', '\\') : root;
+      ok(run(['doctor', '--json', '--cwd', native], repo));
       ok(
         run(
           [
