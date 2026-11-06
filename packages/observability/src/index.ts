@@ -2,10 +2,29 @@ export * from './instrumentation.js';
 export * from './trace-context.js';
 export * from './budget.js';
 export {
+  currentRequestId,
+  requestTracingMiddleware,
+  runWithRequestId,
+  type RequestTracingOptions,
+} from './request.js';
+export { traceGuard } from './guard.js';
+export {
+  DevtoolsInspector,
+  type DevtoolsInspectorOptions,
+  type InspectedComponent,
+  type InspectedRender,
+  type InspectedRenderInput,
+} from './inspector.js';
+export {
   DevtoolsModule,
   DEVTOOLS_OPTIONS,
+  DEVTOOLS_SCHEMA,
+  devtoolsSnapshot,
+  devtoolsStylesheet,
   renderDevtools,
   type DevtoolsOptions,
+  type DevtoolsRenderer,
+  type DevtoolsSnapshot,
 } from './devtools.js';
 export {
   DevErrorFilter,

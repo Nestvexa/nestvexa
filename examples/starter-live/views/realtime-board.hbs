@@ -18,6 +18,17 @@
     <li data-nv-key="feed-{{id}}">{{text}}</li>
     {{/each}}
   </ul>
+  <h2>Announcements</h2>
+  <button type="button" nv:click="announce">Announce to everyone</button>
+  <ul
+    id="realtime-announcements"
+    aria-label="Received announcements"
+    aria-live="polite"
+  >
+    {{#each received}}
+    <li>{{this}}</li>
+    {{/each}}
+  </ul>
   <h2>Report</h2>
   <button type="button" nv:click="startReport">Generate report</button>
   <button type="button" nv:click="startFailingReport">

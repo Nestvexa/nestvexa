@@ -11,3 +11,5 @@ docs/implementation/requirements.json
 docs/implementation/feature-ledger.json
 # Local agent tooling and isolated worktrees
 .claude
+# Byte-for-byte CLI output, verified by tests/cli-example.test.ts (the CLI does not format).
+examples/cli-generated

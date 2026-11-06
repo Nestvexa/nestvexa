@@ -261,12 +261,17 @@ describe('model directive modifier matrix', () => {
     expect(() => parseDirective(name, 'field')).toThrow();
   });
 
-  it.each(['user.name', 'items[0]', 'a b', '__proto__', 'name()', ''])(
-    'rejects model path or expression %j',
-    (value) => {
-      expect(() => parseDirective('nv:model.live', value)).toThrow();
-    },
-  );
+  it.each([
+    'user.__proto__',
+    'a.b.c.d.e.f.g.h.i',
+    'items[0]',
+    'a b',
+    '__proto__',
+    'name()',
+    '',
+  ])('rejects model path or expression %j', (value) => {
+    expect(() => parseDirective('nv:model.live', value)).toThrow();
+  });
 });
 
 describe('loading, target and offline effect matrix', () => {
@@ -470,7 +475,7 @@ describe('remaining directive grammar table', () => {
     ['nv:ignore.children', ''],
     ['nv:replace', 'x'],
     ['nv:replace.children', ''],
-    ['nv:text', 'user.name'],
+    ['nv:text', 'user.__proto__'],
     ['nv:text.html', 'title'],
     ['nv:show', ''],
     ['nv:show.important', 'open'],

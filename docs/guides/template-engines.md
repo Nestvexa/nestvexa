@@ -92,7 +92,23 @@ app.setBaseViewsDir(root);
 app.setViewEngine('ejs');
 ```
 
-Fastify (Nest `@Render` calls `reply.view`):
+With the `nestvexa` distribution, `registerViewEngine` does this on both
+platforms next to the default Handlebars engine (`configureNestvexa` owns
+Fastify's `reply.view` and dispatches by view extension):
+
+```ts
+import { configureNestvexa, registerViewEngine } from 'nestvexa';
+
+await configureNestvexa(app);
+await registerViewEngine(
+  app,
+  'ejs',
+  new EjsEngine({ root, cache: production }),
+);
+// @Render('pages/report.ejs') renders with EJS; @Render('home') with HBS.
+```
+
+Without the distribution, on Fastify (Nest `@Render` calls `reply.view`):
 
 ```ts
 const fastify = app.getHttpAdapter().getInstance();
@@ -229,4 +245,4 @@ Checklist for adapter authors: declare only capabilities you implement; never pa
 
 ## CLI
 
-`nestvexa add engine ejs|pug|nunjucks` adds the adapter, `src/nestvexa/engines/<engine>.engine.ts` (registered for Express in `main.ts`) and `views/layouts/main.<ext>`; `nestvexa make:page <Name> --renderer <engine>` generates a controller rendering `views/pages/<name>.<ext>`. See the [CLI reference](../reference/cli.md).
+`nestvexa add engine ejs|pug|nunjucks` adds the adapter, `src/nestvexa/engines/<engine>.engine.ts` (registered with `registerViewEngine` in `main.ts`, on Express and Fastify) and `views/layouts/main.<ext>`; `nestvexa make:page <Name> --renderer <engine>` generates a controller rendering `views/pages/<name>.<ext>`. See the [CLI reference](../reference/cli.md).

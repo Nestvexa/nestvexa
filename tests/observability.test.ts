@@ -213,14 +213,24 @@ describe('Live runtime spans', () => {
     expect(names).toEqual([
       'nestvexa.live.render:ok',
       'nestvexa.live.mount:ok',
+      'nestvexa.live.admit:ok',
+      'nestvexa.live.hydrate:ok',
       'nestvexa.live.render:ok',
       'nestvexa.live.action:ok',
+      'nestvexa.live.admit:ok',
+      'nestvexa.live.hydrate:ok',
       'nestvexa.live.action:error',
     ]);
-    expect(memory.records[3]?.attributes).toEqual({
+    expect(memory.records[5]?.attributes).toEqual({
       'nestvexa.component': 'secretive',
       'nestvexa.action': 'bump',
       'nestvexa.revision': 0,
+      'nestvexa.response_html_bytes': expect.any(Number),
+    });
+    expect(memory.records[3]?.attributes).toEqual({
+      'nestvexa.component': 'secretive',
+      'nestvexa.revision': 0,
+      'nestvexa.state_fields': 2,
     });
     expect(
       memory.records[0]?.attributes['nestvexa.html_bytes'],

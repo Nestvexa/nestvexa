@@ -35,6 +35,11 @@ export {
   type RealtimePresenceOptions,
 } from './presence.js';
 export {
+  type RealtimeInstrumentation,
+  type RealtimeSpan,
+  type RealtimeSpanAttributes,
+} from './instrumentation.js';
+export {
   createTokenSigner,
   parseChannel,
   RealtimeTokenError,

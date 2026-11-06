@@ -2,6 +2,11 @@ import { createHash } from 'node:crypto';
 import type { RealtimeBroker, RealtimeEvent } from './broker.js';
 import { parseChannel, RealtimeTokenError } from './token.js';
 import type { TokenSigner } from './token.js';
+import { channelKind, startSpan } from './instrumentation.js';
+import type {
+  RealtimeInstrumentation,
+  RealtimeSpan,
+} from './instrumentation.js';
 
 export interface RealtimeIdentity {
   readonly binding: string;
@@ -86,6 +91,8 @@ interface Connection {
   chain: Promise<void>;
   closed: boolean;
   timers: ReturnType<typeof setInterval>[];
+  /** Lifetime span, ended with the close reason. */
+  readonly span: RealtimeSpan;
 }
 function key(binding: string): string {
   return createHash('sha256').update(binding).digest('base64url');
@@ -157,6 +164,8 @@ export class RealtimeHub {
     private readonly signer: TokenSigner,
     private readonly policy: RealtimePolicy,
     private readonly limits: HubLimits,
+    /** Optional tracing hook (`nestvexa.realtime.*` spans); see `RealtimeModuleOptions`. */
+    private readonly instrumentation?: RealtimeInstrumentation,
     private readonly hooks: HubHooks = {},
   ) {
     const positive = (value: number, name: string) => {
@@ -194,12 +203,55 @@ export class RealtimeHub {
       throw new RealtimeRejection(401, 'IDENTITY_REQUIRED');
     return Object.freeze({ binding: identity.binding });
   }
-  /** Verify tokens and current authorization, then attach a transport sink. */
+  /**
+   * Verify tokens and current authorization, then attach a transport sink.
+   * Traced as `nestvexa.realtime.subscribe` (rejections carry their code); an
+   * accepted connection is a `nestvexa.realtime.connection` span ending with
+   * its close reason.
+   */
   async connect(
     resolve: IdentityResolver,
     tokens: readonly string[],
     sink: RealtimeSink,
     lastEventIds: ReadonlyMap<string, string> = new Map(),
+    transport = 'custom',
+  ): Promise<{ readonly channels: readonly string[]; close(): void }> {
+    const span = startSpan(
+      this.instrumentation,
+      'nestvexa.realtime.subscribe',
+      {
+        'nestvexa.realtime.transport': transport,
+        'nestvexa.realtime.tokens': Array.isArray(tokens) ? tokens.length : 0,
+      },
+    );
+    try {
+      const subscription = await this.#connect(
+        resolve,
+        tokens,
+        sink,
+        lastEventIds,
+        transport,
+      );
+      span.end('ok', {
+        'nestvexa.realtime.channels': subscription.channels.length,
+      });
+      return subscription;
+    } catch (error) {
+      span.end(
+        'error',
+        error instanceof RealtimeRejection
+          ? { status: error.status, 'nestvexa.error_code': error.code }
+          : {},
+      );
+      throw error;
+    }
+  }
+  async #connect(
+    resolve: IdentityResolver,
+    tokens: readonly string[],
+    sink: RealtimeSink,
+    lastEventIds: ReadonlyMap<string, string>,
+    transport: string,
   ): Promise<{ readonly channels: readonly string[]; close(): void }> {
     if (this.#closing) throw new RealtimeRejection(503, 'REALTIME_SHUTDOWN');
     if (!Array.isArray(tokens) || !tokens.length || tokens.length > 32)
@@ -260,6 +312,10 @@ export class RealtimeHub {
       chain: Promise.resolve(),
       closed: false,
       timers: [],
+      span: startSpan(this.instrumentation, 'nestvexa.realtime.connection', {
+        'nestvexa.realtime.transport': transport,
+        'nestvexa.realtime.channels': channels.size,
+      }),
     };
     this.#connections.add(connection);
     try {
@@ -347,7 +403,12 @@ export class RealtimeHub {
       this.#close(connection, 'expired');
       return;
     }
-    if (!connection.sink.send(event)) this.#close(connection, 'slow-consumer');
+    const span = startSpan(this.instrumentation, 'nestvexa.realtime.deliver', {
+      'nestvexa.realtime.channel_kind': channelKind(event.channel),
+    });
+    const sent = connection.sink.send(event);
+    span.end('ok', { 'nestvexa.realtime.backpressure': !sent });
+    if (!sent) this.#close(connection, 'slow-consumer');
   }
   async #revalidate(connection: Connection): Promise<void> {
     if (connection.closed) return;
@@ -388,6 +449,10 @@ export class RealtimeHub {
     } catch {
       // A failed transport close must not prevent subscription cleanup.
     }
+    connection.span.end(
+      reason === 'client' || reason === 'shutdown' ? 'ok' : 'error',
+      { 'nestvexa.realtime.close_reason': reason },
+    );
   }
   #presenceChanged(channels: Iterable<string>): void {
     const notify = this.hooks.onPresenceChange;

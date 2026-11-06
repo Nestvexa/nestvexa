@@ -547,6 +547,36 @@ export function addFactoryInjection(
     result = `${result.slice(0, edit.at)}${edit.insert}${result.slice(edit.at)}`;
   return result;
 }
+/**
+ * Add `key: value` to the object literal returned by the `useFactory` arrow of
+ * `const variable = { useFactory: (...) => ({ ... }) }` unless the key exists.
+ * Returns `undefined` when the factory does not have that shape.
+ */
+export function addFactoryResultProperty(
+  text: string,
+  variable: string,
+  key: string,
+  value: string,
+): string | undefined {
+  const source = parse(text);
+  const object = variableInitializer(source, variable);
+  if (!object || !ts.isObjectLiteralExpression(object)) return undefined;
+  const factory = objectProperty(object, 'useFactory');
+  const fn =
+    factory && ts.isPropertyAssignment(factory)
+      ? unwrap(factory.initializer)
+      : undefined;
+  if (!fn || !ts.isArrowFunction(fn)) return undefined;
+  const body = ts.isExpression(fn.body) ? unwrap(fn.body) : undefined;
+  if (!body || !ts.isObjectLiteralExpression(body)) return undefined;
+  if (objectProperty(body, key)) return text;
+  const entry = `${identifierOrString(key)}: ${value}`;
+  const last = body.properties.at(-1);
+  if (last)
+    return `${text.slice(0, last.getEnd())},\n    ${entry}${text.slice(last.getEnd())}`;
+  const start = body.getStart(source) + 1;
+  return `${text.slice(0, start)} ${entry} ${text.slice(start)}`;
+}
 function packageJson(plan: ChangePlan): Record<string, unknown> {
   const text = plan.read('package.json');
   if (text === undefined) throw new CliError('package.json is missing');

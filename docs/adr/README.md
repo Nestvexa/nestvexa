@@ -38,6 +38,7 @@ prove it. Proposing a new one is described in [governance](../../GOVERNANCE.md#d
 | [0030](0030-live-kernel-boundary.md)                      | Live depends on the view contracts, not on the core kernel                  |
 | [0031](0031-live-protocol-evolution-and-action-replay.md) | Live protocol evolution, idempotent replay and action concurrency           |
 | [0032](0032-distributed-state-and-redis.md)               | Pluggable Live state, Redis adapters and distributed realtime               |
+| [0034](0034-devtools-browser-extension-scope.md)          | In-app devtools panel; browser extension out of scope for v1                |
 
 ## Writing an ADR
 

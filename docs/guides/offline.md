@@ -131,9 +131,24 @@ if (scope) {
    announces the interrupted message in the form's status element.
 3. When the browser fires `online`, only the message changes ("Connection
    restored. Review and submit again."). Focus stays where it is.
-4. The user reviews the values and presses submit again. The server
-   validates that request like any other, so a duplicate submission is
-   handled by your normal idempotency and validation rules.
+4. The user reviews the values and presses submit again. Whether that works
+   without a reload depends on what the client knows about the failed request:
+   - **Not sent.** The browser reported itself offline (`navigator.onLine` was
+     `false`), so the client never sent the request. The component stays
+     usable; resubmitting after reconnect works without a reload.
+   - **A refresh (`$sync`) without a response.** No action method runs on a
+     refresh, so the component stays usable; unacknowledged field values stay
+     dirty and travel with the next request.
+   - **An action without a response while the browser believed it was
+     online** (dropped connection, `TIMEOUT`). The action may have run on the
+     server, so the component is suspended: further actions are rejected until
+     the page reloads or the host remounts the component from authoritative
+     markup. Drafts survive the reload.
+
+   In every case the server validates the new request like any other. If an
+   earlier request did commit, its revision makes the retry fail with
+   `409 STALE_REVISION` (the component then suspends) instead of running the
+   action twice.
 
 There is no offline action queue. Purchases, payments and deletes are never
 replayed on reconnect.
@@ -167,6 +182,8 @@ test('keeps the draft and never replays the submit', async ({
   await page.getByRole('button', { name: 'Create product' }).click();
   await expect(page.getByRole('status')).toContainText('Not sent');
   await context.setOffline(false);
+  // The submit was never sent (the browser was offline), so the component is
+  // still usable; a reload is not required. The draft also survives one.
   await page.reload();
   await expect(page.getByLabel('Name')).toHaveValue('Desk lamp');
   // The server has not created the product until the user submits again.

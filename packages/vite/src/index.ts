@@ -24,6 +24,10 @@ export { ViteAssets } from './assets.js';
 export type { ViteAppOptions, ViteAssetsOptions } from './assets.js';
 export { viteStaticMiddleware } from './static.js';
 export type { ViteStaticMiddleware, ViteStaticOptions } from './static.js';
+export type {
+  ViteInstrumentation,
+  ViteSpanAttributes,
+} from './instrumentation.js';
 export { createSsrRenderer, moduleSsrRenderer } from './ssr.js';
 export type { SsrRenderer, SsrRendererOptions, SsrResult } from './ssr.js';
 export { isMainModule, startOfficialSsrServer } from './ssr-server.js';

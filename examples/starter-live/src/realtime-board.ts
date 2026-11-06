@@ -9,11 +9,15 @@ import { REQUEST } from '@nestjs/core';
 import { setTimeout as delay } from 'node:timers/promises';
 import {
   Action,
+  ActionInput,
   Computed,
   LiveComponent,
+  LiveEvents,
+  OnEvent,
   RealtimeChannels,
   State,
 } from 'nestvexa';
+import type { PipeTransform } from '@nestjs/common';
 import { JobRunner, RealtimeService } from '@nestvexa/realtime';
 
 export const publicChannel = 'activity:public';
@@ -29,6 +33,32 @@ export class ActivityFeed {
   }
   list(): readonly { id: number; text: string }[] {
     return this.#items;
+  }
+}
+/** Server-side announcements (bounded, in memory); events carry only their id. */
+@Injectable()
+export class Announcements {
+  readonly #items = new Map<number, string>();
+  #next = 1;
+  add(text: string): number {
+    const id = this.#next++;
+    this.#items.set(id, text);
+    for (const key of this.#items.keys())
+      if (this.#items.size > 20) this.#items.delete(key);
+    return id;
+  }
+  get(id: number): string | undefined {
+    return this.#items.get(id);
+  }
+}
+/** Event payloads come back from the browser: accept only a positive integer id. */
+export class AnnouncementReference implements PipeTransform {
+  transform(value: unknown): { id: number } {
+    const id: unknown =
+      value && typeof value === 'object' ? Reflect.get(value, 'id') : undefined;
+    if (typeof id !== 'number' || !Number.isSafeInteger(id) || id < 1)
+      throw new BadRequestException('Invalid announcement reference');
+    return { id };
   }
 }
 /** Late-bound publisher: the runner exists before Nest resolves RealtimeService. */
@@ -63,8 +93,12 @@ export const reportJobs = new JobRunner({
 export const REPORT_JOBS = Symbol('report-jobs');
 
 @Module({
-  providers: [ActivityFeed, { provide: REPORT_JOBS, useValue: reportJobs }],
-  exports: [ActivityFeed, REPORT_JOBS],
+  providers: [
+    ActivityFeed,
+    Announcements,
+    { provide: REPORT_JOBS, useValue: reportJobs },
+  ],
+  exports: [ActivityFeed, Announcements, REPORT_JOBS],
 })
 export class RealtimeDemoModule {}
 
@@ -84,7 +118,11 @@ export class RealtimeBoard {
     @Inject(REPORT_JOBS) private readonly jobs: JobRunner,
     @Inject(RealtimeService) private readonly realtime: RealtimeService,
     @Inject(REQUEST) private readonly request: unknown,
+    @Inject(Announcements) private readonly announcements: Announcements,
+    @Inject(LiveEvents) private readonly events: LiveEvents,
   ) {}
+  /** Announcements this browser received through server-pushed events. */
+  @State() received: string[] = [];
   @State({
     writable: true,
     validate: (value) => typeof value === 'string' && value.length <= 80,
@@ -128,6 +166,27 @@ export class RealtimeBoard {
     await this.realtime.publish(publicChannel, null, {
       identity: { binding: guestBinding(this.request) },
     });
+  }
+  /**
+   * Store the announcement on the server and push a domain event to every
+   * browser subscribed to the public channel.
+   */
+  @Action() async announce(): Promise<void> {
+    const id = this.announcements.add(
+      `Announcement from ${this.draft.trim() || 'a guest'}`,
+    );
+    await this.events.publish(publicChannel, 'announcement.posted', { id });
+  }
+  /** Runs in each subscribed browser's component when the event arrives. */
+  @Action()
+  @OnEvent('announcement.posted')
+  announcementPosted(
+    @ActionInput(new AnnouncementReference()) input: { id: number },
+  ): void {
+    // Re-read authoritative data; the payload is only a reference.
+    const text = this.announcements.get(input.id);
+    if (text && !this.received.includes(text))
+      this.received = [text, ...this.received].slice(0, 5);
   }
   async #start(fail: boolean): Promise<void> {
     const identity = { binding: guestBinding(this.request) };

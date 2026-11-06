@@ -13,18 +13,48 @@ import {
   normalizeOptions,
   type NestvexaOptions,
 } from './config.js';
+import type { LoggerService } from '@nestjs/common';
+import {
+  NESTVEXA_REQUEST_CONTEXT_OPTIONS,
+  RequestContextFactory,
+} from './context.js';
+import type { RequestContextOptions } from './context.js';
+import {
+  DiagnosticsRegistry,
+  NESTVEXA_DIAGNOSTICS_OPTIONS,
+} from './diagnostics.js';
+import type { DiagnosticsOptions } from './diagnostics.js';
 import { NestvexaError } from './errors.js';
+import {
+  NESTVEXA_ERROR_LOGGER,
+  NESTVEXA_ERROR_REDACTION,
+  NestvexaExceptionFilter,
+} from './exceptions.js';
+import { NESTVEXA_EXTENSIONS, NestvexaExtensionHost } from './extensions.js';
+import type { NestvexaExtension } from './extensions.js';
+import type { RedactionOptions } from './redaction.js';
 import { FeatureCapabilityRegistry } from './registry.js';
+import { SecurityPolicyRegistry } from './security.js';
 
 /** Class-based async configuration, the Nest `useClass`/`useExisting` convention. */
 export interface NestvexaOptionsFactory {
   createNestvexaOptions(): NestvexaOptions | Promise<NestvexaOptions>;
 }
 
-/** Module visibility; providers stay local to the importing module unless `global` is true. */
+/** Module visibility and kernel services; providers stay local unless `global` is true. */
 export interface CoreModuleRegistration {
-  /** Register the config service and capability registry as a global Nest module. */
+  /** Register the kernel services as a global Nest module. */
   readonly global?: boolean;
+  /** Tenant/session/principal resolvers and correlation header policy. */
+  readonly requestContext?: RequestContextOptions;
+  /** Buffer size, strict names and redaction for the diagnostics registry. */
+  readonly diagnostics?: DiagnosticsOptions;
+  /** Extensions installed in order at module init (see `NestvexaExtension`). */
+  readonly extensions?: readonly NestvexaExtension[];
+  /** Logger for server errors caught by `NestvexaExceptionFilter` (redacted). */
+  readonly errorLogger?: LoggerService;
+  /** Extra sensitive key fragments for error logs. */
+  readonly redaction?: RedactionOptions;
 }
 
 interface AsyncBase extends CoreModuleRegistration {
@@ -53,7 +83,37 @@ export type NestvexaAsyncOptions<Dependencies extends unknown[] = unknown[]> =
     });
 
 const FACTORY = Symbol('nv:core-options-factory');
-const exported = [NestvexaConfigService, FeatureCapabilityRegistry];
+const exported = [
+  NestvexaConfigService,
+  FeatureCapabilityRegistry,
+  RequestContextFactory,
+  SecurityPolicyRegistry,
+  DiagnosticsRegistry,
+  NestvexaExceptionFilter,
+  NestvexaExtensionHost,
+];
+/** Kernel services shared by `forRoot` and `forRootAsync`. */
+function kernel(registration: CoreModuleRegistration | undefined): Provider[] {
+  const value = (key: keyof CoreModuleRegistration): unknown =>
+    registration?.[key] ?? null;
+  return [
+    NestvexaConfigService,
+    FeatureCapabilityRegistry,
+    {
+      provide: NESTVEXA_REQUEST_CONTEXT_OPTIONS,
+      useValue: value('requestContext'),
+    },
+    RequestContextFactory,
+    SecurityPolicyRegistry,
+    { provide: NESTVEXA_DIAGNOSTICS_OPTIONS, useValue: value('diagnostics') },
+    DiagnosticsRegistry,
+    { provide: NESTVEXA_ERROR_LOGGER, useValue: value('errorLogger') },
+    { provide: NESTVEXA_ERROR_REDACTION, useValue: value('redaction') },
+    NestvexaExceptionFilter,
+    { provide: NESTVEXA_EXTENSIONS, useValue: value('extensions') },
+    NestvexaExtensionHost,
+  ];
+}
 
 function global(registration: CoreModuleRegistration | undefined): boolean {
   const value = registration?.global;
@@ -90,8 +150,7 @@ export class CoreModule {
       global: global(registration),
       providers: [
         { provide: NESTVEXA_OPTIONS, useValue: normalizeOptions(options) },
-        NestvexaConfigService,
-        FeatureCapabilityRegistry,
+        ...kernel(registration),
       ],
       exports: exported,
     };
@@ -145,11 +204,7 @@ export class CoreModule {
       module: CoreModule,
       global: global(options),
       imports: options.imports ?? [],
-      providers: [
-        ...providers,
-        NestvexaConfigService,
-        FeatureCapabilityRegistry,
-      ],
+      providers: [...providers, ...kernel(options)],
       exports: exported,
     };
   }

@@ -214,6 +214,8 @@ browsers ──► load balancer ──► replica a ─┐  RedisRealtimeBroker
 - `broker: new RedisRealtimeBroker({ host, port, password, prefix })` and Live
   `store: new RedisLiveStore({ host, port, password, prefix })` from
   [`@nestvexa/realtime-redis`](../../packages/realtime-redis/README.md).
+  `nestvexa add redis` generates this wiring (`src/nestvexa/redis.config.ts`):
+  both switch to Redis when `REDIS_URL` is set and stay in-process otherwise.
 - The same `secrets`, the same public `origin` and an identity that resolves
   identically on every replica (a shared session store or signed cookies).
 - Long-lived SSE/WebSocket connections stay on the replica they opened; Live

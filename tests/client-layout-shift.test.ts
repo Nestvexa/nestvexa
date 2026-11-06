@@ -5,6 +5,12 @@
  * `client.call`, so shifts are not excluded as `hadRecentInput`, and the
  * score sums every shift after mount (a session-window upper bound of CLS).
  * A positive control proves the probe sees real shifts.
+ *
+ * Under heavy load, headless Chromium does not reliably report layout-shift
+ * entries, so an empty report alone proves nothing. Each measurement
+ * therefore also records the geometry of a sentinel element after the
+ * component (`#other`), which is deterministic: the positive control must move
+ * it, and every "no shift" case must leave it exactly where it was.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from '@playwright/test';
@@ -40,7 +46,7 @@ async function measure(
   component: MatrixComponent,
   calls: readonly string[],
   hold = false,
-): Promise<{ score: number; count: number }> {
+): Promise<{ score: number; count: number; moved: number }> {
   page = await openPage(fixture);
   const target = page;
   await mountMatrix(target, component);
@@ -60,6 +66,12 @@ async function measure(
       }
     }).observe({ type: 'layout-shift', buffered: true });
   });
+  const sentinel = () =>
+    target.evaluate(
+      () =>
+        document.querySelector('#other')?.getBoundingClientRect().top ?? NaN,
+    );
+  const before = await sentinel();
   for (const action of calls) {
     await target.evaluate(
       (name) =>
@@ -81,10 +93,29 @@ async function measure(
         requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
       ),
   );
-  return target.evaluate(() => ({
-    score: window.nvShift.score,
-    count: window.nvShift.count,
-  }));
+  const moved = (await sentinel()) - before;
+  return {
+    ...(await target.evaluate(() => ({
+      score: window.nvShift.score,
+      count: window.nvShift.count,
+    }))),
+    moved,
+  };
+}
+
+/**
+ * Content after the component stays exactly in place. Sub-pixel glyph metrics
+ * differ between hosts (Windows CI fonts produced 0.001 for a fixed-width
+ * counter), so the reported score must be far below the 0.1 "good"
+ * Cumulative Layout Shift threshold rather than exactly zero.
+ */
+function expectNegligible(result: {
+  score: number;
+  count: number;
+  moved: number;
+}): void {
+  expect(result.moved).toBe(0);
+  expect(result.score).toBeLessThan(0.005);
 }
 
 const body =
@@ -100,8 +131,8 @@ describe('layout shift during Live updates (Chromium Layout Instability API)', (
       },
       ['show'],
     );
-    expect(result.count).toBeGreaterThan(0);
-    expect(result.score).toBeGreaterThan(0.01);
+    // The 200px banner pushes everything after it down.
+    expect(result.moved).toBeGreaterThanOrEqual(199);
   });
 
   it('keeps in-place text morphs at zero layout shift across repeated updates', async () => {
@@ -113,7 +144,7 @@ describe('layout shift during Live updates (Chromium Layout Instability API)', (
       },
       ['increment', 'increment', 'increment', 'increment', 'increment'],
     );
-    expect(result).toEqual({ score: 0, count: 0 });
+    expectNegligible(result);
   });
 
   it('keeps nv:loading class indicators and aria-busy at zero shift while work is pending', async () => {
@@ -126,7 +157,7 @@ describe('layout shift during Live updates (Chromium Layout Instability API)', (
       ['increment', 'increment'],
       true,
     );
-    expect(result).toEqual({ score: 0, count: 0 });
+    expectNegligible(result);
   });
 
   it('keeps a delayed indicator in reserved space at zero shift', async () => {
@@ -139,7 +170,7 @@ describe('layout shift during Live updates (Chromium Layout Instability API)', (
       ['increment'],
       true,
     );
-    expect(result).toEqual({ score: 0, count: 0 });
+    expectNegligible(result);
   });
 
   it('keeps a retained scroll container stable when its content is morphed', async () => {
@@ -156,6 +187,6 @@ describe('layout shift during Live updates (Chromium Layout Instability API)', (
       },
       ['increment', 'increment', 'increment'],
     );
-    expect(result).toEqual({ score: 0, count: 0 });
+    expectNegligible(result);
   });
 });

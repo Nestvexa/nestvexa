@@ -26,6 +26,8 @@ NestvexaModule.forRoot({
 await configureNestvexa(app);
 ```
 
+Other template engines render next to HBS with `await registerViewEngine(app, 'ejs', ejsEngine)` (any adapter with `render` and `renderFile`, such as `@nestvexa/engine-ejs`, `-pug` or `-nunjucks`): `@Render('pages/report.ejs')` uses the adapter, views without that extension keep HBS. Express registers it with `app.engine()`; on Fastify the `reply.view` decorator installed by `configureNestvexa` dispatches by extension. Invalid extensions, `hbs` and duplicate registrations are rejected.
+
 `forRootAsync({ imports, inject, useFactory })` supports Nest provider injection. Defaults are HBS, `src/views`, no layout, no production template cache, and Live disabled. Use `views.cache: true` for immutable deployed templates. Public root exports include `NestvexaModule`, `configureNestvexa`, `HbsEngine`, core/view/Live server contracts, `NestvexaBrowserService`, `NestvexaBrowserOptions`, `NestvexaLiveOptions` and `NestvexaLivePolicies`. Dependencies include core, views, engine-hbs, Live, the browser client, Alpine bridge and `@alpinejs/csp` 3.17.5; no React/Vue/Svelte SPA framework or Redis is required. The core kernel retains its separate dependency boundary.
 
 ## Integrated Live setup

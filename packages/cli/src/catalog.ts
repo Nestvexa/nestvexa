@@ -136,7 +136,7 @@ export const catalog: Readonly<Record<string, TemplateDefinition>> =
       render: () => base.layoutView(),
     },
     'policy.guard': {
-      version: 1,
+      version: 2,
       description: 'Deny-by-default guard',
       path: (n, p) => `${src(p)}/policies/${n.kebab}.policy.ts`,
       render: (n) => base.policyGuard(n.pascal),

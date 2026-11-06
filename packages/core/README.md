@@ -75,8 +75,66 @@ registry.seal();
 
 A plugin is `{ manifest: { name, version, nestvexa, capabilities, description? }, setup?(context) }`. `parsePluginManifest` validates manifests (own data properties only, unknown keys rejected, npm-style names, semver versions, a supported Nestvexa range and capabilities from `PLUGIN_CAPABILITIES`: `view-engine`, `state-synthesizer`, `action-policy`, `storage`, `cache`, `realtime-transport`, `island-renderer`, `cli-generator`, `instrumentation`, `ui-kit`). `install` rejects strings (names and URLs never become imports), duplicates, plugins whose `nestvexa` range does not include the running version and installs after `seal()`; a throwing `setup` leaves the plugin uninstalled. `satisfiesVersion` implements the range subset (`=`, `>`, `>=`, `<`, `<=`, `^`, `~`, spaces, `||`, prerelease precedence). The registry never downloads, resolves or evaluates code.
 
+## Kernel services
+
+`CoreModule.forRoot(options, registration)` (and `forRootAsync`, and the third
+argument of `NestvexaModule.forRoot`) also provides these injectable services:
+
+```ts
+CoreModule.forRoot(options, {
+  requestContext: {
+    resolveTenant: (request) => tenantOf(request),
+    resolvePrincipal: (request) => principalOf(request),
+  },
+  diagnostics: { bufferSize: 512 },
+  extensions: [auditExtension],
+  errorLogger: appLogger,
+  redaction: { keys: ['ssn'] },
+});
+app.useGlobalFilters(app.get(NestvexaExceptionFilter));
+```
+
+- **`RequestContextFactory`**: `create(request)` returns one frozen context per request
+  with `correlationId`, a 128-bit `cspNonce`, `tenant`, `session`, `principal` and
+  extension contributions; `context.public` holds only `correlationId`, `cspNonce`,
+  `tenant` and `authenticated`. A well-formed incoming `x-request-id` (8–128 of
+  `A-Za-z0-9._:-`) is reused unless `trustIncomingCorrelation: false`; anything else gets
+  a random UUID. Resolver errors and malformed resolver output reject (fail closed).
+  `correlationId(request)` is synchronous and stable for the request.
+- **`NestvexaExceptionFilter`**: HTTP exceptions keep their body (Live
+  `{ statusCode, code }`, validation messages) plus `correlationId`; other errors become
+  `500 { statusCode, code: 'INTERNAL_ERROR', message: 'Internal server error',
+correlationId }`. Every error response carries `x-request-id`. Server errors are logged
+  once, redacted, with the correlation ID, and emitted as a `nestvexa.error` diagnostic.
+  Works on Express and Fastify without `@nestjs/core`.
+- **Redaction**: `redact(value)`, `createRedactor(options)` and
+  `createRedactingLogger(logger)` replace values under sensitive keys (`password`,
+  `secret`, `token`, `authorization`, `cookie`, `csrf`, `session`, `apiKey`,
+  `snapshot`, `signature`, … plus `keys`) with `[REDACTED]`, scrub `Bearer`/`Basic`
+  credentials in strings, bound depth and size, mark cycles and never evaluate getters.
+  Error messages are scrubbed of credentials but otherwise logged as written; do not put
+  secrets in exception messages.
+- **`SecurityPolicyRegistry`**: per-owner `csrf`, `origin`, `snapshot`,
+  `action-authorization` and `upload-quota` policies, validated and frozen at
+  registration (a snapshot policy must bind state to the identity). `verifyCsrf`,
+  `originAllowed`, `authorize` and `uploadAllowed` fail closed (missing policy, thrown
+  error or non-`true` result denies); `require(owner, kinds)` asserts registration at
+  startup; `report()` lists configuration without functions. The umbrella registers
+  Live's policies under `live`; Live keeps enforcing them itself.
+- **`DiagnosticsRegistry`**: typed `event`, `metric` and `span` records with bounded,
+  primitive, key-redacted attributes; `define()` builds a catalog (`strict` rejects
+  undefined names); `subscribe()` listeners are isolated; `recent()` reads a bounded
+  buffer for tests and devtools; `instrumentation()` adapts it to the Live
+  `instrumentation` hook (the umbrella does this by default).
+- **Extensions** (`NestvexaExtension`, `defineExtension`): `{ name, capabilities?,
+register?(context), contributeContext?(request), shutdown?() }`. At module init,
+  capabilities are declared, `register` runs with the capability, security and
+  diagnostics registries, and context contributors are attached, in installation order;
+  then the capability and security registries are sealed. `shutdown` runs in reverse
+  order and one failure does not block the others. Duplicate names fail at startup.
+
 ## Development and compatibility
 
-Run root `pnpm exec vitest run tests/core.test.ts tests/core-config.test.ts tests/architecture-runtime.test.ts tests/core-routes.test.ts tests/core-plugins.test.ts`; `pnpm --filter @nestvexa/core build` builds declarations and ESM output. Tests boot real Nest testing modules and cover factory rejection, isolation, malformed input and registries. See [core tests](../../tests/core.test.ts), [root README](../../README.md) and [changelog](../../CHANGELOG.md). Packed consumption and the full Node/OS matrix must pass before release; NestJS 12 is the intended peer range, not evidence that every patch has been tested.
+Run root `pnpm exec vitest run tests/core-kernel.test.ts tests/core.test.ts tests/core-config.test.ts tests/architecture-runtime.test.ts tests/core-routes.test.ts tests/core-plugins.test.ts`; `pnpm --filter @nestvexa/core build` builds declarations and ESM output. Tests boot real Nest testing modules and cover factory rejection, isolation, malformed input and registries. See [core tests](../../tests/core.test.ts), [root README](../../README.md) and [changelog](../../CHANGELOG.md). Packed consumption and the full Node/OS matrix must pass before release; NestJS 12 is the intended peer range, not evidence that every patch has been tested.
 
 Maintainer identity and repository/issue URLs await the owner; none are fabricated. Changes use the repository Changesets policy. APIs may change during alpha with migration notes.

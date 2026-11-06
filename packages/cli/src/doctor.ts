@@ -144,8 +144,11 @@ function sourceTexts(project: ProjectInfo): Map<string, string> {
   walk(join(project.root, project.sourceRoot));
   return out;
 }
-/** Keys of `export const inertiaFrameworks = { ... }` in the generated config. */
-function inertiaRoots(text: string): string[] {
+/**
+ * Keys of `export const inertiaFrameworks = { ... }` in the generated config
+ * and whether each root declares an SSR entry.
+ */
+function inertiaRoots(text: string): { key: string; ssr: boolean }[] {
   const source = ts.createSourceFile(
     'inertia.config.ts',
     text,
@@ -164,7 +167,12 @@ function inertiaRoots(text: string): string[] {
         return declaration.initializer.properties.flatMap((property) =>
           property.name &&
           (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name))
-            ? [property.name.text]
+            ? [
+                {
+                  key: property.name.text,
+                  ssr: /\bssr\s*:/.test(property.getText(source)),
+                },
+              ]
             : [],
         );
   }
@@ -346,15 +354,30 @@ export function doctor(context: CommandContext): CommandResult {
   );
 
   // Sessions, CSRF and secrets (values are never printed).
+  // Express: session(...) in main.ts. Fastify: @fastify/session registered in
+  // any source file (`nestvexa init` puts it in src/nestvexa/session.ts).
+  const fastify = project.platform === 'fastify';
+  const sessionText = fastify
+    ? ([...sources.values()].find((text) =>
+        /register\(\s*fastifySession\b/.test(text),
+      ) ?? '')
+    : mainText;
+  const sessionRegistered = fastify
+    ? sessionText !== ''
+    : /session\(/.test(mainText);
   add(
     'session',
-    /session\(/.test(mainText) ? 'pass' : 'warn',
-    /session\(/.test(mainText)
-      ? 'A session middleware is registered'
-      : 'No session middleware found in main.ts',
+    sessionRegistered ? 'pass' : 'warn',
+    sessionRegistered
+      ? fastify
+        ? '@fastify/session is registered'
+        : 'A session middleware is registered'
+      : fastify
+        ? 'No @fastify/session registration found'
+        : 'No session middleware found in main.ts',
     'Live, actions and forms need host sessions for identity and CSRF tokens.',
   );
-  const cookie = /cookie:\s*\{([^}]*)\}/.exec(mainText)?.[1] ?? '';
+  const cookie = /cookie:\s*\{([^}]*)\}/.exec(sessionText)?.[1] ?? '';
   const cookieIssues = [
     ...(cookie && !/httpOnly:\s*true/.test(cookie)
       ? ['httpOnly is not true']
@@ -380,7 +403,9 @@ export function doctor(context: CommandContext): CommandResult {
           : 'CSRF and action authorization are enabled; session cookie flags look safe',
     'Keep security.csrf and requireAuthorizedActions enabled; use httpOnly, sameSite and secure (in production) session cookies.',
   );
-  const literal = /secret:\s*['"`][^'"`]+['"`]/.test(mainText);
+  const literal = /secret:\s*['"`][^'"`]+['"`]/.test(
+    fastify ? `${mainText}\n${sessionText}` : mainText,
+  );
   const sessionSecret = process.env['SESSION_SECRET'];
   add(
     'session-secret',
@@ -448,16 +473,38 @@ export function doctor(context: CommandContext): CommandResult {
       'Set REALTIME_SECRET to a random value of at least 32 bytes; rotate by listing old secrets after the new one.',
     );
   }
+  if (project.dependencies['@nestvexa/realtime-redis']) {
+    // The URL carries credentials: only its shape is reported.
+    const url = process.env['REDIS_URL'];
+    const valid =
+      url !== undefined &&
+      URL.canParse(url) &&
+      new URL(url).protocol === 'redis:';
+    add(
+      'redis',
+      url === undefined || url === '' ? 'warn' : valid ? 'pass' : 'fail',
+      url === undefined || url === ''
+        ? 'REDIS_URL is not set: Live state and realtime stay in this process (single replica only)'
+        : valid
+          ? 'REDIS_URL is set (value not displayed)'
+          : 'REDIS_URL is not a redis:// URL',
+      'Set REDIS_URL=redis://[user:password@]host:port[/db] on every replica, or keep one replica.',
+    );
+  }
 
   // Built frontend assets.
   const inertiaConfig = [...sources].find(([path]) =>
     path.endsWith('inertia.config.ts'),
   );
   const roots = inertiaConfig ? inertiaRoots(inertiaConfig[1]) : [];
-  const missing = roots.filter(
-    (key) =>
-      !existsSync(join(root, 'dist', key, 'client', '.vite', 'manifest.json')),
-  );
+  const missing = roots.flatMap(({ key, ssr }) => [
+    ...(existsSync(join(root, 'dist', key, 'client', '.vite', 'manifest.json'))
+      ? []
+      : [key]),
+    ...(ssr && !existsSync(join(root, 'dist', key, 'ssr', 'ssr.mjs'))
+      ? [`${key} (SSR bundle)`]
+      : []),
+  ]);
   const islands = existsSync(join(root, 'vite.islands.config.ts'));
   if (
     islands &&
@@ -469,8 +516,8 @@ export function doctor(context: CommandContext): CommandResult {
       'assets',
       missing.length ? (production ? 'fail' : 'warn') : 'pass',
       missing.length
-        ? `No Vite manifest for: ${missing.join(', ')}`
-        : `Vite manifests present for ${[...roots, ...(islands ? ['islands'] : [])].join(', ')}`,
+        ? `Missing Vite builds: ${missing.join(', ')}`
+        : `Vite builds present for ${[...roots.map(({ key }) => key), ...(islands ? ['islands'] : [])].join(', ')}`,
       `Run \`${project.packageManager === 'npm' ? 'npm run' : `${project.packageManager} run`} build:client\` before starting in production.`,
     );
 

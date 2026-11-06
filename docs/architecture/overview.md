@@ -52,7 +52,7 @@ and TLS. Nestvexa never ships an identity provider, ORM or queue framework (VISI
 | Hybrid               | `@nestvexa/islands` (allowlisted island registry and browser mounters)                                                                                                                                                                              | Nest process, browser                       |
 | Universal actions    | `@nestvexa/actions` (registry, generated routes, typed client codegen)                                                                                                                                                                              | Nest process, build                         |
 | Distributed services | `@nestvexa/realtime` (SSE/WebSocket/poll invalidation, Redis-protocol broker, presence, jobs), `@nestvexa/realtime-redis` (shared Live state store and broker for multiple replicas), `@nestvexa/cache` (privacy-scoped cache, tags, single flight) | Nest process                                |
-| Extensions           | `@nestvexa/i18n`, `@nestvexa/ui`, `@nestvexa/ai`, `@nestvexa/flags`, `@nestvexa/offline`, `@nestvexa/observability`                                                                                                                                 | Nest process, browser                       |
+| Extensions           | `@nestvexa/i18n`, `@nestvexa/ui`, `@nestvexa/ai`, `@nestvexa/flags`, `@nestvexa/offline`, `@nestvexa/observability`, `@nestvexa/mail`                                                                                                               | Nest process, browser                       |
 | Tooling              | `@nestvexa/cli` (`nestvexa` command), `nestvexa-actions-codegen`, `nestvexa-i18n-extract`                                                                                                                                                           | Developer machine, CI                       |
 
 ## Components inside the Nest process
@@ -227,11 +227,19 @@ root: Live and Alpine never patch inside it and Live morphs keep island roots in
 | Island renderers | `@nestvexa/islands` React/Vue/Svelte mounters                                                                           |
 | Instrumentation  | `@nestvexa/observability` spans, metrics and redacted logging hooks                                                     |
 | CLI generators   | Built-in only                                                                                                           |
+| Kernel hooks     | `@nestvexa/core` `NestvexaExtension` (capabilities, `register`, `contributeContext`, `shutdown`)                        |
+
+`@nestvexa/core` also provides the kernel services of specification section 5.2:
+`RequestContextFactory` (tenant/session/principal/correlation/CSP nonce with a public
+subset), `SecurityPolicyRegistry` (CSRF, origin, snapshot, action authorization, upload
+quotas; fail-closed evaluation), `DiagnosticsRegistry` (typed events, metrics and spans
+for tests and devtools) and `NestvexaExceptionFilter` (error envelope with correlation
+IDs and redacted logging). See the [core README](../../packages/core/README.md#kernel-services).
 
 > **Known gap:** section 29.1 of the specification asks for a stable, versioned plugin
-> SDK with bootstrap capability negotiation and a third-party example package consumed
-> from tarballs. The contracts above are package-level interfaces; there is no unified
-> plugin interface, no capability-negotiation step at bootstrap and no out-of-tree
+> SDK with a third-party example package consumed from tarballs. Extensions declare
+> capability flags explicitly at bootstrap (`NestvexaExtension.capabilities`), but the
+> other contracts above remain package-level interfaces and there is no out-of-tree
 > plugin example yet (MAINT rows). CLI generators are not pluggable.
 
 ## Where to go next

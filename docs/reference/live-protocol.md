@@ -106,6 +106,7 @@ the package can emit is listed with the status it is emitted with.
 | `IDEMPOTENCY_CONFLICT`     | 422    | fix-request | A request ID was reused with a different payload.                        |
 | `STATE_SCHEMA_CHANGED`     | 409    | reload      | Stored state no longer matches the component class.                      |
 | `REACTIVE_PROP_MUTATED`    | 409    | reload      | A child action changed a parent-owned @Reactive field.                   |
+| `ASSET_VERSION_MISMATCH`   | 409    | reload      | `x-nestvexa-asset-version` is missing or differs from `assetVersion`.    |
 | `INVALID_SNAPSHOT`         | 410    | reload      | State reference unknown, expired, revoked or not owned.                  |
 | `PAYLOAD_TOO_LARGE`        | 413    | fix-request | Envelope or rendered HTML exceeds the documented limits.                 |
 | `CONTENT_TYPE`             | 415    | fix-request | Requests must be application/json (UTF-8).                               |
@@ -126,6 +127,10 @@ the package can emit is listed with the status it is emitted with.
 | `COMPUTED_TIMEOUT`         | 504    | retry-later | An async @Computed exceeded its deadline.                                |
 | `HOOK_TIMEOUT`             | 504    | retry-later | A lifecycle hook exceeded the component timeoutMs.                       |
 | `ACTION_TIMEOUT`           | 504    | retry-later | An action exceeded the component timeoutMs.                              |
+
+With `NestvexaExceptionFilter` from `@nestvexa/core` registered globally, every error
+body also carries `correlationId` (equal to the `x-request-id` response header) and
+thrown non-HTTP errors become `500 INTERNAL_ERROR` without message or stack.
 
 Recovery values: **fix-request** (retrying the same bytes cannot succeed), **deny** (do
 not retry automatically), **reload** (server state is gone; reload the page),
@@ -171,6 +176,32 @@ else).
   an optional request field required is a new protocol major, shipped with a migration
   note and a reload path. Existing codes keep their status within a major.
 
+## Asset version
+
+With `assetVersion` configured (for example a client manifest hash), every component
+root carries `data-nv-asset-version` and the browser sends it back in
+`x-nestvexa-asset-version`. Admission compares it after the origin and CSRF checks, so
+only same-origin pages of the identity learn about a mismatch. A missing or different
+value fails with `409 ASSET_VERSION_MISMATCH` and the response header
+`x-nestvexa-reload: asset-version`; nothing runs. The bundled client dispatches a
+cancelable window `nestvexa:reload` event (`detail.reason: 'asset-version'`) and, unless
+a listener calls `preventDefault()`, reloads the page.
+
+## Server-pushed domain events
+
+`LiveEvents.publish(channel, name, payload)` (exported by `LiveModule`) sends
+`{ "nvEvent": name, "payload": payload }` on a realtime channel through the host's
+structural `events` publisher, or `realtime` when it has `publish` (for example
+`RealtimeService`). Live never imports a broker. Only browsers holding a subscription
+token for that channel (issued per `@RealtimeChannels` to identities the realtime policy
+authorizes) receive it. The client delivers it to each subscribed component that lists
+the event in `data-nv-listeners`, by calling that component's `@OnEvent(name)` action
+with the payload as input; the request passes admission, host authorization, guards and
+pipes like any action. Subscribed components without a listener refresh through
+`$sync`. Names follow the event grammar, channels the realtime grammar, payloads are
+JSON of at most 16 KiB. The payload is public and returns as untrusted input: send
+identifiers and re-read authoritative data in the listener.
+
 ## Action options
 
 | Option                               | Behaviour                                                                                                                                                                                                                                                                                                                |
@@ -184,9 +215,18 @@ Overlapping work is always rejected, never queued: a queued request would carry 
 revision. Non-idempotent duplicates are rejected with `409 STALE_REVISION`, so a payment
 or order action is never executed twice by a replayed request. Replays are kept for five
 minutes, at most 1,000 per runtime (oldest evicted; an evicted retry fails safely with
-`409`). Replays and identity locks are single-process; a multi-replica deployment needs
-sticky sessions or a shared store (DATA-004/005). The browser runtime resends only actions listed in `data-nv-idempotent`, with the
-same `requestId`; programmatic clients can use the same contract.
+`409`). With the default `MemoryLiveStore`, replays and identity locks are
+process-local. A store that also implements `LiveActionCoordination` (for example
+`RedisLiveStore` from `@nestvexa/realtime-redis`) shares both across replicas
+automatically: a retry replays on any replica, and an identity lock is a store lease
+(`SET NX PX`) that lasts the component `timeoutMs` plus one second, or 300 s without a
+deadline, so a crashed replica cannot hold it forever. Shared replay records are keyed
+by a SHA-256 digest and sealed with AES-256-GCM under a key derived from the identity
+binding, snapshot token and request ID, none of which the store holds; a tampered or
+relocated record is ignored and the retry fails safely with `409 STALE_REVISION`. A
+replayed `download` URL is served only by the replica that created it. The browser
+runtime resends only actions listed in `data-nv-idempotent`, with the same
+`requestId`; programmatic clients can use the same contract.
 
 ## Deadlines, cancellation and shutdown
 
@@ -213,8 +253,8 @@ seconds for in-flight Live requests to settle before the HTTP server and store c
 | Flash messages per action              | 8                                         | server error               |
 | Downloads                              | 5 MiB, single use, 60 s, 100 pending      | `503 DOWNLOAD_CAPACITY`    |
 | Realtime channels per component        | 32, signer token at most 8,192 characters | server error               |
-| Idempotent replays                     | 1,000 per runtime, 5 minutes              | evicted → `409`            |
-| Identity-scoped action locks           | 10,000 concurrent                         | `503 STORE_CAPACITY`       |
+| Idempotent replays                     | 1,000 per runtime (shared: store), 5 min  | evicted → `409`            |
+| Identity-scoped action locks           | 10,000 concurrent (shared: store leases)  | `503 STORE_CAPACITY`       |
 | Component deadline (`timeoutMs`)       | 1–300,000 ms, default none                | `504`                      |
 | Async computed deadline                | default 30 s, at most 300 s               | `504 COMPUTED_TIMEOUT`     |
 | Shutdown drain                         | 10 s                                      | —                          |

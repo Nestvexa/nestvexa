@@ -147,6 +147,11 @@ export const LIVE_ERROR_CODES = Object.freeze({
     'reload',
     'A child action changed a parent-owned @Reactive field.',
   ),
+  ASSET_VERSION_MISMATCH: entry(
+    409,
+    'reload',
+    'x-nestvexa-asset-version is missing or differs from the server assetVersion; the response carries x-nestvexa-reload: asset-version.',
+  ),
   INVALID_SNAPSHOT: entry(
     410,
     'reload',

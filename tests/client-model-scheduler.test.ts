@@ -297,7 +297,7 @@ describe('model scheduler', () => {
       'constructor',
       '__proto__',
       'prototype',
-      'user.name',
+      'user.__proto__',
       'query()',
     ])
       expect(() => scheduler.schedule(model(field).value, field)).toThrow(

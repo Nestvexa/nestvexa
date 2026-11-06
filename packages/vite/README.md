@@ -78,12 +78,15 @@ app.use(
 
 ### Static files
 
-`viteStaticMiddleware({ root, prefix = '/', immutable?, sourceMaps = false, maxFiles = 10000 })`
+`viteStaticMiddleware({ root, prefix = '/', immutable?, sourceMaps = false, maxFiles = 10000, instrumentation? })`
 returns a Connect/Express/middie middleware over raw Node objects. It walks
 `root` **once at startup** and serves only files in that in-memory index:
 request paths are never joined onto the filesystem, so `..`, encoded
 separators, backslashes, NUL bytes, drive letters, dot-files (including
-`.vite/manifest.json`) and symbolic links can never be served. Hashed files
+`.vite/manifest.json`) and symbolic links can never be served. The optional
+`instrumentation` (same structural shape as `@nestvexa/observability`) records
+`nestvexa.asset.serve` spans with the content type, bytes, status, cache flags
+and whether the file exists, never the path. Hashed files
 (`name-HASH8+.ext`) get `Cache-Control: public, max-age=31536000, immutable`;
 everything else `no-cache`. It sets `Content-Type`, `Content-Length`,
 `X-Content-Type-Options: nosniff` and a weak `ETag` (honours `If-None-Match`),

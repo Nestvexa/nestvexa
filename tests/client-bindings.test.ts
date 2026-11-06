@@ -31,7 +31,7 @@ describe('safe Live data bindings', () => {
     });
   });
   it.each([
-    ['nv:text', 'user.name'],
+    ['nv:text', 'user.__proto__'],
     ['nv:show', '!visible'],
     ['nv:ref', '__proto__'],
     ['nv:bind', 'style:name'],

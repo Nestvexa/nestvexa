@@ -8,6 +8,9 @@ export {
   LiveRuntime,
   type LiveHostOptions,
   type LiveIdentity,
+  type LiveInspector,
+  type LiveComponentDescription,
+  type LiveRenderInspection,
 } from './runtime.js';
 export type {
   LiveLifecycleHooks,
@@ -34,6 +37,12 @@ export {
   Modelable,
   OnEvent,
   RealtimeChannels,
+  Renderless,
+  Validate,
+  Title,
+  type LiveValidator,
+  type StandardSchemaLike,
+  type SafeParseSchemaLike,
   describeLiveState,
   type LiveStateDescription,
   type PropMode,
@@ -74,6 +83,17 @@ export {
   type LiveErrorRecovery,
 } from './errors.js';
 export { liveAbortSignal } from './cancellation.js';
+export { schemaPipe } from './schema-pipe.js';
+export {
+  LiveEvents,
+  liveDomainEvent,
+  LIVE_DOMAIN_EVENT_FIELD,
+  type LiveDomainEventMessage,
+} from './domain-events.js';
+export {
+  isLiveActionCoordination,
+  type LiveActionCoordination,
+} from './action-policy.js';
 export {
   dispatchLiveEvent,
   redirectLive,
