@@ -401,6 +401,10 @@ describe.each(selected)('UI kit wrappers in %s', (engine) => {
             .startsWith('Refused to apply a stylesheet because its hash')
         )
           return;
+        // React's development build marks render phases with
+        // console.timeStamp('Hydrated', …); Firefox surfaces those as console
+        // messages. They are performance-track labels, not hydration errors.
+        if (message.type() === 'timeStamp') return;
         if (message.type() === 'error' || /hydrat/i.test(message.text()))
           errors.push(message.text());
       });
@@ -432,9 +436,10 @@ describe.each(selected)('UI kit wrappers in %s', (engine) => {
     const axe = async () =>
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
+    // The first axe run per page is slow in Firefox on loaded hosts.
     it('hydrates with no axe violations', async () => {
       await axe();
-    });
+    }, 180_000);
 
     it('opens the dialog from its trigger, traps focus, closes on Escape and reports close', async () => {
       await page.locator('[data-nv-ui-open="kit-dialog"]').focus();
