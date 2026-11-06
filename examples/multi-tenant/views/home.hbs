@@ -1,0 +1,20 @@
+<h1>{{title}}</h1>
+<p>
+  Two workspaces share this server. Each project belongs to exactly one
+  workspace, and only its members can see it.
+</p>
+<ul id="tenant-list" aria-label="Workspaces">
+  {{#each tenants}}
+  <li>
+    <a href="/t/{{slug}}">{{name}}</a>
+    {{#if role}} — your role: <span id="role-{{slug}}">{{role}}</span>,
+    <a href="/t/{{slug}}/projects">open {{name}} projects</a>{{/if}}
+  </li>
+  {{/each}}
+</ul>
+{{#unless signedIn}}
+<p>
+  <a href="/login">Sign in</a> with a demo account to see a workspace's
+  projects.
+</p>
+{{/unless}}

@@ -1,0 +1,50 @@
+<article class="project" aria-labelledby="project-{{projectId}}-name">
+  {{#if editing}}
+  <form nv:submit="saveEdit" novalidate>
+    <label for="project-{{projectId}}-draft">New name for {{name}}</label>
+    {{#if error}}
+    <input
+      id="project-{{projectId}}-draft"
+      value="{{draft}}"
+      maxlength="80"
+      aria-invalid="true"
+      aria-describedby="project-{{projectId}}-error"
+      nv:model="draft"
+    />
+    <p id="project-{{projectId}}-error" class="error" role="alert">{{error}}</p>
+    {{else}}
+    <input
+      id="project-{{projectId}}-draft"
+      value="{{draft}}"
+      maxlength="80"
+      nv:model="draft"
+    />
+    {{/if}}
+    <button type="submit">Save name</button>
+    <button type="button" nv:click="cancelEdit">Cancel</button>
+  </form>
+  <span id="project-{{projectId}}-name" hidden>{{name}}</span>
+  {{else}}
+  <h2 id="project-{{projectId}}-name">{{name}}</h2>
+  <p>Status: <span id="project-{{projectId}}-status">{{status}}</span></p>
+  <button type="button" nv:click="startEdit" aria-label="Rename {{name}}">
+    Rename
+  </button>
+  <button
+    type="button"
+    nv:click="toggleStatus"
+    aria-label="Toggle status of {{name}}"
+  >
+    Toggle status
+  </button>
+  {{#if canDelete}}
+  <button
+    type="button"
+    nv:click="remove"
+    nv:confirm="Delete {{name}}?"
+    aria-label="Delete {{name}}"
+  >
+    Delete
+  </button>
+  {{/if}} {{/if}}
+</article>
