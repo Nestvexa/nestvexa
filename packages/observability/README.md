@@ -33,31 +33,44 @@ const instrumentation = combineInstrumentation(
 // useFactory: () => ({ origin, resolveIdentity, authorize, instrumentation })
 ```
 
-| Span                   | Attributes                                                                            |
-| ---------------------- | ------------------------------------------------------------------------------------- |
-| `nestvexa.live.mount`  | `nestvexa.component`                                                                  |
-| `nestvexa.live.action` | `nestvexa.component`, `nestvexa.action`, `nestvexa.revision`, `status` on HTTP errors |
-| `nestvexa.live.render` | `nestvexa.component`, `nestvexa.depth`, `nestvexa.html_bytes`                         |
+| Span                    | Attributes                                                                                                                |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `nestvexa.live.mount`   | `nestvexa.component`                                                                                                      |
+| `nestvexa.live.admit`   | `nestvexa.component`, `nestvexa.action` (request admission: origin, CSRF, rate limit and authorization)                   |
+| `nestvexa.live.hydrate` | `nestvexa.component`, `nestvexa.revision`, `nestvexa.state_fields`                                                        |
+| `nestvexa.live.hook`    | `nestvexa.component`, `nestvexa.hook` (only hooks the component defines)                                                  |
+| `nestvexa.live.action`  | `nestvexa.component`, `nestvexa.action`, `nestvexa.revision`, `nestvexa.response_html_bytes` (the HTML the client morphs) |
+| `nestvexa.live.render`  | `nestvexa.component`, `nestvexa.depth`, `nestvexa.html_bytes`, `nestvexa.state_bytes`                                     |
+
+Failed spans carry `status` and, for protocol rejections, the closed
+`nestvexa.error_code` (`ORIGIN_REJECTED`, `CSRF_REJECTED`, `RATE_LIMIT`,
+`ACTION_FORBIDDEN`, ...).
 
 Public state, identity bindings, CSRF/snapshot tokens, HTML and exception messages
 are never attached. Outcomes are `ok`/`error` (OpenTelemetry status OK/ERROR).
 A throwing instrumentation hook never breaks a request. Browser timings remain
 available through the client `onDiagnostic` option.
 
-`nestvexa.live.render` also reports `nestvexa.state_bytes` (size of the public
-state sent to the browser).
-
 ### Other packages (structural hooks)
 
-`@nestvexa/actions`, `@nestvexa/uploads` and `@nestvexa/inertia` accept the same
+`@nestvexa/actions`, `@nestvexa/uploads`, `@nestvexa/inertia`, `@nestvexa/realtime` and `@nestvexa/vite` accept the same
 `instrumentation` shape in their module options without importing this package:
 
-| Span                       | Package / option                              | Attributes                                                                                    |
-| -------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `nestvexa.action`          | `ActionsModule.register({ instrumentation })` | `nestvexa.action_group`, `nestvexa.action`, `nestvexa.error_code` on failures                 |
-| `nestvexa.upload.receive`  | `UploadsModule.register({ instrumentation })` | `nestvexa.upload.mode` (`direct`/`chunked`/`form`), `.purpose`, `.bytes`, `.files`            |
-| `nestvexa.upload.finalize` | same                                          | `nestvexa.upload.purpose`, `.bytes`, `.scan`                                                  |
-| `nestvexa.inertia.render`  | `InertiaModule.forRoot({ instrumentation })`  | `nestvexa.page`, `nestvexa.inertia.kind` (`json`/`document`), `nestvexa.page_bytes`, `status` |
+| Span                           | Package / option                              | Attributes                                                                                                                      |
+| ------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `nestvexa.action`              | `ActionsModule.register({ instrumentation })` | `nestvexa.action_group`, `nestvexa.action`, `nestvexa.error_code` on failures                                                   |
+| `nestvexa.upload.receive`      | `UploadsModule.register({ instrumentation })` | `nestvexa.upload.mode` (`direct`/`chunked`/`form`), `.purpose`, `.bytes`, `.files`                                              |
+| `nestvexa.upload.finalize`     | same                                          | `nestvexa.upload.purpose`, `.bytes`, `.scan`                                                                                    |
+| `nestvexa.inertia.render`      | `InertiaModule.forRoot({ instrumentation })`  | `nestvexa.page`, `nestvexa.inertia.kind` (`json`/`document`), `nestvexa.page_bytes`, `status`                                   |
+| `nestvexa.ssr.render`          | same (every SSR renderer)                     | `nestvexa.page`, `nestvexa.inertia.app`, `.ssr.head_elements`, `.ssr.body_bytes`; on failure `.ssr.error_type`, `.ssr.fallback` |
+| `nestvexa.realtime.publish`    | `RealtimeModule.forRoot({ instrumentation })` | `nestvexa.realtime.channel_kind` (channel name up to the first `:`), `.payload_bytes`                                           |
+| `nestvexa.realtime.subscribe`  | same                                          | `.transport` (`sse`/`poll`/`websocket`), `.tokens`, `.channels`; `status`, `nestvexa.error_code` on rejection                   |
+| `nestvexa.realtime.connection` | same                                          | `.transport`, `.channels`, `.close_reason` (the duration is the connection lifetime)                                            |
+| `nestvexa.realtime.deliver`    | same                                          | `.channel_kind`, `.backpressure`                                                                                                |
+| `nestvexa.asset.serve`         | `viteStaticMiddleware({ instrumentation })`   | `nestvexa.asset.method`, `.hit`, `.type`, `.bytes`, `.immutable`, `status`                                                      |
+| `nestvexa.job.run`             | `new JobRunner({ instrumentation })`          | `nestvexa.job`, `nestvexa.job.attempt`                                                                                          |
+| `nestvexa.request`             | `requestTracingMiddleware(instrumentation)`   | `nestvexa.http.method`, `.status`, `.response_bytes`, `.aborted`; every span gets `requestId`                                   |
+| `nestvexa.guard`               | `traceGuard(guard, instrumentation)`          | `nestvexa.guard` (class name), `.context`, `.allowed`, `status` on exceptions                                                   |
 
 Inputs, results, props, file names, tokens and identities are never attached.
 
@@ -114,19 +127,71 @@ sampled flag.
 
 ## API
 
-| Export                                                                         | Purpose                                                                                                 |
-| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
-| `openTelemetryInstrumentation(tracer)`                                         | Bridge to any OpenTelemetry-shaped `Tracer` (structural; no dependency)                                 |
-| `MemoryInstrumentation(capacity?, now?)`                                       | Bounded recorder with `records` and `summary()` (count, errors, p50, p95, max)                          |
-| `combineInstrumentation(...targets)`                                           | Fan out spans                                                                                           |
-| `redact(value)` / `createLogger(sink?)`                                        | Redacted JSON-lines logging (passwords, tokens, cookies, sessions, CSRF, snapshots, bindings, API keys) |
-| `DevtoolsModule.register({ instrumentation, authorize, path?, environment? })` | HTML panel and `spans.json` at `/_nestvexa/devtools`                                                    |
+| Export                                                                                     | Purpose                                                                                                                         |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `openTelemetryInstrumentation(tracer)`                                                     | Bridge to any OpenTelemetry-shaped `Tracer` (structural; no dependency)                                                         |
+| `MemoryInstrumentation(capacity?, now?)`                                                   | Bounded recorder with `records` and `summary()` (count, errors, p50, p95, max)                                                  |
+| `combineInstrumentation(...targets)`                                                       | Fan out spans                                                                                                                   |
+| `redact(value)` / `createLogger(sink?)`                                                    | Redacted JSON-lines logging (passwords, tokens, cookies, sessions, CSRF, snapshots, bindings, API keys)                         |
+| `DevtoolsModule.register({ instrumentation, inspector?, authorize, path?, environment? })` | Development panel, `data.json` and `spans.json` at `/_nestvexa/devtools`                                                        |
+| `DevtoolsInspector(options?)`                                                              | Live `inspector` hook: component catalog and redacted public state of recent renders                                            |
+| `devtoolsSnapshot(instrumentation, inspector?)` / `DEVTOOLS_SCHEMA`                        | The versioned `data.json` contract (`nestvexa-devtools/1`, [ADR 0034](../../docs/adr/0034-devtools-browser-extension-scope.md)) |
+| `requestTracingMiddleware(instrumentation?, { trustRequestId?, responseHeader? })`         | Request ids (`X-Request-Id`, `currentRequestId()`) and `nestvexa.request` spans                                                 |
+| `traceGuard(guard, instrumentation, name?)`                                                | Wrap a host guard as `nestvexa.guard` spans                                                                                     |
+
+## Development panel
+
+```ts
+import {
+  DevtoolsInspector,
+  DevtoolsModule,
+  MemoryInstrumentation,
+  requestTracingMiddleware,
+} from '@nestvexa/observability';
+
+const development = process.env['NODE_ENV'] !== 'production';
+export const devtools = new MemoryInstrumentation();
+export const inspector = development ? new DevtoolsInspector() : undefined;
+// Live policy: useFactory: () => ({ ..., instrumentation: devtools, inspector })
+// Root module imports, development only:
+//   DevtoolsModule.register({ instrumentation: devtools, inspector, authorize: isDeveloper })
+// main.ts: app.use(requestTracingMiddleware(devtools));
+```
+
+`/_nestvexa/devtools` then shows:
+
+- **Registered components**: name, view, actions, state fields (writable
+  marked), lazy loading and realtime refresh.
+- **Components on recent pages**: each top-level mount, action and model sync
+  with its re-render cause (`mount`, `action save`, `model sync of email`),
+  revision, state and HTML sizes, request id, form validation errors (a
+  non-empty `errors` state field) and the public state with sensitive keys
+  redacted (`redact()` rules; at most 8 KiB per render).
+- **Actions** (Live and server actions) with timings, outcome and the size of
+  the HTML the client morphs; **errors** with status and closed error code, so
+  CSRF, origin, rate-limit and authorization rejections are visible;
+  **requests** with their ids; **lifecycle hooks**; **realtime**
+  subscriptions, connections, publishes and deliveries; **background jobs**;
+  **renderer** counts (Live, Inertia document/JSON, SSR); span timings and
+  recent spans.
+
+The same data is served as `data.json` with `schema: "nestvexa-devtools/1"`,
+the stable contract recorded in [ADR 0034](../../docs/adr/0034-devtools-browser-extension-scope.md) (which also records the
+browser extension as out of scope for v1). Not shown: browser-side morph
+timing and network batching (use the browser's developer tools and the client
+`onDiagnostic` option), cache hit/miss and prop resolution (no hook yet).
 
 ## Devtools safety
 
-`DevtoolsModule.register` throws when the environment is `production`, every request
-requires the host `authorize(request)` check, responses are `no-store` with a
-restrictive CSP, and only the redacted span attributes above are shown.
+`DevtoolsModule.register` and `new DevtoolsInspector()` throw when the
+environment is `production`; without an explicit `environment`, requests answer
+404 once `NODE_ENV` is `production`. Every resource (page, stylesheet,
+`data.json`, `spans.json`) requires the host `authorize(request)` check. The
+page is server-rendered, runs no script, escapes every value and is served
+`no-store` with `Content-Security-Policy: default-src 'none'; style-src 'self';
+base-uri 'none'; form-action 'none'; frame-ancestors 'none'`. Live never passes
+identities, tokens, snapshots or HTML to the inspector, and sensitive state
+keys are redacted.
 
 ## Development error page
 
@@ -169,7 +234,7 @@ or `DevtoolsModule` is registered in a file without a `NODE_ENV` guard.
 ## Testing
 
 ```sh
-pnpm build && pnpm vitest run tests/observability.test.ts tests/observability-tracing.test.ts tests/dev-errors.test.ts
+pnpm build && pnpm vitest run tests/observability.test.ts tests/observability-tracing.test.ts tests/observability-spans.test.ts tests/devtools-inspector.test.ts tests/devtools-browser.test.ts tests/dev-errors.test.ts
 ```
 
 See the [observability guide](../../docs/guides/observability.md). License: MIT.
