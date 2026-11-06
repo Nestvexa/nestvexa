@@ -86,6 +86,21 @@ export interface InertiaModuleOptions extends InertiaAppOptions {
    * closed SSR error type and whether the client-rendered fallback was used).
    */
   readonly instrumentation?: InertiaInstrumentation;
+  /**
+   * What an Inertia request whose handler returned nothing gets. `back`
+   * (default, as `inertia-laravel` does) redirects to the previous URL, so a
+   * `@Post()` handler that only mutates state needs no explicit `back()`.
+   * `passthrough` leaves the empty response alone. Handlers that inject
+   * `@Res()`/`@Next()` or declare `@HttpCode`, `@Redirect`, `@Render` or
+   * `@Sse` are never touched.
+   */
+  readonly emptyResponse?: 'back' | 'passthrough';
+  /**
+   * Store the URL of every successful, non-prefetch GET page response in the
+   * host session and use it for `back()` when the `Referer` is missing or
+   * unusable. Default true (no effect without a session).
+   */
+  readonly previousUrl?: boolean;
 }
 
 export interface ResolvedApp {
@@ -121,6 +136,8 @@ export interface ResolvedOptions {
   readonly onRescue:
     ((error: unknown, path: string, request: object) => void) | undefined;
   readonly instrumentation: InertiaInstrumentation | undefined;
+  readonly emptyResponse: 'back' | 'passthrough';
+  readonly previousUrl: boolean;
 }
 
 const idPattern = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
@@ -219,6 +236,16 @@ export function resolveOptions(
       'Redirect fallback must be a relative path',
     );
   const depth = positive(options.limits?.depth, 64, 'limits.depth');
+  const emptyResponse = options.emptyResponse ?? 'back';
+  if (emptyResponse !== 'back' && emptyResponse !== 'passthrough')
+    throw new InertiaConfigurationError(
+      "emptyResponse must be 'back' or 'passthrough'",
+    );
+  if (
+    options.previousUrl !== undefined &&
+    typeof options.previousUrl !== 'boolean'
+  )
+    throw new InertiaConfigurationError('previousUrl must be a boolean');
   return Object.freeze({
     apps,
     defaultApp: fallbackApp,
@@ -258,6 +285,8 @@ export function resolveOptions(
     now: options.now ?? Date.now,
     onRescue: options.onRescue,
     instrumentation: instrumentation(options.instrumentation),
+    emptyResponse,
+    previousUrl: options.previousUrl !== false,
   });
 }
 

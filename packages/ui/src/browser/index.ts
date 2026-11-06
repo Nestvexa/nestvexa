@@ -1481,3 +1481,60 @@ export function initUi(
   scan(scope);
   return controller;
 }
+
+/** The value of a `nv-ui-menu-select` event, or undefined if malformed. */
+export function menuSelection(event: Event): string | undefined {
+  const detail: unknown = Reflect.get(event, 'detail');
+  if (detail === null || typeof detail !== 'object') return undefined;
+  const value: unknown = Object.getOwnPropertyDescriptor(
+    detail,
+    'value',
+  )?.value;
+  return typeof value === 'string' ? value : undefined;
+}
+
+interface Connection {
+  readonly controller: UiController;
+  /** Created by connectUi (disposed with the last connection) or the app's own. */
+  readonly owned: boolean;
+  count: number;
+}
+const connections = new WeakMap<Document, Connection>();
+
+/**
+ * Connect a primitive rendered by a component framework (the React, Vue and
+ * Svelte wrappers call this on mount) to the delegated behavior. All
+ * connections of a document share one document-level controller, so light
+ * dismissal and dialog triggers work across components; an existing
+ * `initUi()` controller of the application is reused and never disposed here.
+ * `element` is set up immediately. Call the returned function on unmount;
+ * the shared controller is disposed with the last connection it created.
+ */
+export function connectUi(
+  element: Element,
+  options: UiOptions = {},
+): () => void {
+  const doc = element.ownerDocument;
+  let connection = connections.get(doc);
+  if (!connection || controllers.get(doc) !== connection.controller) {
+    const existing = controllers.get(doc);
+    connection = {
+      controller: existing ?? initUi(doc, options),
+      owned: existing === undefined,
+      count: 0,
+    };
+    connections.set(doc, connection);
+  }
+  const current = connection;
+  current.count++;
+  scan(element, element);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    current.count--;
+    if (current.count > 0 || connections.get(doc) !== current) return;
+    connections.delete(doc);
+    if (current.owned) current.controller.dispose();
+  };
+}

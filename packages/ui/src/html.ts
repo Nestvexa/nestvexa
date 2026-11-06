@@ -120,3 +120,65 @@ export function attributes(
   }
   return output;
 }
+
+export function oneOf<T extends string>(
+  value: unknown,
+  name: string,
+  allowed: readonly T[],
+  fallback: T,
+): T {
+  if (value === undefined || value === null) return fallback;
+  const match = allowed.find((entry) => entry === value);
+  if (match === undefined)
+    throw new UiError(
+      'ARGUMENT',
+      `${name} must be one of ${allowed.join(', ')}`,
+    );
+  return match;
+}
+export function count(
+  value: unknown,
+  name: string,
+  max = 1_000_000_000,
+): number {
+  if (
+    typeof value !== 'number' ||
+    !Number.isSafeInteger(value) ||
+    value < 0 ||
+    value > max
+  )
+    throw new UiError('ARGUMENT', `${name} must be a non-negative integer`);
+  return value;
+}
+/** Plain `{ key: value }` records only; accessors and extra keys are rejected. */
+export function record(
+  value: unknown,
+  name: string,
+  keys: readonly string[],
+): Readonly<Record<string, unknown>> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value))
+    throw new UiError('ARGUMENT', `${name} must be an object`);
+  const output: Record<string, unknown> = Object.create(null) as Record<
+    string,
+    unknown
+  >;
+  for (const key of Reflect.ownKeys(value)) {
+    if (typeof key !== 'string' || !keys.includes(key))
+      throw new UiError('ARGUMENT', `${name} has an unsupported key`);
+    output[key] = own(value, key);
+  }
+  return output;
+}
+export function list(
+  value: unknown,
+  name: string,
+  max: number,
+): readonly unknown[] {
+  if (!Array.isArray(value) || value.length === 0 || value.length > max)
+    throw new UiError('ARGUMENT', `${name} must be an array of 1 to ${max}`);
+  return value;
+}
+export function joinIds(...ids: (string | undefined)[]): string | undefined {
+  const present = ids.filter((entry): entry is string => entry !== undefined);
+  return present.length ? present.join(' ') : undefined;
+}

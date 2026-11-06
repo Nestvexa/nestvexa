@@ -1,15 +1,22 @@
 import type { SafeHtml, ViewHelper } from '@nestvexa/views';
 import { block, call, html } from './call.js';
+import {
+  dialogMarkup,
+  dialogTriggerMarkup,
+  renderMarkup,
+  sortHeaderMarkup,
+  tabPanelSlot,
+  tabsMarkup,
+  toastRegionMarkup,
+} from './markup.js';
 import { primitiveHelpers } from './primitives.js';
 import {
   UiError,
   attributes,
-  classes,
   escapeHtml,
   flag,
   href,
   id,
-  optionalHref,
   optionalId,
   optionalText,
   own,
@@ -25,28 +32,7 @@ function modal(
 ): SafeHtml {
   const helper = call(args, name);
   const body = block(helper, name)(context);
-  const dialogId = id(helper.hash['id'], 'id');
-  const title = text(helper.hash['title'], 'title');
-  const close = text(helper.hash['closeLabel'], 'closeLabel');
-  const describedBy = optionalId(helper.hash['describedBy'], 'describedBy');
-  const closeOn = optionalId(helper.hash['closeOn'], 'closeOn');
-  const className = classes(helper.hash['class']);
-  const side = helper.hash['side'] ?? 'end';
-  if (drawer && side !== 'start' && side !== 'end')
-    throw new UiError('ARGUMENT', 'side must be start or end');
-  const base = drawer ? 'nv-dialog nv-drawer' : 'nv-dialog';
-  return html(
-    `<dialog${attributes({
-      id: dialogId,
-      class: className ? `${base} ${className}` : base,
-      'data-nv-ui': 'dialog',
-      'data-nv-ui-variant': drawer ? 'drawer' : undefined,
-      'data-side': drawer ? String(side) : undefined,
-      'aria-labelledby': `${dialogId}-title`,
-      'aria-describedby': describedBy,
-      'data-nv-ui-close-on': closeOn,
-    })}><div class="nv-dialog__header"><h2 class="nv-dialog__title" id="${dialogId}-title">${escapeHtml(title)}</h2><button type="button" class="nv-dialog__close" data-nv-ui-close${attributes({ 'aria-label': close })}><span aria-hidden="true">×</span></button></div><div class="nv-dialog__body">${body}</div></dialog>`,
-  );
+  return html(renderMarkup(dialogMarkup({ ...helper.hash, drawer }), { body }));
 }
 function dialog(this: unknown, ...args: unknown[]): SafeHtml {
   return modal(this, args, 'dialog', false);
@@ -57,20 +43,13 @@ function drawer(this: unknown, ...args: unknown[]): SafeHtml {
 
 function dialogTrigger(...args: unknown[]): SafeHtml {
   const helper = call(args, 'dialogTrigger');
-  const target = id(helper.positional[0] ?? helper.hash['target'], 'dialog id');
-  const label = text(helper.hash['label'], 'label');
-  const link = optionalHref(helper.hash['href'], 'href');
-  const className = classes(helper.hash['class']);
-  const common = {
-    class: className ? `nv-button ${className}` : 'nv-button',
-    'data-nv-ui-open': target,
-    'aria-haspopup': 'dialog',
-    'aria-controls': target,
-  };
   return html(
-    link
-      ? `<a${attributes({ href: link, role: 'button', ...common })}>${escapeHtml(label)}</a>`
-      : `<button${attributes({ type: 'button', ...common })}>${escapeHtml(label)}</button>`,
+    renderMarkup(
+      dialogTriggerMarkup({
+        ...helper.hash,
+        target: helper.positional[0] ?? helper.hash['target'],
+      }),
+    ),
   );
 }
 
@@ -89,8 +68,6 @@ const collectorKey = 'nvUiTabs';
 function tabs(this: unknown, ...args: unknown[]): SafeHtml {
   const helper = call(args, 'tabs');
   const fn = block(helper, 'tabs');
-  const tabsId = id(helper.hash['id'], 'id');
-  const label = text(helper.hash['label'], 'label');
   const collector = new TabCollector();
   const parent =
     helper.data !== null && typeof helper.data === 'object' ? helper.data : {};
@@ -101,46 +78,22 @@ function tabs(this: unknown, ...args: unknown[]): SafeHtml {
       'ARGUMENT',
       'Only tab blocks may appear directly inside a tabs block',
     );
-  if (collector.tabs.length === 0 || collector.tabs.length > 32)
-    throw new UiError('ARGUMENT', 'Tabs require 1 to 32 tab blocks');
-  const seen = new Set<string>();
-  for (const tab of collector.tabs) {
-    if (seen.has(tab.id)) throw new UiError('ID', 'Duplicate tab id');
-    seen.add(tab.id);
-  }
-  const chosen = collector.tabs.filter((tab) => tab.selected);
-  if (chosen.length > 1)
-    throw new UiError('ARGUMENT', 'At most one tab may be selected');
-  const selected = chosen[0]?.id ?? collector.tabs[0]?.id;
-  const buttons = collector.tabs
-    .map((tab) => {
-      const active = tab.id === selected;
-      return `<button${attributes({
-        type: 'button',
-        role: 'tab',
-        class: 'nv-tabs__tab',
-        id: `${tabsId}-${tab.id}-tab`,
-        'aria-controls': `${tabsId}-${tab.id}-panel`,
-        'aria-selected': active ? 'true' : 'false',
-        tabindex: active ? '0' : '-1',
-      })}>${escapeHtml(tab.label)}</button>`;
-    })
-    .join('');
-  const panels = collector.tabs
-    .map(
-      (tab) =>
-        `<div${attributes({
-          role: 'tabpanel',
-          class: 'nv-tabs__panel',
-          id: `${tabsId}-${tab.id}-panel`,
-          'aria-labelledby': `${tabsId}-${tab.id}-tab`,
-          tabindex: '0',
-          'data-nv-ui-inactive': tab.id !== selected,
-        })}>${tab.body}</div>`,
-    )
-    .join('');
+  const slots: Record<string, string> = {};
+  for (const entry of collector.tabs)
+    slots[tabPanelSlot(entry.id)] = entry.body;
   return html(
-    `<div class="nv-tabs" data-nv-ui="tabs" id="${tabsId}"><div class="nv-tabs__list" role="tablist" hidden${attributes({ 'aria-label': label })}>${buttons}</div>${panels}</div>`,
+    renderMarkup(
+      tabsMarkup({
+        id: helper.hash['id'],
+        label: helper.hash['label'],
+        tabs: collector.tabs.map((entry) => ({
+          id: entry.id,
+          label: entry.label,
+          selected: entry.selected,
+        })),
+      }),
+      slots,
+    ),
   );
 }
 
@@ -267,64 +220,12 @@ function combobox(...args: unknown[]): SafeHtml {
 
 function toastRegion(...args: unknown[]): SafeHtml {
   const helper = call(args, 'toastRegion');
-  const regionId = id(helper.hash['id'], 'id');
-  const label = text(helper.hash['label'], 'label');
-  const dismiss = text(helper.hash['dismissLabel'], 'dismissLabel');
-  const event = optionalId(helper.hash['event'], 'event') ?? 'toast';
-  const messages = helper.hash['messages'];
-  let initial = '';
-  if (messages !== undefined && messages !== null) {
-    if (!Array.isArray(messages) || messages.length > 5)
-      throw new UiError('ARGUMENT', 'messages must be up to 5 strings');
-    initial = messages
-      .map(
-        (message: unknown) =>
-          `<li class="nv-toast" data-tone="info"><span class="nv-toast__text">${escapeHtml(text(message, 'message', 500))}</span></li>`,
-      )
-      .join('');
-  }
-  return html(
-    `<section class="nv-toasts" data-nv-ui="toasts"${attributes({
-      id: regionId,
-      'aria-label': label,
-      'data-nv-ui-event': event,
-      'data-nv-ui-dismiss-label': dismiss,
-    })}><div class="nv-toasts__live" role="status" aria-live="polite" aria-atomic="false"><ol class="nv-toasts__list" data-nv-ui-list>${initial}</ol></div><div class="nv-toasts__live" role="alert" aria-live="assertive" aria-atomic="false"><ol class="nv-toasts__list" data-nv-ui-alerts></ol></div></section>`,
-  );
-}
-
-function direction(value: unknown): 'ascending' | 'descending' {
-  if (value === undefined || value === null || value === 'asc')
-    return 'ascending';
-  if (value === 'ascending' || value === 'descending') return value;
-  if (value === 'desc') return 'descending';
-  throw new UiError('ARGUMENT', 'direction must be asc or desc');
+  return html(renderMarkup(toastRegionMarkup(helper.hash)));
 }
 
 function sortHeader(...args: unknown[]): SafeHtml {
   const helper = call(args, 'sortHeader');
-  const label = text(helper.hash['label'], 'label');
-  const key = id(helper.hash['key'], 'key');
-  const sort = helper.hash['sort'];
-  const sorted = sort === key;
-  const order = direction(helper.hash['direction']);
-  const action = optionalId(helper.hash['action'], 'action');
-  const link = optionalHref(helper.hash['href'], 'href');
-  if ((action === undefined) === (link === undefined))
-    throw new UiError('ARGUMENT', 'Provide exactly one of action or href');
-  const arrow = sorted ? (order === 'ascending' ? '▲' : '▼') : '↕';
-  const content = `${escapeHtml(label)}<span class="nv-sort__icon" aria-hidden="true">${arrow}</span>`;
-  const control = action
-    ? `<button${attributes({
-        type: 'button',
-        class: 'nv-sort',
-        'nv:click': action,
-        'data-nv-ui-sort-key': key,
-      })}>${content}</button>`
-    : `<a${attributes({ class: 'nv-sort', href: link, 'data-nv-ui-sort-key': key })}>${content}</a>`;
-  return html(
-    `<th${attributes({ scope: 'col', 'aria-sort': sorted ? order : undefined })}>${control}</th>`,
-  );
+  return html(renderMarkup(sortHeaderMarkup(helper.hash)));
 }
 
 function integer(value: unknown, name: string): number {

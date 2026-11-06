@@ -1,0 +1,33 @@
+{
+  "name": "@nestvexa/example-islands-vite",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && pnpm run build:islands && pnpm run build:ssr && tsc -p client/tsconfig.json && pnpm run build:loader",
+    "build:islands": "vite build -c vite.islands.config.ts",
+    "build:ssr": "vite build -c vite.islands.config.ts --ssr client/ssr.ts",
+    "build:loader": "vite build -c vite.loader.config.ts",
+    "dev": "node dist/main.js --dev",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@nestjs/common": "12.2.0",
+    "@nestjs/core": "12.2.0",
+    "@nestjs/platform-express": "12.2.0",
+    "@nestvexa/islands": "workspace:*",
+    "@nestvexa/vite": "workspace:*",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "svelte": "5.57.3",
+    "vue": "3.5.44"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "vite": "8.3.5"
+  }
+}

@@ -27,6 +27,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./browser": {
+      "types": "./dist/browser/index.d.ts",
+      "import": "./dist/browser/index.js",
+      "default": "./dist/browser/index.js"
     }
   },
   "types": "./dist/index.d.ts",
@@ -36,8 +41,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "test": "vitest run ../../tests/uploads-validation.test.ts ../../tests/uploads-http.test.ts ../../tests/uploads-limits.test.ts ../../tests/uploads-s3.test.ts",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json",
+    "test": "vitest run ../../tests/uploads-validation.test.ts ../../tests/uploads-http.test.ts ../../tests/uploads-limits.test.ts ../../tests/uploads-s3.test.ts ../../tests/uploads-browser.test.ts",
     "lint": "eslint src"
   },
   "dependencies": {

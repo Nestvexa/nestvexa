@@ -15,8 +15,10 @@ npm install @nestvexa/islands
 npm install react react-dom   # and/or vue, svelte
 ```
 
-Node 22.13+ or 24 on the server. Browser bundles are built with your bundler (the
-example uses esbuild with code splitting).
+Node 22.13+ or 24 on the server. Browser bundles are built with your bundler:
+the hybrid dashboard uses esbuild with code splitting, and
+[examples/islands-vite](../../examples/islands-vite) builds the same contract
+through Vite and `@nestvexa/vite` ([Building islands with Vite](#building-islands-with-vite)).
 
 ## 1. Define islands and build the manifest
 
@@ -46,6 +48,66 @@ const analysis = analyzeIslandBundles(manifest, result.metafile, {
 server and for the loader bundle), the analysis (chunk list per framework) and
 the raw metafile, and fails the build on a violation: a foreign framework
 runtime in an island's chunk graph or an island over its budget.
+
+### Building islands with Vite
+
+`islandsVitePlugin` (from `@nestvexa/islands/build`) is the Vite alternative to
+the esbuild script. Give the island entries to Vite as inputs and the plugin
+the definitions:
+
+```ts
+// vite.islands.config.ts
+import { islandsVitePlugin } from '@nestvexa/islands/build';
+import { islandDefinitions } from './src/island-definitions.js';
+
+export default defineConfig(({ isSsrBuild }) => ({
+  base: '/islands/',
+  plugins: [
+    react(),
+    svelte(),
+    islandsVitePlugin({ islands: islandDefinitions }),
+  ],
+  build: isSsrBuild
+    ? { outDir: 'dist/ssr', emptyOutDir: true }
+    : {
+        outDir: 'dist/islands',
+        emptyOutDir: true,
+        manifest: true,
+        rolldownOptions: { input: islandDefinitions.map((i) => i.entry) },
+      },
+}));
+```
+
+- `vite build -c vite.islands.config.ts`: the plugin records an esbuild-style
+  metafile of the client output (static `imports` form an island's chunk
+  closure, `dynamicImports` are lazy and not counted against the budget,
+  bundled module ids reveal framework runtimes), then writes
+  `islands-manifest.json`, `islands-analysis.json` and `islands-metafile.json`
+  into `dist/islands/.vite/` (dot directories are never served by
+  `viteStaticMiddleware`) and fails the build on a violation. It also sets
+  `build.rolldownOptions.preserveEntrySignatures: 'exports-only'`, because Vite
+  app builds otherwise drop the entries' `default` mount export, and fails if
+  an island entry lost it anyway.
+- `vite build -c vite.islands.config.ts --ssr client/ssr.ts`: a Node module
+  exporting `renderers`. The server wraps it with
+  `moduleIslandRenderers(ids, () => import(ssrUrl))` (loaded once, a failed
+  load is retried, a missing renderer falls back).
+- The loader is a second, later Vite build that imports the generated
+  manifest (`createIslands({ manifest })`), so islands load only from their
+  manifest bundle paths; its own `.vite/manifest.json` drives the nonce'd
+  tags printed by `ViteAssets.tags('islands', { nonce })`.
+- Development: `createViteDevServer({ root, configFile, hmrServer })` with the
+  same config. The registry is built from the definitions
+  (`new IslandRegistry(islandDefinitions, …)`), SSR uses
+  `moduleIslandRenderers(ids, () => vite.server.ssrLoadModule('/client/ssr.ts'), { cache: false })`,
+  and a development loader allowlists the islands with a static
+  `modules` map of dynamic imports (there is no build manifest yet, so props
+  schemas are enforced by the server registry only).
+
+Only a Vite build manifest is needed for the island manifest itself:
+`createViteIslandManifest(definitions, viteManifest, { base })` maps each
+entry's `file` to its bundle path (use the plugin when you also want the
+analysis). Verified with Vite 8.3.5 (Rolldown option names).
 
 ## 2. Register on the server, render and server-render
 
@@ -154,10 +216,20 @@ not permission.
 
 ```sh
 pnpm build
-pnpm vitest run tests/islands.test.ts tests/islands-client.test.ts tests/islands-bundle.test.ts
+pnpm vitest run tests/islands.test.ts tests/islands-client.test.ts tests/islands-bundle.test.ts tests/islands-vite.test.ts
 pnpm size:islands
-pnpm exec playwright test tests/browser/islands.spec.ts
+pnpm exec playwright test tests/browser/islands.spec.ts tests/browser/islands-vite.spec.ts
 ```
+
+`tests/islands-vite.test.ts` drives the Vite plugin hooks (metafile, manifest,
+analysis, foreign runtime and lost default export failures, SSR builds
+ignored), `createViteIslandManifest` (unsafe bases and files rejected),
+`moduleIslandRenderers`, and the `examples/islands-vite` build output.
+`tests/browser/islands-vite.spec.ts` checks the production build (SSR markup
+from the Vite SSR bundle, nonce'd loader, clean hydration of all three
+frameworks with no CSP violations, only manifest bundle paths loaded, tampered
+props refused by the bundled schema, `.vite` metadata not served) and the dev
+middleware (SSR through `ssrLoadModule`, clean hydration).
 
 The browser spec covers independent mounts, retention across Live updates,
 removal and reinsertion, typed actions from all three frameworks (including a

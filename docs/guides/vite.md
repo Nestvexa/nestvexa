@@ -141,6 +141,31 @@ never from template data; an invalid nonce, unknown app or extra option throws
 instead of printing. `examples/inertia-mixed` serves `/live` this way
 (asserted in `tests/browser/inertia-mixed.spec.ts`).
 
+## Islands
+
+Islands can be built through Vite instead of esbuild: `islandsVitePlugin` from
+`@nestvexa/islands/build` writes the island manifest and bundle analysis from
+the Vite client build, `vite build --ssr` produces the island renderers, and
+the loader's own Vite manifest drives `ViteAssets.tags` with the request
+nonce. In development the same config runs in middleware mode and island SSR
+goes through `ssrLoadModule`. Walkthrough:
+[Building islands with Vite](islands.md#building-islands-with-vite); example:
+`examples/islands-vite` (`tests/browser/islands-vite.spec.ts`).
+
+## Development mode and HMR per adapter
+
+`tests/browser/inertia-hmr.spec.ts` runs the React, Vue and Svelte Inertia
+examples with `--dev` (Vite middleware, HMR WebSocket on the Nest port, SSR via
+`ssrLoadModule`). `tests/browser/hmr-fixture.mjs` starts each one from a
+disposable copy in `artifacts/hmr-inertia-<framework>` whose Home page is a
+probe with local state. For each adapter the spec asserts that the dev SSR
+markup and `@vite/client` are served and the page hydrates without errors,
+and that rewriting the page source on disk updates the open page without a
+full reload (a `window` marker survives) and that the next server render
+contains the edit. React Fast Refresh and Vue component HMR keep the page's local
+state; Svelte 5 HMR re-creates the edited component, so its `$state` starts over
+(asserted, so a change in that behaviour is noticed).
+
 ## Client-only mode
 
 Omitting the `ssr` option of an Inertia app serves the page script and an

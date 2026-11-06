@@ -26,6 +26,7 @@ export const InertiaSessionKey = Object.freeze({
   flash: 'nestvexa.inertia.flash',
   clearHistory: 'nestvexa.inertia.clearHistory',
   preserveFragment: 'nestvexa.inertia.preserveFragment',
+  previousUrl: 'nestvexa.inertia.previousUrl',
 } as const);
 
 /** Top-level props whose values are produced by the adapter itself. */

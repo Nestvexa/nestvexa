@@ -106,6 +106,61 @@ export class IslandError extends Error {
   override readonly name = 'IslandError';
 }
 
+export interface ModuleIslandRenderersOptions {
+  /**
+   * Keep the first successfully loaded module (production SSR bundle).
+   * `false` loads it on every render, so a Vite dev server's
+   * `ssrLoadModule` serves edited components without a restart. Default true.
+   */
+  readonly cache?: boolean;
+}
+
+/**
+ * Server renderers for `ids` backed by a module exporting
+ * `renderers: Record<id, IslandServerRenderer>` — the SSR bundle built by
+ * `vite build --ssr` (`() => import(url)`) or Vite's `ssrLoadModule` in
+ * development. The module is loaded lazily on the first render; a missing or
+ * non-function renderer throws `IslandError` (the island then falls back).
+ */
+export function moduleIslandRenderers(
+  ids: readonly string[],
+  load: () => Promise<unknown>,
+  options: ModuleIslandRenderersOptions = {},
+): Readonly<Record<string, IslandServerRenderer>> {
+  if (typeof load !== 'function')
+    throw new IslandError('moduleIslandRenderers needs a module loader');
+  const cache = options.cache ?? true;
+  let loaded: Promise<unknown> | undefined;
+  const module = (): Promise<unknown> => {
+    if (!cache) return load();
+    loaded ??= load().catch((error: unknown) => {
+      loaded = undefined;
+      throw error;
+    });
+    return loaded;
+  };
+  const renderers: Record<string, IslandServerRenderer> = {};
+  for (const id of ids) {
+    if (!ISLAND_ID_PATTERN.test(id))
+      throw new IslandError(`Invalid island id: ${id}`);
+    renderers[id] = async (props, context) => {
+      const exported: unknown = await module();
+      const table: unknown =
+        typeof exported === 'object' && exported !== null
+          ? Reflect.get(exported, 'renderers')
+          : undefined;
+      const renderer: unknown =
+        typeof table === 'object' && table !== null && Object.hasOwn(table, id)
+          ? Reflect.get(table, id)
+          : undefined;
+      if (typeof renderer !== 'function')
+        throw new IslandError(`SSR module has no renderer for island ${id}`);
+      return (renderer as IslandServerRenderer)(props, context);
+    };
+  }
+  return Object.freeze(renderers);
+}
+
 function escapeAttribute(value: string): string {
   return value
     .replaceAll('&', '&amp;')

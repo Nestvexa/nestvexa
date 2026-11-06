@@ -85,3 +85,10 @@ client-only browser test checks the empty root mounts, navigates and
 round-trips validation. `tests/vite-builds.test.ts` checks the production build
 for source maps, duplicate modules/runtimes and browser-only code in the SSR
 bundle.
+
+## UI kit components
+
+Accessible dialog, tabs, menu, toast, date picker and data table components
+for Vue pages ship in `@nestvexa/ui/vue`; they render the same markup as the
+HBS helpers and reuse its keyboard module. See the
+[UI kit guide](ui-kit.md#9-react-vue-and-svelte-pages).

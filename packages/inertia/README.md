@@ -109,6 +109,8 @@ JSON page object with `X-Inertia: true` and `Vary: X-Inertia`.
 | `limits`                   | `4096` chars, `128` entries, `256` chars/entry, depth `64` | Request header and prop nesting bounds.                                                                                                                                                                                                                         |
 | `url` / `now` / `onRescue` | request path / `Date.now` / Nest logger                    | Page URL resolver, once-prop clock, rescued deferred prop observer.                                                                                                                                                                                             |
 | `instrumentation`          | none                                                       | Structural tracing hook: `nestvexa.inertia.render` spans (component, response kind, page bytes, status; never props) and `nestvexa.ssr.render` per SSR render (sizes, or the closed SSR error type and fallback flag). Same shape as `@nestvexa/observability`. |
+| `emptyResponse`            | `'back'`                                                   | An Inertia request whose handler returned `undefined` is redirected back (as `inertia-laravel`); `'passthrough'` keeps the empty reply.                                                                                                                         |
+| `previousUrl`              | `true`                                                     | Store each `200`, non-prefetch GET page URL in the session; `back()` uses it when the `Referer` is missing or unusable.                                                                                                                                         |
 
 ### Routes and results
 
@@ -153,6 +155,23 @@ switches scroll props to `prependProps`. Top-level dotted keys
   adapter. Without a session it answers 500 instead of dropping errors.
 - `flash()` data is consumed by the next rendered page and survives redirects
   and version-mismatch reloads.
+- `inertiaValidate(schema, input, { bag? })` validates with any
+  `{ validate(input) }` schema returning `{ ok, value | errors }` (all
+  `@nestvexa/forms` adapters) and throws `InertiaValidationException`; use the
+  same schema with `@Precognitive`.
+- `back()` resolves the same-host `Referer`, then the session's previous URL
+  (`InertiaService.previousUrl(request)`), then the fallback.
+
+### Testing helpers (`@nestvexa/inertia/testing`)
+
+Node-only and test-runner neutral: `inertiaHeaders({ version?, partial?,
+reset?, errorBag?, exceptOnceProps?, prefetch? })` builds official-client
+request headers; `readInertiaPage(response, { id? })` extracts the page object
+from a JSON reply or an HTML document; `assertInertia(response, component?)`
+returns fluent assertions (`component`, `url`, `version`, `prop`, `has`,
+`missing`, `where`, `hasErrors`, `hasNoErrors`, `flash`, `deferred`) that throw
+`InertiaAssertionError`. See the
+[guide](../../docs/guides/inertia.md#testing-inertia-responses).
 
 ### Precognition
 
@@ -217,7 +236,7 @@ SSR is never invoked for `X-Inertia` visits.
 
 ## Testing
 
-`pnpm build`, then `pnpm vitest run tests/inertia-golden.test.ts tests/inertia-http.test.ts tests/inertia-security.test.ts tests/inertia-protocol.test.ts tests/inertia-precognition.test.ts`
+`pnpm build`, then `pnpm vitest run tests/inertia-golden.test.ts tests/inertia-http.test.ts tests/inertia-security.test.ts tests/inertia-protocol.test.ts tests/inertia-precognition.test.ts tests/inertia-testing.test.ts`
 and `pnpm exec playwright test tests/browser/inertia.spec.ts` (official
 `@inertiajs/react` client against `examples/inertia-basic`); client-owned
 features are verified in `tests/browser/inertia-react-features.spec.ts` and
@@ -228,9 +247,11 @@ features are verified in `tests/browser/inertia-react-features.spec.ts` and
 
 - Inertia protocol v3 only (clients 3.x; verified with 3.10.0). Nest 12 on
   Express and Fastify. No Inertia v1/v2 compatibility mode.
-- Not implemented: Laravel's automatic "empty response → back",
-  `shareOnce` sugar (use `once()` in `share`), previous-URL storage, error-page
+- Not implemented: `shareOnce` sugar (use `once()` in `share`) and error-page
   rendering helpers (use a Nest filter with `InertiaService.render`).
+- Empty-response handling only treats a handler result of `undefined` as
+  empty; handlers that inject `@Res()`/`@Next()` or declare `@HttpCode`,
+  `@Redirect`, `@Render` or `@Sse` are never redirected.
 - URLs in redirects and `X-Inertia-Location` are relative (upstream emits
   absolute URLs); the official client resolves both.
 - Flash data is consumed by the next rendered page rather than aged by request
