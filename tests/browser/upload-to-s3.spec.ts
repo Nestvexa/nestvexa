@@ -256,6 +256,8 @@ test.describe('without JavaScript', () => {
 test('upload page passes an accessibility scan @accessibility', async ({
   page,
 }) => {
+  // Two full axe scans: allow for slow shared CI hosts (WebKit especially).
+  test.setTimeout(90_000);
   await open(page);
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);

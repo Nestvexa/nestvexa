@@ -1,0 +1,23 @@
+<h1>{{title}}</h1>
+<noscript>
+  <p id="noscript-note">
+    JavaScript is off. The form below still works: it posts to the server, which
+    validates it and sends you back here. Local drafts and offline copies need
+    JavaScript.
+  </p>
+</noscript>
+{{#if flash.length}}
+<ul id="flash" role="status" aria-label="Notifications">
+  {{#each flash}}
+  <li>{{this}}</li>
+  {{/each}}
+</ul>
+{{/if}} {{form}}
+<section aria-labelledby="recent-heading">
+  <h2 id="recent-heading">Your recent tickets</h2>
+  <p id="recent-source" role="status" aria-live="polite"></p>
+  <div id="recent-tickets" data-offline-label="Offline copy of your tickets">
+    {{recent}}
+  </div>
+  <button type="button" id="recent-refresh">Refresh tickets</button>
+</section>

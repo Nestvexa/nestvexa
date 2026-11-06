@@ -1,0 +1,60 @@
+body {
+  font-family: system-ui, sans-serif;
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 1rem;
+  line-height: 1.5;
+  color: #1b1b1b;
+  background: #fff;
+}
+header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+label {
+  display: block;
+  font-weight: 600;
+  margin-top: 1rem;
+}
+input,
+textarea,
+select {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem;
+  border: 2px solid #555;
+  border-radius: 4px;
+  font: inherit;
+}
+button {
+  font: inherit;
+  min-height: 2.75rem;
+  margin-top: 1rem;
+  padding: 0.4rem 0.9rem;
+}
+[aria-invalid='true'] {
+  border-color: #b00020;
+}
+.error {
+  color: #b00020;
+  margin: 0.25rem 0 0;
+}
+.error:empty {
+  display: none;
+}
+.hint {
+  color: #444;
+  font-size: 0.9rem;
+}
+.summary {
+  border: 2px solid #b00020;
+  padding: 0.5rem 1rem;
+}
+[data-nv-offline-copy] {
+  border: 2px dashed #555;
+  padding: 0.5rem;
+}
