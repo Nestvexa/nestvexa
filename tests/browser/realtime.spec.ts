@@ -1,7 +1,10 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
-const url = 'http://127.0.0.1:3102/realtime';
+// The root suite serves starter-live on 3102; local runs may override the origin.
+const base =
+  process.env['NESTVEXA_STARTER_LIVE_ORIGIN'] ?? 'http://127.0.0.1:3102';
+const url = `${base}/realtime`;
 
 test('an event published by one session refreshes another session through SSE', async ({
   browser,
@@ -32,15 +35,49 @@ test('an event published by one session refreshes another session through SSE', 
   await second.close();
 });
 
+// Job snapshots arrive over realtime; allow for slow CI browsers.
+const job = { timeout: 15_000 };
+
 test('report job progress reaches only its owner and completes', async ({
   page,
 }) => {
   await page.goto(url);
   await page.getByRole('button', { name: 'Generate report' }).click();
-  await expect(page.locator('#report-status')).toHaveText('succeeded');
+  await expect(page.locator('#report-status')).toHaveText('succeeded', job);
   await expect(page.locator('#report-progress')).toHaveAttribute(
     'value',
     '100',
+  );
+});
+
+test('a running report can be cancelled by its owner', async ({ page }) => {
+  await page.goto(url);
+  await page.getByRole('button', { name: 'Generate report' }).click();
+  await expect(page.locator('#report-status')).toHaveText(/queued|running/);
+  await page.getByRole('button', { name: 'Cancel report' }).click();
+  await expect(page.locator('#report-status')).toHaveText('cancelled', job);
+  await expect(
+    page.getByRole('button', { name: 'Retry report' }),
+  ).toBeVisible();
+});
+
+test('a failing report is retried automatically, fails with a generic message and can be retried', async ({
+  page,
+}) => {
+  await page.goto(url);
+  await page.getByRole('button', { name: 'Generate failing report' }).click();
+  await expect(page.locator('#report-status')).toHaveText('failed', job);
+  // Two automatic attempts ran before the job failed.
+  await expect(page.locator('#report-attempts')).toHaveText('2');
+  await expect(page.locator('#report-error')).toHaveText('The job failed.');
+  await expect(page.locator('body')).not.toContainText(
+    'demo report source offline',
+  );
+  await page.getByRole('button', { name: 'Retry report' }).click();
+  await expect(page.locator('#report-status')).toHaveText('succeeded', job);
+  await expect(page.locator('#report-attempts')).toHaveText('1');
+  await expect(page.getByRole('button', { name: 'Retry report' })).toHaveCount(
+    0,
   );
 });
 
@@ -58,11 +95,11 @@ test('realtime subscriptions reject forged and foreign tokens', async ({
   const foreign = await other.newPage();
   await foreign.goto(url);
   const stolen = await foreign.request.get(
-    `http://127.0.0.1:3102/_nestvexa/realtime/poll?t=${encodeURIComponent(token ?? '')}`,
+    `${base}/_nestvexa/realtime/poll?t=${encodeURIComponent(token ?? '')}`,
   );
   expect(stolen.status()).toBe(403);
   const forged = await page.request.get(
-    `http://127.0.0.1:3102/_nestvexa/realtime/poll?t=${encodeURIComponent(
+    `${base}/_nestvexa/realtime/poll?t=${encodeURIComponent(
       (token ?? '').replace(/.$/, (character) =>
         character === 'A' ? 'B' : 'A',
       ),

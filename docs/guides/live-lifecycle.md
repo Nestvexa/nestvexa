@@ -51,6 +51,48 @@ before upgrading. Legacy TypeScript decorators remain required.
 [HTTP lifecycle tests](../../tests/live-lifecycle-hooks.test.ts) exercise real
 Express/Fastify servers and HBS. Their shared session bag is trusted test context,
 not production authentication. See also the [Nest pipeline tests](../../tests/live.test.ts).
-Server nesting, mount keys, reactive/modelable children, events and serializers
-remain open Phase 4 requirements. Arbitrary hook I/O has no framework deadline or
-automatic cancellation; host services must bound their own work.
+
+## Nested ordering
+
+A child mounted by `nvChild` runs its complete operation inside the parent's render,
+after the parent's `beforeRender` and renderer call and before the parent's
+`afterRender`:
+
+```text
+parent boot → mount → dehydrate → beforeRender
+  child boot → mount → dehydrate → beforeRender → afterRender → dispose
+parent afterRender → dispose
+```
+
+On a parent action, a retained child whose `@Prop`/`@Reactive` values did not change
+runs no hooks and is not re-rendered; a changed value refreshes it with
+boot → hydrate → beforeUpdate/afterUpdate → dehydrate → render → dispose inside the
+parent render. Each hook runs exactly once per operation; parent and child share the
+request context (request-scoped providers) but not transient providers. The
+[pipeline tests](../../tests/live-pipeline.test.ts) pin this order on Express and
+Fastify, together with middleware, guards, interceptors, pipes and filters around it.
+
+## Deadlines and cancellation
+
+`@LiveComponent({ timeoutMs })` (1–300000 ms, default none) bounds each hook and the
+action method. Expiry fails the request with `504 HOOK_TIMEOUT` or `504 ACTION_TIMEOUT`,
+runs `onError`/`dispose` and invalidates the state reference. `liveAbortSignal(this)`
+returns the operation's `AbortSignal`; it aborts on the deadline and when application
+shutdown begins, so pass it to `fetch`, database drivers and timers:
+
+```ts
+@LiveComponent({ name: 'report', view: 'report', timeoutMs: 5_000 })
+export class Report {
+  @State() rows: string[] = [];
+  async mount(): Promise<void> {
+    const response = await fetch('https://reports.internal/rows', {
+      signal: liveAbortSignal(this),
+    });
+    this.rows = (await response.json()) as string[];
+  }
+}
+```
+
+Work that ignores the signal is abandoned, not undone. During shutdown new work answers
+`503 LIVE_SHUTDOWN` and in-flight requests get up to 10 s to settle. See the
+[action option tests](../../tests/live-action-options.test.ts).

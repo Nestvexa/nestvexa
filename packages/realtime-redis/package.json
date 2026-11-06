@@ -1,0 +1,61 @@
+{
+  "name": "@nestvexa/realtime-redis",
+  "version": "0.1.0-alpha.0",
+  "description": "Optional Redis adapters for multi-replica Nestvexa: shared Live state store and cross-instance realtime pub/sub over RESP, with no client library",
+  "license": "MIT",
+  "author": "Nestvexa contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nestvexa/nestvexa.git",
+    "directory": "packages/realtime-redis"
+  },
+  "homepage": "https://github.com/Nestvexa/nestvexa/tree/main/packages/realtime-redis#readme",
+  "bugs": {
+    "url": "https://github.com/Nestvexa/nestvexa/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": "^22.13.0 || ^24.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./realtime": {
+      "types": "./dist/realtime.d.ts",
+      "import": "./dist/realtime.js",
+      "default": "./dist/realtime.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run ../../tests/live-store-contract.test.ts",
+    "lint": "eslint src"
+  },
+  "peerDependencies": {
+    "@nestvexa/live": "workspace:*",
+    "@nestvexa/realtime": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@nestvexa/realtime": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@nestvexa/live": "workspace:*",
+    "@nestvexa/realtime": "workspace:*"
+  }
+}

@@ -42,3 +42,14 @@ export interface AppPages {
   readonly 'Users/Create': Readonly<Record<string, never>>;
   readonly Broken: BrokenProps;
 }
+
+/** Pages of the client-feature smoke tour (src/features.ts). */
+export interface FeaturePages {
+  readonly 'Features/Index': { readonly tick: number; readonly below?: string };
+  readonly 'Features/Prefetched': { readonly renders: number };
+  readonly 'Features/Scroll': {
+    readonly items: {
+      readonly data: readonly { readonly id: number; readonly label: string }[];
+    };
+  };
+}

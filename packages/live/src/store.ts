@@ -33,6 +33,89 @@ export interface StateSnapshot {
 export interface LiveTransactionResult extends StateSnapshot {
   readonly html: string;
 }
+/** What a transaction callback commits: next public state, rendered HTML and children. */
+export interface LiveTransactionCommit {
+  readonly state: Record<string, JsonValue>;
+  readonly html: string;
+  readonly children?: Readonly<Record<string, ChildReference>>;
+}
+export type LiveTransactionCallback = (
+  snapshot: StateSnapshot,
+) => Promise<LiveTransactionCommit>;
+type Awaitable<T> = T | Promise<T>;
+/**
+ * Pluggable server-side Live state storage. `LiveRuntime` awaits every call, so
+ * implementations may be synchronous (memory) or remote (Redis). Every store
+ * must keep the semantics the contract suite (tests/live-store-contract.test.ts)
+ * checks:
+ *
+ * - identity binding: an entry is only readable with the exact binding it was
+ *   created for; a foreign binding, unknown, expired or malformed token fails
+ *   with `LiveProtocolError('INVALID_SNAPSHOT', 410)` without revealing which;
+ * - revision locks: `transaction` rejects a revision other than the stored one
+ *   (`STALE_REVISION`, 409) and a concurrent transaction on the same token
+ *   (`COMPONENT_BUSY`, 409) before invoking the callback, and commits
+ *   `revision + 1` atomically;
+ * - replay protection: a committed revision is never accepted again, and a
+ *   failed callback invalidates the entry instead of permitting a retry;
+ * - TTL: entries expire `ttlMs` after creation; revocation, deletion or expiry
+ *   during a transaction is never undone by its commit.
+ *
+ * Tokens are 256-bit bearer references: never log them or use them unhashed
+ * as keys on shared infrastructure.
+ */
+export interface LiveStateStore {
+  create(
+    component: string,
+    binding: string,
+    state: Record<string, JsonValue>,
+    children?: Readonly<Record<string, ChildReference>>,
+  ): Awaitable<StateSnapshot>;
+  peek(token: string, binding: string): Awaitable<StateSnapshot>;
+  transaction(
+    token: string,
+    binding: string,
+    revision: number,
+    callback: LiveTransactionCallback,
+  ): Promise<LiveTransactionResult>;
+  /** Host logout/session revocation: drop every entry for this binding. */
+  revoke(binding: string): Awaitable<void>;
+  /** Host-only deletion; never expose it as an unauthenticated endpoint. */
+  delete(token: string): Awaitable<boolean>;
+  /**
+   * Release resources on application shutdown. A process-local store discards
+   * its entries; a shared store closes its connections and keeps shared state.
+   */
+  close(): Awaitable<void>;
+}
+const storeMethods = [
+  'create',
+  'peek',
+  'transaction',
+  'revoke',
+  'delete',
+  'close',
+] as const;
+/** Structural check used by the Live runtime factory for custom stores. */
+export function isLiveStateStore(value: unknown): value is LiveStateStore {
+  if (value === null || typeof value !== 'object') return false;
+  return storeMethods.every(
+    (method) => typeof Reflect.get(value, method) === 'function',
+  );
+}
+/** Component names a store accepts (the registered Live component name grammar). */
+export function assertLiveComponentName(component: unknown): string {
+  if (
+    typeof component !== 'string' ||
+    !/^[a-z][a-z0-9-]{0,63}$/.test(component)
+  )
+    throw new LiveProtocolError(
+      'INVALID_STATE',
+      400,
+      'Invalid Live component identifier',
+    );
+  return component;
+}
 export interface MemoryLiveStoreOptions {
   readonly ttlMs?: number;
   readonly maxEntries?: number;
@@ -46,23 +129,26 @@ interface Entry {
   readonly bindingHash: Buffer;
   busy: boolean;
 }
-function unavailable(): never {
+/** The single indistinguishable failure for unknown, expired or foreign state. */
+export function liveStateUnavailable(): never {
   throw new LiveProtocolError(
     'INVALID_SNAPSHOT',
     410,
     'Live state is unavailable; reload the page',
   );
 }
-function bindingHash(binding: string): Buffer {
+/** SHA-256 of a validated identity binding (1–4096 bytes). */
+export function liveBindingHash(binding: string): Buffer {
   if (
     typeof binding !== 'string' ||
     binding.length === 0 ||
     Buffer.byteLength(binding) > 4096
   )
-    unavailable();
+    liveStateUnavailable();
   return createHash('sha256').update(binding).digest();
 }
-function frozenChildren(
+/** Detached frozen child references (server-only bookkeeping). */
+export function freezeChildReferences(
   children: Readonly<Record<string, ChildReference>> | undefined,
 ): Readonly<Record<string, ChildReference>> | undefined {
   if (children === undefined) return undefined;
@@ -76,8 +162,9 @@ function frozenChildren(
     });
   return Object.freeze(copy);
 }
-function frozenSnapshot(snapshot: StateSnapshot): StateSnapshot {
-  const children = frozenChildren(snapshot.children);
+/** Detached, deeply frozen copy with validated JSON state and child references. */
+export function freezeStateSnapshot(snapshot: StateSnapshot): StateSnapshot {
+  const children = freezeChildReferences(snapshot.children);
   return Object.freeze({
     id: snapshot.id,
     name: snapshot.name,
@@ -93,7 +180,7 @@ function frozenSnapshot(snapshot: StateSnapshot): StateSnapshot {
  * Single-process bounded state storage with reject-on-conflict serialization.
  * This is not a distributed lock or an exactly-once business transaction.
  */
-export class MemoryLiveStore {
+export class MemoryLiveStore implements LiveStateStore {
   readonly #entries = new Map<string, Entry>();
   #inFlight = 0;
   readonly #ttlMs: number;
@@ -143,15 +230,15 @@ export class MemoryLiveStore {
       if (entry.snapshot.expiresAt <= now) this.#entries.delete(token);
   }
   #entry(token: string, binding: string): Entry {
-    if (!isSnapshotToken(token)) unavailable();
-    const hashed = bindingHash(binding);
+    if (!isSnapshotToken(token)) liveStateUnavailable();
+    const hashed = liveBindingHash(binding);
     const entry = this.#entries.get(token);
-    if (!entry) unavailable();
+    if (!entry) liveStateUnavailable();
     if (entry.snapshot.expiresAt <= this.#time()) {
       this.#entries.delete(token);
-      unavailable();
+      liveStateUnavailable();
     }
-    if (!timingSafeEqual(hashed, entry.bindingHash)) unavailable();
+    if (!timingSafeEqual(hashed, entry.bindingHash)) liveStateUnavailable();
     return entry;
   }
   create(
@@ -160,16 +247,8 @@ export class MemoryLiveStore {
     state: Record<string, JsonValue>,
     children?: Readonly<Record<string, ChildReference>>,
   ): StateSnapshot {
-    if (
-      typeof component !== 'string' ||
-      !/^[a-z][a-z0-9-]{0,63}$/.test(component)
-    )
-      throw new LiveProtocolError(
-        'INVALID_STATE',
-        400,
-        'Invalid Live component identifier',
-      );
-    const hashed = bindingHash(binding);
+    assertLiveComponentName(component);
+    const hashed = liveBindingHash(binding);
     const validated = freezeJson(cloneState(state));
     this.#prune();
     if (this.#entries.size >= this.#maxEntries)
@@ -196,7 +275,7 @@ export class MemoryLiveStore {
         500,
         'Live identity generator returned an invalid UUID',
       );
-    const references = frozenChildren(children);
+    const references = freezeChildReferences(children);
     const snapshot: StateSnapshot = Object.freeze({
       id,
       name: component,
@@ -207,10 +286,10 @@ export class MemoryLiveStore {
       ...(references === undefined ? {} : { children: references }),
     });
     this.#entries.set(token, { snapshot, bindingHash: hashed, busy: false });
-    return frozenSnapshot(snapshot);
+    return freezeStateSnapshot(snapshot);
   }
   peek(token: string, binding: string): StateSnapshot {
-    return frozenSnapshot(this.#entry(token, binding).snapshot);
+    return freezeStateSnapshot(this.#entry(token, binding).snapshot);
   }
 
   /** Lock and revision are checked before invoking the callback, without awaiting. */
@@ -218,11 +297,7 @@ export class MemoryLiveStore {
     token: string,
     binding: string,
     revision: number,
-    callback: (snapshot: StateSnapshot) => Promise<{
-      state: Record<string, JsonValue>;
-      html: string;
-      children?: Readonly<Record<string, ChildReference>>;
-    }>,
+    callback: LiveTransactionCallback,
   ): Promise<LiveTransactionResult> {
     const entry = this.#entry(token, binding);
     if (
@@ -253,7 +328,7 @@ export class MemoryLiveStore {
     entry.busy = true;
     this.#inFlight++;
     try {
-      const result = await callback(frozenSnapshot(entry.snapshot));
+      const result = await callback(freezeStateSnapshot(entry.snapshot));
       const state = freezeJson(cloneState(result.state));
       if (
         typeof result.html !== 'string' ||
@@ -269,11 +344,11 @@ export class MemoryLiveStore {
         this.#entries.get(token) !== entry ||
         entry.snapshot.expiresAt <= this.#time()
       )
-        unavailable();
+        liveStateUnavailable();
       const references =
         result.children === undefined
           ? entry.snapshot.children
-          : frozenChildren(result.children);
+          : freezeChildReferences(result.children);
       entry.snapshot = Object.freeze({
         id: entry.snapshot.id,
         name: entry.snapshot.name,
@@ -284,7 +359,7 @@ export class MemoryLiveStore {
         ...(references === undefined ? {} : { children: references }),
       });
       return Object.freeze({
-        ...frozenSnapshot(entry.snapshot),
+        ...freezeStateSnapshot(entry.snapshot),
         html: result.html,
       });
     } catch (error) {
@@ -298,7 +373,7 @@ export class MemoryLiveStore {
   }
   /** Host logout/session revocation must supply its authoritative binding. */
   revoke(binding: string): void {
-    const hashed = bindingHash(binding);
+    const hashed = liveBindingHash(binding);
     for (const [token, entry] of this.#entries)
       if (timingSafeEqual(hashed, entry.bindingHash))
         this.#entries.delete(token);
@@ -309,6 +384,10 @@ export class MemoryLiveStore {
   }
   clear(): void {
     this.#entries.clear();
+  }
+  /** Process-local state does not outlive the application. */
+  close(): void {
+    this.clear();
   }
   get size(): number {
     this.#prune();

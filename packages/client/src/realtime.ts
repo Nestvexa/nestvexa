@@ -21,8 +21,17 @@ export interface RealtimeControllerOptions extends RealtimeEndpoint {
 export interface RealtimeController {
   /** Replace the subscription token set; reconnects only when it changed. */
   update(tokens: readonly string[]): void;
+  /** The transport in use; `auto` resolves to `sse` and may fall back to `polling`. */
+  readonly transport: Exclude<RealtimeTransport, 'auto'>;
   dispose(): void;
 }
+/** `auto`: SSE failures before the first `ready` that switch to long-polling. */
+const autoFallbackFailures = 2;
+/** `auto`: an SSE stream silent this long (for example a buffering proxy) falls back. */
+const autoReadyTimeoutMs = 10_000;
+/** Consecutive failed reconnects before the circuit opens (long cool-down). */
+const circuitThreshold = 10;
+const circuitCooldownMs = 300_000;
 const tokenPattern = /^[A-Za-z0-9_-]{1,6000}\.[A-Za-z0-9_-]{20,100}$/;
 /** Read the (public, server-signed) channel list from a subscription token. */
 export function tokenChannels(token: string): readonly string[] {
@@ -56,7 +65,11 @@ function message(value: unknown): RealtimeMessage | undefined {
 
 /**
  * One connection per client for all subscribed components. Reconnects with
- * exponential backoff and jitter, pauses while offline and drops duplicates.
+ * exponential backoff and jitter (1 s doubling to 30 s, ×0.5–1), pauses while
+ * offline, drops duplicate event ids and, after ten consecutive failures,
+ * opens a circuit: one probe every five minutes until a connection succeeds or
+ * the browser comes back online. `auto` starts with SSE and falls back to
+ * long-polling for the controller lifetime when SSE never becomes ready.
  */
 export function createRealtimeController(
   options: RealtimeControllerOptions,
@@ -73,12 +86,14 @@ export function createRealtimeController(
       'Realtime endpoint must be same-origin without query or fragment',
     );
   const base = endpoint.pathname.replace(/\/$/, '');
-  const transport: Exclude<RealtimeTransport, 'auto'> =
+  const auto = options.transport === undefined || options.transport === 'auto';
+  let transport: Exclude<RealtimeTransport, 'auto'> =
     options.transport === 'websocket' && window.WebSocket
       ? 'websocket'
       : options.transport === 'polling' || !window.EventSource
         ? 'polling'
         : 'sse';
+  let sseFailures = 0;
   let tokens: string[] = [];
   let attempt = 0;
   let timer: number | undefined;
@@ -92,7 +107,6 @@ export function createRealtimeController(
     seen.push(key);
     if (seen.length > 256) seen.shift();
     cursor.set(item.channel, item.id);
-    attempt = 0;
     options.onMessage(item);
   }
   function query(): string {
@@ -110,7 +124,11 @@ export function createRealtimeController(
     if (disposed || !tokens.length) return;
     if (timer !== undefined) window.clearTimeout(timer);
     if (!window.navigator.onLine) return;
-    const delay = Math.min(30_000, 1000 * 2 ** Math.min(attempt++, 5));
+    const delay =
+      attempt >= circuitThreshold
+        ? circuitCooldownMs
+        : Math.min(30_000, 1000 * 2 ** Math.min(attempt, 5));
+    attempt++;
     timer = window.setTimeout(connect, delay * (0.5 + Math.random() * 0.5));
   }
   function closed(reason: unknown): void {
@@ -134,6 +152,22 @@ export function createRealtimeController(
     if (disposed || !tokens.length) return;
     if (transport === 'sse') {
       const source = new window.EventSource(`${base}/sse?${query()}`);
+      let ready = false;
+      let readyTimer: number | undefined;
+      const fallBack = (): void => {
+        window.clearTimeout(readyTimer);
+        source.close();
+        transport = 'polling';
+        attempt = 0;
+        connect();
+      };
+      if (auto) readyTimer = window.setTimeout(fallBack, autoReadyTimeoutMs);
+      source.addEventListener('ready', () => {
+        ready = true;
+        sseFailures = 0;
+        attempt = 0;
+        window.clearTimeout(readyTimer);
+      });
       source.addEventListener('invalidate', (event) => {
         const item = message(JSON.parse((event as MessageEvent<string>).data));
         if (item) deliver(item);
@@ -146,11 +180,21 @@ export function createRealtimeController(
         );
       });
       source.addEventListener('error', () => {
+        // Under `auto`, SSE that never becomes ready (blocked, unsupported by
+        // a proxy, rejected) is replaced by long-polling.
+        if (auto && !ready && ++sseFailures >= autoFallbackFailures) {
+          fallBack();
+          return;
+        }
+        ready = false;
         // EventSource reconnects transient failures itself; a closed source
         // (HTTP rejection) needs the bounded backoff instead.
         if (source.readyState === window.EventSource.CLOSED) retry();
       });
-      close = () => source.close();
+      close = () => {
+        window.clearTimeout(readyTimer);
+        source.close();
+      };
       return;
     }
     if (transport === 'websocket') {
@@ -163,6 +207,12 @@ export function createRealtimeController(
       socket.addEventListener('message', (event) => {
         const data: unknown = JSON.parse(String(event.data));
         if (
+          data &&
+          typeof data === 'object' &&
+          Reflect.get(data, 'type') === 'ready'
+        )
+          attempt = 0;
+        else if (
           data &&
           typeof data === 'object' &&
           Reflect.get(data, 'type') === 'invalidate'
@@ -199,6 +249,7 @@ export function createRealtimeController(
       }
       if (!response.ok)
         throw new LiveClientError('NETWORK', 'Realtime poll failed');
+      attempt = 0;
       const body: unknown = await response.json();
       const events: unknown =
         body && typeof body === 'object'
@@ -228,9 +279,19 @@ export function createRealtimeController(
           'Too many realtime subscriptions',
         );
       if (sorted.join('\n') === tokens.join('\n')) return;
+      const channels = (list: readonly string[]) =>
+        [...new Set(list.flatMap(tokenChannels))].sort().join('\n');
+      const unchanged = channels(sorted) === channels(tokens);
       tokens = sorted;
+      // Responses re-sign tokens with a fresh expiry. Reconnecting for those
+      // would open a window in which events are missed; the open connection
+      // keeps its channels and the fresh tokens are used on the next connect.
+      if (unchanged && close) return;
       attempt = 0;
       connect();
+    },
+    get transport() {
+      return transport;
     },
     dispose(): void {
       disposed = true;

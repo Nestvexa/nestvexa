@@ -72,19 +72,24 @@ Hosts must authorize `$sync` for components that use realtime.
 | Export                                                                     | Purpose                                                                                                                 |
 | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `RealtimeModule.forRoot(options)` / `forRootAsync({ inject, useFactory })` | Registers `GET <endpoint>/sse` and `GET <endpoint>/poll` (default `/_nestvexa/realtime`) and a global `RealtimeService` |
-| `RealtimeService.publish(channel, data?)`                                  | Invalidate subscribers; `data` is JSON ≤16 KiB                                                                          |
+| `RealtimeService.publish(channel, data?, { identity? })`                   | Invalidate subscribers; `data` is JSON ≤16 KiB; `identity` applies `publishesPerMinute`                                 |
+| `RealtimeService.presence(identity, channel)`                              | Distinct members connected to this replica, for an authorized reader                                                    |
 | `RealtimeService.sign(identity, channels)`                                 | Token for authorized channels, or `undefined`                                                                           |
 | `RealtimeService.revoke(binding)` / `closeChannel(channel)`                | Close connections on logout or permission changes                                                                       |
 | `attachRealtimeWebSocket(app)`                                             | Optional `<endpoint>/ws` transport; requires `resolveUpgradeIdentity`                                                   |
 | `MemoryRealtimeBroker`                                                     | Default single-process broker with bounded replay                                                                       |
-| `RespRealtimeBroker({ host, port, password?, prefix })`                    | Cross-replica pub/sub over the Redis protocol                                                                           |
-| `JobRunner`                                                                | In-process owner-bound jobs with progress, retries and cancellation                                                     |
+| `RespRealtimeBroker({ host, port, password?, prefix })`                    | Cross-replica pub/sub over the Redis protocol (`RedisRealtimeBroker` in `@nestvexa/realtime-redis/realtime`)            |
+| `JobRunner`, `MemoryJobQueue`, `JobQueue`                                  | Owner-bound named jobs with progress, idempotency keys, retries, cancellation and leases over a pluggable queue         |
 | `createTokenSigner`, `RealtimeHub`                                         | Lower-level building blocks                                                                                             |
 
 Options: `secrets` (1–8, ≥32 bytes, first signs), `origin` (exact), `resolveIdentity`,
-`authorizeChannel`, `resolveUpgradeIdentity?`, `broker?`, `endpoint?`, `tokenTtlMs?`
-(default 15 min), `limits?` (`maxConnections` 1000, `maxConnectionsPerIdentity` 8,
-`queueLimit` 64, `heartbeatMs` 15000, `revalidateMs` 30000).
+`authorizeChannel`, `describePresence?`, `resolveUpgradeIdentity?`, `broker?`,
+`endpoint?`, `tokenTtlMs?` (default 15 min), `limits?` (`maxConnections` 1000,
+`maxConnectionsPerIdentity` 8, `queueLimit` 64, `heartbeatMs` 15000,
+`revalidateMs` 30000, `subscribesPerMinute` 60, `publishesPerMinute` 120,
+`maxPresenceMembers` 100). `auto` transport falls back from SSE to long-polling
+at runtime; see the [realtime guide](../../docs/guides/realtime.md) for presence,
+rate limits, jobs (including a BullMQ adapter recipe) and multiple replicas.
 
 Browser: `createLiveClient({ realtime: { endpoint, transport: 'auto' | 'sse' | 'websocket' | 'polling' } })`
 or the umbrella `browser.realtime` option.
@@ -106,18 +111,23 @@ At-most-once per connected subscriber. The memory broker replays the last 100
 events per channel (`replaySize`) after reconnect, for at most 10,000 channels
 (`replayChannels`; the least recently published channel's history is evicted
 first, so per-user channel names cannot grow memory without bound); unknown or
-evicted cursors replay nothing and clients refresh. Redis pub/sub is fire-and-forget. `JobRunner` keeps jobs in memory only.
-The unit tests use an in-process RESP test double. `pnpm test:services`
-([guide](../../docs/guides/production-services.md)) also ran `RespRealtimeBroker` against Redis 7 on 2026-11-02:
-delivery from one OS process to another, and resubscription after a Redis
-restart. Not yet verified: two Nest replicas serving one browser through Redis,
-and load testing.
+evicted cursors replay nothing and clients refresh. Redis pub/sub is
+fire-and-forget. The default `MemoryJobQueue` keeps jobs in memory only;
+presence and replay windows are per replica. The unit tests use an in-process
+RESP test double; `pnpm test:services`
+([guide](../../docs/guides/production-services.md)) runs the broker against real
+Redis (two OS processes, Redis restart) and the two-replica browser acceptance
+suite of [`examples/distributed-live`](../../examples/distributed-live/README.md).
+The in-process hub churn check in `pnpm load` covers single-replica memory;
+distributed load testing is not yet done.
 
 ## Testing
 
 ```sh
-pnpm build && pnpm vitest run tests/realtime.test.ts tests/realtime-live.test.ts
-pnpm exec playwright test tests/browser/realtime.spec.ts
+pnpm build && pnpm exec vitest run tests/realtime.test.ts tests/realtime-hub.test.ts \
+  tests/realtime-jobs.test.ts tests/realtime-live.test.ts tests/client-realtime.test.ts
+pnpm exec playwright test tests/browser/realtime.spec.ts tests/browser/realtime-transports.spec.ts
+NESTVEXA_REDIS_PORT=6379 pnpm test:services
 ```
 
 See the [realtime guide](../../docs/guides/realtime.md) and

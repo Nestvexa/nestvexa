@@ -55,7 +55,8 @@ a deploy that changes component state schemas; they fail closed with
 2. Emit at most one runtime warning per process through the Nest logger (never
    per request), and only where detection is cheap and certain.
 3. Keep the deprecated API working for **at least one minor release and at
-   least 6 months**, whichever is longer, before removal in the next major.
+   least 90 days**, whichever is longer, before removal in the next major (the
+   window set in [GOVERNANCE.md](../../GOVERNANCE.md#compatibility-and-deprecation)).
 4. Security exceptions: an API that cannot be made safe may be removed or
    disabled in a minor or patch with an advisory.
 

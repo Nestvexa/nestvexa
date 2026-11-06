@@ -1,6 +1,6 @@
 # Live protocol and server state
 
-The experimental `nestvexa-live/1` protocol uses an opaque, random server-state reference. It does not sign or encrypt a browser state snapshot. State is held in a bounded, single-process `MemoryLiveStore`; rendering may expose public state in HTML or response data, so never put secrets in public component fields.
+The experimental `nestvexa-live/1` protocol uses an opaque, random server-state reference. It does not sign or encrypt a browser state snapshot. State is held in a pluggable `LiveStateStore`: by default a bounded, single-process `MemoryLiveStore`, or a shared store such as `RedisLiveStore` (`@nestvexa/realtime-redis`) for several replicas, with the same binding, revision, TTL and invalidation semantics; rendering may expose public state in HTML or response data, so never put secrets in public component fields.
 
 ## Request contract
 
@@ -17,7 +17,7 @@ A request has exactly these fields; `input` is optional. The token below is illu
 }
 ```
 
-`parseLiveRequest(unknown)` validates and returns a detached, deeply frozen envelope. `requestId` must be a standard UUID; it is a correlation identifier, not an idempotency guarantee. `snapshot` must be canonical unpadded base64url for exactly 32 bytes. `revision` must be a nonnegative safe integer. `updates` contains top-level state field identifiers, not executable expressions or dot paths. Whole nested JSON values may be supplied, subject to the component's writable-field policy. The host chooses the registered component/action route; this envelope cannot request arbitrary classes, methods or templates.
+`parseLiveRequest(unknown)` validates and returns a detached, deeply frozen envelope. `requestId` must be a standard UUID; it is a correlation identifier and, only for actions declared `@Action({ idempotent: true })`, the idempotency key (see the [protocol reference](../reference/live-protocol.md#action-options)). `snapshot` must be canonical unpadded base64url for exactly 32 bytes. `revision` must be a nonnegative safe integer. `updates` contains top-level state field identifiers, not executable expressions or dot paths. Whole nested JSON values may be supplied, subject to the component's writable-field policy. The host chooses the registered component/action route; this envelope cannot request arbitrary classes, methods or templates.
 
 Unknown fields and non-JSON values fail validation. Accepted values are null, booleans, finite numbers, strings, dense arrays and plain objects. Date, BigInt, Map, Set, custom prototypes, functions, symbols, undefined, accessors, cycles and sparse/augmented arrays are rejected. The keys `__proto__`, `constructor` and `prototype` are rejected at every depth. Descriptor inspection does not invoke ordinary getters or `toJSON`; hostile JavaScript Proxy objects are outside the HTTP JSON trust boundary.
 
@@ -117,3 +117,5 @@ Unknown/wrong-owner/expired tokens use the same public error. Callback exception
 This is an alpha protocol. A changed envelope or incompatible state interpretation requires a protocol/version migration and explicit reload behavior. Unsupported protocol versions are rejected rather than interpreted heuristically.
 
 Design references: [OWASP session management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html) explains opaque identifiers, entropy, binding and expiry; [Node crypto.randomBytes](https://nodejs.org/api/crypto.html#cryptorandombytessize-callback) defines the cryptographic generator used here. Both were inspected during implementation. This design is not a claim of complete ASVS conformance or a substitute for external security review.
+
+The complete request/response/error shapes, published JSON Schemas, error catalog, capability negotiation rules and limits table are in the [Live protocol reference](../reference/live-protocol.md).

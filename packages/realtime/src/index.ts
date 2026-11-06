@@ -11,6 +11,8 @@ export {
   RealtimeRejection,
   type HubLimits,
   type IdentityResolver,
+  type PresenceMember,
+  type PresenceSnapshot,
   type RealtimeCloseReason,
   type RealtimeIdentity,
   type RealtimePolicy,
@@ -33,6 +35,11 @@ export {
 } from './token.js';
 export {
   JobRunner,
+  MemoryJobQueue,
+  type EnqueueOptions,
+  type JobChange,
+  type JobQueue,
+  type JobRecord,
   type JobContext,
   type JobHandler,
   type JobRunnerOptions,

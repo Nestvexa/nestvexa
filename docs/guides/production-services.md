@@ -29,18 +29,49 @@ NESTVEXA_S3_ACCESS_KEY=nestvexa NESTVEXA_S3_SECRET_KEY=nestvexa-secret \
 NESTVEXA_CLAMD_PORT=3310 pnpm test:services
 ```
 
-| Service | What is verified                                                                                                                                                                                                   |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Redis   | `RespRealtimeBroker` delivers an event published in one Node process to a subscriber in a second process; with `NESTVEXA_REDIS_CONTAINER`, the container is restarted and delivery resumes afterwards              |
-| S3      | `S3Storage` signed PUT, HEAD, GET, Range GET and DELETE; a presigned GET with an attachment disposition; a presigned PUT that rejects a body of the wrong length; a request signed with a wrong secret is rejected |
-| clamd   | `ClamdScanner` reports a clean document as clean and the harmless EICAR test string as infected                                                                                                                    |
+| Service | What is verified                                                                                                                                                                                                                                          |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Redis   | `RespRealtimeBroker` delivers an event published in one Node process to a subscriber in a second process; with `NESTVEXA_REDIS_CONTAINER`, the container is restarted and delivery resumes afterwards                                                     |
+| Redis   | `RedisLiveStore`: state created by one store instance is continued by another; replayed revisions and foreign bindings are rejected; one transaction per entry across instances; revoke during a transaction aborts the commit; `PX` TTL and lease expiry |
+| Redis   | Two-replica browser acceptance (`playwright.services.config.ts`, `tests/services/distributed.spec.ts`): see below. Skip with `NESTVEXA_SERVICES_BROWSER=0`                                                                                                |
+| S3      | `S3Storage` signed PUT, HEAD, GET, Range GET and DELETE; a presigned GET with an attachment disposition; a presigned PUT that rejects a body of the wrong length; a request signed with a wrong secret is rejected                                        |
+| clamd   | `ClamdScanner` reports a clean document as clean and the harmless EICAR test string as infected                                                                                                                                                           |
 
 The admin identity creates the bucket on first write. The 2026-11-02 run used
 redis:7-alpine, chrislusf/seaweedfs (S3 API 4.50) and clamav/clamav:stable on
 Docker Desktop 29.1.3.
 
+## Two-replica acceptance test
+
+With `NESTVEXA_REDIS_PORT` set, `pnpm test:services` builds nothing itself (run
+`pnpm build` first, plus `pnpm exec playwright install chromium` once) and starts
+[`examples/distributed-live`](../../examples/distributed-live/README.md) twice
+plus its development proxy, all sharing Redis, a fresh key prefix and random
+secrets:
+
+| Process   | Port | Realtime transport | Role                                     |
+| --------- | ---- | ------------------ | ---------------------------------------- |
+| replica a | 3220 | SSE                | `RedisRealtimeBroker`, `RedisLiveStore`  |
+| replica b | 3221 | WebSocket          | same                                     |
+| proxy     | 3222 | —                  | public origin; `nv_replica=b` cookie → b |
+
+Chromium then verifies that an event published on replica B refreshes a browser
+whose SSE stream is held by replica A (and the reverse over B's WebSocket), that
+a Live component whose state was created on A continues on B (and a replayed
+revision is rejected on A), and that another identity's stolen subscription
+token, snapshot or forged cookie is rejected on both replicas. The GitHub
+workflow `.github/workflows/services.yml` runs the same command against a
+`redis:7-alpine` service container. To run only the browser part:
+
+```sh
+NESTVEXA_REDIS_PORT=6379 pnpm exec playwright test -c playwright.services.config.ts
+```
+
 ## Semantics to plan for
 
+- `RedisLiveStore` needs one Redis primary (standalone or Sentinel); Redis
+  Cluster is not supported. Every Live action costs about seven round trips, and
+  an action that outlives `lockTtlMs` fails closed (the browser reloads).
 - Redis pub/sub is fire-and-forget. Events published while a replica is
   disconnected are lost; the broker reconnects with bounded backoff, restores
   its subscriptions, and browsers refresh authoritative state after reconnecting.

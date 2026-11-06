@@ -7,6 +7,7 @@ import {
   copyViewModel,
   expressViewModel,
   invokeViewHelper,
+  parseViewName,
   resolveTemplateReference,
   type RenderOptions,
   type ViewCapabilities,
@@ -32,6 +33,10 @@ export interface EjsOptions {
   readonly partials?: Readonly<Record<string, string>>;
   /** Trusted synchronous functions exposed as template locals. */
   readonly helpers?: Readonly<Record<string, ViewHelper>>;
+  /** Namespace -> trusted directory, addressed as `admin::users/index`. */
+  readonly namespaces?: Readonly<Record<string, string>>;
+  /** Theme -> trusted override directory, selected per render with `RenderOptions.theme`. */
+  readonly themes?: Readonly<Record<string, string>>;
 }
 
 const capabilities: ViewCapabilities = Object.freeze({
@@ -90,6 +95,8 @@ export class EjsEngine implements ViewEngineAdapter {
   readonly #sources = new Map<string, string>();
   /** Partial aliases of the synchronous render currently executing. */
   #activeAliases: Aliases | undefined;
+  /** Theme of the synchronous render currently executing. */
+  #activeTheme: string | undefined;
   constructor(options: EjsOptions) {
     this.#root = new TemplateRoot({
       root: options.root,
@@ -97,6 +104,10 @@ export class EjsEngine implements ViewEngineAdapter {
       ...(options.maxTemplateBytes === undefined
         ? {}
         : { maxTemplateBytes: options.maxTemplateBytes }),
+      ...(options.namespaces === undefined
+        ? {}
+        : { namespaces: options.namespaces }),
+      ...(options.themes === undefined ? {} : { themes: options.themes }),
     });
     this.#cacheEntries = options.cacheEntries ?? 256;
     if (!Number.isSafeInteger(this.#cacheEntries) || this.#cacheEntries < 1)
@@ -169,8 +180,8 @@ export class EjsEngine implements ViewEngineAdapter {
     });
     return Object.freeze({ render, filename });
   }
-  async #template(view: string): Promise<Compiled> {
-    const filename = await this.#root.resolve(view);
+  async #template(view: string, theme: string | undefined): Promise<Compiled> {
+    const filename = await this.#root.resolve(view, undefined, theme);
     const cached = this.#options.cache
       ? this.#templates.get(filename)
       : undefined;
@@ -180,12 +191,13 @@ export class EjsEngine implements ViewEngineAdapter {
     return compiled;
   }
   /**
-   * Resolve an include reference. Aliases resolve first; `/x` is root-relative;
-   * other references are relative to the including template. Traversal,
-   * absolute, UNC, drive, backslash, control and NUL references are rejected by
-   * pure string validation before any filesystem call (including existence
-   * probes, which on Windows could reach a remote SMB share or abort the
-   * process for U+10FFFF).
+   * Resolve an include reference. Aliases resolve first; `/x` names the
+   * default root; `ns::x` names a namespace; other references are relative to
+   * the including template (inside its namespace). The active theme's
+   * overrides apply. Traversal, absolute, UNC, drive, backslash, control and
+   * NUL references are rejected by pure string validation before any
+   * filesystem call (including existence probes, which on Windows could reach
+   * a remote SMB share or abort the process for U+10FFFF).
    */
   #include(
     reference: string,
@@ -198,12 +210,24 @@ export class EjsEngine implements ViewEngineAdapter {
     let id: string;
     if (alias !== undefined) id = alias;
     else {
-      const parentId = this.#root.viewFromFile(parent);
-      if (parentId === undefined)
-        throw new ViewError('INVALID_VIEW', 'Template include escapes root');
-      id = this.#root.id(resolveTemplateReference(parentId, reference));
+      // Validates the reference itself (no filesystem access) in every branch.
+      const local = resolveTemplateReference(undefined, reference);
+      if (
+        reference.startsWith('/') ||
+        parseViewName(reference).namespace !== undefined
+      )
+        id = this.#root.id(local);
+      else {
+        // The engine-owned include knows the including file, so relative
+        // references resolve against its ID (namespace and theme mounts
+        // included) instead of an EJS-probed filesystem path.
+        const parentId = this.#root.viewFromFile(parent);
+        if (parentId === undefined)
+          throw new ViewError('INVALID_VIEW', 'Template include escapes root');
+        id = this.#root.id(resolveTemplateReference(parentId, reference));
+      }
     }
-    const filename = this.#root.resolveSync(id);
+    const filename = this.#root.resolveSync(id, undefined, this.#activeTheme);
     const cached = this.#options.cache
       ? this.#sources.get(filename)
       : undefined;
@@ -254,13 +278,17 @@ export class EjsEngine implements ViewEngineAdapter {
     compiled: Compiled,
     context: Record<string, unknown>,
     aliases: Aliases,
+    theme: string | undefined,
   ): string {
     const previous = this.#activeAliases;
+    const previousTheme = this.#activeTheme;
     this.#activeAliases = aliases;
+    this.#activeTheme = theme;
     try {
       return this.#execute(compiled, context);
     } finally {
       this.#activeAliases = previous;
+      this.#activeTheme = previousTheme;
     }
   }
   async render(
@@ -269,6 +297,7 @@ export class EjsEngine implements ViewEngineAdapter {
     options: RenderOptions = {},
   ): Promise<string> {
     try {
+      const theme = this.#root.theme(options.theme);
       const safe = copyViewModel(model, trusted);
       for (const key of Object.keys(safe))
         if (reservedLocals.has(key) || key.startsWith('__'))
@@ -300,10 +329,12 @@ export class EjsEngine implements ViewEngineAdapter {
         };
       }
       context['slots'] = copyViewModel(slots, trusted);
-      const main = await this.#template(view);
+      const main = await this.#template(view, theme);
       const layoutView = options.layout ?? this.#options.defaultLayout;
-      const layout = layoutView ? await this.#template(layoutView) : undefined;
-      const html = this.#run(main, context, aliases);
+      const layout = layoutView
+        ? await this.#template(layoutView, theme)
+        : undefined;
+      const html = this.#run(main, context, aliases, theme);
       if (!layout) return html;
       return this.#run(
         layout,
@@ -311,6 +342,7 @@ export class EjsEngine implements ViewEngineAdapter {
           body: new TrustedMarkup(html),
         }),
         aliases,
+        theme,
       );
     } catch (cause) {
       if (cause instanceof ViewError && cause.code !== 'RENDER_FAILED')

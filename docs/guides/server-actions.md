@@ -118,8 +118,68 @@ try {
 
 The client is framework-neutral and has no Node or Nest imports; bundle it with
 your page script (the example uses esbuild) under a strict `script-src 'self'`
-CSP. React/Vue/Svelte wrappers are planned for a later phase and will build on
-this client.
+CSP.
+
+## 5. Framework bindings, typed errors and optimistic updates
+
+Generate bindings next to the client:
+
+```sh
+nestvexa-actions-codegen --project tsconfig.json --out web/generated --targets react,vue,svelte,live
+```
+
+```tsx
+// React
+const hooks = createActionHooks(actions);
+function AddButton() {
+  const add = hooks.useCartAddItem({
+    optimistic: (cart, input) => withPendingLine(cart, input), // CartAddItemOptimistic
+    onError: (error) => focusField(error.issues[0]?.path[0]), // 'productId' | 'quantity' | undefined
+  });
+  return (
+    <button
+      disabled={add.pending}
+      onClick={() => add.run({ productId: 'mug', quantity: 1 })}
+    >
+      Add
+    </button>
+  );
+}
+```
+
+- Vue: `createActionComposables(actions).useCartAddItem()` returns `{ state, run, reset, abort }`
+  where `state` is a shallow ref disposed with the component scope.
+- Svelte: `createActionStores(actions).cartAddItem()` is a store (`$add.pending`).
+- Live/HBS pages: `createActionBindings(actions).bindCartAddItem(form, { input: (form) => ({ ... }) })`
+  wires a server-rendered form or button, reflects `aria-busy` /
+  `data-nv-action-state`, marks invalid fields (`aria-invalid`) and fills
+  `[data-nv-error-for=<field>]`.
+
+All bindings share `createActionController`: `run` never rejects for action
+failures (it resolves `{ ok, data } | { ok: false, error }`), a newer call
+aborts the previous one, and optimistic data is rolled back on failure. The
+generated `CartAddItemError` type is `ActionFailure<'productId' | 'quantity'>`,
+so validation issues are typed by field. `settle(promise)` gives the same
+discriminated result for plain calls.
+
+## 6. Long-running work: job tickets
+
+Declare `@ServerAction({ id: 'export-report', job: true })` and return
+`acceptJob('export-report', async ({ progress, signal }) => result)`. Configure
+`jobs: { queue: jobRunnerQueue(new JobRunner()), channel: JobRunner.channel }`
+(any object with `enqueue`/`get`/`cancel` works; `@nestvexa/realtime` is not a
+dependency). The
+call answers `202`; the generated method resolves to a job handle:
+
+```ts
+const job = await actions.reports.exportReport({ rows: 100 });
+const file = await job.wait({ onProgress: (s) => bar(s.progress), signal });
+// or subscribe to job.stream?.channel through @nestvexa/realtime
+```
+
+Status polling and cancellation (`<prefix>/_jobs/status|cancel`) pass the same
+admission and host policy (`authorize` sees group `_jobs`) and only the owner
+can see or cancel a job.
 
 ## Validation
 
@@ -159,8 +219,12 @@ map them to DTOs. `Date` and other `toJSON()` values serialize normally.
 ## Errors and observability
 
 Every response has `x-nestvexa-request-id`; failures use stable codes. Pass
-`onError` to forward `{ requestId, action, code, status, error }` to your logger
-or tracer. Keep `exposeErrorDetails` off outside development. If your platform
+`instrumentation` (for example `openTelemetryInstrumentation(tracer)` or
+`MemoryInstrumentation` from `@nestvexa/observability`) for one
+`nestvexa.action` span per call, and `logger` (for example `createLogger()`) for
+one structured record per call (request id, action, status, code, duration,
+replay, job id; never inputs or identities). `onError` still forwards
+`{ requestId, action, code, status, error }` for failures. Keep `exposeErrorDetails` off outside development. If your platform
 requires global exception filters to see action errors, set
 `errorEnvelope: 'host'`; the client then normalizes plain Nest error bodies by
 HTTP status.
@@ -169,5 +233,12 @@ HTTP status.
 
 Run `pnpm build` then `pnpm --filter @nestvexa/example-actions-basic start` and
 open <http://127.0.0.1:3111>. The [Playwright spec](../../tests/browser/actions.spec.ts)
-signs in, calls the typed client, and verifies that guest, CSRF-less, forged-token
-and cross-origin calls fail without side effects.
+signs in, calls the typed client through the generated Live/HBS binding, and
+verifies that guest, CSRF-less, forged-token and cross-origin calls fail without
+side effects. The [hybrid dashboard](../../examples/hybrid-dashboard) calls typed
+actions from React (hook), Vue (composable) and Svelte (store) islands and runs
+a job action with progress.
+
+## CLI
+
+`nestvexa make:action <Name>` generates an `@ActionGroup`, appends it to `actionGroups` and the deny-by-default `allowedActions` in `src/nestvexa/actions.config.ts` and registers `ActionsModule` once. See the [CLI reference](../reference/cli.md).

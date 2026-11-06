@@ -1,0 +1,34 @@
+{
+  "timestamp": "2026-11-05T20:15:38.285Z",
+  "node": "v24.13.0",
+  "platform": "win32",
+  "passed": true,
+  "services": [
+    {
+      "name": "redis",
+      "passed": true,
+      "steps": [
+        "cross-process publish delivered to a second Node process",
+        "subscriber resubscribed and received events after a broker restart"
+      ]
+    },
+    {
+      "name": "redis-live-store",
+      "passed": true,
+      "steps": [
+        "state created by one store instance is continued by another",
+        "replayed revisions and foreign bindings are rejected",
+        "one transaction per entry across store instances (SET NX PX lease)",
+        "revoke during a transaction aborts the WATCH/MULTI/EXEC commit",
+        "Redis PX enforces entry TTL and transaction lease expiry"
+      ]
+    },
+    {
+      "name": "redis-two-replicas-browser",
+      "passed": true,
+      "steps": [
+        "3 browser tests passed: replica B publish refreshes a browser on replica A (SSE) and back (WebSocket); Live state created on A continues on B; cross-identity isolation on both replicas"
+      ]
+    }
+  ]
+}

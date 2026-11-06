@@ -88,6 +88,28 @@ Busboy limits (files, fields, parts, header pairs, field size) and the purpose's
 `maxFileSize`/`maxFiles` apply while streaming; on failure every file from the
 request is deleted.
 
+## Forms integration
+
+`@nestvexa/forms` file fields store the same references as
+`uploadReferenceField` (`''`, `nvu_...` or a comma list). Finalize them with
+`finalizeFileField`, which maps `UploadError` codes to field errors
+(localizable through `messages`) and rethrows anything else:
+
+```ts
+const profile = defineForm({
+  fields: { caption: '' },
+  files: { avatar: { max: 1 } },
+});
+const files = await finalizeFileField(profile, state, 'avatar', (token) =>
+  this.uploads.finalize(request, token, { purpose: 'profile.avatar' }),
+);
+if (!files.ok) return { errors: files.errors }; // e.g. { avatar: ['This file was already submitted.'] }
+```
+
+Neither package depends on the other; upload errors are recognized by
+`name === 'UploadError'` and their `code`. Finalization still re-checks
+identity (binding and tenant), purpose, expiry, size, hash and content.
+
 ## 4. Storage
 
 - **LocalStorage** (default): `<directory>/objects/<2-char shard>/<43-char random>`.
@@ -121,6 +143,11 @@ or `error` (`503 SCAN_FAILED`, retryable until expiry). Without a scanner,
 with `503 SCANNER_REQUIRED`. Nestvexa itself does not detect malware.
 
 ## 6. Downloads and streaming
+
+Backpressure and idle timeouts are tested with a non-reading client (the
+source is paused and production stops until the client reads again), a client
+that stalls past `idleTimeoutMs` and a storage source that hangs mid-transfer
+(both destroy the transfer and the source; `tests/uploads-limits.test.ts`).
 
 `uploads.download` / `sendDownload` stream through backpressure (pausing the
 source until the socket drains), destroy idle transfers, and support a single

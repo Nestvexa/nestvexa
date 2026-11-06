@@ -1,6 +1,6 @@
 # ADR 0009: Authorized invalidation events with bounded delivery
 
-Date: 2026-10-25; implementation recorded 2026-11-01. Status: **implemented in `@nestvexa/realtime` (experimental); broker-level checks against real Redis pass; replica-level distributed acceptance remains open**.
+Date: 2026-10-25; implementation recorded 2026-11-01, distributed acceptance 2026-11-05. Status: **implemented in `@nestvexa/realtime` and `@nestvexa/realtime-redis` (experimental); broker, Live store and two-replica browser acceptance pass against real Redis; load testing remains open**. Distributed state and the Redis adapters: [ADR 0032](0032-distributed-state-and-redis.md).
 
 ## Decision
 
@@ -59,5 +59,23 @@ adapters, jobs), `tests/realtime-live.test.ts` and `tests/browser/realtime.spec.
 (cross-session SSE refresh, owner job progress, forged/foreign tokens, axe).
 `scripts/services-check.mjs` ran against Redis 7 on 2026-11-02: delivery across two OS
 processes and resubscription after a broker restart (the run found and fixed missing
-resubscription). Still unrun: two Nest replicas serving one browser through Redis,
-and load tests.
+resubscription).
+
+## Update (2026-11-05)
+
+- Presence (`describePresence`, `RealtimeService.presence`, per replica, bounded,
+  authorized readers only), per-identity `subscribesPerMinute` and
+  `publishesPerMinute` limits, and streams closed in `beforeApplicationShutdown`
+  (previously `app.close()` waited on open SSE streams).
+- Client `auto` transport falls back from SSE to long-polling at runtime; a
+  circuit breaker probes every five minutes after ten consecutive failures.
+- `JobRunner` runs over a pluggable `JobQueue` with idempotency keys and leases.
+- Evidence: `tests/realtime-hub.test.ts`, `tests/realtime-jobs.test.ts`,
+  `tests/client-realtime.test.ts`, `tests/browser/realtime-transports.spec.ts`
+  (WebSocket and `auto` fallback in real browsers) and
+  `tests/services/distributed.spec.ts` via `pnpm test:services`: two Nest replicas
+  (SSE and WebSocket) behind a proxy share Redis; an event published on one
+  replica refreshes a browser on the other in both directions, a Live component
+  created on one replica continues on the other, and foreign identities are
+  rejected on both. Still unrun: load tests and reconnect/deduplication across a
+  replica restart in a browser.

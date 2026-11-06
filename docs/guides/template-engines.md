@@ -108,6 +108,90 @@ fastify.decorateReply(
 
 Dispose the engine on shutdown (`onApplicationShutdown`). Use the same instance as the Live `renderer` so MVC pages and components share one cache.
 
+## Namespaces and themes
+
+Every first-party adapter (and any adapter built on `TemplateRoot`) accepts the same two options:
+
+```ts
+const engine = new HbsEngine({
+  root: 'src/views',
+  namespaces: {
+    admin: 'src/admin/views',
+    billing: 'node_modules/@acme/billing/views',
+  },
+  themes: { dark: 'src/themes/dark', acme: 'src/themes/acme' },
+});
+await engine.render('admin::users/index', model, { theme: 'acme' });
+```
+
+- `admin::users/index` resolves inside the `admin` directory. Namespace names are lowercase identifiers; unknown namespaces fail with `INVALID_VIEW`. The part after `::` follows the normal view-ID rules (no `..`, absolute paths, backslashes or `:`).
+- The application overrides any namespaced view by placing a file at `<root>/vendor/<namespace>/<path>` (the `vendor/` directory of the root is reserved for this).
+- `RenderOptions.theme` selects a registered theme for one render. Lookup order for `x`: `<theme>/x`, `<root>/x`. For `ns::x`: `<theme>/vendor/ns/x`, `<root>/vendor/ns/x`, `<ns dir>/x`. The theme applies to the view, its layouts and every partial/include. Theme names come from host configuration (for example a tenant setting), never from a filesystem path; unknown themes fail closed.
+- Real-path containment is checked against the configured directory each file was found in.
+
+| Engine   | Namespaced includes                                    | Theme overrides of includes                               |
+| -------- | ------------------------------------------------------ | --------------------------------------------------------- |
+| HBS      | partial aliases may point at `ns::path`                | yes                                                       |
+| EJS      | relative includes stay in the namespace; `ns::x` works | yes (`/x` is the default root)                            |
+| Pug      | relative and `/x` stay in the namespace; `ns::x` works | yes (cache key includes the theme; includes compile-time) |
+| Nunjucks | names are root IDs, so write `ns::path.njk`            | yes (one environment and cache per theme)                 |
+
+HBS precompiled views support namespaced IDs; selecting a theme with precompiled views fails with `UNSUPPORTED_CAPABILITY` because there are no override directories at runtime. The custom engine example rejects `theme` the same way.
+
+## Layout inheritance
+
+Pug (`extends`/`block`) and Nunjucks (`{% extends %}`/`{% block %}`) have native template inheritance, and EJS composes through `include`; use those inside layouts. HBS has no native inheritance, so the HBS adapter reads a leading directive in a layout:
+
+```hbs
+{{!< layouts/base}}
+<section class='admin'>{{body}}</section>
+```
+
+The layout chosen for a render (`RenderOptions.layout` or `defaultLayout`) receives the view as `body`; if that layout starts with `{{!< parent}}`, its output becomes the parent's `body`, and so on. Slots and the model are available at every level. Chains are limited to 8 layouts and cycles fail with `INVALID_VIEW`. `layout: false` still renders a bare fragment. The directive is a Handlebars comment, so it renders nothing; it is honored only in layouts. Precompiled modules record the parent of each layout.
+
+## View helpers
+
+`@nestvexa/views` exports engine-neutral, synchronous helpers. Register engine-wide helpers with the engine `helpers` option (or `HbsEngine.registerHelpers`), per-request helpers with `RenderOptions.helpers`. Helper arguments are normalized with `helperArguments`: Handlebars hash arguments, Nunjucks keyword arguments and plain objects (EJS/Pug) all work.
+
+| Factory                        | Helpers                                 | Notes                                                                                                                                                                                                                                                          |
+| ------------------------------ | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `routeHelpers(new RouteTable)` | `route(name, params?)`                  | Named routes, written by hand or read from Nest controllers with `routesFromControllers([UsersController], { prefix })` (names default to `UsersController.show`). Parameters are percent-encoded per segment; unknown routes and missing/unsafe values throw. |
+| `pageMetaHelpers(options?)`    | `pageTitle(meta)`, `metaTags(meta)`     | `metaTags` returns escaped `<title>`, description, canonical (http(s) or app-relative only), robots, `og:*` and extra `<meta>` tags. `titleTemplate: '%s · Site'`, `defaultTitle`.                                                                             |
+| `permissionHelpers(check)`     | `can(ability, subject?)`, `cannot(...)` | `check` is the host policy bound to the current request. Fail-closed: only a literal `true` grants; exceptions and malformed ability names deny. Per-request, so pass through `RenderOptions.helpers`.                                                         |
+| `grantPermissions(check, ...)` | (view data)                             | For `@Render` routes that cannot receive per-request helpers: precompute `{ canEdit: true, canDelete: false }` in the controller.                                                                                                                              |
+| `assetHelpers(provider)`       | `assetTags(name, nonce?)`               | `ViewAssetProvider` is `{ tags(name, { nonce? }): string }` returning already-escaped tags; `ViteAssets` from `@nestvexa/vite` matches it. Names are identifier-like and the nonce must look like base64.                                                      |
+
+```hbs
+<head>{{metaTags meta}}{{assetTags 'app' nonce=cspNonce}}</head>
+<a href='{{route "UsersController.show" id=user.id}}'>{{user.name}}</a>
+{{#if (can 'posts.edit' post)}}<button>Edit</button>{{/if}}
+```
+
+`route` returns a plain string, so the engine escapes it in the attribute. Hiding a control with `can` is presentation only: the route or action must still authorize.
+
+## Error pages
+
+`ViewErrorPageFilter` is a catch-all Nest exception filter (structural, `@nestvexa/views` does not import Nest):
+
+```ts
+app.useGlobalFilters(
+  new ViewErrorPageFilter({
+    development: process.env.NODE_ENV !== 'production',
+    render: (view, model) => engine.render(view, model),
+    views: {
+      '404': 'errors/404',
+      '5xx': 'errors/500',
+      default: 'errors/error',
+    },
+  }),
+);
+```
+
+- Requests whose `Accept` header names `text/html` get an HTML page; everything else (JSON APIs, Live and action calls) keeps Nest's default JSON body. Override with `html: (request) => boolean`.
+- Production views receive only `{ status, title, message? }`; `message` is present for 4xx `HttpException` messages (which Nest treats as public). 5xx details never reach the page. If the error view itself fails, a minimal built-in page is sent.
+- `development: true` shows a built-in, fully escaped page with the error chain, stacks and, for `ViewError`s from a debug-mode adapter, the failing template and line. Never enable it in production.
+- 5xx errors are passed to `log` (default `console.error`). `renderErrorPage(error, options)` is the framework-neutral core.
+
 ## Shared security rules
 
 All first-party adapters, and adapters built with the kit below, enforce the same rules as HBS:
@@ -116,7 +200,7 @@ All first-party adapters, and adapters built with the kit below, enforce the sam
 - Template-authored includes follow the same rules: EJS and Pug allow `/x` (root-relative) and descending relative references; Nunjucks names are always root-relative. Raw includes cannot read files outside the root, and template size limits apply to every included file. View IDs and references containing control characters, unpaired surrogates or Unicode noncharacters are refused before any filesystem call (on Windows, Node aborts the process for paths containing U+10FFFF). The EJS adapter resolves `include()` itself, so EJS never probes the filesystem with a raw reference.
 - Models accept finite JSON values, `undefined` and `SafeHtml` only. Prototype keys, accessors (never invoked), class instances, functions, symbols, cycles, depth over 32 and more than 10,000 values are rejected.
 - Engine features that would widen file access or execution are not used: EJS `renderFile` option merging and global cache, Pug's global cache and `jstransformer-*` auto-loading, Nunjucks `FileSystemLoader`/`watch` and `autoescape: false`.
-- Errors are `ViewError` (`INVALID_VIEW`, `UNSAFE_MODEL`, `UNSUPPORTED_CAPABILITY`, `RENDER_FAILED`). With `debug` (default when `cache` is off) messages name the failing template and line; production messages name only the view. Never send `cause` to clients.
+- Errors are `ViewError` (`INVALID_VIEW`, `UNSAFE_MODEL`, `UNSUPPORTED_CAPABILITY`, `RENDER_FAILED`). With `debug` (default when `cache` is off) messages name the failing template and line, for example `Unable to render view: home (partials/row.hbs:2)`; production messages name only the view. HBS locates parse errors, helper and built-in helper exceptions, missing helpers and missing partials (by the line of the `{{> name}}` reference); precompiled HBS views report the template but no line for missing partials. Never send `cause` to clients.
 
 ## Writing a custom adapter
 
@@ -138,6 +222,11 @@ Checklist for adapter authors: declare only capabilities you implement; never pa
 
 ## Not yet available
 
-- `nestvexa add engine <name>` CLI commands (Phase 15) are not implemented; install and wire adapters manually as above.
 - Umbrella `NestvexaModule.forRoot({ views: { engine } })` selection of a non-HBS engine is not implemented.
 - Streaming, async helpers/filters and precompilation for EJS, Pug and Nunjucks are unsupported.
+- Themes with precompiled HBS views are not supported. In EJS, `/x` always names the default root (it never stays inside the current namespace); use `ns::x` or a relative reference for namespaced partials.
+- `routesFromControllers` encodes neither host nor version constraints and uses only the first path of a multi-path handler.
+
+## CLI
+
+`nestvexa add engine ejs|pug|nunjucks` adds the adapter, `src/nestvexa/engines/<engine>.engine.ts` (registered for Express in `main.ts`) and `views/layouts/main.<ext>`; `nestvexa make:page <Name> --renderer <engine>` generates a controller rendering `views/pages/<name>.<ext>`. See the [CLI reference](../reference/cli.md).

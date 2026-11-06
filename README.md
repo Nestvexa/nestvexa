@@ -16,17 +16,37 @@ replacing them.
 
 ## Architecture at a glance
 
-| Mode    | Flow                                                                                          | Package(s)                                               |
-| ------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| MVC     | Nest controller → `@Render()` → HBS view → HTML                                               | `nestvexa`, `@nestvexa/views`, `@nestvexa/engine-hbs`    |
-| Live    | Registered component → server render → browser runtime → authorized actions → keyed DOM morph | `@nestvexa/live`, `@nestvexa/client`, `@nestvexa/alpine` |
-| Inertia | Nest controller → page object / initial HTML → official React, Vue or Svelte client (SSR)     | `@nestvexa/inertia`, `@nestvexa/react                    | vue | svelte` |
-| Hybrid  | HBS/Live pages with nested Live children and allowlisted React/Vue/Svelte islands             | `@nestvexa/live`, `@nestvexa/islands`                    |
-| API     | REST endpoints are untouched; typed universal server actions are opt-in                       | `@nestvexa/actions`                                      |
+| Mode    | Flow                                                                                          | Package(s)                                                                    |
+| ------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| MVC     | Nest controller → `@Render()` → HBS view → HTML                                               | `nestvexa`, `@nestvexa/views`, `@nestvexa/engine-hbs`                         |
+| Live    | Registered component → server render → browser runtime → authorized actions → keyed DOM morph | `@nestvexa/live`, `@nestvexa/client`, `@nestvexa/alpine`                      |
+| Inertia | Nest controller → page object / initial HTML → official React, Vue or Svelte client (SSR)     | `@nestvexa/inertia`, `@nestvexa/react`, `@nestvexa/vue` or `@nestvexa/svelte` |
+| Hybrid  | HBS/Live pages with nested Live children and allowlisted React/Vue/Svelte islands             | `@nestvexa/live`, `@nestvexa/islands`                                         |
+| API     | REST endpoints are untouched; typed universal server actions are opt-in                       | `@nestvexa/actions`                                                           |
 
 The core kernel imports no renderer, browser or framework code; boundaries are
 enforced by `scripts/boundaries.mjs`. See the [architecture overview](docs/architecture/overview.md)
 and [dependency graph](docs/architecture/package-dependency-graph.md).
+
+## Documentation
+
+Start with [getting started](docs/getting-started/README.md), which has one page per
+mode: MVC, Live, Inertia (React, Vue or Svelte), hybrid islands and API. Then read
+the [tutorials](docs/tutorials/README.md): a CRUD app, realtime, uploads and
+deployment. Topic pages:
+
+- [guides](docs/guides/)
+- [deployment](docs/deployment/README.md)
+- [testing](docs/testing/guide.md)
+- [security](docs/security/guide.md)
+- [migration](docs/migration/from-nest-mvc.md)
+
+The [feature matrix](docs/feature-matrix.md) shows what is shipped, partial or
+missing.
+
+`pnpm build && pnpm docs:build` builds the documentation site into `artifacts/docs`,
+including an API reference generated from every package's type declarations
+([site README](apps/docs/README.md)). The site is not hosted publicly yet.
 
 ## Quick start (existing Nest app)
 
@@ -115,6 +135,7 @@ data-only grammar — no expressions are evaluated. See the
 | [@nestvexa/flags](packages/flags/README.md)                     | Server-enforced feature flags: guard, view and Live policy helpers (optional)            |
 | [@nestvexa/offline](packages/offline/README.md)                 | Identity-scoped drafts, read-only snapshots, safe reconnect (optional)                   |
 | [@nestvexa/realtime](packages/realtime/README.md)               | SSE/WebSocket/polling invalidation, Redis-protocol broker, jobs (optional)               |
+| [@nestvexa/realtime-redis](packages/realtime-redis/README.md)   | Redis Live state store and realtime broker for multiple replicas (optional)              |
 | [@nestvexa/cache](packages/cache/README.md)                     | Privacy-scoped cache with tags and single flight (optional)                              |
 | [@nestvexa/observability](packages/observability/README.md)     | Tracing spans, metrics, redacted logs, devtools (optional)                               |
 | [@nestvexa/cli](packages/cli/README.md)                         | `nestvexa` command line                                                                  |
@@ -179,6 +200,24 @@ pnpm checkpoint:check     # all of the above plus coverage, bench, audit and rel
 
 `release:check` intentionally fails while mandatory acceptance work remains.
 Linux execution, real Redis/S3/ClamAV services and load tests have not been run.
+
+## Known limitations
+
+- This is an alpha with no stability promise. There has been no independent security
+  review, and no load, fuzz or mutation testing.
+- Live state lives in one process (`MemoryLiveStore`). Several replicas need sticky
+  sessions. No two-replica Redis browser run has been executed.
+- Not implemented yet:
+  - Inertia Precognition
+  - typed React/Vue/Svelte action hooks
+  - island SSR
+  - CLI scaffolding for React/Vue/Svelte pages
+- 15 packages cannot be loaded with `require()` from CommonJS yet; use `import()`
+  there ([details](docs/architecture/package-dependency-graph.md#output-format)).
+- As of 2026-11-05 the packages do not appear on the public npm registry. Install
+  them from the `pnpm test:pack` tarballs.
+
+The [feature matrix](docs/feature-matrix.md) and [roadmap](ROADMAP.md) list the rest.
 
 ## Project
 

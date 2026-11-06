@@ -3,11 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json && tsc -p client/react/tsconfig.json && vue-tsc -p client/vue/tsconfig.json && svelte-check --tsconfig client/svelte/tsconfig.json --fail-on-warnings && pnpm run build:react && pnpm run build:vue && pnpm run build:svelte",
+    "build": "tsc -p tsconfig.json && tsc -p client/react/tsconfig.json && vue-tsc -p client/vue/tsconfig.json && svelte-check --tsconfig client/svelte/tsconfig.json --fail-on-warnings && tsc -p client/live/tsconfig.json && pnpm run build:react && pnpm run build:vue && pnpm run build:svelte && pnpm run build:live",
     "build:react": "vite build -c vite.react.config.ts && vite build -c vite.react.config.ts --ssr client/react/ssr.tsx",
     "build:vue": "vite build -c vite.vue.config.ts && vite build -c vite.vue.config.ts --ssr client/vue/ssr.ts",
     "build:svelte": "vite build -c vite.svelte.config.ts && vite build -c vite.svelte.config.ts --ssr client/svelte/ssr.ts",
-    "start": "node dist/main.js"
+    "start": "node dist/main.js",
+    "build:live": "vite build -c vite.live.config.ts"
   },
   "dependencies": {
     "@inertiajs/react": "3.10.0",
@@ -21,6 +22,7 @@
     "@nestvexa/svelte": "workspace:*",
     "@nestvexa/vite": "workspace:*",
     "@nestvexa/vue": "workspace:*",
+    "express-session": "1.19.0",
     "nestvexa": "workspace:*",
     "react": "19.3.1",
     "react-dom": "19.3.1",
@@ -32,6 +34,7 @@
   "devDependencies": {
     "@inertiajs/core": "3.10.0",
     "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "@types/express-session": "1.19.0",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",

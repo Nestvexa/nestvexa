@@ -59,6 +59,20 @@ export default defineConfig({
       url: 'http://127.0.0.1:3111/api/health',
       reuseExistingServer: false,
     },
+    // Standalone distributed-live replicas for the WebSocket and `auto`
+    // transport browser tests (the Redis two-replica suite is test:services).
+    {
+      command: 'pnpm --filter @nestvexa/example-distributed-live start',
+      url: 'http://127.0.0.1:3226/api/health',
+      env: { PORT: '3226', REALTIME_TRANSPORT: 'websocket' },
+      reuseExistingServer: false,
+    },
+    {
+      command: 'pnpm --filter @nestvexa/example-distributed-live start',
+      url: 'http://127.0.0.1:3227/api/health',
+      env: { PORT: '3227', REALTIME_TRANSPORT: 'auto' },
+      reuseExistingServer: false,
+    },
     // Phase 9-11 frontend adapters (Vite production builds + SSR). The React
     // example renders through the official Inertia SSR server process.
     {
@@ -82,6 +96,28 @@ export default defineConfig({
     {
       command: 'pnpm --filter @nestvexa/example-inertia-svelte start:e2e',
       url: 'http://127.0.0.1:3108',
+      reuseExistingServer: false,
+      timeout: 180000,
+    },
+    // Client-only mode (SSR disabled) of the same three builds.
+    {
+      command: 'pnpm --filter @nestvexa/example-inertia-react start:csr',
+      url: 'http://127.0.0.1:3210',
+      env: { PORT: '3210' },
+      reuseExistingServer: false,
+      timeout: 180000,
+    },
+    {
+      command: 'pnpm --filter @nestvexa/example-inertia-vue start:csr',
+      url: 'http://127.0.0.1:3211',
+      env: { PORT: '3211' },
+      reuseExistingServer: false,
+      timeout: 180000,
+    },
+    {
+      command: 'pnpm --filter @nestvexa/example-inertia-svelte start:csr',
+      url: 'http://127.0.0.1:3212',
+      env: { PORT: '3212' },
       reuseExistingServer: false,
       timeout: 180000,
     },

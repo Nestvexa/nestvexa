@@ -156,23 +156,24 @@ All need the host identity and `x-nestvexa-csrf`; non-GET routes need the exact
 
 ## Defaults
 
-| Option                                          | Default                             | Bounds          |
-| ----------------------------------------------- | ----------------------------------- | --------------- |
-| `endpoint`                                      | `/_nestvexa/uploads`                |                 |
-| `tokenTtlMs`                                    | 15 min                              | 10 s – 24 h     |
-| `chunkSize`                                     | 1 MiB                               | 16 KiB – 16 MiB |
-| `idleTimeoutMs` / `maxRequestMs`                | 30 s / 10 min                       |                 |
-| `sweepIntervalMs`                               | 60 s                                |                 |
-| `scanTimeoutMs`                                 | 60 s                                |                 |
-| purpose `maxFiles`                              | 10 pending per identity/purpose     | 1 – 100         |
-| purpose `allowEmpty` / `requireScan` / `direct` | `false`                             |                 |
-| quotas identity files / bytes                   | 20 / 256 MiB                        |                 |
-| quotas tenant files / bytes                     | 200 / 2 GiB                         |                 |
-| quotas process files / bytes                    | 2000 / 8 GiB                        |                 |
-| concurrent bodies per identity                  | 4                                   |                 |
-| requests per identity/minute                    | 240                                 |                 |
-| `storage`                                       | `LocalStorage(<directory>/objects)` |                 |
-| `scanner`                                       | none (`scan: 'not-configured'`)     |                 |
+| Option                                          | Default                                                                                             | Bounds          |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------- | --------------- |
+| `endpoint`                                      | `/_nestvexa/uploads`                                                                                |                 |
+| `tokenTtlMs`                                    | 15 min                                                                                              | 10 s – 24 h     |
+| `chunkSize`                                     | 1 MiB                                                                                               | 16 KiB – 16 MiB |
+| `idleTimeoutMs` / `maxRequestMs`                | 30 s / 10 min                                                                                       |                 |
+| `sweepIntervalMs`                               | 60 s                                                                                                |                 |
+| `scanTimeoutMs`                                 | 60 s                                                                                                |                 |
+| purpose `maxFiles`                              | 10 pending per identity/purpose                                                                     | 1 – 100         |
+| purpose `allowEmpty` / `requireScan` / `direct` | `false`                                                                                             |                 |
+| quotas identity files / bytes                   | 20 / 256 MiB                                                                                        |                 |
+| quotas tenant files / bytes                     | 200 / 2 GiB                                                                                         |                 |
+| quotas process files / bytes                    | 2000 / 8 GiB                                                                                        |                 |
+| concurrent bodies per identity                  | 4                                                                                                   |                 |
+| requests per identity/minute                    | 240                                                                                                 |                 |
+| `storage`                                       | `LocalStorage(<directory>/objects)`                                                                 |                 |
+| `scanner`                                       | none (`scan: 'not-configured'`)                                                                     |                 |
+| `instrumentation`                               | none (`nestvexa.upload.receive` / `.finalize` spans: mode, purpose, bytes, file count; never names) |                 |
 
 ## Security model
 
@@ -215,7 +216,7 @@ All need the host identity and `x-nestvexa-csrf`; non-GET routes need the exact
 
 ```sh
 pnpm build
-pnpm exec vitest run tests/uploads-validation.test.ts tests/uploads-http.test.ts tests/uploads-s3.test.ts tests/client-upload.test.ts
+pnpm exec vitest run tests/uploads-validation.test.ts tests/uploads-http.test.ts tests/uploads-limits.test.ts tests/uploads-s3.test.ts tests/client-upload.test.ts
 pnpm exec playwright test tests/browser/uploads.spec.ts
 ```
 
@@ -224,9 +225,22 @@ in-process S3-compatible **test double** (`tests/support/fake-s3.ts`).
 `pnpm test:services` runs `S3Storage` against a real S3-compatible server (signed
 PUT/HEAD/GET/Range/DELETE, presigned URLs, forged-signature rejection) and
 `ClamdScanner` against a real clamd (clean file and EICAR); the 2026-11-02 run used
-SeaweedFS and ClamAV in Docker. See the
+SeaweedFS and ClamAV in Docker and is recorded in
+[`services-evidence-2026-11-02.json`](../../docs/implementation/services-evidence-2026-11-02.json). See the
 [production services guide](../../docs/guides/production-services.md). Real AWS S3
 has not been exercised.
+
+`tests/uploads-limits.test.ts` exhausts tenant file/byte and process-wide
+file/byte quotas over real HTTP (and shows quota release on cancel and on
+finalize), drives `sendDownload` with a non-reading client, a client stalled
+past the idle timeout and a hanging source, and finalizes uploads through
+`@nestvexa/forms` file fields.
+
+## Forms
+
+`@nestvexa/forms` `defineForm({ files })` holds upload references in form
+state and `finalizeFileField` maps `UploadError` codes to field errors; see the
+[uploads guide](../../docs/guides/uploads.md#forms-integration).
 
 ## Production caveats
 
@@ -236,7 +250,9 @@ has not been exercised.
 - Polyglot files (valid image headers carrying other data) cannot be ruled out by
   signature checks; downloads are therefore served as sandboxed attachments.
 - Direct (S3) uploads are re-read in full on completion and finalization.
-- Inertia/React/Vue/Svelte upload adapters are not implemented yet.
+- Inertia/React/Vue/Svelte upload adapters are not implemented yet; the Inertia
+  examples upload multipart with the official `useForm` progress and Nest's
+  own file interceptor, not this package.
 
 ## Compatibility
 

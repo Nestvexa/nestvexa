@@ -1,0 +1,38 @@
+{
+  "name": "Precognition request with invalid input answers 422 with Laravel-shaped { message, errors }",
+  "source": [
+    "https://inertiajs.com/docs/v3/core-concepts/the-protocol (request headers Precognition, Precognition-Validate-Only; response headers Precognition, Precognition-Success, Vary; status codes 204 and 422)",
+    "laravel-precognition 2.1.1 dist/client.js as bundled by @inertiajs/core 3.10.0 (successResolver: 204 + precognition-success, validatePrecognitionResponse, onValidationError reads response.data.errors)",
+    "Laravel ValidationException::summarize message format (first message plus '(and N more error)')"
+  ],
+  "notes": "The handler records a forbidden call; the harness asserts it never ran.",
+  "serverVersion": "",
+  "request": {
+    "method": "POST",
+    "path": "/precognition/users",
+    "headers": {
+      "precognition": "true",
+      "accept": "application/json",
+      "content-type": "application/json"
+    },
+    "body": {
+      "name": "",
+      "email": "not-an-email"
+    }
+  },
+  "response": {
+    "status": 422,
+    "headers": {
+      "precognition": "true",
+      "vary": "Precognition"
+    },
+    "absentHeaders": ["precognition-success", "x-inertia"],
+    "json": {
+      "message": "The name field is required. (and 1 more error)",
+      "errors": {
+        "name": ["The name field is required."],
+        "email": ["The email must be a valid email address."]
+      }
+    }
+  }
+}

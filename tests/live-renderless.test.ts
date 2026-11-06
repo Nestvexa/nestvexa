@@ -32,6 +32,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { tap } from 'rxjs';
 import { afterEach, describe, expect, it } from 'vitest';
+import { memoryStore } from './support/memory-store.js';
 import { HbsEngine } from '../packages/engine-hbs/dist/index.js';
 import {
   Action,
@@ -566,9 +567,9 @@ describe.each(['express', 'fastify'] as const)(
       expect(Object.values(f.session)).toEqual([
         expect.objectContaining({ value: 'changed' }),
       ]);
-      expect(f.runtime.store.peek(reply.snapshot, binding).state).toEqual(
-        reply.state,
-      );
+      expect(
+        memoryStore(f.runtime).peek(reply.snapshot, binding).state,
+      ).toEqual(reply.state);
       const second = await f.post({ snapshot: reply.snapshot, revision: 1 });
       const next = (await second.json()) as Reply;
       expect(next.component.revision).toBe(2);
@@ -576,29 +577,52 @@ describe.each(['express', 'fastify'] as const)(
       f.settings.throwRender = false;
       const mounted = await f.mount();
       expect(
-        f.runtime.store.peek(mounted.snapshot, binding).state['label'],
+        memoryStore(f.runtime).peek(mounted.snapshot, binding).state['label'],
       ).toBe('changed');
     });
 
-    it.each([
-      null,
-      '',
-      'renderless-v2',
-      'renderless-v1, other',
-      'RENDERLESS-V1',
-    ])('falls back to full rendering for capability %s', async (capability) => {
-      const f = await fixture(platform);
-      const response = await f.post(f.initial, { capability });
-      expect(response.status).toBe(201);
-      const reply = (await response.json()) as Reply;
-      expect(reply).not.toHaveProperty('renderless');
-      expect(reply.html).toContain('<b>4</b>');
-      expect(f.hooks).toContain('beforeRender');
-      expect(f.hooks).toContain('afterRender');
-      expect(f.hooks).toContain('computed');
-      expect(f.hooks).toContain('computed:async');
-      expect(f.renders()).toBe(1);
-    });
+    it.each(['renderless-v1, other-v1', 'other-v2,renderless-v1'])(
+      'negotiates renderless from capability list %s',
+      async (capability) => {
+        const f = await fixture(platform);
+        const response = await f.post(f.initial, { capability });
+        expect(response.status).toBe(201);
+        const reply = (await response.json()) as Reply;
+        expect(reply).toMatchObject({ renderless: true, html: '' });
+        expect(f.renders()).toBe(0);
+      },
+    );
+
+    it.each(['RENDERLESS-V1', 'renderless-v1, other', 'renderless-v1;x'])(
+      'rejects malformed capability header %s before effects',
+      async (capability) => {
+        const f = await fixture(platform);
+        const response = await f.post(f.initial, { capability });
+        expect(response.status).toBe(400);
+        expect(await response.json()).toEqual({
+          statusCode: 400,
+          code: 'INVALID_CAPABILITIES',
+        });
+        expect(f.renders()).toBe(0);
+      },
+    );
+
+    it.each([null, '', 'renderless-v2', 'other-v1'])(
+      'falls back to full rendering for capability %s',
+      async (capability) => {
+        const f = await fixture(platform);
+        const response = await f.post(f.initial, { capability });
+        expect(response.status).toBe(201);
+        const reply = (await response.json()) as Reply;
+        expect(reply).not.toHaveProperty('renderless');
+        expect(reply.html).toContain('<b>4</b>');
+        expect(f.hooks).toContain('beforeRender');
+        expect(f.hooks).toContain('afterRender');
+        expect(f.hooks).toContain('computed');
+        expect(f.hooks).toContain('computed:async');
+        expect(f.renders()).toBe(1);
+      },
+    );
 
     it.each(['normal', '_sync'])(
       'renders %s even when support is negotiated',
@@ -649,9 +673,9 @@ describe.each(['express', 'fastify'] as const)(
       expect((await f.post()).status).toBe(403);
       expect(f.hooks).toEqual([]);
       expect(f.renders()).toBe(0);
-      expect(f.runtime.store.peek(f.initial.snapshot, binding).revision).toBe(
-        0,
-      );
+      expect(
+        memoryStore(f.runtime).peek(f.initial.snapshot, binding).revision,
+      ).toBe(0);
       f.settings.deny = false;
       expect((await f.post()).status).toBe(201);
     });
@@ -715,7 +739,7 @@ describe.each(['express', 'fastify'] as const)(
 
     it('checks schema before effects and revokes incompatible snapshots', async () => {
       const f = await fixture(platform);
-      const incompatible = f.runtime.store.create('editor', binding, {
+      const incompatible = memoryStore(f.runtime).create('editor', binding, {
         removed: true,
       });
       const response = await f.post({

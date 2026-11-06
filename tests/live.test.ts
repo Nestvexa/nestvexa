@@ -31,6 +31,7 @@ import { APP_GUARD, HttpAdapterHost, REQUEST } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
 import { afterEach, describe, expect, it } from 'vitest';
+import { memoryStore } from './support/memory-store.js';
 import { tap } from 'rxjs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -515,7 +516,9 @@ describe.each(['express', 'fastify'] as const)(
       const result = (await response.json()) as Reply;
       expect(result.html).toContain('&lt;script&gt;');
       expect(result.html).not.toContain('<script>');
-      host.runtime.store.revoke('tenant-a/session-alice/principal-alice');
+      memoryStore(host.runtime).revoke(
+        'tenant-a/session-alice/principal-alice',
+      );
       expect(
         (
           await host.post(

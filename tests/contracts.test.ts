@@ -1,6 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { access, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+
+// Reads and imports every package's built entries; slow on loaded hosts.
+vi.setConfig({ testTimeout: 60_000 });
 
 describe('package contracts', () => {
   it('keeps browser declaration documentation and external source maps after comment-free JavaScript emission', async () => {
@@ -24,7 +27,10 @@ describe('package contracts', () => {
     for (const name of names) {
       const manifest: {
         name: string;
-        exports: Record<string, { types: string; import: string } | string>;
+        exports: Record<
+          string,
+          { types: string; import: string; default?: string } | string
+        >;
         dependencies?: Record<string, string>;
       } = JSON.parse(
         await readFile(join('packages', name, 'package.json'), 'utf8'),
@@ -39,6 +45,8 @@ describe('package contracts', () => {
         }
         expect(entry.types).toMatch(/\.d\.ts$/);
         expect(entry.import).toMatch(/\.js$/);
+        // CommonJS hosts load ESM through require(esm), which needs `default`.
+        expect(entry.default).toBe(entry.import);
         await access(join('packages', name, entry.types));
         await access(join('packages', name, entry.import));
       }

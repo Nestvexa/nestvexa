@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { afterEach, describe, expect, it } from 'vitest';
+import { memoryStore } from './support/memory-store.js';
 import { Test } from '@nestjs/testing';
 import { HttpException } from '@nestjs/common';
 import type { TestingModule } from '@nestjs/testing';
@@ -60,6 +61,6 @@ describe('Live initial mount resource limits', () => {
     if (!(rejected instanceof HttpException))
       throw new Error('Expected mount resource rejection');
     expect(rejected.getStatus()).toBe(413);
-    expect(runtime.store.size).toBe(0);
+    expect(memoryStore(runtime).size).toBe(0);
   });
 });

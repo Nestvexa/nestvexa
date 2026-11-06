@@ -7,13 +7,15 @@
     "dev": "tsx src/main.ts --dev",
     "start": "node dist/main.js",
     "start:ssr": "node --env-file=ssr.production.env dist/ssr/ssr.js",
-    "start:e2e": "node dist/main.js --test-controls"
+    "start:e2e": "node dist/main.js --test-controls",
+    "start:csr": "node dist/main.js --test-controls --client-only"
   },
   "dependencies": {
     "@inertiajs/react": "3.10.0",
     "@nestjs/common": "12.2.0",
     "@nestjs/core": "12.2.0",
     "@nestjs/platform-express": "12.2.0",
+    "@nestvexa/forms": "workspace:*",
     "@nestvexa/inertia": "workspace:*",
     "@nestvexa/react": "workspace:*",
     "@nestvexa/vite": "workspace:*",

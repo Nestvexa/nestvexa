@@ -40,5 +40,6 @@ export const FORBIDDEN_KEYS: ReadonlySet<string> = new Set([
 
 export const INERTIA_OPTIONS = Symbol.for('nestvexa.inertia.options');
 export const INERTIA_PAGE_METADATA = 'nestvexa:inertia:page';
+export const PRECOGNITION_METADATA = 'nestvexa:inertia:precognition';
 export const DEFAULT_APP_KEY = 'default';
 export const DEFAULT_ROOT_ID = 'app';

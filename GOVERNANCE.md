@@ -1,47 +1,98 @@
 # Governance
 
+Nestvexa is an owner-led open-source project. This document says who decides what,
+how decisions are recorded, and what users can rely on between versions. No person or
+organisation is named as a maintainer here until the owner supplies that information.
+
 ## Roles
 
-- **Owner** (currently the repository owner, `@eslam-reda-div`): approves
-  releases, controls npm and GitHub settings, security contacts and the
-  `npm-release` environment, and appoints maintainers.
-- **Maintainers**: review and merge within the paths they are listed for in
-  [CODEOWNERS](.github/CODEOWNERS). No maintainers beyond the owner are
-  appointed yet; no person or organization is named without their consent.
-- **Contributors**: anyone submitting issues or pull requests under the
-  [code of conduct](CODE_OF_CONDUCT.md) and [contributing guide](CONTRIBUTING.md).
+| Role        | Who                                                    | Can                                                                                        |
+| ----------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| Owner       | Repository owner of `github.com/Nestvexa/nestvexa`     | Appoint maintainers, approve releases, publish to npm, push tags, own security contacts    |
+| Maintainer  | Appointed by the owner; listed in `.github/CODEOWNERS` | Review and merge pull requests in their area, triage issues, prepare releases              |
+| Contributor | Anyone                                                 | Open issues, discussions and pull requests under the [code of conduct](CODE_OF_CONDUCT.md) |
 
-## Decisions
+Publication, remote pushes, official tags and registry or account changes always need
+the owner's explicit authorisation. Neither automation nor maintainers act on the
+owner's behalf.
 
-- Small, reviewed pull requests with Conventional Commits, tests and
-  documentation for behavior changes.
-- Public API, protocol or support-matrix changes need an ADR in `docs/adr/`,
-  a Changeset, compatibility notes and, for breaking changes, a migration
-  guide entry. New features of significant scope start as an ADR/RFC pull
-  request before implementation.
-- Security-sensitive paths (security docs, release scripts, workflows,
-  lockfile) always require owner review, even after maintainers are appointed.
-- Feature acceptance follows the master implementation specification;
-  unfinished mandatory work cannot be relabeled complete through governance or
-  offered as a "good first issue" substitute for delivery.
+## Decision process
 
-## Releases
+- **Small changes** (fixes, docs, tests, internal refactors) are decided in the pull
+  request by a maintainer of the affected area.
+- **Public API, protocol, security-model or dependency-policy changes** need an
+  [ADR](docs/adr/README.md) in the same pull request or before it. The ADR records
+  alternatives, trade-offs, failure modes, compatibility consequences and the tests
+  that prove it. It also needs a Changeset and a migration note.
+- **New packages or features** start as a feature-request issue. A larger one gets an
+  RFC-style ADR in `Proposed` status, discussed in a pull request. It becomes
+  `accepted` when a maintainer merges it.
+- Disagreements are settled by the maintainers of the affected area, then by the
+  owner. Decisions and their reasons stay in the ADR or pull request, not in private
+  channels.
 
-Versioning, compatibility, deprecation windows and cadence are defined in the
-[versioning and deprecation policy](docs/release/versioning-and-deprecation.md);
-the steps are in the [release process](docs/release/release-process.md).
-Publication, remote pushes and official tags require explicit owner
-authorization; workflows publish only after manual dispatch and protected
-environment approval, using npm trusted publishing with provenance.
+Feature acceptance follows the
+[master implementation specification](NESTVEXA_MASTER_IMPLEMENTATION_PROMPT.md) and its
+[feature ledger](docs/implementation/feature-ledger.md). Governance cannot relabel
+unfinished mandatory work as complete, and good-first-issue labels never stand in for
+required delivery.
 
-## Dependencies
+## Pull request expectations
 
-Automated update pull requests (Dependabot) run the full CI matrix and require
-review; runtime-critical dependencies are never auto-merged. NestJS and
-TypeScript majors require an ADR.
+- Small, focused pull requests with Conventional Commit messages.
+- Tests for behaviour changes; negative tests for security-relevant behaviour.
+- Docs updated in the same pull request (package README, guide, and the
+  [feature matrix](docs/feature-matrix.md) when status changes).
+- The [pull request template](.github/PULL_REQUEST_TEMPLATE.md) asks for reproduction,
+  platform, migration notes, and security, privacy and performance implications.
+- Dependency updates (Dependabot, weekly) run the full CI matrix. Runtime-critical
+  packages (NestJS, Inertia clients, Alpine, template engines, frameworks) are never
+  auto-merged.
+
+## Compatibility and deprecation
+
+- **Before 1.0** (current: `0.1.0-alpha.0`): no stability guarantee. Breaking changes
+  are allowed in any release but must be listed in the Changeset and a migration note.
+- **From 1.0**: semver on one coordinated version shared by `nestvexa` and every
+  `@nestvexa/*` package (a Changesets fixed group). A public API stays deprecated
+  for at least one minor release and 90 days before it is removed in the next major.
+  Deprecations must be listed in the changelog and should warn once in development.
+  Details: [versioning and deprecation policy](docs/release/versioning-and-deprecation.md).
+- **Live protocol**: versioned on the wire (`nestvexa-live/1`). The server rejects any
+  other protocol version; a new major needs a reload or upgrade path
+  ([ADR 0008](docs/adr/0008-compatibility-and-upgrades.md)).
+- **Supported platforms**: Node.js LTS lines (22, 24) and NestJS 12. Support for a
+  Node line ends no earlier than its upstream end of life. Tested versions are in
+  [upstream compatibility](docs/architecture/upstream-compatibility.md).
+
+> **Known gap:** the deprecation-warning helper and a codemod/migration scaffold
+> (spec 29.3) do not exist yet. `nestvexa migrate` only reports that no migrations
+> are needed.
+
+## Release cadence
+
+There is no fixed cadence before 1.0. Releases happen when the owner approves a green
+[release process](docs/contributing/release-process.md) run. The publishing steps
+(manual workflow dispatch, protected `npm-release` environment, npm trusted
+publishing with provenance, SBOM per tarball) are in the
+[release runbook](docs/release/release-process.md). After 1.0 the target is
+a minor release roughly monthly and patch releases as needed, with security fixes
+prioritised.
 
 ## Security
 
-Vulnerabilities follow [SECURITY.md](SECURITY.md). Internal reviews are
-recorded in `docs/security/`; they do not replace the independent review that
-gates 1.0.
+Vulnerabilities are reported privately as described in [SECURITY.md](SECURITY.md). The
+owner controls advisory publication and disclosure timing. Internal reviews (for
+example [2026-11](docs/security/internal-review-2026-11.md)) are recorded in
+`docs/security/`; they do not replace the independent review that gates 1.0.
+Security-sensitive paths (security docs, release scripts, workflows, lockfile) always
+require owner review in [CODEOWNERS](.github/CODEOWNERS).
+
+## Community extensions
+
+Third-party engines, storage adapters, realtime brokers, island renderers and UI kits
+should depend only on the public package exports, never on `dist` internals or
+`src/internal` paths. They must declare Nestvexa packages as peer dependencies and
+state the tested versions. Extensions run with full application privileges; Nestvexa
+does not sandbox them. A first-party plugin SDK with capability negotiation is a
+[known gap](docs/architecture/overview.md#extensibility).

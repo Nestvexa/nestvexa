@@ -44,6 +44,7 @@ import session from 'express-session';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { FeaturesController } from './features.js';
 import type { AppPages, Upload, User } from './page-types.js';
 
 declare module 'express-session' {
@@ -74,6 +75,8 @@ interface MultipartFile {
 const root = fileURLToPath(new URL('..', import.meta.url));
 const dev = process.argv.includes('--dev');
 const testControls = process.argv.includes('--test-controls');
+// Client-only mode: no SSR at all; the client mounts into an empty root.
+const clientOnly = process.argv.includes('--client-only');
 const port = Number(process.env['PORT'] ?? 3106);
 const ssrUrl = process.env['SSR_URL'] ?? 'http://127.0.0.1:13716';
 const logger = new Logger('InertiaReactExample');
@@ -270,17 +273,21 @@ class PagesController {
       rootView: viteInertiaRootView(assets, { app: 'react' }),
       nonce: (request) => cspNonce(request),
       share: () => ({ appName: 'Nestvexa Inertia', framework: 'React' }),
-      ssr: {
-        renderer,
-        mode: 'fallback',
-        onError: (error) =>
-          logger.warn(
-            `SSR failed: ${error instanceof Error ? error.message : 'unknown error'}`,
-          ),
-      },
+      ...(clientOnly
+        ? {}
+        : {
+            ssr: {
+              renderer,
+              mode: 'fallback' as const,
+              onError: (error: unknown) =>
+                logger.warn(
+                  `SSR failed: ${error instanceof Error ? error.message : 'unknown error'}`,
+                ),
+            },
+          }),
     }),
   ],
-  controllers: [PagesController],
+  controllers: [PagesController, FeaturesController],
   providers: [{ provide: APP_GUARD, useClass: XsrfGuard }],
 })
 class AppModule {}
@@ -313,5 +320,5 @@ app.use(
 app.enableShutdownHooks();
 await app.listen(port, '127.0.0.1');
 logger.log(
-  `React example on http://127.0.0.1:${port} (${dev ? 'Vite dev' : `production, SSR ${ssrUrl}`})`,
+  `React example on http://127.0.0.1:${port} (${dev ? 'Vite dev' : clientOnly ? 'production, client-only' : `production, SSR ${ssrUrl}`})`,
 );

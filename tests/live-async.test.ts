@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { afterEach, describe, expect, it } from 'vitest';
+import { memoryStore } from './support/memory-store.js';
 import { Test } from '@nestjs/testing';
 import {
   Controller,
@@ -500,7 +501,7 @@ describe.each(['express', 'fastify'] as const)(
       ).toBe(410);
       await firstHost.app.close();
       expect((await send(secondHost.app, '/mount')).status).toBe(200);
-      expect(firstHost.app.get(LiveRuntime).store.size).toBe(0);
+      expect(memoryStore(firstHost.app.get(LiveRuntime)).size).toBe(0);
     });
   },
 );

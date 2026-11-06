@@ -193,8 +193,60 @@ from `@nestvexa/i18n`.
   [accessibility checklist](../testing/accessibility-checklist.md) with real
   screen readers before a release.
 
+## 8. Navigation, overlays, inputs and data tables
+
+```hbs
+{{uiBreadcrumbs crumbs label=(t 'kit:breadcrumb')}}
+{{uiBadge (t 'kit:unread' count=unread) count=unread live=true id='unread'}}
+{{#uiMenu id='row-actions' label=(t 'kit:actions')}}
+  {{uiMenuItem (t 'kit:menu.admin') href='/admin'}}
+  {{uiMenuItem (t 'products:archive') action='archive'}}
+  {{uiMenuItem (t 'kit:menu.copy') value='copy-link'}}
+{{/uiMenu}}
+{{#uiPopover
+  id='help' label=(t 'kit:help') title=(t 'kit:helpTitle')
+}}…{{/uiPopover}}
+{{#uiTooltip
+  id='vat' text=(t 'kit:priceTip') label=(t 'kit:priceHelp')
+}}?{{/uiTooltip}}
+{{uiDialogTrigger 'filters' label=(t 'kit:openFilters')}}
+{{#uiDrawer
+  id='filters' title=(t 'kit:filters') closeLabel=(t 'common:close')
+}}…{{/uiDrawer}}
+{{uiDatePicker id='launch' name='launch' label=(t 'kit:launch') locale=lang}}
+{{uiFileUpload
+  id='files'
+  name='files'
+  label=(t 'kit:attachments')
+  accept='.png,.pdf'
+  multiple=true
+  selectedLabel=(t 'kit:selectedFiles')
+  dropLabel=(t 'kit:drop')
+}}
+```
+
+- **Menus** report value items through a bubbling `nv-ui-menu-select` DOM
+  event; link and `action` items behave natively or through Live.
+- **Drawers** are dialogs: open them with `uiDialogTrigger`, close them from
+  the server with `closeOn`, and keep them outside Live roots like dialogs.
+- **Date picker**: the native input supplies the calendar; the formatted
+  `<output>` follows the page locale. Pass `model` for Live (a hidden text
+  input carries `nv:model.change`).
+- **File uploader**: without `model` it posts in a native multipart form (for
+  example to a route using `UploadsService.receiveForm`); with `model` it
+  emits the Live upload directives handled by `@nestvexa/client`.
+- **Wizard**: drive `current` from server state (a query parameter, form step
+  or Live state). Link completed steps with `href`. After a Live step change
+  focus moves to the step heading.
+- **Data tables**: wrap rows in `uiDataTable`, add `uiTableSearch` and
+  `uiTableFilter` with `client=true` for small tables or `model` for server
+  filtering, and put `uiSelectAll`/`uiSelectRow` in a `<form>` so a bulk
+  action is a plain POST. See `examples/admin-i18n` (`/admin/kit`).
+
 ## Limits
 
-No datepicker, uploader, drawer, wizard or popover yet. The combobox needs
-JavaScript to choose values. Dialogs need JavaScript, so provide an `href`
-fallback. See the README's caveats.
+No chart wrapper or form-field wrappers yet. The combobox needs JavaScript to
+choose values, and dialogs and drawers need JavaScript, so provide `href`
+fallbacks. Menus, popovers and accordion panels stay readable without
+JavaScript (the theme hides them only when scripting is enabled). See the
+README's caveats.

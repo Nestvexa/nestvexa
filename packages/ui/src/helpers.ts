@@ -1,5 +1,6 @@
-import { SafeHtml } from '@nestvexa/views';
-import type { ViewHelper } from '@nestvexa/views';
+import type { SafeHtml, ViewHelper } from '@nestvexa/views';
+import { block, call, html } from './call.js';
+import { primitiveHelpers } from './primitives.js';
 import {
   UiError,
   attributes,
@@ -15,76 +16,43 @@ import {
   text,
 } from './html.js';
 
-/** The subset of the Handlebars helper options object these helpers read. */
-interface HelperCall {
-  readonly positional: readonly unknown[];
-  readonly hash: Readonly<Record<string, unknown>>;
-  readonly fn:
-    | ((context: unknown, runtime?: { readonly data?: unknown }) => string)
-    | undefined;
-  readonly data: unknown;
-}
-
-function call(args: readonly unknown[], name: string): HelperCall {
-  const options = args.at(-1);
-  const hashSource = own(options, 'hash');
-  if (hashSource === null || typeof hashSource !== 'object')
-    throw new UiError('ARGUMENT', `${name} must be called from a template`);
-  const hash: Record<string, unknown> = Object.create(null) as Record<
-    string,
-    unknown
-  >;
-  for (const key of Object.keys(hashSource)) {
-    if (key === '__proto__' || key === 'constructor' || key === 'prototype')
-      throw new UiError('ARGUMENT', 'Unsafe helper argument');
-    hash[key] = own(hashSource, key);
-  }
-  const fn = own(options, 'fn');
-  return {
-    positional: args.slice(0, -1),
-    hash,
-    fn:
-      typeof fn === 'function'
-        ? (context, runtime) => {
-            const output: unknown = Reflect.apply(fn, undefined, [
-              context,
-              runtime,
-            ]);
-            return typeof output === 'string' ? output : '';
-          }
-        : undefined,
-    data: own(options, 'data'),
-  };
-}
-function block(
-  helper: HelperCall,
+/** Modal dialog markup shared by uiDialog and uiDrawer (a side-anchored dialog). */
+function modal(
+  context: unknown,
+  args: readonly unknown[],
   name: string,
-): NonNullable<HelperCall['fn']> {
-  if (!helper.fn)
-    throw new UiError('ARGUMENT', `${name} must be used as a block helper`);
-  return helper.fn;
-}
-const html = (value: string): SafeHtml => SafeHtml.trusted(value);
-
-function dialog(this: unknown, ...args: unknown[]): SafeHtml {
-  const helper = call(args, 'dialog');
-  const body = block(helper, 'dialog')(this);
+  drawer: boolean,
+): SafeHtml {
+  const helper = call(args, name);
+  const body = block(helper, name)(context);
   const dialogId = id(helper.hash['id'], 'id');
   const title = text(helper.hash['title'], 'title');
   const close = text(helper.hash['closeLabel'], 'closeLabel');
   const describedBy = optionalId(helper.hash['describedBy'], 'describedBy');
   const closeOn = optionalId(helper.hash['closeOn'], 'closeOn');
   const className = classes(helper.hash['class']);
+  const side = helper.hash['side'] ?? 'end';
+  if (drawer && side !== 'start' && side !== 'end')
+    throw new UiError('ARGUMENT', 'side must be start or end');
+  const base = drawer ? 'nv-dialog nv-drawer' : 'nv-dialog';
   return html(
     `<dialog${attributes({
       id: dialogId,
-      class: className ? `nv-dialog ${className}` : 'nv-dialog',
+      class: className ? `${base} ${className}` : base,
       'data-nv-ui': 'dialog',
+      'data-nv-ui-variant': drawer ? 'drawer' : undefined,
+      'data-side': drawer ? String(side) : undefined,
       'aria-labelledby': `${dialogId}-title`,
       'aria-describedby': describedBy,
       'data-nv-ui-close-on': closeOn,
     })}><div class="nv-dialog__header"><h2 class="nv-dialog__title" id="${dialogId}-title">${escapeHtml(title)}</h2><button type="button" class="nv-dialog__close" data-nv-ui-close${attributes({ 'aria-label': close })}><span aria-hidden="true">×</span></button></div><div class="nv-dialog__body">${body}</div></dialog>`,
   );
+}
+function dialog(this: unknown, ...args: unknown[]): SafeHtml {
+  return modal(this, args, 'dialog', false);
+}
+function drawer(this: unknown, ...args: unknown[]): SafeHtml {
+  return modal(this, args, 'drawer', true);
 }
 
 function dialogTrigger(...args: unknown[]): SafeHtml {
@@ -476,7 +444,7 @@ export function uiHelpers(
       'ARGUMENT',
       'prefix must be a short lowercase identifier',
     );
-  const entries: [string, ViewHelper][] = [
+  const entries: (readonly [string, ViewHelper])[] = [
     ['Dialog', dialog],
     ['DialogTrigger', dialogTrigger],
     ['Tabs', tabs],
@@ -488,6 +456,8 @@ export function uiHelpers(
     ['Disclosure', disclosure],
     ['Progress', progress],
     ['VisuallyHidden', visuallyHidden],
+    ['Drawer', drawer],
+    ...primitiveHelpers,
   ];
   const helpers: Record<string, ViewHelper> = {};
   for (const [name, helper] of entries) helpers[prefix + name] = helper;

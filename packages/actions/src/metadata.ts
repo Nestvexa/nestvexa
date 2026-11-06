@@ -36,6 +36,12 @@ export interface ServerActionOptions {
   readonly input?: ActionSchema;
   /** Optional runtime schema applied to the returned data. */
   readonly output?: ActionSchema;
+  /**
+   * Long-running action: the method returns `acceptJob(...)`, the route
+   * answers HTTP 202 with a job ticket and the work runs on the host's
+   * `jobs.queue`. Status is polled at `<prefix>/_jobs/status`.
+   */
+  readonly job?: boolean;
 }
 
 export interface ActionDefinition {
@@ -53,6 +59,8 @@ export interface ActionDefinition {
   readonly output: ActionSchema | undefined;
   /** Parameter index of `@ActionInput()`, when declared. */
   readonly inputIndex: number | undefined;
+  /** Returns an `AcceptedJob` and answers 202 with a job ticket. */
+  readonly job: boolean;
 }
 
 export interface ActionGroupDefinition {
@@ -87,6 +95,7 @@ const OPTION_KEYS: ReadonlySet<string> = new Set([
   'concurrency',
   'input',
   'output',
+  'job',
 ]);
 
 const RESERVED_METHODS: ReadonlySet<string> = new Set([
@@ -170,6 +179,12 @@ function ownOptions(options: unknown): Readonly<ServerActionOptions> {
   )
     throw new Error(
       `Server action ${id} concurrency must be "serial" or "parallel"`,
+    );
+  if (copy['job'] !== undefined && typeof copy['job'] !== 'boolean')
+    throw new Error(`Server action ${id} job must be a boolean`);
+  if (copy['job'] === true && copy['output'] !== undefined)
+    throw new Error(
+      `Server action ${id} is a job; validate the job result inside its handler instead of an output schema`,
     );
   for (const name of ['input', 'output'] as const)
     if (copy[name] !== undefined && !isActionSchema(copy[name]))
@@ -330,6 +345,7 @@ export function actionGroupDefinition(
           input: entry.options.input,
           output: entry.options.output,
           inputIndex: typeof inputIndex === 'number' ? inputIndex : undefined,
+          job: entry.options.job ?? false,
         }),
       );
     }

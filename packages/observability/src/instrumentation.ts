@@ -1,3 +1,6 @@
+import { currentTraceContext } from './trace-context.js';
+import type { TraceContext } from './trace-context.js';
+
 /**
  * Instrumentation contract consumed by @nestvexa/live (`instrumentation` host option).
  * Attribute values are small primitives chosen by the runtime: component and action
@@ -21,23 +24,72 @@ export interface OtelTracerLike {
       attributes?: Record<string, string | number | boolean>;
       kind?: number;
     },
+    context?: unknown,
   ): {
     setAttribute(key: string, value: string | number | boolean): unknown;
     setStatus(status: { code: number; message?: string }): unknown;
     end(): void;
   };
 }
+/**
+ * Structural subset of `@opentelemetry/api` used to parent spans on an inbound
+ * W3C trace context: pass `{ context, trace }` from the API package.
+ */
+export interface OtelPropagationApiLike {
+  readonly context: { active(): unknown };
+  readonly trace: {
+    setSpanContext(
+      context: unknown,
+      spanContext: {
+        traceId: string;
+        spanId: string;
+        traceFlags: number;
+        isRemote: boolean;
+      },
+    ): unknown;
+    /** When present, an already active span (for example from HTTP auto-instrumentation) wins. */
+    getSpan?(context: unknown): unknown;
+  };
+}
+export interface OpenTelemetryBridgeOptions {
+  /** Enables parenting on the validated inbound `traceparent` (see `traceContextMiddleware`). */
+  readonly api?: OtelPropagationApiLike;
+  /** Source of the inbound context; defaults to `currentTraceContext`. */
+  readonly traceContext?: () => TraceContext | undefined;
+}
 /** OpenTelemetry status codes (`SpanStatusCode`): UNSET 0, OK 1, ERROR 2. */
 const ok = 1;
 const error = 2;
 
+/** Parent context for a new span, or undefined to use the tracer's default. */
+function parentContext(options: OpenTelemetryBridgeOptions): unknown {
+  const api = options.api;
+  if (!api) return undefined;
+  const active = api.context.active();
+  if (api.trace.getSpan?.(active) !== undefined) return undefined;
+  const inbound = (options.traceContext ?? currentTraceContext)();
+  if (!inbound) return undefined;
+  return api.trace.setSpanContext(active, {
+    traceId: inbound.traceId,
+    spanId: inbound.parentId,
+    traceFlags: inbound.sampled ? 1 : 0,
+    isRemote: true,
+  });
+}
+
 /** Bridge Live spans to an OpenTelemetry tracer from `trace.getTracer('nestvexa')`. */
 export function openTelemetryInstrumentation(
   tracer: OtelTracerLike,
+  options: OpenTelemetryBridgeOptions = {},
 ): LiveInstrumentation {
   return Object.freeze({
     start(name: string, attributes: SpanAttributes): LiveSpan {
-      const span = tracer.startSpan(name, { attributes: { ...attributes } });
+      const parent = parentContext(options);
+      const spanOptions = { attributes: { ...attributes } };
+      const span =
+        parent === undefined
+          ? tracer.startSpan(name, spanOptions)
+          : tracer.startSpan(name, spanOptions, parent);
       let ended = false;
       return {
         end(outcome, extra = {}) {
@@ -60,6 +112,8 @@ export interface SpanRecord {
   readonly milliseconds: number;
   readonly attributes: SpanAttributes;
   readonly at: number;
+  /** Inbound W3C trace id of the request, for correlating with your tracing backend. */
+  readonly traceId?: string;
 }
 export interface MetricSummary {
   readonly name: string;
@@ -81,6 +135,7 @@ export class MemoryInstrumentation implements LiveInstrumentation {
   }
   start(name: string, attributes: SpanAttributes): LiveSpan {
     const started = this.now();
+    const traceId = currentTraceContext()?.traceId;
     let ended = false;
     return {
       end: (outcome, extra = {}) => {
@@ -93,6 +148,7 @@ export class MemoryInstrumentation implements LiveInstrumentation {
             milliseconds: Math.max(0, this.now() - started),
             attributes: Object.freeze({ ...attributes, ...extra }),
             at: Date.now(),
+            ...(traceId === undefined ? {} : { traceId }),
           }),
         );
         if (this.#records.length > this.capacity) this.#records.shift();

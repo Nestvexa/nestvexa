@@ -1,0 +1,36 @@
+{
+  "name": "Precognition-Validate-Only limits the reported errors to the touched fields",
+  "source": [
+    "https://inertiajs.com/docs/v3/core-concepts/the-protocol (request headers Precognition, Precognition-Validate-Only; response headers Precognition, Precognition-Success, Vary; status codes 204 and 422)",
+    "laravel-precognition 2.1.1 dist/client.js as bundled by @inertiajs/core 3.10.0 (successResolver: 204 + precognition-success, validatePrecognitionResponse, onValidationError reads response.data.errors)",
+    "laravel-precognition 2.1.1 dist/client.js resolveConfig: 'Precognition-Validate-Only': Array.from(only).join()"
+  ],
+  "serverVersion": "",
+  "request": {
+    "method": "POST",
+    "path": "/precognition/users",
+    "headers": {
+      "precognition": "true",
+      "accept": "application/json",
+      "content-type": "application/json",
+      "precognition-validate-only": "name"
+    },
+    "body": {
+      "name": "",
+      "email": "not-an-email"
+    }
+  },
+  "response": {
+    "status": 422,
+    "headers": {
+      "precognition": "true",
+      "vary": "Precognition"
+    },
+    "json": {
+      "message": "The name field is required.",
+      "errors": {
+        "name": ["The name field is required."]
+      }
+    }
+  }
+}

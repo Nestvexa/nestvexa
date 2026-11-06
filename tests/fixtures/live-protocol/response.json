@@ -1,0 +1,14 @@
+{
+  "protocol": "nestvexa-live/1",
+  "requestId": "d85e7c20-72ac-4e71-8baf-210dbe79e912",
+  "component": {
+    "id": "0b6c1f4e-2d8a-4c3e-9f7a-5e1d2c3b4a59",
+    "name": "users-table",
+    "revision": 4
+  },
+  "snapshot": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc",
+  "state": { "query": "nest", "page": 2 },
+  "html": "<p>2 users</p>",
+  "events": [{ "name": "users.removed", "payload": { "id": 42 } }],
+  "replayed": true
+}

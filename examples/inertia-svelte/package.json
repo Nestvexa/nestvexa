@@ -6,7 +6,8 @@
     "build": "tsc -p tsconfig.json && svelte-check --tsconfig client/tsconfig.json --fail-on-warnings && vite build && vite build --ssr client/ssr.ts --outDir dist/ssr",
     "dev": "tsx src/main.ts --dev",
     "start": "node dist/main.js",
-    "start:e2e": "node dist/main.js --test-controls"
+    "start:e2e": "node dist/main.js --test-controls",
+    "start:csr": "node dist/main.js --test-controls --client-only"
   },
   "dependencies": {
     "@inertiajs/svelte": "3.10.0",

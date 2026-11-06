@@ -682,6 +682,12 @@ describe('umbrella setup validation boundaries', () => {
       'CSRF',
     ],
     [
+      'live.client differing from the browser mode',
+      { live: { enabled: true, client: 'manual' } },
+      registration(),
+      'must match the Live browser mode',
+    ],
+    [
       'action authorization disabled',
       {
         live: { enabled: true },

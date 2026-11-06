@@ -29,6 +29,12 @@ export interface GenerateActionClientOptions {
   readonly write?: boolean;
   /** Report an error instead of writing when output is out of date (CI). */
   readonly check?: boolean;
+  /**
+   * Framework bindings written next to the client as
+   * `<fileName>.<target>.js/.d.ts`: React hooks, Vue composables, Svelte
+   * stores and Live/HBS element helpers. Default none.
+   */
+  readonly targets?: readonly ActionCodegenTarget[];
 }
 
 export interface ActionCodegenDiagnostic {
@@ -70,6 +76,11 @@ const RESERVED_NAMES = new Set([
   'NestvexaActions',
   'ActionMethod',
   'ActionsClient',
+  'ActionFailure',
+  'ActionFieldOf',
+  'ActionJobHandle',
+  'ActionOptimisticUpdate',
+  'ActionOutputOf',
   'actionManifest',
   'createActions',
 ]);
@@ -105,6 +116,8 @@ interface ActionModel {
   readonly key: string;
   readonly method: string;
   readonly idempotent: boolean;
+  /** Declared `job: true`; the output is the job result type. */
+  readonly job: boolean;
   readonly input:
     | {
         readonly type: ts.Type;
@@ -293,6 +306,7 @@ class Generator {
     let id: string | undefined;
     let version: number | null = null;
     let idempotent = false;
+    let job = false;
     for (const property of argument.properties) {
       if (!ts.isPropertyAssignment(property)) {
         if (
@@ -320,16 +334,18 @@ class Generator {
           );
           return undefined;
         }
-      } else if (key === 'idempotent') {
-        if (value.kind === ts.SyntaxKind.TrueKeyword) idempotent = true;
-        else if (value.kind !== ts.SyntaxKind.FalseKeyword) {
+      } else if (key === 'idempotent' || key === 'job') {
+        const flag = value.kind === ts.SyntaxKind.TrueKeyword;
+        if (!flag && value.kind !== ts.SyntaxKind.FalseKeyword) {
           this.report(
             'error',
-            '@ServerAction idempotent must be true or false',
+            `@ServerAction ${key} must be true or false`,
             value,
           );
           return undefined;
         }
+        if (key === 'job') job = flag;
+        else idempotent = flag;
       }
     }
     if (!this.#validId(id, '@ServerAction id', argument)) return undefined;
@@ -365,6 +381,7 @@ class Generator {
       key: actionKey(id, version),
       method: name,
       idempotent,
+      job,
       input: parameter
         ? {
             type: this.#checker.getTypeAtLocation(parameter),
@@ -722,9 +739,17 @@ class Generator {
   }
 
   #isActionResult(type: ts.Type): boolean {
+    return this.#isPackageClass(type, 'ActionResult');
+  }
+
+  /** True for `ActionResult`/`AcceptedJob` declared by this package. */
+  #isPackageClass(
+    type: ts.Type,
+    name: 'ActionResult' | 'AcceptedJob',
+  ): boolean {
     const symbol = type.getSymbol();
     return (
-      symbol?.getName() === 'ActionResult' &&
+      symbol?.getName() === name &&
       (symbol.declarations ?? []).some((declaration) =>
         PACKAGE_PATH.test(declaration.getSourceFile().fileName),
       )
@@ -905,7 +930,7 @@ class Generator {
   render(
     groups: readonly GroupModel[],
     clientModule: string,
-  ): { js: string; dts: string } {
+  ): { js: string; dts: string; bindings: Binding[] } {
     const interfaceLines: string[] = [];
     const manifestTypes: string[] = [];
     const manifestValues: string[] = [];
@@ -928,15 +953,10 @@ class Generator {
                 : text;
             })()
           : 'void';
-        const output = this.emit(
-          action.output,
-          action.node,
-          0,
-          'output-top',
-          action.outputHint,
-        );
+        const output = this.#outputText(action);
+        const fields = this.#fields(action);
         interfaceLines.push(
-          `    readonly ${propertyName(action.key)}: ActionMethod<${input}, ${output}>;`,
+          `    readonly ${propertyName(action.key)}: ActionMethod<${input}, ${output}, ${fields}>;`,
         );
         const descriptor = `group: ${quote(group.id)}; readonly action: ${quote(action.id)}; readonly version: ${action.version === null ? 'null' : String(action.version)}; readonly idempotent: ${String(action.idempotent)}`;
         manifestTypes.push(
@@ -953,21 +973,324 @@ class Generator {
     const declarations = [...this.#declarations.entries()]
       .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
       .map(([, text]) => text);
-    const dts = [
-      HEADER,
-      `import type { ActionMethod, ActionsClient } from ${quote(clientModule)};\n`,
+    // Per-action aliases: input, output, typed validation failure and the
+    // optimistic-update callback, all derived from the method type.
+    const bindings = this.#bindings(groups);
+    const aliases = bindings.flatMap(({ name, method }) => [
+      `export type ${this.#reserve(`${name}Input`)} = Parameters<${method}>[0];`,
+      `export type ${this.#reserve(`${name}Output`)} = ActionOutputOf<${method}>;`,
+      `export type ${this.#reserve(`${name}Error`)} = ActionFailure<ActionFieldOf<${method}>>;`,
+      `export type ${this.#reserve(`${name}Optimistic`)} = ActionOptimisticUpdate<ActionOutputOf<${method}>, Parameters<${method}>[0]>;`,
+    ]);
+    const body = [
       ...declarations.map((text) => `${text}\n`),
       `export interface NestvexaActions {\n${interfaceLines.join('\n')}${interfaceLines.length ? '\n' : ''}}\n`,
+      ...(aliases.length ? [`${aliases.join('\n')}\n`] : []),
       `export declare const actionManifest: {\n${manifestTypes.join('\n')}${manifestTypes.length ? '\n' : ''}};\n`,
       'export declare function createActions(client: ActionsClient): NestvexaActions;\n',
+    ];
+    // Import only the client types the declarations use (lint-clean output).
+    const used = [
+      'ActionFailure',
+      'ActionFieldOf',
+      'ActionJobHandle',
+      'ActionMethod',
+      'ActionOptimisticUpdate',
+      'ActionOutputOf',
+      'ActionsClient',
+    ].filter((name) =>
+      body.some((text) => new RegExp(`\\b${name}\\b`).test(text)),
+    );
+    const dts = [
+      HEADER,
+      `import type { ${used.join(', ')} } from ${quote(clientModule)};\n`,
+      ...body,
     ].join('\n');
     const js = [
       HEADER,
       `export const actionManifest = Object.freeze({\n${manifestValues.join('\n')}${manifestValues.length ? '\n' : ''}});\n`,
       'export function createActions(client) {\n  return client.bind(actionManifest);\n}\n',
     ].join('\n');
-    return { js, dts };
+    return { js, dts, bindings };
   }
+
+  /** Output text; job actions resolve to `ActionJobHandle<Result>`. */
+  #outputText(action: ActionModel): string {
+    const accepted = this.#acceptedJob(action.output);
+    if (action.job) {
+      if (!accepted) {
+        this.report(
+          'error',
+          `Job action '${action.id}' must return acceptJob(...) (AcceptedJob<T>)`,
+          action.node,
+        );
+        return 'ActionJobHandle<unknown>';
+      }
+      return `ActionJobHandle<${this.emit(accepted, action.node, 0, 'output')}>`;
+    }
+    if (accepted) {
+      this.report(
+        'error',
+        `Action '${action.id}' returns acceptJob(...) but is not declared with { job: true }`,
+        action.node,
+      );
+      return 'unknown';
+    }
+    return this.emit(
+      action.output,
+      action.node,
+      0,
+      'output-top',
+      action.outputHint,
+    );
+  }
+
+  /** Result type argument of `AcceptedJob<T>`, when the output is one. */
+  #acceptedJob(type: ts.Type): ts.Type | undefined {
+    if (!this.#isPackageClass(type, 'AcceptedJob')) return undefined;
+    const [result] = this.#checker.getTypeArguments(type as ts.TypeReference);
+    return result;
+  }
+
+  /** Union of top-level input field names that validation issues can name. */
+  #fields(action: ActionModel): string {
+    if (!action.input) return 'never';
+    const names = new Set<string>();
+    const visit = (type: ts.Type): void => {
+      if (type.flags & ts.TypeFlags.Union) {
+        for (const member of (type as ts.UnionType).types) visit(member);
+        return;
+      }
+      if (
+        !(type.flags & ts.TypeFlags.Object) ||
+        this.#checker.isArrayType(type) ||
+        this.#checker.isTupleType(type)
+      )
+        return;
+      for (const property of this.#checker.getPropertiesOfType(type)) {
+        const name = property.getName();
+        if (!name.startsWith('__') && /^[A-Za-z_$][\w$-]{0,127}$/.test(name))
+          names.add(name);
+      }
+    };
+    visit(action.input.type);
+    return names.size === 0
+      ? 'never'
+      : [...names]
+          .sort()
+          .map((name) => quote(name))
+          .join(' | ');
+  }
+
+  #reserve(base: string): string {
+    let name = base;
+    for (let index = 2; this.#used.has(name); index++)
+      name = `${base}_${index}`;
+    this.#used.add(name);
+    return name;
+  }
+
+  /** Stable framework binding names: `CartAddItem` for `cart.addItem`. */
+  #bindings(groups: readonly GroupModel[]): Binding[] {
+    const pascal = (value: string) =>
+      value.charAt(0).toUpperCase() + value.slice(1);
+    const seen = new Map<string, string>();
+    const bindings: Binding[] = [];
+    for (const group of groups)
+      for (const action of group.actions) {
+        const name = `${pascal(group.key)}${pascal(action.key)}`;
+        const label = `${group.id}/${action.id}`;
+        const existing = seen.get(name);
+        if (existing) {
+          this.report(
+            'error',
+            `Actions ${existing} and ${label} map to the same binding name ${name}; rename a group or action id`,
+            action.node,
+          );
+          continue;
+        }
+        seen.set(name, label);
+        bindings.push({
+          name,
+          camel: `${group.key}${pascal(action.key)}`,
+          access: `actions.${group.key}.${action.key}`,
+          method: `NestvexaActions[${quote(group.key)}][${quote(action.key)}]`,
+        });
+      }
+    return bindings;
+  }
+}
+
+interface Binding {
+  /** PascalCase `CartAddItem`. */
+  readonly name: string;
+  /** camelCase `cartAddItem`. */
+  readonly camel: string;
+  /** JavaScript access path `actions.cart.addItem`. */
+  readonly access: string;
+  /** Method type `NestvexaActions['cart']['addItem']`. */
+  readonly method: string;
+}
+
+export type ActionCodegenTarget = 'react' | 'vue' | 'svelte' | 'live';
+const TARGETS: readonly ActionCodegenTarget[] = [
+  'react',
+  'vue',
+  'svelte',
+  'live',
+];
+
+/**
+ * Framework bindings. JavaScript imports the framework (React/Vue) only in
+ * the generated file, never in this package; declarations depend only on
+ * `@nestvexa/actions/client` types, so they typecheck without frameworks.
+ */
+function renderTarget(
+  target: ActionCodegenTarget,
+  bindings: readonly Binding[],
+  clientModule: string,
+  baseModule: string,
+): { js: string; dts: string } {
+  const typeImport = (names: string) =>
+    `import type { ${names} } from ${quote(clientModule)};\nimport type { NestvexaActions } from ${quote(baseModule)};\n`;
+  const members = (
+    js: (binding: Binding) => string,
+    dts: (binding: Binding) => string,
+  ) => ({
+    js: bindings.map((binding) => `    ${js(binding)},`).join('\n'),
+    dts: bindings.map((binding) => `  ${dts(binding)};`).join('\n'),
+  });
+  if (target === 'react') {
+    const body = members(
+      (b) => `use${b.name}: (options) => useAction(${b.access}, options)`,
+      (b) =>
+        `use${b.name}(options?: ActionControllerOptions<${b.method}>): ActionBinding<${b.method}>`,
+    );
+    return {
+      js: `${HEADER}import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { createActionController } from ${quote(clientModule)};
+
+function useAction(method, options) {
+  const latest = useRef(options);
+  latest.current = options;
+  const [controller] = useState(() =>
+    createActionController(method, {
+      initialData: options?.initialData,
+      abortPrevious: options?.abortPrevious,
+      ...(options?.optimistic
+        ? { optimistic: (current, input) => (latest.current?.optimistic ?? ((value) => value))(current, input) }
+        : {}),
+      onSuccess: (data, input) => latest.current?.onSuccess?.(data, input),
+      onError: (error, input) => latest.current?.onError?.(error, input),
+    }),
+  );
+  const state = useSyncExternalStore(controller.listen, controller.getSnapshot, controller.getSnapshot);
+  useEffect(() => () => controller.abort(), [controller]);
+  return { ...state, run: controller.run, reset: controller.reset, abort: controller.abort };
+}
+
+/** React hooks per action. Call them like any hook, at the top level of a component. */
+export function createActionHooks(actions) {
+  return Object.freeze({
+${body.js}
+  });
+}
+`,
+      dts: `${HEADER}${typeImport('ActionBinding, ActionControllerOptions')}
+export interface NestvexaActionHooks {
+${body.dts}
+}
+export declare function createActionHooks(actions: NestvexaActions): NestvexaActionHooks;
+`,
+    };
+  }
+  if (target === 'vue') {
+    const body = members(
+      (b) => `use${b.name}: (options) => useAction(${b.access}, options)`,
+      (b) =>
+        `use${b.name}(options?: ActionControllerOptions<${b.method}>): ActionRefBinding<${b.method}>`,
+    );
+    return {
+      js: `${HEADER}import { getCurrentScope, onScopeDispose, shallowRef } from 'vue';
+import { createActionController } from ${quote(clientModule)};
+
+function useAction(method, options) {
+  const controller = createActionController(method, options);
+  const state = shallowRef(controller.getSnapshot());
+  const stop = controller.listen(() => {
+    state.value = controller.getSnapshot();
+  });
+  if (getCurrentScope())
+    onScopeDispose(() => {
+      stop();
+      controller.abort();
+    });
+  return Object.freeze({ state, run: controller.run, reset: controller.reset, abort: controller.abort });
+}
+
+/** Vue composables per action; state is a shallow ref disposed with the scope. */
+export function createActionComposables(actions) {
+  return Object.freeze({
+${body.js}
+  });
+}
+`,
+      dts: `${HEADER}${typeImport('ActionControllerOptions, ActionRefBinding')}
+export interface NestvexaActionComposables {
+${body.dts}
+}
+export declare function createActionComposables(actions: NestvexaActions): NestvexaActionComposables;
+`,
+    };
+  }
+  if (target === 'svelte') {
+    const body = members(
+      (b) =>
+        `${b.camel}: (options) => createActionController(${b.access}, options)`,
+      (b) =>
+        `${b.camel}(options?: ActionControllerOptions<${b.method}>): ActionController<${b.method}>`,
+    );
+    return {
+      js: `${HEADER}import { createActionController } from ${quote(clientModule)};
+
+/** Svelte stores per action (store contract: subscribe), usable as $store. */
+export function createActionStores(actions) {
+  return Object.freeze({
+${body.js}
+  });
+}
+`,
+      dts: `${HEADER}${typeImport('ActionController, ActionControllerOptions')}
+export interface NestvexaActionStores {
+${body.dts}
+}
+export declare function createActionStores(actions: NestvexaActions): NestvexaActionStores;
+`,
+    };
+  }
+  const body = members(
+    (b) =>
+      `bind${b.name}: (element, options) => bindActionElement(element, ${b.access}, options)`,
+    (b) =>
+      `bind${b.name}(element: HTMLElement, options: ActionElementOptions<${b.method}>): () => void`,
+  );
+  return {
+    js: `${HEADER}import { bindActionElement } from ${quote(clientModule)};
+
+/** Live/HBS element helpers per action: bind a server-rendered form or button. */
+export function createActionBindings(actions) {
+  return Object.freeze({
+${body.js}
+  });
+}
+`,
+    dts: `${HEADER}${typeImport('ActionElementOptions')}
+export interface NestvexaActionBindings {
+${body.dts}
+}
+export declare function createActionBindings(actions: NestvexaActions): NestvexaActionBindings;
+`,
+  };
 }
 
 type Mode = 'input' | 'output' | 'output-top';
@@ -1046,6 +1369,10 @@ export async function generateActionClient(
   const clientModule = options.clientModule ?? '@nestvexa/actions/client';
   if (!/^[@A-Za-z0-9._/-]{1,256}$/.test(clientModule))
     throw new Error('Invalid client module specifier');
+  const targets = [...new Set(options.targets ?? [])].sort();
+  for (const target of targets)
+    if (!TARGETS.includes(target))
+      throw new Error(`Unknown codegen target ${String(target)}`);
   const program = createProgram(options, diagnostics);
   if (!program) return { ok: false, files: [], diagnostics, groups: [] };
   const cwd = process.cwd();
@@ -1059,13 +1386,28 @@ export async function generateActionClient(
     });
   const generator = new Generator(program, cwd);
   const groups = generator.collect();
-  const { js, dts } = generator.render(groups, clientModule);
+  const { js, dts, bindings } = generator.render(groups, clientModule);
   diagnostics.push(...generator.diagnostics);
   const outDir = resolve(options.outDir);
   const outputs = [
     { path: join(outDir, `${fileName}.js`), contents: js },
     { path: join(outDir, `${fileName}.d.ts`), contents: dts },
   ];
+  for (const target of targets) {
+    const rendered = renderTarget(
+      target,
+      bindings,
+      clientModule,
+      `./${fileName}.js`,
+    );
+    outputs.push(
+      { path: join(outDir, `${fileName}.${target}.js`), contents: rendered.js },
+      {
+        path: join(outDir, `${fileName}.${target}.d.ts`),
+        contents: rendered.dts,
+      },
+    );
+  }
   const files: GeneratedActionFile[] = [];
   for (const output of outputs) {
     let current: string | undefined;

@@ -264,6 +264,63 @@ describe('engine traversal properties', () => {
     }
   });
 
+  it('regression: namespaced and themed EJS includes stay contained without fs probes', async () => {
+    const root = path.join(base, 'ejs-scoped', 'root');
+    const admin = path.join(base, 'ejs-scoped', 'admin');
+    const dark = path.join(base, 'ejs-scoped', 'dark');
+    await write(path.join(root, 'page.ejs'), '<%- include(name) %>');
+    await write(path.join(root, 'shared.ejs'), 'ROOT-SHARED');
+    await write(path.join(admin, 'users/row.ejs'), 'ADMIN-ROW');
+    await write(
+      path.join(admin, 'users/list.ejs'),
+      "<%- include('row') %>|<%- include('/shared') %>",
+    );
+    await write(path.join(dark, 'shared.ejs'), 'DARK-SHARED');
+    await write(path.join(base, 'ejs-scoped', 'secret.ejs'), marker);
+    const engine = new EjsEngine({
+      root,
+      cache: false,
+      namespaces: { admin },
+      themes: { dark },
+    });
+    await engine.initialize();
+    const probe = vi.spyOn(fs, 'existsSync');
+    try {
+      const render = (name: string, theme?: string) =>
+        engine.render(
+          'page',
+          { name },
+          theme === undefined ? { layout: false } : { layout: false, theme },
+        );
+      // Namespace references, relative includes inside a namespace and theme overrides.
+      expect(await render('admin::users/list')).toBe('ADMIN-ROW|ROOT-SHARED');
+      expect(await render('admin::users/list', 'dark')).toBe(
+        'ADMIN-ROW|DARK-SHARED',
+      );
+      for (const reference of [
+        'admin::../secret',
+        'admin::../../secret',
+        'admin::C:/secret',
+        'admin::\\\\evil.invalid\\share\\x',
+        `admin::users/row${String.fromCodePoint(0x10ffff)}`,
+        'unknown::users/row',
+        'Admin::users/row',
+        '__proto__::x',
+      ])
+        for (const theme of [undefined, 'dark']) {
+          const html = await render(reference, theme).then(
+            (value) => value,
+            () => '',
+          );
+          expect(html).not.toContain(marker);
+        }
+      expect(probe).not.toHaveBeenCalled();
+    } finally {
+      probe.mockRestore();
+      await engine.dispose();
+    }
+  });
+
   it('sanity: each engine renders its in-root page and include', async () => {
     for (const engine of engines) {
       expect(await engine.render('page')).toContain('PAGE-OK');

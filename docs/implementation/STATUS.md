@@ -6,8 +6,8 @@ Checkpoint: **2026-11-02**. **NOT YET READY — BLOCKERS.** UTC timestamps ident
 
 The repository is public at [github.com/Nestvexa/nestvexa](https://github.com/Nestvexa/nestvexa).
 All agent branches from Phases 5–15 are merged. **Stable release status: NOT YET READY —
-BLOCKERS.** With the owner's authorization, an experimental `0.1.0-alpha.0` preview is
-published under the npm `alpha` tag.
+BLOCKERS.** An experimental `0.1.0-alpha.0` preview was prepared for the npm `alpha` tag; it is
+**not yet published** because npm publication needs the owner's 2FA one-time code.
 
 **Executed evidence**
 
@@ -43,7 +43,7 @@ These runs found and fixed:
 | 3–4   | Done       | [Phase 3](phase3-acceptance.md), [Phase 4](phase4-acceptance.md)                                         |
 | 5–15  | InProgress | All packages merged and verified; per-requirement gaps in the [ledger](feature-ledger.md) (96 Done rows) |
 | 16    | InProgress | Cross-platform matrix and real services pass; security review, load and fuzz testing open                |
-| 17    | InProgress | Repository public; alpha preview published; stable release gates open                                    |
+| 17    | InProgress | Repository public; alpha preview prepared, not yet published (owner 2FA); stable release gates open      |
 
 Machine-readable state: [progress.json](progress.json). The release report is
 [FINAL_RELEASE_REPORT.md](FINAL_RELEASE_REPORT.md).

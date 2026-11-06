@@ -98,7 +98,21 @@ export type {
 export { InertiaService } from './service.js';
 export type { InertiaHttpReply } from './service.js';
 export { InertiaInterceptor } from './interceptor.js';
-export { InertiaPage, UseInertia } from './decorators.js';
+export { InertiaPage, Precognitive, UseInertia } from './decorators.js';
+export {
+  PrecognitionHeader,
+  isPrecognitionRequest,
+  parsePrecognitionRequest,
+  selectPrecognitionErrors,
+} from './precognition.js';
+export type {
+  PrecognitionCheck,
+  PrecognitionRequestInfo,
+  PrecognitionResult,
+  PrecognitionSchema,
+  PrecognitionValidator,
+  PrecognitiveOptions,
+} from './precognition.js';
 export type { InertiaPageMetadata, InertiaPageOptions } from './decorators.js';
 export { InertiaModule } from './module.js';
 export type {
@@ -113,3 +127,7 @@ export type {
   InertiaVersion,
   ResolvedOptions,
 } from './options.js';
+export type {
+  InertiaInstrumentation,
+  InertiaSpanAttributes,
+} from './instrumentation.js';

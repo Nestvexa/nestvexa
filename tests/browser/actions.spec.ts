@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-const base = 'http://127.0.0.1:3111';
+const base = process.env['NESTVEXA_ACTIONS_URL'] ?? 'http://127.0.0.1:3111';
 const route = (action: string) => `${base}/_nestvexa/actions/cart/${action}`;
 
 test('typed server actions succeed when authorized and fail without sign-in, CSRF or origin', async ({
@@ -48,6 +48,10 @@ test('typed server actions succeed when authorized and fail without sign-in, CSR
   });
   await expect(page.locator('#cart-lines li')).toHaveText(['1 × Nest mug']);
   await expect(page.locator('#cart-total')).toHaveText('12.00');
+  // The generated Live/HBS helper reflects the call state on the element.
+  await expect(
+    page.getByRole('button', { name: 'Add a Nest mug' }),
+  ).toHaveAttribute('data-nv-action-state', 'success');
   await page.getByRole('button', { name: 'Add a Vexa shirt' }).click();
   await expect(page.locator('#cart-total')).toHaveText('37.00');
 

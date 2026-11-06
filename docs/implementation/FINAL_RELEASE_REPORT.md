@@ -1,9 +1,9 @@
 # Release checkpoint report — 2026-11-02
 
 **A. Status: NOT YET READY — BLOCKERS** for a stable release. `release:check` still
-fails because most master-prompt requirements are not Done (see section F). With
-the owner's explicit authorization, the packages are published as an
-**experimental `0.1.0-alpha.0` preview** under the npm `alpha` dist-tag. They are
+fails because most master-prompt requirements are not Done (see section F). With the owner's authorization, the packages are prepared as an **experimental
+`0.1.0-alpha.0` preview** for the npm `alpha` dist-tag. They are **not yet published**:
+npm requires the owner's 2FA one-time code for each publish. They are
 not production-supported.
 
 ## B. What exists
@@ -94,7 +94,7 @@ Defects these runs found and fixed:
 ## G. Owner release steps
 
 The `nestvexa` npm organization exists and is owned by `eslamreda542`. The alpha
-publication follows the owner's explicit instruction. Before a stable release:
+publication awaits the owner's 2FA code. Before a stable release:
 
 1. Close the blockers in section F.
 2. Get an independent security review.

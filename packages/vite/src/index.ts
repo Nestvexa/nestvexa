@@ -38,3 +38,5 @@ export { cspNonce, cspNonceMiddleware, defaultCspDirectives } from './csp.js';
 export type { CspDirectives, CspNonceOptions } from './csp.js';
 export { viteInertiaRootView } from './inertia.js';
 export type { InertiaRootContextLike, ViteRootViewOptions } from './inertia.js';
+export { viteViewHelpers } from './views.js';
+export type { ViteViewHelperOptions } from './views.js';

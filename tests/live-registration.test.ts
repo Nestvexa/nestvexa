@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { afterEach, describe, expect, it } from 'vitest';
+import { memoryStore } from './support/memory-store.js';
 import { Test } from '@nestjs/testing';
 import {
   Controller,
@@ -212,9 +213,9 @@ describe.each(['express', 'fastify'] as const)(
           state: { count: expectedCount },
         });
       }
-      expect(owners.map((owner) => owner.store.size)).toEqual([1, 1]);
+      expect(owners.map((owner) => memoryStore(owner).size)).toEqual([1, 1]);
       await app.close();
-      expect(owners.map((owner) => owner.store.size)).toEqual([0, 0]);
+      expect(owners.map((owner) => memoryStore(owner).size)).toEqual([0, 0]);
       await expect(runtime.mount(first, {})).rejects.toThrow();
     });
 
@@ -321,7 +322,7 @@ describe.each(['express', 'fastify'] as const)(
         expect(
           module
             .get(LiveRuntime, { each: true })
-            .map((owner) => owner.store.size),
+            .map((owner) => memoryStore(owner).size),
         ).toEqual([0, 0]);
       },
     );

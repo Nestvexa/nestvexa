@@ -1,0 +1,31 @@
+{
+  "name": "Touched fields that pass answer 204 even when untouched fields are invalid",
+  "source": [
+    "https://inertiajs.com/docs/v3/core-concepts/the-protocol (request headers Precognition, Precognition-Validate-Only; response headers Precognition, Precognition-Success, Vary; status codes 204 and 422)",
+    "laravel-precognition 2.1.1 dist/client.js as bundled by @inertiajs/core 3.10.0 (successResolver: 204 + precognition-success, validatePrecognitionResponse, onValidationError reads response.data.errors)"
+  ],
+  "serverVersion": "",
+  "request": {
+    "method": "POST",
+    "path": "/precognition/users",
+    "headers": {
+      "precognition": "true",
+      "accept": "application/json",
+      "content-type": "application/json",
+      "precognition-validate-only": "email"
+    },
+    "body": {
+      "name": "",
+      "email": "jonathan@example.com"
+    }
+  },
+  "response": {
+    "status": 204,
+    "headers": {
+      "precognition": "true",
+      "precognition-success": "true",
+      "vary": "Precognition"
+    },
+    "body": ""
+  }
+}

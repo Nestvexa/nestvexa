@@ -72,6 +72,28 @@ Build with `vite build && vite build --ssr client/ssr.tsx`. Several roots use
 one config per root with distinct `base`/`outDir` (see
 `examples/inertia-mixed`).
 
+### Source maps
+
+`build.sourcemap` is Vite's own option and the examples set it to `true` for
+client and SSR builds: every chunk ends with `//# sourceMappingURL=<file>.map`
+and the map carries `sourcesContent`. Use `'hidden'` to write maps without the
+comment (for upload to an error tracker) or `false` to skip them. Writing maps
+does not publish them: `viteStaticMiddleware` serves `.map` files only with
+`sourceMaps: true`. `tests/vite-builds.test.ts` checks the React, Vue and
+Svelte builds for linked v3 maps on every client and SSR chunk.
+
+### Build hygiene checks
+
+`tests/vite-builds.test.ts` analyses the real example builds through their
+source maps: no module is bundled into two chunks, no npm package appears in
+two versions, the framework runtime (`react-dom`, `@vue/runtime-core`,
+`svelte`) and `@inertiajs/core` are present exactly once, and no other
+framework's packages are present. SSR bundles must not import browser-only
+specifiers (`react-dom/client`, `@vue/runtime-dom`, `svelte/internal/client`,
+`@vitejs/*`, `/@vite/client`) nor inline the adapters' browser entries
+(`@nestvexa/{react,vue,svelte}` `client.js`), and they render a page in plain
+Node with no `window`/`document` defined before or after.
+
 ## Tags, preloads and CSP
 
 `assets.tags(app, { nonce })` prints, in order: `<meta property="csp-nonce">`,
@@ -84,6 +106,47 @@ imported by the trusted entry load without listing hashes, and
 `style-src 'self' 'nonce-…'` for the Inertia progress bar and Vite's dev styles.
 Pass the nonce to Inertia with `nonce: (request) => cspNonce(request)`; the
 framework adapters read the meta and forward it to the official clients.
+
+## Server-rendered (HBS/Live) pages
+
+`viteViewHelpers(assets)` returns a trusted `viteTags` helper that prints the
+same tags for pages rendered by a template engine, so HBS layouts and Live
+pages can load a Vite-built stylesheet and enhancement scripts:
+
+```ts
+const assets = new ViteAssets({
+  apps: {
+    live: {
+      entries: ['client/live/app.ts'],
+      base: '/build/live/',
+      manifest: join(root, 'dist/live/client/.vite/manifest.json'),
+    },
+  },
+});
+app.get(HbsEngine).registerHelpers(viteViewHelpers(assets)); // before configureNestvexa
+app.use(
+  viteStaticMiddleware({ root: 'dist/live/client', prefix: '/build/live/' }),
+);
+```
+
+```hbs
+<head>{{nvScripts nonce=cspNonce}} {{viteTags 'live' nonce=cspNonce}}</head>
+```
+
+Pass the request's nonce in the view model (`cspNonce: cspNonce(request)`).
+With a single configured app the name may be omitted; `{ app, name }` options
+pick a default app and another helper name. EJS, Pug and Nunjucks call it as
+`viteTags('live', { nonce })`. Tags come from the manifest read at startup,
+never from template data; an invalid nonce, unknown app or extra option throws
+instead of printing. `examples/inertia-mixed` serves `/live` this way
+(asserted in `tests/browser/inertia-mixed.spec.ts`).
+
+## Client-only mode
+
+Omitting the `ssr` option of an Inertia app serves the page script and an
+empty root (`<div id="app"></div>`); the adapters' mount helpers then mount
+instead of hydrating. Each adapter example has `pnpm start:csr` for this mode,
+with a browser test for mounting, navigation and validation.
 
 ## Static serving
 

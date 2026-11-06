@@ -40,6 +40,12 @@ export interface ComponentOptions {
   readonly lazy?: boolean | 'visible';
   /** Optional view rendered with public state while a lazy component waits. */
   readonly placeholder?: string;
+  /**
+   * Deadline in milliseconds (1–300000) for each lifecycle hook and the action
+   * method. Exceeding it aborts `liveAbortSignal(this)` and fails the request
+   * with 504; work already started is not undone. Default: no deadline.
+   */
+  readonly timeoutMs?: number;
 }
 /** How a parent may initialize or update a child state field. */
 export type PropMode = 'mount' | 'reactive' | 'modelable';
@@ -52,11 +58,44 @@ export interface StateOptions {
    * typed value; snapshots, templates, validation and client updates use JSON.
    */
   readonly synthesizer?: StateSynthesizer;
+  /** Spec-name alias of `synthesizer`; set one or the other. */
+  readonly serializer?: StateSynthesizer;
+  /**
+   * Initial value for a field the class leaves uninitialized (`declare` or `!`).
+   * JSON values are deep-cloned per instance; a function is called per instance
+   * and may return a typed value for a synthesized field. Never applied to
+   * client updates and never overrides restored snapshot state.
+   */
+  readonly default?: JsonValue | (() => unknown);
 }
+/** Scope of the exclusive lock an action takes while it runs. */
+export type ActionConcurrency = 'component' | 'identity';
 export interface ActionOptions {
   readonly id?: string;
   /** Acknowledge state without rendering when the client negotiates support. */
   readonly renderless?: boolean;
+  /**
+   * Replay the stored response when the same identity resends the same
+   * request ID with an identical payload after the action committed, instead
+   * of failing with a stale revision. A different payload under the same
+   * request ID is rejected (422 IDEMPOTENCY_CONFLICT). Single-process, bounded.
+   */
+  readonly idempotent?: boolean;
+  /**
+   * `component` (default): one request per component instance at a time.
+   * `identity`: additionally at most one execution of this action per
+   * identity across all instances and tabs (409 ACTION_BUSY). Overlaps are
+   * always rejected, never queued.
+   */
+  readonly concurrency?: ActionConcurrency;
+}
+/** Normalized per-action registration. */
+export interface ActionDefinition {
+  readonly method: string;
+  readonly input: boolean;
+  readonly renderless?: true;
+  readonly idempotent?: true;
+  readonly concurrency?: 'identity';
 }
 /** Derived JSON values; caches never survive the current component request/stage. */
 export interface ComputedOptions {
@@ -86,6 +125,7 @@ export interface ComponentDefinition {
   readonly children: ReadonlyMap<string, Type<object>>;
   readonly lazy: false | 'load' | 'visible';
   readonly placeholder?: string;
+  readonly timeoutMs?: number;
   readonly props: ReadonlyMap<string, PropMode>;
   /** Event name → listening action ids. */
   readonly listeners: ReadonlyMap<string, readonly string[]>;
@@ -94,14 +134,7 @@ export interface ComponentDefinition {
   readonly states: ReadonlyMap<string, StateOptions>;
   readonly computed: ReadonlyMap<string, ComputedDefinition>;
   readonly stateContext: StateContextDefinition;
-  readonly actions: ReadonlyMap<
-    string,
-    {
-      readonly method: string;
-      readonly input: boolean;
-      readonly renderless?: true;
-    }
-  >;
+  readonly actions: ReadonlyMap<string, ActionDefinition>;
 }
 const COMPONENT = Symbol('nv:component');
 const STATES = Symbol('nv:states');
@@ -110,7 +143,7 @@ const COMPUTED_DECLARED = Symbol('nv:computed-declared');
 const ACTIONS = Symbol('nv:actions');
 const INPUT = Symbol('nv:input');
 const ACTION_DECLARED = Symbol('nv:action-declared');
-const ACTION_RENDERLESS = Symbol('nv:action-renderless');
+const ACTION_OPTIONS = Symbol('nv:action-options');
 const PROPS = Symbol('nv:props');
 const LISTENERS = Symbol('nv:listeners');
 const REALTIME = Symbol('nv:realtime');
@@ -218,6 +251,13 @@ export function LiveComponent(options: ComponentOptions): ClassDecorator {
       !options.lazy)
   )
     throw new Error('Component placeholder must be a view and requires lazy');
+  if (
+    options.timeoutMs !== undefined &&
+    (!Number.isSafeInteger(options.timeoutMs) ||
+      options.timeoutMs < 1 ||
+      options.timeoutMs > 300_000)
+  )
+    throw new Error('Component timeoutMs must be 1–300000 milliseconds');
   const children = new Map<string, Type<object>>();
   if (options.children !== undefined) {
     if (
@@ -255,6 +295,9 @@ export function LiveComponent(options: ComponentOptions): ClassDecorator {
         ...(options.placeholder === undefined
           ? {}
           : { placeholder: options.placeholder }),
+        ...(options.timeoutMs === undefined
+          ? {}
+          : { timeoutMs: options.timeoutMs }),
       }),
       target,
     );
@@ -266,10 +309,25 @@ export function State(options: StateOptions = {}): PropertyDecorator {
     throw new Error('State validate must be a function');
   if (options.validate !== undefined && options.writable !== true)
     throw new Error('State validation requires writable:true');
-  if (options.synthesizer !== undefined && !isSynthesizer(options.synthesizer))
+  if (options.synthesizer !== undefined && options.serializer !== undefined)
+    throw new Error('State accepts synthesizer or serializer, not both');
+  const synthesizer = options.synthesizer ?? options.serializer;
+  if (synthesizer !== undefined && !isSynthesizer(synthesizer))
     throw new Error(
       'State synthesizer must provide name, dehydrate and hydrate',
     );
+  let initial: JsonValue | (() => unknown) | undefined;
+  if (Object.hasOwn(options, 'default')) {
+    const value: unknown = options.default;
+    if (typeof value === 'function') initial = value as () => unknown;
+    else if (value === undefined)
+      throw new Error('State default must be JSON data or a factory function');
+    else {
+      const cloned = cloneState({ value })['value'];
+      if (cloned === undefined) throw new Error('Invalid state default');
+      initial = cloned;
+    }
+  }
   return (target, key) => {
     const name = property(key);
     const prior: Map<string, StateOptions> | undefined = Reflect.getMetadata(
@@ -284,9 +342,8 @@ export function State(options: StateOptions = {}): PropertyDecorator {
         ...(options.validate === undefined
           ? {}
           : { validate: options.validate }),
-        ...(options.synthesizer === undefined
-          ? {}
-          : { synthesizer: options.synthesizer }),
+        ...(synthesizer === undefined ? {} : { synthesizer }),
+        ...(initial === undefined ? {} : { default: initial }),
       }),
     );
     Reflect.defineMetadata(STATES, states, target);
@@ -507,7 +564,7 @@ export function Action(options: ActionOptions = {}): MethodDecorator {
       const option = Object.getOwnPropertyDescriptor(options, key);
       if (
         typeof key !== 'string' ||
-        !['id', 'renderless'].includes(key) ||
+        !['id', 'renderless', 'idempotent', 'concurrency'].includes(key) ||
         !option ||
         !('value' in option)
       )
@@ -522,6 +579,17 @@ export function Action(options: ActionOptions = {}): MethodDecorator {
       typeof selected.renderless !== 'boolean'
     )
       throw new Error('Action renderless must be a boolean');
+    if (
+      selected.idempotent !== undefined &&
+      typeof selected.idempotent !== 'boolean'
+    )
+      throw new Error('Action idempotent must be a boolean');
+    if (
+      selected.concurrency !== undefined &&
+      selected.concurrency !== 'component' &&
+      selected.concurrency !== 'identity'
+    )
+      throw new Error('Action concurrency must be "component" or "identity"');
     const name = property(key);
     if (typeof descriptor.value !== 'function')
       throw new Error('@Action requires a method');
@@ -544,8 +612,14 @@ export function Action(options: ActionOptions = {}): MethodDecorator {
     Reflect.defineMetadata(ACTIONS, actions, target);
     Reflect.defineMetadata(ACTION_DECLARED, true, target, key);
     Reflect.defineMetadata(
-      ACTION_RENDERLESS,
-      selected.renderless === true,
+      ACTION_OPTIONS,
+      Object.freeze({
+        ...(selected.renderless === true ? { renderless: true as const } : {}),
+        ...(selected.idempotent === true ? { idempotent: true as const } : {}),
+        ...(selected.concurrency === 'identity'
+          ? { concurrency: 'identity' as const }
+          : {}),
+      }),
       target,
       key,
     );
@@ -570,6 +644,7 @@ export function definition(type: Type<object>): ComponentDefinition {
         readonly children?: ReadonlyMap<string, Type<object>>;
         readonly lazy?: false | 'load' | 'visible';
         readonly placeholder?: string;
+        readonly timeoutMs?: number;
       }
     | undefined = Reflect.getMetadata(COMPONENT, type);
   if (!options) throw new Error(`Missing @LiveComponent on ${type.name}`);
@@ -603,10 +678,7 @@ export function definition(type: Type<object>): ComponentDefinition {
   const methods: Map<string, string> = new Map(
     Reflect.getMetadata(ACTIONS, type.prototype),
   );
-  const actions = new Map<
-    string,
-    { method: string; input: boolean; renderless?: true }
-  >();
+  const actions = new Map<string, ActionDefinition>();
   for (const [id, method] of methods) {
     const declaration = memberDeclaration(type.prototype, method);
     if (
@@ -624,17 +696,9 @@ export function definition(type: Type<object>): ComponentDefinition {
       throw new Error(
         `${type.name}.${method} must have zero arguments or one @ActionInput`,
       );
-    actions.set(id, {
-      method,
-      input,
-      ...(Reflect.getOwnMetadata(
-        ACTION_RENDERLESS,
-        declaration.owner,
-        method,
-      ) === true
-        ? { renderless: true as const }
-        : {}),
-    });
+    const selected: Omit<ActionDefinition, 'method' | 'input'> =
+      Reflect.getOwnMetadata(ACTION_OPTIONS, declaration.owner, method) ?? {};
+    actions.set(id, Object.freeze({ method, input, ...selected }));
   }
   for (const name of states.keys())
     if (computed.has(name) || [...methods.values()].includes(name))
@@ -731,6 +795,9 @@ export function definition(type: Type<object>): ComponentDefinition {
     ...(options.placeholder === undefined
       ? {}
       : { placeholder: options.placeholder }),
+    ...(options.timeoutMs === undefined
+      ? {}
+      : { timeoutMs: options.timeoutMs }),
     props,
     listeners,
     states,
@@ -738,4 +805,33 @@ export function definition(type: Type<object>): ComponentDefinition {
     actions,
     stateContext,
   });
+}
+
+/**
+ * Runtime-only: apply `@State({ default })` to fields the class left
+ * uninitialized. Called once per freshly created instance, before hooks.
+ */
+export function applyStateDefaults(
+  instance: object,
+  component: ComponentDefinition,
+): void {
+  for (const [name, options] of component.states) {
+    if (options.default === undefined) continue;
+    const descriptor = Object.getOwnPropertyDescriptor(instance, name);
+    if (
+      descriptor &&
+      (!('value' in descriptor) || descriptor.value !== undefined)
+    )
+      continue;
+    const initial = options.default;
+    Object.defineProperty(instance, name, {
+      value:
+        typeof initial === 'function'
+          ? initial()
+          : cloneState({ value: initial })['value'],
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
+  }
 }

@@ -8,8 +8,16 @@ import {
 } from './constants.js';
 import type { InertiaRootContext } from './document.js';
 import { InertiaConfigurationError } from './errors.js';
+import { traced } from './instrumentation.js';
 import type { ResolvedApp, ResolvedOptions } from './options.js';
 import type { InertiaPageObject } from './page.js';
+import {
+  PrecognitionHeader,
+  isPrecognitionRequest,
+  parsePrecognitionRequest,
+  selectPrecognitionErrors,
+} from './precognition.js';
+import type { PrecognitionRequestInfo } from './precognition.js';
 import { always } from './props.js';
 import {
   assertSafeRedirect,
@@ -51,6 +59,7 @@ export interface InertiaHttpReply {
 
 interface RequestState {
   info?: InertiaRequestInfo;
+  precognition?: PrecognitionRequestInfo;
   claimed: boolean;
   shared: Record<string, unknown>;
   flash: Record<string, unknown>;
@@ -134,6 +143,66 @@ export class InertiaService {
 
   isInertia(request: object): boolean {
     return isInertiaRequest(request);
+  }
+
+  /** True for `Precognition: true` requests (validation-only visits). */
+  isPrecognitive(request: object): boolean {
+    return isPrecognitionRequest(request);
+  }
+
+  /** Parsed Precognition headers (throws `InertiaRequestError` → 400 when malformed). */
+  precognition(request: object): PrecognitionRequestInfo {
+    const state = this.#state(request);
+    state.precognition ??= parsePrecognitionRequest(
+      request,
+      this.#options.limits,
+    );
+    return state.precognition;
+  }
+
+  /**
+   * The reply to a Precognition request: `204` with `Precognition-Success:
+   * true` when no requested field failed, otherwise `422` with Laravel-shaped
+   * `{ message, errors }` (message arrays; the client simplifies them unless
+   * `withAllErrors` is on). Both carry `Precognition: true` and
+   * `Vary: Precognition`.
+   */
+  precognitionReply(
+    request: object,
+    errors: InertiaErrors | undefined,
+  ): InertiaHttpReply {
+    const { only } = this.precognition(request);
+    const failed =
+      errors === undefined
+        ? {}
+        : selectPrecognitionErrors(normalizeErrors(errors), only);
+    const messages = Object.values(failed);
+    const first = messages[0]?.[0];
+    if (first === undefined)
+      return {
+        status: 204,
+        headers: {
+          [PrecognitionHeader.precognition]: 'true',
+          [PrecognitionHeader.success]: 'true',
+          Vary: PrecognitionHeader.precognition,
+        },
+        body: '',
+      };
+    const more = messages.reduce((total, list) => total + list.length, 0) - 1;
+    // Mirrors ValidationException::summarize in Laravel.
+    const message =
+      more > 0
+        ? `${first} (and ${more} more error${more === 1 ? '' : 's'})`
+        : first;
+    return {
+      status: 422,
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        [PrecognitionHeader.precognition]: 'true',
+        Vary: PrecognitionHeader.precognition,
+      },
+      body: JSON.stringify({ message, errors: failed }),
+    };
   }
 
   hasSession(request: object): boolean {
@@ -251,9 +320,17 @@ export class InertiaService {
 
   /** @internal Applies status and headers, leaving the body to Nest. */
   applyHead(response: object, reply: InertiaHttpReply): void {
+    this.#adapter().status(response, reply.status);
+    this.applyHeaders(response, reply.headers);
+  }
+
+  /** @internal Sets headers (merging `Vary`) without touching the status. */
+  applyHeaders(
+    response: object,
+    headers: Readonly<Record<string, string>>,
+  ): void {
     const adapter = this.#adapter();
-    adapter.status(response, reply.status);
-    for (const [name, value] of Object.entries(reply.headers)) {
+    for (const [name, value] of Object.entries(headers)) {
       if (name === 'Vary') {
         const existing: unknown = adapter.getHeader(response, 'Vary');
         const values = new Set(
@@ -344,7 +421,21 @@ export class InertiaService {
     defaultApp?: string,
   ): Promise<InertiaHttpReply> {
     if (result instanceof InertiaPageResult)
-      return this.#pageReply(request, result, defaultApp);
+      return traced(
+        this.#options.instrumentation,
+        'nestvexa.inertia.render',
+        {
+          'nestvexa.page': result.component,
+          'nestvexa.inertia.kind': this.requestInfo(request).inertia
+            ? 'json'
+            : 'document',
+        },
+        () => this.#pageReply(request, result, defaultApp),
+        (reply) => ({
+          'nestvexa.page_bytes': Buffer.byteLength(reply.body),
+          status: reply.status,
+        }),
+      );
     if (result instanceof InertiaLocationResult)
       return this.#locationReply(request, result.url);
     if (result instanceof InertiaBackResult) {

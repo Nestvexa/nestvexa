@@ -254,6 +254,22 @@ await forbid(
   nodeOrNest,
   'Browser module imports Node or Nest',
 );
+// @nestvexa/i18n/client and the pure modules it imports run in browsers.
+for (const file of ['client', 'message', 'format', 'errors', 'locale']) {
+  const text = await readFile(`packages/i18n/src/${file}.ts`, 'utf8');
+  if (
+    nodeOrNest.test(text) ||
+    /from\s+['"]@nestvexa\/views/.test(text) ||
+    specifiers(text).some(
+      (specifier) =>
+        specifier.startsWith('./') &&
+        !/^\.\/(?:message|format|errors|locale)\.js$/.test(specifier),
+    )
+  )
+    throw new Error(
+      `Browser i18n client imports a server module: packages/i18n/src/${file}.ts`,
+    );
+}
 for (const entry of await readdir('packages/offline/src', {
   withFileTypes: true,
 }))

@@ -1,7 +1,61 @@
 # Contributing
 
-Install Node 24 LTS and pnpm 10.26.1. Run `pnpm install --frozen-lockfile`, `pnpm build`, `pnpm typecheck`, `pnpm lint`, and `pnpm test`. For browsers run `pnpm exec playwright install chromium` and `pnpm test:e2e`. `pnpm test:pack` validates local artifacts in an external consumer. `pnpm docs:build` checks links and creates readable source snapshots.
+Thanks for helping build Nestvexa. This page is the short version. The
+[contributor handbook](docs/contributing/README.md) has the details.
 
-Use small Conventional Commits, strict TypeScript and a Changeset for public behavior changes. Add regression tests and accurate documentation. Do not disable a failed test or mark ledger rows Done without implementation, test, documentation, security and integration evidence. Follow the [master plan](NESTVEXA_MASTER_IMPLEMENTATION_PROMPT.md) and [status](docs/implementation/STATUS.md). Later phases remain required work, not community-delivery substitutes.
+## Set up
 
-Legacy decorators are intentional for Nest integration. No unchecked `any`, blanket lint suppression or import from private package source paths in consumers. Keep backend and browser dependencies separate. Run `pnpm format` before review. Repository owner URLs and reviewer identities must be configured before accepting external contributions through hosted workflows.
+Install Node 22.13+ or 24 and pnpm 10.26.1, then:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm build && pnpm lint && pnpm typecheck && pnpm test
+```
+
+For browser tests run `pnpm exec playwright install chromium firefox webkit` and
+`pnpm test:e2e`. `pnpm test:pack` validates the tarballs in external consumers.
+`pnpm docs:build` checks the docs and builds the site. More detail:
+[development setup](docs/contributing/development-setup.md),
+[test matrix](docs/contributing/test-matrix.md) and [ports](docs/contributing/ports.md).
+
+## Make a change
+
+1. Open or find an issue. For a public API, protocol or security-model change, write
+   or update an [ADR](docs/adr/README.md) first ([governance](GOVERNANCE.md#decision-process)).
+2. Keep the pull request small. Use [Conventional Commits](https://www.conventionalcommits.org/)
+   (`feat(live): ...`, `fix(uploads): ...`, `docs: ...`).
+3. Add tests:
+   - every behaviour change needs one;
+   - security-relevant behaviour needs negative tests;
+   - add new test files to the right group script in `package.json`.
+4. Update docs in the same pull request: the package README, the relevant guide, and
+   the [feature matrix](docs/feature-matrix.md) when a feature's status changes.
+5. Add a Changeset (`pnpm changeset`) for any change to published behaviour: `minor`
+   for features, `patch` for fixes ([release process](docs/contributing/release-process.md)).
+6. Run `pnpm format` (or `pnpm exec prettier --write <files>`), `pnpm lint` and the
+   tests you touched before pushing.
+
+## Standards
+
+- **TypeScript.** Strict TypeScript. No `any`, no non-null assertions, no
+  `eslint-disable`, no blanket suppressions.
+- **Decorators.** Legacy decorators are intentional for Nest integration.
+- **Imports.** Consumers never import private package paths. Keep backend and browser
+  dependencies separate; `pnpm lint` runs the [boundary checks](scripts/boundaries.mjs).
+- **Dependencies.** Optional integrations stay optional peers. A new dependency is
+  pinned to an exact published version and justified in the pull request.
+- **Honesty.** Never disable or skip a failing test. Never mark a
+  [ledger](docs/implementation/feature-ledger.md) row Done, or document a feature as
+  shipped, without implementation, test, documentation, security and integration
+  evidence. Known gaps are written down, not hidden.
+- **Scope.** The [master specification](NESTVEXA_MASTER_IMPLEMENTATION_PROMPT.md) and
+  [status](docs/implementation/STATUS.md) define the required scope. Later phases
+  remain required work, not community-delivery substitutes.
+
+## Security
+
+Never report vulnerabilities in public issues. See [SECURITY.md](SECURITY.md).
+
+## Conduct
+
+Participation follows the [code of conduct](CODE_OF_CONDUCT.md).

@@ -7,12 +7,20 @@ import type {
 import { Reflector } from '@nestjs/core';
 import { from, mergeMap, of } from 'rxjs';
 import type { Observable } from 'rxjs';
-import { INERTIA_PAGE_METADATA } from './constants.js';
+import { INERTIA_PAGE_METADATA, PRECOGNITION_METADATA } from './constants.js';
 import type { InertiaPageMetadata } from './decorators.js';
 import { InertiaConfigurationError } from './errors.js';
+import {
+  PrecognitionHeader,
+  defaultPrecognitionInput,
+  runPrecognitionValidator,
+} from './precognition.js';
+import type { PrecognitionMetadata } from './precognition.js';
 import { isPlainObject } from './resolver.js';
 import { InertiaPageResult, isInertiaResult } from './results.js';
 import { InertiaService } from './service.js';
+import { InertiaValidationException } from './validation.js';
+import type { InertiaErrors } from './validation-types.js';
 
 /**
  * Applies the Inertia protocol around Nest route handlers:
@@ -20,7 +28,9 @@ import { InertiaService } from './service.js';
  * 1. validates `X-Inertia-*` headers (400 on malformed input) and answers an
  *    asset-version mismatch on Inertia GET requests with `409` before the
  *    handler runs (guards have already run);
- * 2. turns `@InertiaPage` return values and Inertia results (`inertia()`,
+ * 2. answers Precognition requests on `@Precognitive` routes with
+ *    validation only (`204`/`422`), so neither pipes nor the handler run;
+ * 3. turns `@InertiaPage` return values and Inertia results (`inertia()`,
  *    `redirect()`, `back()`, `location()`) into protocol replies.
  *
  * Other handler results pass through untouched. Exactly one interceptor
@@ -43,7 +53,11 @@ export class InertiaInterceptor implements NestInterceptor {
       INERTIA_PAGE_METADATA,
       context.getHandler(),
     );
-    return from(this.#before(request, response, metadata)).pipe(
+    const precognition = this.reflector.get<PrecognitionMetadata | undefined>(
+      PRECOGNITION_METADATA,
+      context.getHandler(),
+    );
+    return from(this.#before(request, response, metadata, precognition)).pipe(
       mergeMap((conflict) =>
         conflict === undefined
           ? next
@@ -62,15 +76,55 @@ export class InertiaInterceptor implements NestInterceptor {
     request: object,
     response: object,
     metadata: InertiaPageMetadata | undefined,
+    precognition: PrecognitionMetadata | undefined,
   ): Promise<string | undefined> {
     this.inertia.requestInfo(request);
     const conflict = await this.inertia.versionConflict(
       request,
       this.inertia.appFor(request, metadata?.options.app),
     );
-    if (!conflict) return undefined;
-    this.inertia.applyHead(response, conflict);
-    return conflict.body;
+    if (conflict) {
+      this.inertia.applyHead(response, conflict);
+      return conflict.body;
+    }
+    if (!precognition) return undefined;
+    if (!this.inertia.precognition(request).precognitive) {
+      this.inertia.applyHeaders(response, {
+        Vary: PrecognitionHeader.precognition,
+      });
+      return undefined;
+    }
+    return this.#precognition(request, response, precognition);
+  }
+
+  /** Validation-only answer; the handler never runs for Precognition requests. */
+  async #precognition(
+    request: object,
+    response: object,
+    { validator, input }: PrecognitionMetadata,
+  ): Promise<string> {
+    let errors: InertiaErrors | undefined;
+    try {
+      errors = await runPrecognitionValidator(
+        validator,
+        (input ?? defaultPrecognitionInput)(request),
+        request,
+      );
+    } catch (error) {
+      if (!(error instanceof InertiaValidationException)) {
+        // The official client rejects any reply without this header; keep it
+        // on the error response the exception filters produce.
+        this.inertia.applyHeaders(response, {
+          [PrecognitionHeader.precognition]: 'true',
+          Vary: PrecognitionHeader.precognition,
+        });
+        throw error;
+      }
+      errors = error.errors;
+    }
+    const reply = this.inertia.precognitionReply(request, errors);
+    this.inertia.applyHead(response, reply);
+    return reply.body;
   }
 
   async #after(

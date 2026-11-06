@@ -1,6 +1,8 @@
 import { isAbsolute, normalize, resolve } from 'node:path';
 import { FILE_TYPES, defineFileType } from './file-types.js';
 import type { BuiltInFileType, FileTypeDefinition } from './file-types.js';
+import { isInstrumentation } from './instrumentation.js';
+import type { UploadInstrumentation } from './instrumentation.js';
 import { LocalStorage } from './storage.js';
 import type { UploadStorage } from './storage.js';
 import type { UploadScanner } from './scanner.js';
@@ -80,6 +82,12 @@ export interface UploadsHostOptions {
   /** Expired-file sweep interval. Default 60000ms. */
   readonly sweepIntervalMs?: number;
   readonly quotas?: UploadQuotaOptions;
+  /**
+   * Optional structural tracing hook (for example from
+   * @nestvexa/observability). Emits `nestvexa.upload.receive` and
+   * `nestvexa.upload.finalize` spans with purpose, mode and sizes only.
+   */
+  readonly instrumentation?: UploadInstrumentation;
 }
 
 export interface ResolvedPurpose {
@@ -108,6 +116,7 @@ export interface ResolvedOptions {
   readonly maxRequestMs: number;
   readonly sweepIntervalMs: number;
   readonly quotas: Required<UploadQuotaOptions>;
+  readonly instrumentation: UploadInstrumentation | undefined;
 }
 
 export const PURPOSE_PATTERN =
@@ -224,6 +233,7 @@ export function resolveOptions(options: UploadsHostOptions): ResolvedOptions {
     'maxRequestMs',
     'sweepIntervalMs',
     'quotas',
+    'instrumentation',
     'endpoint',
     'global',
     'imports',
@@ -405,5 +415,13 @@ export function resolveOptions(options: UploadsHostOptions): ResolvedOptions {
         'quotas.requestsPerMinute',
       ),
     }),
+    instrumentation: instrumentation(options.instrumentation),
   });
+}
+
+function instrumentation(value: unknown): UploadInstrumentation | undefined {
+  if (value === undefined) return undefined;
+  if (!isInstrumentation(value))
+    throw new Error('Uploads instrumentation must implement start()');
+  return value;
 }

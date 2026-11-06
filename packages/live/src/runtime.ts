@@ -14,12 +14,25 @@ import {
   cloneState,
   freezeJson,
   LiveProtocolError,
+  parseLiveCapabilities,
   parseLiveRequest,
   isSnapshotToken,
 } from './protocol.js';
-import type { JsonValue, LiveRequest } from './protocol.js';
+import type { JsonValue, LiveCapability, LiveRequest } from './protocol.js';
+import { applyStateDefaults } from './metadata.js';
+import {
+  beginOperation,
+  endOperation,
+  withinDeadline,
+} from './cancellation.js';
+import { ActionLocks, ActionReplayCache } from './action-policy.js';
 import { MemoryLiveStore } from './store.js';
-import type { ChildReference, StateSnapshot } from './store.js';
+import type {
+  ChildReference,
+  LiveStateStore,
+  LiveTransactionResult,
+  StateSnapshot,
+} from './store.js';
 import type { ComponentDefinition } from './metadata.js';
 import { beginEffects, persistFlash, takeEffects } from './effects.js';
 import type { LiveDownload, LiveEvent } from './effects.js';
@@ -54,7 +67,12 @@ export interface LiveHostOptions {
     action: string,
   ) => boolean | Promise<boolean>;
   readonly renderer: ViewEngineAdapter;
-  readonly store?: MemoryLiveStore;
+  /**
+   * Server-side state storage (default: a process-local `MemoryLiveStore`).
+   * Multi-replica deployments need a shared store such as `RedisLiveStore`
+   * from @nestvexa/realtime-redis.
+   */
+  readonly store?: LiveStateStore;
   readonly maxRequestsPerMinute?: number;
   /**
    * Optional realtime signer (for example `RealtimeService` from
@@ -93,6 +111,7 @@ interface Admission {
   readonly payload: LiveRequest;
   readonly component: ComponentDefinition;
   readonly action: string;
+  readonly capabilities: ReadonlySet<LiveCapability>;
 }
 /** One render tree: shared request/identity, bounded depth and child bookkeeping. */
 interface RenderContext {
@@ -121,6 +140,8 @@ interface Rendered {
   readonly realtime?: string;
 }
 const maxChildDepth = 8;
+/** Upper bound on waiting for in-flight Live requests during shutdown. */
+const shutdownDrainMs = 10_000;
 /** Rebuild a stored JSON value into the component field type. */
 function hydrated(
   component: ComponentDefinition,
@@ -245,7 +266,7 @@ function escapeAttribute(value: string): string {
 @Injectable()
 export class LiveRuntime implements OnApplicationShutdown {
   private closed = false;
-  readonly store: MemoryLiveStore;
+  readonly store: LiveStateStore;
   readonly #admissions = new WeakMap<object, Admission>();
   readonly #rate = new Map<string, { start: number; count: number }>();
   readonly #computed = new WeakMap<object, () => void>();
@@ -258,6 +279,12 @@ export class LiveRuntime implements OnApplicationShutdown {
       readonly download: LiveDownload;
     }
   >();
+  /** Abort controllers of running operations; aborted when shutdown begins. */
+  readonly #controllers = new Set<AbortController>();
+  /** Mount/action requests still running; drained (bounded) during shutdown. */
+  readonly #inflight = new Set<Promise<unknown>>();
+  readonly #replays = new ActionReplayCache();
+  readonly #locks = new ActionLocks();
   constructor(
     @Inject(LIVE_OPTIONS) private readonly options: RuntimeOptions,
     @Inject(ModuleRef) private readonly moduleRef: ModuleRef,
@@ -322,9 +349,16 @@ export class LiveRuntime implements OnApplicationShutdown {
       fail(403, 'CSRF_REJECTED');
     this.limit(identity);
     let payload: LiveRequest;
+    let capabilities: ReadonlySet<LiveCapability>;
     try {
+      capabilities = parseLiveCapabilities(
+        header(request, 'x-nestvexa-capabilities'),
+      );
       payload = parseLiveRequest(Reflect.get(request, 'body'));
-      const snapshot = this.store.peek(payload.snapshot, identity.binding);
+      const snapshot = await this.store.peek(
+        payload.snapshot,
+        identity.binding,
+      );
       if (snapshot.name !== component.name) fail(403, 'COMPONENT_MISMATCH');
     } catch (error) {
       mapped(error);
@@ -334,7 +368,13 @@ export class LiveRuntime implements OnApplicationShutdown {
     if (!(await this.options.authorize(identity, component.name, action)))
       fail(403, 'ACTION_FORBIDDEN');
     if (this.closed) fail(503, 'LIVE_SHUTDOWN');
-    this.#admissions.set(request, { identity, payload, component, action });
+    this.#admissions.set(request, {
+      identity,
+      payload,
+      component,
+      action,
+      capabilities,
+    });
   }
   /** Authorize a read-only text stream from a normal host Nest route.
    * Type and stream ID are trusted route constants, never client class/method names.
@@ -390,7 +430,7 @@ export class LiveRuntime implements OnApplicationShutdown {
           fail(403, 'IDENTITY_CHANGED');
         if (!equal(header(request, 'x-nestvexa-csrf') ?? '', current.csrfToken))
           fail(403, 'CSRF_REJECTED');
-        const before = this.store.peek(token, current.binding);
+        const before = await this.store.peek(token, current.binding);
         if (before.name !== component.name) fail(403, 'COMPONENT_MISMATCH');
         if (before.revision !== revision) fail(409, 'STALE_REVISION');
         if (
@@ -402,7 +442,7 @@ export class LiveRuntime implements OnApplicationShutdown {
         )
           fail(403, 'STREAM_FORBIDDEN');
         if (this.closed) fail(503, 'LIVE_SHUTDOWN');
-        const after = this.store.peek(token, current.binding);
+        const after = await this.store.peek(token, current.binding);
         if (after.revision !== revision || after.id !== before.id)
           fail(409, 'STALE_REVISION');
         return after;
@@ -435,7 +475,9 @@ export class LiveRuntime implements OnApplicationShutdown {
     // Only the owning runtime's explicit registration reaches this path.
     // Creating the component avoids reusing mutable fields across same-type
     // mounts, while its dependencies still share the actual request context.
-    return this.moduleRef.create(component.type, context);
+    const instance = await this.moduleRef.create(component.type, context);
+    applyStateDefaults(instance, component);
+    return instance;
   }
   private async operation<T>(
     instance: object,
@@ -445,6 +487,9 @@ export class LiveRuntime implements OnApplicationShutdown {
     let outcome:
       | { readonly ok: true; readonly value: T }
       | { readonly ok: false; readonly error: unknown };
+    const controller = beginOperation(instance, component.timeoutMs);
+    this.#controllers.add(controller);
+    if (this.closed) controller.abort();
     try {
       const clear = this.#computed.get(instance);
       if (clear) clear();
@@ -463,6 +508,8 @@ export class LiveRuntime implements OnApplicationShutdown {
       }
       // Preserve the original operation failure; cleanup must not mask it.
     }
+    endOperation(instance);
+    this.#controllers.delete(controller);
     if (!outcome.ok) throw outcome.error;
     return outcome.value;
   }
@@ -503,6 +550,10 @@ export class LiveRuntime implements OnApplicationShutdown {
       () => this.renderUntraced(instance, component, context),
       (rendered) => ({
         'nestvexa.html_bytes': Buffer.byteLength(rendered.html),
+        // Public state is already client-safe JSON; only its size is recorded.
+        'nestvexa.state_bytes': Buffer.byteLength(
+          JSON.stringify(rendered.state),
+        ),
       }),
     );
   }
@@ -842,7 +893,7 @@ export class LiveRuntime implements OnApplicationShutdown {
             previous: undefined,
           });
     });
-    const snapshot = this.store.create(
+    const snapshot = await this.store.create(
       child.name,
       identity.binding,
       captured.state,
@@ -883,8 +934,10 @@ export class LiveRuntime implements OnApplicationShutdown {
     const { identity, request } = context;
     let current: StateSnapshot;
     try {
-      current = this.store.peek(reference.token, identity.binding);
-    } catch {
+      current = await this.store.peek(reference.token, identity.binding);
+    } catch (error) {
+      // A shared store outage must surface, not silently reset child state.
+      if (!(error instanceof LiveProtocolError)) throw error;
       // Expired or revoked child state: mount a fresh child for this key.
       return this.mountChild(
         child,
@@ -902,7 +955,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     );
     const stub = `<div data-nv-component="${escapeAttribute(current.id)}" data-nv-key="nv-child:${escapeAttribute(slot)}" data-nv-stub=""></div>`;
     if (!changed.length) return { html: stub, reference };
-    let result: Awaited<ReturnType<MemoryLiveStore['transaction']>>;
+    let result: LiveTransactionResult;
     let refreshedRealtime: string | undefined;
     try {
       result = await this.store.transaction(
@@ -984,7 +1037,9 @@ export class LiveRuntime implements OnApplicationShutdown {
       throw new Error(`Lifecycle hook ${name} must be a method`);
     try {
       if (typeof method === 'function')
-        await Reflect.apply(method, instance, args);
+        await withinDeadline(instance, 'HOOK_TIMEOUT', () =>
+          Reflect.apply(method, instance, args),
+        );
     } finally {
       this.#computed.get(instance)?.();
     }
@@ -996,11 +1051,22 @@ export class LiveRuntime implements OnApplicationShutdown {
       (entry) => entry.type === type,
     );
     if (!definition) return this.mountUntraced(type, request);
-    return this.traced(
-      'nestvexa.live.mount',
-      { 'nestvexa.component': definition.name },
-      () => this.mountUntraced(type, request),
+    return this.tracked(
+      this.traced(
+        'nestvexa.live.mount',
+        { 'nestvexa.component': definition.name },
+        () => this.mountUntraced(type, request),
+      ),
     );
+  }
+  /** Register a running request so shutdown can wait for it to settle. */
+  private tracked<T>(work: Promise<T>): Promise<T> {
+    this.#inflight.add(work);
+    const settle = () => {
+      this.#inflight.delete(work);
+    };
+    work.then(settle, settle);
+    return work;
   }
   private async mountUntraced(
     type: Type<object>,
@@ -1048,12 +1114,12 @@ export class LiveRuntime implements OnApplicationShutdown {
           : this.render(instance, component, context);
       });
     } catch (error) {
-      for (const token of context.created) this.store.delete(token);
+      await this.discard(context.created);
       mapped(error);
     }
-    let snapshot: ReturnType<MemoryLiveStore['create']> | undefined;
+    let snapshot: StateSnapshot | undefined;
     try {
-      snapshot = this.store.create(
+      snapshot = await this.store.create(
         component.name,
         identity.binding,
         captured.state,
@@ -1067,8 +1133,9 @@ export class LiveRuntime implements OnApplicationShutdown {
         identity.binding,
       );
     } catch (error) {
-      if (snapshot) this.store.delete(snapshot.snapshot);
-      for (const token of context.created) this.store.delete(token);
+      await this.discard(
+        snapshot ? [snapshot.snapshot, ...context.created] : context.created,
+      );
       await this.observeError(instance, error);
       mapped(error);
     }
@@ -1082,15 +1149,17 @@ export class LiveRuntime implements OnApplicationShutdown {
   async execute(request: object, input: unknown): Promise<unknown> {
     const admitted = this.#admissions.get(request);
     if (!admitted || !this.options.instrumentation)
-      return this.executeUntraced(request, input);
-    return this.traced(
-      'nestvexa.live.action',
-      {
-        'nestvexa.component': admitted.component.name,
-        'nestvexa.action': admitted.action,
-        'nestvexa.revision': admitted.payload.revision,
-      },
-      () => this.executeUntraced(request, input),
+      return this.tracked(this.executeUntraced(request, input));
+    return this.tracked(
+      this.traced(
+        'nestvexa.live.action',
+        {
+          'nestvexa.component': admitted.component.name,
+          'nestvexa.action': admitted.action,
+          'nestvexa.revision': admitted.payload.revision,
+        },
+        () => this.executeUntraced(request, input),
+      ),
     );
   }
   private async executeUntraced(
@@ -1100,8 +1169,9 @@ export class LiveRuntime implements OnApplicationShutdown {
     if (this.closed) fail(503, 'LIVE_SHUTDOWN');
     const admitted = this.#admissions.get(request);
     if (!admitted) fail(403, 'ADMISSION_REQUIRED');
-    const { identity, payload, component, action } = admitted;
+    const { identity, payload, component, action, capabilities } = admitted;
     let completed: object | undefined;
+    let release: (() => void) | undefined;
     try {
       const synchronization = action === INTERNAL_SYNC_ACTION;
       const selected = component.actions.get(action);
@@ -1113,8 +1183,20 @@ export class LiveRuntime implements OnApplicationShutdown {
       )
         fail(400, 'UNEXPECTED_INPUT');
       const renderless =
-        selected?.renderless === true &&
-        header(request, 'x-nestvexa-capabilities') === 'renderless-v1';
+        selected?.renderless === true && capabilities.has('renderless-v1');
+      // An identical retry of a committed idempotent action replays its result
+      // before the (now stale) revision check; nothing executes again.
+      const replayed = selected?.idempotent
+        ? this.#replays.lookup(
+            identity.binding,
+            component.name,
+            action,
+            payload,
+          )
+        : undefined;
+      if (replayed) return replayed;
+      if (selected?.concurrency === 'identity')
+        release = this.#locks.acquire(identity.binding, component.name, action);
       const updates = await this.validatedUpdates(component, identity, payload);
       let url: readonly UrlStateEffect[] = [];
       let persist: (() => void) | undefined;
@@ -1183,10 +1265,12 @@ export class LiveRuntime implements OnApplicationShutdown {
                   );
                   if (typeof method !== 'function')
                     throw new Error('Registered action is not callable');
-                  await Reflect.apply(
-                    method,
-                    instance,
-                    selected.input ? [input] : [],
+                  await withinDeadline(instance, 'ACTION_TIMEOUT', () =>
+                    Reflect.apply(
+                      method,
+                      instance,
+                      selected.input ? [input] : [],
+                    ),
                   );
                   await this.hook(instance, 'afterAction');
                 }
@@ -1237,8 +1321,8 @@ export class LiveRuntime implements OnApplicationShutdown {
             return capturedOperation;
           },
         )
-        .catch((error: unknown) => {
-          for (const token of context.created) this.store.delete(token);
+        .catch(async (error: unknown) => {
+          await this.discard(context.created);
           throw error;
         });
       try {
@@ -1247,15 +1331,14 @@ export class LiveRuntime implements OnApplicationShutdown {
       } catch (error) {
         // The action may have performed effects. Revoke the advanced token rather
         // than returning a retryable response for an uncommitted host session.
-        this.store.delete(result.snapshot);
-        for (const token of context.created) this.store.delete(token);
+        await this.discard([result.snapshot, ...context.created]);
         throw error;
       }
-      for (const token of context.removed) this.store.delete(token);
+      await this.discard(context.removed);
       const attachment = download
         ? this.storeDownload(identity, component, download)
         : undefined;
-      return {
+      const response = {
         protocol: 'nestvexa-live/1',
         requestId: payload.requestId,
         component: {
@@ -1273,10 +1356,20 @@ export class LiveRuntime implements OnApplicationShutdown {
         ...(attachment === undefined ? {} : { download: attachment }),
         ...(realtime === undefined ? {} : { realtime }),
       };
+      if (selected?.idempotent)
+        this.#replays.remember(
+          identity.binding,
+          component.name,
+          action,
+          payload,
+          response,
+        );
+      return response;
     } catch (error) {
       if (completed) await this.observeError(completed, error);
       mapped(error);
     } finally {
+      release?.();
       this.#admissions.delete(request);
     }
   }
@@ -1336,7 +1429,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     identity: LiveIdentity,
     payload: LiveRequest,
   ): Promise<Record<string, JsonValue>> {
-    const snapshot = this.store.peek(payload.snapshot, identity.binding);
+    const snapshot = await this.store.peek(payload.snapshot, identity.binding);
     if (snapshot.revision !== payload.revision) fail(409, 'STALE_REVISION');
     // A validation callback may retain its input; expose detached immutable data only.
     const updates = freezeJson(cloneState(payload.updates));
@@ -1344,10 +1437,12 @@ export class LiveRuntime implements OnApplicationShutdown {
       const state = component.states.get(key);
       if (!state?.writable) fail(422, 'STATE_LOCKED');
       const previous = snapshot.state[key];
+      // A synthesizer owns the accepted JSON shape (for example nullable or enum).
       if (
-        typeof value !== typeof previous ||
-        Array.isArray(value) !== Array.isArray(previous) ||
-        (value === null) !== (previous === null)
+        !state.synthesizer &&
+        (typeof value !== typeof previous ||
+          Array.isArray(value) !== Array.isArray(previous) ||
+          (value === null) !== (previous === null))
       )
         fail(422, 'STATE_TYPE');
       if (state.synthesizer)
@@ -1364,15 +1459,48 @@ export class LiveRuntime implements OnApplicationShutdown {
     // Components receive mutable data, independently of the validator's captured references.
     return cloneState(updates);
   }
-  beforeApplicationShutdown(): void {
+  /**
+   * Best-effort deletion of snapshot tokens created by a failed operation. A
+   * store failure here must not mask the original error; entries left behind
+   * still expire with the store TTL.
+   */
+  private async discard(tokens: readonly string[]): Promise<void> {
+    await Promise.all(
+      tokens.map(async (token) => {
+        try {
+          await this.store.delete(token);
+        } catch {
+          // Unreachable shared store: the entry expires with its TTL.
+        }
+      }),
+    );
+  }
+  /**
+   * Graceful shutdown: refuse new work, abort running operations (their next
+   * checkpoint answers 503 LIVE_SHUTDOWN) and wait up to `shutdownDrainMs` for
+   * in-flight requests to settle before the HTTP server and store close.
+   */
+  async beforeApplicationShutdown(): Promise<void> {
     this.closed = true;
     closeTextStreams(this.registry);
+    for (const controller of this.#controllers) controller.abort();
+    if (!this.#inflight.size) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      Promise.allSettled([...this.#inflight]),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, shutdownDrainMs);
+      }),
+    ]);
+    clearTimeout(timer);
   }
-  onApplicationShutdown(): void {
+  async onApplicationShutdown(): Promise<void> {
     this.closed = true;
     this.registry.release(this);
-    this.store.clear();
     this.#rate.clear();
     this.#downloads.clear();
+    this.#replays.clear();
+    // Memory stores discard state; shared stores close connections only.
+    await this.store.close();
   }
 }

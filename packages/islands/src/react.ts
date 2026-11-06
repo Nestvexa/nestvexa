@@ -3,19 +3,32 @@ import type { ComponentType } from 'react';
 import { createRoot, hydrateRoot } from 'react-dom/client';
 import type { IslandContext, IslandMount } from './client.js';
 
-/** Mount a React component as an island; hydrates when `data-nv-ssr` is present. */
-export function reactIsland<Props extends object>(
-  component: ComponentType<Props & { island: IslandContext }>,
+/**
+ * Mount a React component as an island. Roots marked `data-nv-ssr` are
+ * hydrated; React's recoverable hydration errors (text/structure
+ * mismatches, after which React re-renders on the client) are reported
+ * through `context.reportMismatch`.
+ */
+export function reactIsland<Props extends object, Services = unknown>(
+  component: ComponentType<Props & { island: IslandContext<Services> }>,
 ): IslandMount {
   return (element, props, context) => {
     const node = createElement(component, {
       ...(props as Props),
-      island: context,
+      // The loader's services are application-typed by convention.
+      island: context as IslandContext<Services>,
     });
-    const root = element.hasAttribute('data-nv-ssr')
-      ? hydrateRoot(element, node)
-      : createRoot(element);
-    if (!element.hasAttribute('data-nv-ssr')) root.render(node);
+    if (context.hydrate) {
+      const root = hydrateRoot(element, node, {
+        onRecoverableError: (error: unknown) =>
+          context.reportMismatch(
+            error instanceof Error ? error.message : String(error),
+          ),
+      });
+      return () => root.unmount();
+    }
+    const root = createRoot(element);
+    root.render(node);
     return () => root.unmount();
   };
 }
