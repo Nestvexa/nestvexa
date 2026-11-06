@@ -58,7 +58,19 @@ export function defineFeatureSmoke({ framework, base }: FrameworkSuite): void {
       const first = Number(
         (await page.getByTestId('tick').textContent())?.replace('Tick ', ''),
       );
-      await wait(page.getByTestId('tick')).toHaveText(`Tick ${first + 2}`);
+      // Polls keep running while this waits, so compare numerically.
+      await expect
+        .poll(
+          async () =>
+            Number(
+              (await page.getByTestId('tick').textContent())?.replace(
+                'Tick ',
+                '',
+              ),
+            ),
+          { timeout: 15000 },
+        )
+        .toBeGreaterThanOrEqual(first + 2);
       const polls = requests.filter(
         (request) => request.headers()['x-inertia-partial-data'] === 'tick',
       );

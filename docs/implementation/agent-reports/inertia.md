@@ -176,3 +176,21 @@ build` first (the test names the missing example build otherwise).
 - Expected conflicts: `docs/guides/inertia.md` parity matrix,
   `tests/browser/inertia-framework-suite.ts`, the example `main.ts` files and
   `package.json` test script lists.
+
+## Results
+
+- Vitest: `tests/inertia-golden.test.ts`, `inertia-precognition.test.ts`,
+  `inertia-http.test.ts`, `inertia-security.test.ts`,
+  `inertia-protocol.test.ts`, `vite-manifest.test.ts`, `vite-builds.test.ts`:
+  7 files, 304 tests passed.
+- `pnpm lint` (ESLint + boundaries), `tsc -p tsconfig.tests.json --noEmit`,
+  `pnpm docs:build`: clean.
+- Playwright, Chromium + Firefox + WebKit, all eight servers at once
+  (react SSR + host, vue, svelte, mixed, three CSR instances):
+  161 passed, 4 failed. Two failures were the polling assertion waiting for
+  an exact tick value that fast polls can skip past under load. It now compares
+  numerically, and passes on Chromium and WebKit with `--repeat-each=2`. The
+  other two were load timeouts: the Svelte WebKit "Stop polling" click and the
+  existing mixed cross-root test on Firefox (hydration wait). Each passed when
+  rerun in isolation (mixed on Firefox: 5/5). Expect timing flakes on heavily
+  loaded hosts.
