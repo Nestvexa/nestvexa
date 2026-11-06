@@ -156,23 +156,24 @@ All need the host identity and `x-nestvexa-csrf`; non-GET routes need the exact
 
 ## Defaults
 
-| Option                                          | Default                             | Bounds          |
-| ----------------------------------------------- | ----------------------------------- | --------------- |
-| `endpoint`                                      | `/_nestvexa/uploads`                |                 |
-| `tokenTtlMs`                                    | 15 min                              | 10 s – 24 h     |
-| `chunkSize`                                     | 1 MiB                               | 16 KiB – 16 MiB |
-| `idleTimeoutMs` / `maxRequestMs`                | 30 s / 10 min                       |                 |
-| `sweepIntervalMs`                               | 60 s                                |                 |
-| `scanTimeoutMs`                                 | 60 s                                |                 |
-| purpose `maxFiles`                              | 10 pending per identity/purpose     | 1 – 100         |
-| purpose `allowEmpty` / `requireScan` / `direct` | `false`                             |                 |
-| quotas identity files / bytes                   | 20 / 256 MiB                        |                 |
-| quotas tenant files / bytes                     | 200 / 2 GiB                         |                 |
-| quotas process files / bytes                    | 2000 / 8 GiB                        |                 |
-| concurrent bodies per identity                  | 4                                   |                 |
-| requests per identity/minute                    | 240                                 |                 |
-| `storage`                                       | `LocalStorage(<directory>/objects)` |                 |
-| `scanner`                                       | none (`scan: 'not-configured'`)     |                 |
+| Option                                          | Default                                                                                             | Bounds          |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------- | --------------- |
+| `endpoint`                                      | `/_nestvexa/uploads`                                                                                |                 |
+| `tokenTtlMs`                                    | 15 min                                                                                              | 10 s – 24 h     |
+| `chunkSize`                                     | 1 MiB                                                                                               | 16 KiB – 16 MiB |
+| `idleTimeoutMs` / `maxRequestMs`                | 30 s / 10 min                                                                                       |                 |
+| `sweepIntervalMs`                               | 60 s                                                                                                |                 |
+| `scanTimeoutMs`                                 | 60 s                                                                                                |                 |
+| purpose `maxFiles`                              | 10 pending per identity/purpose                                                                     | 1 – 100         |
+| purpose `allowEmpty` / `requireScan` / `direct` | `false`                                                                                             |                 |
+| quotas identity files / bytes                   | 20 / 256 MiB                                                                                        |                 |
+| quotas tenant files / bytes                     | 200 / 2 GiB                                                                                         |                 |
+| quotas process files / bytes                    | 2000 / 8 GiB                                                                                        |                 |
+| concurrent bodies per identity                  | 4                                                                                                   |                 |
+| requests per identity/minute                    | 240                                                                                                 |                 |
+| `storage`                                       | `LocalStorage(<directory>/objects)`                                                                 |                 |
+| `scanner`                                       | none (`scan: 'not-configured'`)                                                                     |                 |
+| `instrumentation`                               | none (`nestvexa.upload.receive` / `.finalize` spans: mode, purpose, bytes, file count; never names) |                 |
 
 ## Security model
 

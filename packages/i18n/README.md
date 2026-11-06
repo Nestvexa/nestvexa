@@ -221,6 +221,43 @@ Locale/namespace names are grammar-checked before any path is built, real paths 
 stay inside `directory`, symlinked locale directories are rejected, and every file
 is validated with the same rules as `new I18n`.
 
+### Client hydration (`@nestvexa/i18n/client`)
+
+Islands, Inertia pages and other browser renderers get an explicit subset:
+
+```ts
+// Server: HBS page or Inertia shared props
+const hydration = i18n.hydration(context.locale, {
+  namespaces: ['products'],
+  keys: ['common:save'],
+});
+// HBS: {{{i18nScript}}} with i18nScript = i18n.hydrationScript(hydration)
+// Inertia: share({ i18n: hydration })
+```
+
+```ts
+// Browser (bundled with Vite or served as ES modules)
+import { createClientI18n, readLocaleHydration } from '@nestvexa/i18n/client';
+const hydration = readLocaleHydration(document); // or page.props.i18n
+const i18n = hydration ? createClientI18n(hydration) : undefined;
+i18n?.t('products:count', { count: 3 }); // same ICU subset as the server
+```
+
+- `hydration(locale, { namespaces?, keys? })` publishes nothing by default: at
+  least one namespace or key is required, values are resolved through the
+  fallback chain (fallback languages recorded in `messageLocales` so plural
+  rules follow them), and the subset is capped at 2000 messages / 256 KiB.
+- `hydrationScript(payload, id = 'nv-i18n')` writes
+  `<script type="application/json">` with `<`, `>`, `&`, U+2028 and U+2029
+  escaped, so catalog text cannot close the element (CSP-friendly: data, not
+  script).
+- `parseLocaleHydration` / `readLocaleHydration` validate untrusted payloads
+  (locale tags, direction, time zone, key grammar, no prototype keys).
+  `createClientI18n` returns `{ locale, lang, dir, timeZone, t, has,
+formatNumber, formatDate }`; `t` returns plain text for framework text
+  rendering and falls back to the key. The entry imports only the pure message
+  formatter (enforced by `scripts/boundaries.mjs`).
+
 ## Live components
 
 Negotiate per request; never store the locale in writable or `@Locked` state and
@@ -287,12 +324,16 @@ Suites: [negotiation](../../tests/i18n-negotiation.test.ts),
 [messages and formatting](../../tests/i18n-messages.test.ts),
 [HBS and Nest](../../tests/i18n-hbs.test.ts),
 [security](../../tests/i18n-security.test.ts),
-[extraction](../../tests/i18n-extract.test.ts).
+[extraction](../../tests/i18n-extract.test.ts),
+[client hydration](../../tests/i18n-hydration.test.ts).
 
 ## Production caveats and compatibility
 
-- No automatic browser hydration of catalogs; client-side formatting needs its own
-  explicitly published subset.
+- Browser hydration is explicit (`hydration()` + `@nestvexa/i18n/client`); no
+  catalog is published automatically. The client entry is not a separate
+  single-file bundle: serve it through your bundler (it has relative imports).
+- No email/notification template bridge is shipped yet; render mail bodies with
+  your view engine and send them with your Nest mail integration.
 - ICU subset only (see above). Output depends on the Node ICU/CLDR data version;
   pin Node in production and snapshot-test critical strings.
 - Catalogs load at startup; reload requires a new `I18n` instance (restart).

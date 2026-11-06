@@ -54,6 +54,24 @@ available through the client `onDiagnostic` option.
 | `redact(value)` / `createLogger(sink?)`                                        | Redacted JSON-lines logging (passwords, tokens, cookies, sessions, CSRF, snapshots, bindings, API keys) |
 | `DevtoolsModule.register({ instrumentation, authorize, path?, environment? })` | HTML panel and `spans.json` at `/_nestvexa/devtools`                                                    |
 
+## Render budgets, trace context and other packages
+
+- Wrap your instrumentation with `renderBudgetInstrumentation({ inner })` to
+  get development-only warnings for slow renders and actions, large HTML,
+  public state or Inertia pages, and root render loops. It is a no-op in
+  production. `examples/admin-i18n` enables it.
+- `app.use(traceContextMiddleware())` accepts a validated W3C `traceparent`
+  (for example from a browser OpenTelemetry SDK) and
+  `openTelemetryInstrumentation(tracer, { api: { trace, context } })` parents
+  Nestvexa spans on it. `@nestvexa/client` does not emit `traceparent` itself
+  (client size budget); this is server-side propagation only.
+- Pass the same instrumentation object to `ActionsModule.register`,
+  `UploadsModule.register` and `InertiaModule.forRoot` (`instrumentation`
+  option) for `nestvexa.action`, `nestvexa.upload.*` and
+  `nestvexa.inertia.render` spans.
+
+The package README lists every attribute and option.
+
 ## Devtools safety
 
 `DevtoolsModule.register` throws when the environment is `production`, every request
@@ -63,7 +81,7 @@ restrictive CSP, and only the redacted span attributes above are shown.
 ## Testing
 
 ```sh
-pnpm build && pnpm vitest run tests/observability.test.ts
+pnpm build && pnpm vitest run tests/observability.test.ts tests/observability-tracing.test.ts
 ```
 
 Package: [@nestvexa/observability](../../packages/observability/README.md). Design: [ADR 0010](../adr/0010-observability-and-performance.md).
