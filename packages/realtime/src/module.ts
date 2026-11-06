@@ -19,12 +19,13 @@ import type {
   OptionalFactoryDependency,
   Type,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { PassThrough } from 'node:stream';
 import { MemoryRealtimeBroker } from './broker.js';
 import type { RealtimeBroker, RealtimeEvent } from './broker.js';
-import { RealtimeHub, RealtimeRejection } from './hub.js';
+import { presenceMember, RealtimeHub, RealtimeRejection } from './hub.js';
 import type {
   HubLimits,
   PresenceMember,
@@ -33,10 +34,13 @@ import type {
   RealtimeIdentity,
   RealtimeSink,
 } from './hub.js';
+import type { PresenceEntry, RealtimePresenceOptions } from './presence.js';
 import { createTokenSigner, parseChannel } from './token.js';
 import type { TokenSigner } from './token.js';
 
 export const REALTIME_OPTIONS = Symbol('nv:realtime-options');
+/** Server transports, in preference order for `auto` clients. */
+export type RealtimeTransportName = 'websocket' | 'sse' | 'polling';
 export interface RealtimeModuleOptions {
   /** HMAC secrets (≥32 bytes); the first signs, all verify (rotation). */
   readonly secrets: readonly string[];
@@ -61,6 +65,17 @@ export interface RealtimeModuleOptions {
     request: IncomingMessage,
   ) => RealtimeIdentity | Promise<RealtimeIdentity>;
   readonly broker?: RealtimeBroker;
+  /**
+   * Shared presence across replicas (for example `RedisPresenceStore`).
+   * Without it `presence()` reports this replica's connections only.
+   */
+  readonly presence?: RealtimePresenceOptions;
+  /**
+   * Transports this server offers, in the order `auto` clients try them
+   * (default `['websocket', 'sse', 'polling']`). `websocket` is advertised
+   * only after `attachRealtimeWebSocket`; disabled routes answer 404.
+   */
+  readonly transports?: readonly RealtimeTransportName[];
   readonly endpoint?: string;
   readonly tokenTtlMs?: number;
   readonly limits?: Partial<HubLimits>;
@@ -108,7 +123,42 @@ function validate(options: RealtimeModuleOptions): HubLimits {
     throw new Error(
       'Realtime heartbeat and revalidation must be at least 1 second',
     );
+  const transports = options.transports ?? allTransports;
+  if (
+    !Array.isArray(transports) ||
+    !transports.length ||
+    new Set(transports).size !== transports.length ||
+    transports.some((name) => !allTransports.includes(name))
+  )
+    throw new Error(
+      'Realtime transports must be a non-empty list of websocket, sse, polling',
+    );
+  const presence = options.presence;
+  if (presence !== undefined) {
+    const store: unknown = presence.store;
+    const ttl = presence.ttlMs ?? 30_000;
+    if (
+      !store ||
+      typeof store !== 'object' ||
+      ['write', 'remove', 'read', 'close'].some(
+        (name) => typeof Reflect.get(store, name) !== 'function',
+      )
+    )
+      throw new Error('Realtime presence store must implement PresenceStore');
+    if (!Number.isSafeInteger(ttl) || ttl < 3000 || ttl > 600_000)
+      throw new Error('Realtime presence ttlMs must be 3000–600000');
+  }
   return limits;
+}
+const allTransports: readonly RealtimeTransportName[] = [
+  'websocket',
+  'sse',
+  'polling',
+];
+/** Services whose app has the WebSocket transport attached. */
+const websocketAttached = new WeakSet<object>();
+function byId(a: PresenceMember, b: PresenceMember): number {
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
 /** Publish events, sign subscriptions and revoke connections from host code. */
@@ -120,10 +170,18 @@ export class RealtimeService
   readonly broker: RealtimeBroker;
   readonly signer: TokenSigner;
   readonly endpoint: string;
+  /** This process's id in shared presence. */
+  readonly replica = randomUUID();
+  readonly #limits: HubLimits;
+  readonly #dirty = new Set<string>();
+  readonly #published = new Set<string>();
+  #flushTimer: ReturnType<typeof setTimeout> | undefined;
+  #heartbeat: ReturnType<typeof setInterval> | undefined;
+  #flushing: Promise<void> = Promise.resolve();
   constructor(
     @Inject(REALTIME_OPTIONS) readonly options: RealtimeModuleOptions,
   ) {
-    const limits = validate(options);
+    this.#limits = validate(options);
     this.endpoint = endpointOf(options.endpoint);
     this.broker = options.broker ?? new MemoryRealtimeBroker();
     this.signer = createTokenSigner({
@@ -132,7 +190,68 @@ export class RealtimeService
         ? {}
         : { ttlMs: options.tokenTtlMs }),
     });
-    this.hub = new RealtimeHub(this.broker, this.signer, options, limits);
+    const shared = options.presence;
+    this.hub = new RealtimeHub(
+      this.broker,
+      this.signer,
+      options,
+      this.#limits,
+      shared ? { onPresenceChange: (channel) => this.#changed(channel) } : {},
+    );
+    if (shared) {
+      // Rewrite live entries every third of the TTL so they never lapse
+      // while this replica runs, and lapse soon after it stops.
+      this.#heartbeat = setInterval(
+        () => this.#flush([...this.#published, ...this.hub.presenceChannels()]),
+        Math.floor((shared.ttlMs ?? 30_000) / 3),
+      );
+      this.#heartbeat.unref();
+    }
+  }
+  /**
+   * Transports clients may use now, in preference order. Served to `auto`
+   * clients at `GET <endpoint>/negotiate`.
+   */
+  get transports(): readonly RealtimeTransportName[] {
+    return Object.freeze(
+      (this.options.transports ?? allTransports).filter(
+        (name) => name !== 'websocket' || websocketAttached.has(this),
+      ),
+    );
+  }
+  #changed(channel: string): void {
+    this.#dirty.add(channel);
+    this.#flushTimer ??= setTimeout(() => {
+      this.#flushTimer = undefined;
+      this.#flush([...this.#dirty]);
+    }, 50);
+    this.#flushTimer.unref();
+  }
+  /** Write this replica's presence for `channels`, one batch at a time. */
+  #flush(channels: readonly string[]): void {
+    const shared = this.options.presence;
+    if (!shared) return;
+    const ttl = shared.ttlMs ?? 30_000;
+    this.#flushing = this.#flushing.then(async () => {
+      for (const channel of new Set(channels)) {
+        this.#dirty.delete(channel);
+        const local = this.hub.presence(channel);
+        try {
+          if (local.total) {
+            await shared.store.write(
+              this.replica,
+              channel,
+              { members: local.members, total: local.total },
+              ttl,
+            );
+            this.#published.add(channel);
+          } else if (this.#published.delete(channel))
+            await shared.store.remove(this.replica, channel);
+        } catch {
+          // Store outage: entries lapse by TTL; the heartbeat rewrites them.
+        }
+      }
+    });
   }
   /**
    * Invalidate subscribers of a channel. `data` is public JSON (≤16 KiB).
@@ -152,9 +271,10 @@ export class RealtimeService
     return this.broker.publish(channel, data);
   }
   /**
-   * Members connected to `channel` on this replica, for a reader who may read
-   * the channel now (403 otherwise). Presence is per process: with several
-   * replicas each one reports its own connections.
+   * Members connected to `channel`, for a reader who may read the channel now
+   * (403 otherwise). With a `presence` store the result merges every live
+   * replica's entry; without one (or while the store is unreachable) it
+   * covers this replica's connections only.
    */
   async presence(
     identity: RealtimeIdentity,
@@ -166,7 +286,45 @@ export class RealtimeService
         { statusCode: 403, code: 'CHANNEL_FORBIDDEN' },
         403,
       );
-    return this.hub.presence(name);
+    const local = this.hub.presence(name);
+    const shared = this.options.presence;
+    if (!shared) return local;
+    let entries: readonly PresenceEntry[];
+    try {
+      entries = await shared.store.read(name);
+    } catch {
+      return local;
+    }
+    const members = new Map<string, PresenceMember>();
+    for (const member of local.members) members.set(member.id, member);
+    let total = local.total;
+    let truncated = local.truncated;
+    for (const entry of entries.slice(0, 1024)) {
+      if (entry.replica === this.replica) continue;
+      let listed: PresenceMember[];
+      try {
+        // Store contents are untrusted: re-validate every descriptor.
+        listed = (Array.isArray(entry.members) ? entry.members : [])
+          .slice(0, 1024)
+          .flatMap((value) => presenceMember(value) ?? []);
+      } catch {
+        continue;
+      }
+      if (!Number.isSafeInteger(entry.total) || entry.total < listed.length)
+        continue;
+      for (const member of listed) members.set(member.id, member);
+      if (entry.total > listed.length) truncated = true;
+      total = Math.max(total, entry.total);
+    }
+    const sorted = [...members.values()].sort(byId);
+    const max = this.#limits.maxPresenceMembers ?? 100;
+    return Object.freeze({
+      channel: name,
+      members: Object.freeze(sorted.slice(0, max)),
+      // Exact unless a replica truncated its entry (then a lower bound).
+      total: Math.max(total, sorted.length),
+      truncated: truncated || sorted.length > max,
+    });
   }
   /**
    * Sign a subscription token for the channels this identity may read now.
@@ -199,6 +357,20 @@ export class RealtimeService
   }
   async onApplicationShutdown(): Promise<void> {
     this.hub.shutdown();
+    clearInterval(this.#heartbeat);
+    clearTimeout(this.#flushTimer);
+    const shared = this.options.presence;
+    if (shared) {
+      await this.#flushing;
+      // Graceful exit removes this replica's entries; a crash relies on TTL.
+      await Promise.allSettled(
+        [...this.#published].map((channel) =>
+          shared.store.remove(this.replica, channel),
+        ),
+      );
+      this.#published.clear();
+      await shared.store.close().catch(() => undefined);
+    }
     await this.broker.close();
   }
 }
@@ -246,6 +418,13 @@ function rejection(error: unknown): never {
     );
   throw error;
 }
+function offered(service: RealtimeService, name: RealtimeTransportName): void {
+  if (!(service.options.transports ?? allTransports).includes(name))
+    throw new HttpException(
+      { statusCode: 404, code: 'TRANSPORT_DISABLED' },
+      404,
+    );
+}
 function rawRequest(value: object): IncomingMessage {
   const raw: unknown = Reflect.get(value, 'raw');
   return (raw ?? value) as IncomingMessage;
@@ -257,6 +436,12 @@ function controller(endpoint: string): Type<object> {
     constructor(
       @Inject(RealtimeService) private readonly service: RealtimeService,
     ) {}
+    /** Capability negotiation for `auto` clients: transports in preference order. */
+    @Get('negotiate')
+    @Header('Cache-Control', 'no-store')
+    negotiate(): { transports: readonly RealtimeTransportName[] } {
+      return { transports: this.service.transports };
+    }
     /** Server-Sent Events stream. EventSource resends the last `id` as Last-Event-ID. */
     @Get('sse')
     @Header('Cache-Control', 'no-store')
@@ -266,6 +451,7 @@ function controller(endpoint: string): Type<object> {
       @Req() request: object,
       @Query('t') tokens: unknown,
     ): Promise<StreamableFile> {
+      offered(this.service, 'sse');
       const raw = rawRequest(request);
       const header = raw.headers['last-event-id'];
       const cursor = parseCursor(
@@ -333,6 +519,7 @@ function controller(endpoint: string): Type<object> {
       cursor: string;
       channels: readonly string[];
     }> {
+      offered(this.service, 'polling');
       const cursor = parseCursor(cursorValue);
       const events: RealtimeEvent[] = [];
       let finish: () => void = () => undefined;
@@ -447,9 +634,23 @@ export async function attachRealtimeWebSocket(
   const resolveUpgrade = service.options.resolveUpgradeIdentity;
   if (!resolveUpgrade)
     throw new Error('WebSocket transport requires resolveUpgradeIdentity');
+  if (!(service.options.transports ?? allTransports).includes('websocket'))
+    throw new Error('WebSocket transport is disabled by the transports option');
+  const candidate: unknown = app.getHttpServer();
+  // Startup detection: Express and Fastify expose Node's http.Server; an
+  // adapter without upgrade events cannot carry WebSockets.
+  if (
+    !candidate ||
+    typeof candidate !== 'object' ||
+    typeof Reflect.get(candidate, 'on') !== 'function' ||
+    typeof Reflect.get(candidate, 'off') !== 'function'
+  )
+    throw new Error(
+      'WebSocket transport requires a Node HTTP server (Express or Fastify adapter)',
+    );
   const { WebSocketServer } = await import('ws');
   const server = new WebSocketServer({ noServer: true, maxPayload: 65_536 });
-  const http = app.getHttpServer() as {
+  const http = candidate as {
     on(
       event: 'upgrade',
       listener: (
@@ -548,7 +749,9 @@ export async function attachRealtimeWebSocket(
     });
   };
   http.on('upgrade', upgrade);
+  websocketAttached.add(service);
   return () => {
+    websocketAttached.delete(service);
     http.off('upgrade', upgrade);
     for (const client of server.clients) client.terminate();
     server.close();

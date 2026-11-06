@@ -58,6 +58,10 @@ export interface RealtimeSink {
 }
 export type RealtimeCloseReason =
   'revoked' | 'expired' | 'forbidden' | 'slow-consumer' | 'shutdown' | 'client';
+export interface HubHooks {
+  /** A member joined or left `channel` on this hub (presence changed). */
+  readonly onPresenceChange?: (channel: string) => void;
+}
 export class RealtimeRejection extends Error {
   constructor(
     readonly status: 400 | 401 | 403 | 429 | 503,
@@ -86,7 +90,8 @@ interface Connection {
 function key(binding: string): string {
   return createHash('sha256').update(binding).digest('base64url');
 }
-function presenceMember(value: unknown): PresenceMember | undefined {
+/** Validate a public presence descriptor (also applied to entries read from a shared store). */
+export function presenceMember(value: unknown): PresenceMember | undefined {
   if (value === undefined) return undefined;
   const id: unknown =
     value && typeof value === 'object' ? Reflect.get(value, 'id') : undefined;
@@ -152,6 +157,7 @@ export class RealtimeHub {
     private readonly signer: TokenSigner,
     private readonly policy: RealtimePolicy,
     private readonly limits: HubLimits,
+    private readonly hooks: HubHooks = {},
   ) {
     const positive = (value: number, name: string) => {
       if (!Number.isSafeInteger(value) || value < 1)
@@ -264,6 +270,7 @@ export class RealtimeHub {
         ? error
         : new RealtimeRejection(503, 'BROKER_UNAVAILABLE');
     }
+    if (member) this.#presenceChanged(channels);
     const heartbeat = setInterval(() => {
       if (!connection.closed) sink.heartbeat();
     }, this.limits.heartbeatMs);
@@ -375,11 +382,33 @@ export class RealtimeHub {
         this.#channels.delete(channel);
       }
     }
+    if (connection.member) this.#presenceChanged(connection.channels);
     try {
       connection.sink.close(reason);
     } catch {
       // A failed transport close must not prevent subscription cleanup.
     }
+  }
+  #presenceChanged(channels: Iterable<string>): void {
+    const notify = this.hooks.onPresenceChange;
+    if (!notify) return;
+    for (const channel of channels)
+      try {
+        notify(channel);
+      } catch {
+        // Presence propagation is best effort and never breaks a connection.
+      }
+  }
+  /** Channels with at least one listed presence member on this hub. */
+  presenceChannels(): string[] {
+    const channels: string[] = [];
+    for (const [channel, entry] of this.#channels)
+      for (const connection of entry.connections)
+        if (!connection.closed && connection.member) {
+          channels.push(channel);
+          break;
+        }
+    return channels;
   }
   /**
    * Charge one identity-attributed publish. Returns false when the identity
