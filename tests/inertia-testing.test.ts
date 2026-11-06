@@ -11,14 +11,19 @@ import {
 } from '@nestjs/common';
 import { afterAll, describe, expect, it } from 'vitest';
 import {
+  InertiaConfigurationError,
   InertiaModule,
   InertiaPage,
   InertiaService,
   InertiaSessionKey,
+  InertiaValidationException,
   back,
   defer,
+  inertiaValidate,
   optional,
 } from '../packages/inertia/dist/index.js';
+import { customAdapter, zodAdapter } from '../packages/forms/dist/index.js';
+import { z } from 'zod';
 import type { InertiaModuleOptions } from '../packages/inertia/dist/index.js';
 import {
   AssertableInertiaPage,
@@ -419,3 +424,64 @@ describe(
     });
   },
 );
+
+describe('inertiaValidate with @nestvexa/forms adapters', () => {
+  const schema = customAdapter<{ title: string }>((input, issues) => {
+    const title = typeof input['title'] === 'string' ? input['title'] : '';
+    if (!title) issues.issue('title', 'required', 'Title is required.');
+    if (title === 'dup') issues.issue('', 'unique', 'Already exists.');
+    return { title };
+  });
+
+  it('returns the parsed value on success', async () => {
+    await expect(inertiaValidate(schema, { title: 'Report' })).resolves.toEqual(
+      { title: 'Report' },
+    );
+    const zod = zodAdapter(z.strictObject({ items: z.array(z.string()) }));
+    await expect(inertiaValidate(zod, { items: ['a'] })).resolves.toEqual({
+      items: ['a'],
+    });
+  });
+
+  it('throws InertiaValidationException with field, nested and _form keys', async () => {
+    const failure = await inertiaValidate(
+      schema,
+      { title: '' },
+      { bag: 'docs' },
+    )
+      .then(() => undefined)
+      .catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(InertiaValidationException);
+    expect((failure as InertiaValidationException).bag).toBe('docs');
+    expect((failure as InertiaValidationException).errors).toEqual({
+      title: ['Title is required.'],
+    });
+    const formLevel = await inertiaValidate(schema, { title: 'dup' }).catch(
+      (error: unknown) => error,
+    );
+    expect((formLevel as InertiaValidationException).errors).toEqual({
+      _form: ['Already exists.'],
+    });
+    const zod = zodAdapter(z.strictObject({ items: z.array(z.string()) }));
+    const nested = await inertiaValidate(zod, { items: [1] }).catch(
+      (error: unknown) => error,
+    );
+    expect(Object.keys((nested as InertiaValidationException).errors)).toEqual([
+      'items.0',
+    ]);
+  });
+
+  it('treats a malformed schema result as a configuration error, never a pass', async () => {
+    for (const result of [
+      undefined,
+      null,
+      {},
+      { ok: true },
+      { ok: false },
+      { ok: 'yes', value: 1 },
+    ])
+      await expect(
+        inertiaValidate({ validate: () => result as never }, {}),
+      ).rejects.toBeInstanceOf(InertiaConfigurationError);
+  });
+});
