@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="A Nestvexa starter rendered with EJS: layouts, partials, helpers and Live components."
+    />
+    <title><%= title %> · Nestvexa EJS starter</title>
+    <link rel="stylesheet" href="/assets/site.css" />
+    <script type="module" src="/assets/boot.js"></script>
+  </head>
+  <body>
+    <header><%- include('nav') %></header>
+    <main><%= body %></main>
+    <footer>
+      <p>Rendered by EJS through Nest <code>@Render</code>. © <%= year() %></p>
+    </footer>
+  </body>
+</html>

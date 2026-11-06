@@ -1,0 +1,37 @@
+<section aria-labelledby="board-heading">
+  <h1 id="board-heading">{{workspace.name}} projects</h1>
+  <p>Your role: <strong id="board-role">{{workspace.role}}</strong></p>
+  <p id="board-message" role="status" aria-live="polite">{{message}}</p>
+  <ul id="project-list" aria-label="Projects">
+    {{#each rows}}
+    <li>{{nvChild "row" id projectId=id name=name status=status}}</li>
+    {{else}}
+    <li id="project-empty">No projects yet.</li>
+    {{/each}}
+  </ul>
+  <form id="project-create" nv:submit="create" novalidate>
+    <h2>New project</h2>
+    <label for="project-name">Project name</label>
+    {{#if error}}
+    <input
+      id="project-name"
+      value="{{draftName}}"
+      maxlength="80"
+      aria-invalid="true"
+      aria-describedby="project-name-error"
+      nv:model="draftName"
+    />
+    <p id="project-name-error" class="error" role="alert">{{error}}</p>
+    {{else}}
+    <input
+      id="project-name"
+      value="{{draftName}}"
+      maxlength="80"
+      nv:model="draftName"
+    />
+    {{/if}}
+    <button type="submit" nv:loading.attr="disabled" nv:target="create">
+      Create project
+    </button>
+  </form>
+</section>

@@ -11,6 +11,8 @@ export interface ParsedFilename {
 const bidiOrInvisible =
   /[\u061c\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/u;
 const reserved = /[/\\:*?"<>|]/;
+/** Unpaired UTF-16 surrogates cannot be encoded into UTF-8 headers or metadata. */
+const loneSurrogate = /\p{Cs}/u;
 
 /**
  * Validate a client-supplied filename. Path separators, traversal segments,
@@ -23,6 +25,7 @@ export function parseClientFilename(raw: unknown): ParsedFilename {
   const name = raw.normalize('NFC');
   if (
     reserved.test(name) ||
+    loneSurrogate.test(name) ||
     bidiOrInvisible.test(name) ||
     [...name].some((character) => {
       const code = character.codePointAt(0) ?? 0;
@@ -70,21 +73,33 @@ function encodeRfc5987(value: string): string {
 /**
  * Build a Content-Disposition header (RFC 6266) with an ASCII fallback and an
  * RFC 5987 UTF-8 `filename*`. Header-breaking and quoting characters cannot
- * survive into the fallback.
+ * survive into the fallback; unpaired surrogates become U+FFFD instead of
+ * making `encodeURIComponent` throw.
  */
 export function contentDisposition(
   filename: string,
   disposition: 'attachment' | 'inline' = 'attachment',
 ): string {
-  const cleaned = [...String(filename).normalize('NFC')]
+  // Iterate code points so neither filtering nor truncation splits a pair.
+  const cleaned = [
+    ...String(filename)
+      .replace(new RegExp(loneSurrogate.source, 'gu'), '\uFFFD')
+      .normalize('NFC'),
+  ]
     .filter((character) => {
       const code = character.codePointAt(0) ?? 0;
-      return code >= 0x20 && code !== 0x7f && !(code >= 0x80 && code <= 0x9f);
+      return (
+        code >= 0x20 &&
+        code !== 0x7f &&
+        !(code >= 0x80 && code <= 0x9f) &&
+        !bidiOrInvisible.test(character)
+      );
     })
-    .join('')
-    .replace(new RegExp(bidiOrInvisible.source, 'gu'), '')
-    .replace(/[/\\]/g, '_')
-    .slice(0, 255);
+    .map((character) =>
+      character === '/' || character === '\\' ? '_' : character,
+    )
+    .slice(0, 255)
+    .join('');
   const safe = cleaned.trim() || 'download';
   const fallback =
     safe.replace(/[^\x20-\x7e]|["\\%;]/g, '_').slice(0, 180) || 'download';

@@ -41,6 +41,11 @@ export function normalizeOrigin(origin: string): string {
  *
  * Control characters (header injection), credentials in URLs, scheme-relative
  * and non-http schemes (`javascript:`, `data:`) are always rejected.
+ *
+ * Non-ASCII characters are percent-encoded as UTF-8 (ASCII is returned
+ * unchanged), because Node refuses header values outside Latin-1 and would
+ * otherwise turn `/products/日本` into a 500. Unpaired surrogates have no UTF-8
+ * encoding and are rejected.
  */
 export function assertSafeRedirect(
   target: unknown,
@@ -48,11 +53,14 @@ export function assertSafeRedirect(
 ): string {
   if (typeof target !== 'string' || target.length === 0 || target.length > 2048)
     throw new InertiaRedirectError();
-  if (unsafe(target) || target.trim() !== target)
+  if (unsafe(target) || target.trim() !== target || /\p{Cs}/u.test(target))
     throw new InertiaRedirectError();
-  if (target.startsWith('/')) {
-    if (target.startsWith('//')) throw new InertiaRedirectError();
-    return target;
+  const ascii = target.replace(/[^\p{ASCII}]/gu, (character) =>
+    encodeURIComponent(character),
+  );
+  if (ascii.startsWith('/')) {
+    if (ascii.startsWith('//')) throw new InertiaRedirectError();
+    return ascii;
   }
   let url: URL;
   try {
@@ -67,7 +75,8 @@ export function assertSafeRedirect(
     !policy.allowedOrigins.has(url.origin)
   )
     throw new InertiaRedirectError();
-  return target;
+  // WHATWG serialization punycodes hosts and percent-encodes the rest.
+  return ascii === target ? target : url.href;
 }
 
 /**
@@ -98,8 +107,21 @@ export function refererPath(
   return path.startsWith('//') ? undefined : path;
 }
 
-/** Collapses leading slashes so a raw request URL can never be scheme-relative. */
+/**
+ * Collapses leading slashes so a raw request URL can never be scheme-relative.
+ * Browsers (and `new URL()`, which the official client uses for
+ * `X-Inertia-Location`) treat `\` like `/` in http(s) URLs, so `/\evil.example`
+ * would resolve off-site; backslashes and control characters are therefore
+ * percent-encoded like any other unsafe path byte before the slash collapse.
+ */
 export function relativeRequestUrl(raw: string): string {
   const path = raw.startsWith('/') ? raw : `/${raw}`;
-  return path.replace(/^\/{2,}/, '/');
+  return path
+    .replace(/[\\\p{Cc}]/gu, (character) =>
+      // C1 code units can be Latin-1-decoded UTF-8 bytes; keep them.
+      character.charCodeAt(0) >= 0x80
+        ? character
+        : encodeURIComponent(character),
+    )
+    .replace(/^\/{2,}/, '/');
 }

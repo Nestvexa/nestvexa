@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{title}} · Nestvexa matrix</title>
+    {{#if description}}
+    <meta name="description" content="{{description}}" />
+    <meta property="og:title" content="{{title}}" />
+    <meta property="og:description" content="{{description}}" />
+    {{/if}} {{#if canonical}}
+    <link rel="canonical" href="{{canonical}}" />
+    {{/if}} {{#if csrf}}
+    <meta name="nestvexa-csrf" content="{{csrf}}" />
+    {{/if}}
+    <link rel="stylesheet" href="/assets/site.css" />
+    {{nvScripts}} {{#if islands}}
+    <script type="module" src="/islands/islands.js"></script>
+    {{/if}}
+  </head>
+  <body>
+    <header>
+      <nav aria-label="Main">
+        <a href="/">Home</a>
+        <a href="/counter">Counter</a>
+        <a href="/products">Products</a>
+        <a href="/admin/react">React admin</a>
+        <a href="/admin/vue">Vue admin</a>
+        <a href="/admin/svelte">Svelte admin</a>
+        <a href="/hybrid">Hybrid</a>
+        <a href="/realtime">Realtime</a>
+        <a href="/api/health">Health API</a>
+      </nav>
+    </header>
+    <main>{{body}}</main>
+    <footer>
+      <p>Nestvexa integration matrix · {{year}}</p>
+    </footer>
+  </body>
+</html>

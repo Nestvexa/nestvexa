@@ -1,0 +1,9 @@
+<nav aria-label="Main">
+  <%_ for (const link of [['/', 'Home'], ['/about', 'About'], ['/contact', 'Contact']]) { _%>
+  <%_ if (link[0] === locals.path) { _%>
+  <a href="<%= link[0] %>" aria-current="page"><%= link[1] %></a>
+  <%_ } else { _%>
+  <a href="<%= link[0] %>"><%= link[1] %></a>
+  <%_ } _%>
+  <%_ } _%>
+</nav>

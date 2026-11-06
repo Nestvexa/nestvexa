@@ -1,0 +1,57 @@
+<h1>{{title}}</h1>
+{{#if summary.hasErrors}}
+<div
+  class="error"
+  id="login-summary"
+  role="group"
+  aria-labelledby="login-summary-title"
+  tabindex="-1"
+>
+  <h2 id="login-summary-title">{{summary.title}}</h2>
+  <ul>
+    {{#each summary.items}}
+    <li>
+      {{#if href}}<a href="{{href}}">{{label}}: {{message}}</a
+      >{{else}}{{message}}{{/if}}
+    </li>
+    {{/each}}
+  </ul>
+</div>
+{{/if}}
+<form id="login-form" method="post" action="/login" novalidate>
+  <input type="hidden" name="_csrf" value="{{csrf}}" />
+  <label for="{{fields.email.id}}">Email</label>
+  <input
+    id="{{fields.email.id}}"
+    name="email"
+    type="email"
+    value="{{old.email}}"
+    autocomplete="username"
+    maxlength="254"
+    required
+    aria-invalid="{{fields.email.ariaInvalid}}"
+  />
+  <label for="{{fields.password.id}}">Password</label>
+  <input
+    id="{{fields.password.id}}"
+    name="password"
+    type="password"
+    autocomplete="current-password"
+    maxlength="128"
+    required
+    aria-invalid="{{fields.password.ariaInvalid}}"
+  />
+  <button type="submit">Sign in</button>
+</form>
+<h2>Demo accounts</h2>
+<p>
+  Every seeded account uses the public demonstration password
+  <code>demo-password-2026</code>.
+</p>
+<ul>
+  <li><code>ada@acme.test</code> — Acme Robotics admin</li>
+  <li><code>max@acme.test</code> — Acme Robotics member</li>
+  <li><code>gus@globex.test</code> — Globex Logistics admin</li>
+  <li><code>liz@globex.test</code> — Globex Logistics member</li>
+  <li><code>sam@consult.test</code> — member of both workspaces</li>
+</ul>

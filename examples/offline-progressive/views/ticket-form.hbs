@@ -1,0 +1,113 @@
+<section aria-labelledby="ticket-heading">
+  <h2 id="ticket-heading">New ticket</h2>
+  <p id="ticket-connection" nv:offline="" role="status" hidden>
+    You appear to be offline. Your draft stays on this device; submit again when
+    the connection is back.
+  </p>
+  <p id="ticket-status" role="status">{{status}}</p>
+  {{#if summary.hasErrors}}
+  <div
+    class="summary"
+    id="ticket-summary"
+    role="group"
+    aria-labelledby="ticket-summary-title"
+  >
+    <h3 id="ticket-summary-title">{{summary.title}}</h3>
+    <ul>
+      {{#each summary.items}}
+      <li>
+        {{#if href}}<a href="{{href}}">{{label}}: {{message}}</a
+        >{{else}}{{message}}{{/if}}
+      </li>
+      {{/each}}
+    </ul>
+  </div>
+  {{/if}}
+  <form
+    id="ticket-form"
+    method="post"
+    action="/tickets"
+    nv:submit="create"
+    novalidate
+    data-nv-draft="ticket"
+    data-nv-draft-message-restored="We restored your unsent draft from this device."
+    data-nv-draft-message-interrupted="Not sent. Your draft is saved on this device."
+    data-nv-draft-message-reconnected="Connection restored. Reload the page to review your saved draft, then submit again."
+    data-nv-draft-committed="{{committedAt}}"
+  >
+    <p id="ticket-draft-status" data-nv-draft-status role="status"></p>
+    <input type="hidden" name="_csrf" value="{{csrf}}" />
+
+    <label for="{{fields.subject.id}}">Subject</label>
+    <input
+      id="{{fields.subject.id}}"
+      name="subject"
+      value="{{subject}}"
+      maxlength="80"
+      nv:model="subject"
+      data-nv-draft-field
+      aria-invalid="{{fields.subject.ariaInvalid}}"
+      aria-describedby="{{fields.subject.errorId}}"
+    />
+    <p class="error" id="{{fields.subject.errorId}}" role="alert">
+      {{fields.subject.message}}
+    </p>
+
+    <label for="{{fields.details.id}}">Details</label>
+    <textarea
+      id="{{fields.details.id}}"
+      name="details"
+      rows="5"
+      maxlength="2000"
+      nv:model="details"
+      data-nv-draft-field
+      aria-invalid="{{fields.details.ariaInvalid}}"
+      aria-describedby="{{fields.details.errorId}}"
+    >
+{{details}}</textarea>
+    <p class="error" id="{{fields.details.errorId}}" role="alert">
+      {{fields.details.message}}
+    </p>
+
+    <label for="{{fields.priority.id}}">Priority</label>
+    <select
+      id="{{fields.priority.id}}"
+      name="priority"
+      nv:model="priority"
+      data-nv-draft-field
+      aria-invalid="{{fields.priority.ariaInvalid}}"
+      aria-describedby="{{fields.priority.errorId}}"
+    >
+      {{#each priorityOptions}} {{#if selected}}
+      <option value="{{value}}" selected>{{value}}</option>
+      {{else}}
+      <option value="{{value}}">{{value}}</option>
+      {{/if}} {{/each}}
+    </select>
+    <p class="error" id="{{fields.priority.errorId}}" role="alert">
+      {{fields.priority.message}}
+    </p>
+
+    <label for="{{fields.contact.id}}"
+      >Contact email (never saved on this device)</label
+    >
+    <input
+      id="{{fields.contact.id}}"
+      name="contact"
+      type="email"
+      value="{{contact}}"
+      autocomplete="email"
+      maxlength="254"
+      nv:model="contact"
+      aria-invalid="{{fields.contact.ariaInvalid}}"
+      aria-describedby="{{fields.contact.errorId}}"
+    />
+    <p class="error" id="{{fields.contact.errorId}}" role="alert">
+      {{fields.contact.message}}
+    </p>
+
+    <button type="submit" nv:loading.attr="disabled" nv:target="create">
+      Send ticket
+    </button>
+  </form>
+</section>

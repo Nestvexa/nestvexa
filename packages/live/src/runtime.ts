@@ -160,10 +160,13 @@ function hydrated(
 }
 const downloadLifetime = 60_000;
 const maxDownloads = 100;
+/** `filename` already passed `safeFilename`; re-check surrogates so encoding can never throw. */
 function contentDisposition(filename: string): string {
+  const wellFormed = filename.replace(/\p{Cs}/gu, '\uFFFD');
   const fallback =
-    filename.replace(/[^\x20-\x7e]|["\\%]/g, '_').slice(0, 180) || 'download';
-  return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+    wellFormed.replace(/[^\x20-\x7e]|["\\%;]/g, '_').slice(0, 180) ||
+    'download';
+  return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(wellFormed).replace(/['()*!]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`)}`;
 }
 const maxChildrenPerTree = 200;
 function canonical(value: unknown): string {

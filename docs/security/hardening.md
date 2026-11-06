@@ -40,3 +40,11 @@ No raw cookies, tokens or private DTOs should be logged. The current packages do
   older Node versions are unsupported.
 - **CLI.** Review `nestvexa init` changes (use `--dry-run`) and replace the generated
   guest identity policy before deployment.
+- **Windows hosts and request-derived paths (2026-11).** Node 22/24 on Windows abort
+  the whole process (libuv assertion) for any filesystem path containing U+10FFFF.
+  Nestvexa view names and includes refuse it; if your own code builds paths from
+  request values, reject control characters, unpaired surrogates and Unicode
+  noncharacters (`/[\p{Cc}\p{Cs}\p{Noncharacter_Code_Point}]/u`) first. Never pass
+  request data to EJS `include()` without an allowlist.
+- **Realtime replay memory.** `MemoryRealtimeBroker` keeps replay history for at most
+  `replayChannels` channels (default 10,000); size it to your channel cardinality.
