@@ -76,6 +76,7 @@ flowchart TD
   react --> vite
   vue --> vite
   svelte --> vite
+  vite --> views
 
   nestvexa --> alpinecsp["@alpinejs/csp 3.17.5"]
   alpine -.-> alpinecsp
@@ -151,7 +152,7 @@ flowchart TD
 | [@nestvexa/ui](../../packages/ui/README.md)                           | `@nestvexa/views`                                                                                                     | —                                | —                                                                                                                             | `["*.css"]`   |
 | [@nestvexa/uploads](../../packages/uploads/README.md)                 | —                                                                                                                     | `busboy@1.6.0`                   | `@nestjs/common`, `reflect-metadata`, `rxjs`                                                                                  | false         |
 | [@nestvexa/views](../../packages/views/README.md)                     | —                                                                                                                     | —                                | —                                                                                                                             | false         |
-| [@nestvexa/vite](../../packages/vite/README.md)                       | —                                                                                                                     | —                                | `vite` (optional)                                                                                                             | false         |
+| [@nestvexa/vite](../../packages/vite/README.md)                       | `@nestvexa/views`                                                                                                     | —                                | `vite` (optional)                                                                                                             | false         |
 | [@nestvexa/vue](../../packages/vue/README.md)                         | `@nestvexa/vite`                                                                                                      | —                                | `@inertiajs/core` (optional), `@inertiajs/vue3`, `vue`                                                                        | false         |
 
 Peer ranges and the singleton rules for NestJS, Alpine and the frontend frameworks are
