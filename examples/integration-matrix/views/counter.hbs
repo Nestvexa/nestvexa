@@ -1,0 +1,46 @@
+<section aria-labelledby="counter-heading">
+  <h2 id="counter-heading">Server counter</h2>
+  <p>
+    Count:
+    <output id="counter-value" aria-live="polite">{{count}}</output>
+    (double: <span id="counter-double">{{doubled}}</span>)
+  </p>
+  <form nv:submit="increment" novalidate>
+    <label for="counter-step">Step (1–10)</label>
+    {{#if error}}
+    <input
+      id="counter-step"
+      name="step"
+      inputmode="numeric"
+      maxlength="8"
+      value="{{step}}"
+      aria-invalid="true"
+      aria-describedby="counter-error"
+      nv:model="step"
+    />
+    <p id="counter-error" role="alert">{{error}}</p>
+    {{else}}
+    <input
+      id="counter-step"
+      name="step"
+      inputmode="numeric"
+      maxlength="8"
+      value="{{step}}"
+      nv:model="step"
+    />
+    {{/if}}
+    <button type="submit">Increase</button>
+    <button type="button" nv:click="decrement">Decrease</button>
+    <button type="button" nv:click="reset" nv:confirm="Reset the counter?">
+      Reset
+    </button>
+  </form>
+  <div nv:ignore x-data="{ clicks: 0 }" aria-label="Alpine widget" role="group">
+    <h3>Alpine widget</h3>
+    <button type="button" x-on:click="clicks++">Local Alpine click</button>
+    <output id="alpine-clicks" x-text="clicks">0</output>
+    <button type="button" x-on:click="$live.call('increment')">
+      Increase from Alpine
+    </button>
+  </div>
+</section>

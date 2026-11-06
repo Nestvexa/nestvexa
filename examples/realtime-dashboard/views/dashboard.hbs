@@ -1,0 +1,92 @@
+<div nv:poll.3s="heartbeat">
+  <p>
+    Signed in as <strong id="viewer-name">{{viewer.name}}</strong> (<span
+      id="viewer-role"
+      >{{viewer.role}}</span
+    >)
+  </p>
+  <p id="dashboard-notice" role="status" aria-live="polite">{{notice}}</p>
+
+  <section aria-labelledby="metrics-heading">
+    <h2 id="metrics-heading">Metrics</h2>
+    <ul class="tiles" aria-label="Metrics">
+      <li class="tile">
+        Orders <output id="metric-orders">{{tiles.orders}}</output>
+      </li>
+      <li class="tile">
+        Revenue <output id="metric-revenue">{{tiles.revenue}}</output>
+      </li>
+      <li class="tile">
+        Latest order by
+        <output id="metric-last"
+          >{{#if tiles.last}}{{tiles.last}}{{else}}—{{/if}}</output
+        >
+      </li>
+    </ul>
+    <button type="button" nv:click="recordOrder">Record a test order</button>
+  </section>
+
+  <section aria-labelledby="presence-heading">
+    <h2 id="presence-heading">Who is online</h2>
+    <p><output id="presence-count">{{online.count}}</output> viewers online</p>
+    <ul id="presence-list" aria-label="Online viewers">
+      {{#each online.names}}
+      <li>{{this}}</li>
+      {{/each}}
+    </ul>
+  </section>
+
+  <section aria-labelledby="incidents-heading">
+    <h2 id="incidents-heading">Incidents</h2>
+    {{#if viewer.operator}}
+    <form id="incident-form" nv:submit="raiseIncident" novalidate>
+      <label for="incident-title">Incident title</label>
+      {{#if incidentError}}
+      <input
+        id="incident-title"
+        value="{{incidentDraft}}"
+        maxlength="80"
+        aria-invalid="true"
+        aria-describedby="incident-error"
+        nv:model="incidentDraft"
+      />
+      <p id="incident-error" class="error" role="alert">{{incidentError}}</p>
+      {{else}}
+      <input
+        id="incident-title"
+        value="{{incidentDraft}}"
+        maxlength="80"
+        nv:model="incidentDraft"
+      />
+      {{/if}}
+      <button type="submit">Raise incident</button>
+    </form>
+    <ul id="incident-list" aria-label="Incidents" aria-live="polite">
+      {{#each incidentList}}
+      <li data-nv-key="incident-{{id}}">{{title}} — {{by}}</li>
+      {{else}}
+      <li id="incident-empty">No open incidents.</li>
+      {{/each}}
+    </ul>
+    {{else}}
+    <p id="incidents-restricted">Incidents are visible to operators only.</p>
+    {{/if}}
+  </section>
+
+  <section aria-labelledby="report-heading">
+    <h2 id="report-heading">Report</h2>
+    <button type="button" nv:click="startReport">Generate report</button>
+    <button type="button" nv:click="cancelReport">Cancel report</button>
+    <p>
+      Report: <span id="report-status" role="status">{{job.status}}</span>
+      <progress
+        id="report-progress"
+        max="100"
+        value="{{job.progress}}"
+        aria-label="Report progress"
+      >
+        {{job.progress}}%
+      </progress>
+    </p>
+  </section>
+</div>

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="nv-draft-scope" content="{{draftScope}}" />
+    <title>{{title}}</title>
+    <link rel="stylesheet" href="/assets/app.css" />
+    {{nvScripts}}
+    <script type="module" src="/assets/app.js"></script>
+  </head>
+  <body>
+    <header>
+      <p class="brand">Nestvexa support desk</p>
+      <form method="post" action="/logout" data-nv-logout>
+        <input type="hidden" name="_csrf" value="{{csrf}}" />
+        <button type="submit">Sign out and clear this device</button>
+      </form>
+    </header>
+    <main>{{body}}</main>
+  </body>
+</html>

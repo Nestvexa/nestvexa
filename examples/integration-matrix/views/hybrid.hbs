@@ -1,0 +1,18 @@
+<h1>{{title}}</h1>
+<p>
+  One HBS page: independent React, Vue and Svelte islands, a separate Live
+  widget, and a universal server action.
+</p>
+{{notifications}}
+<section aria-labelledby="islands-heading">
+  <h2 id="islands-heading">Framework islands</h2>
+  {{chart}} {{feed}} {{widget}}
+</section>
+<section aria-labelledby="action-heading">
+  <h2 id="action-heading">Universal server action</h2>
+  <label for="score-points">Points (1–10)</label>
+  <input id="score-points" type="number" min="1" max="10" value="3" />
+  <button type="button" id="score-add">Add points</button>
+  <p>Total: <output id="score-total">0</output></p>
+  <p id="score-status" role="status" aria-live="polite"></p>
+</section>

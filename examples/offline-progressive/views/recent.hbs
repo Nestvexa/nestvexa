@@ -1,0 +1,10 @@
+{{#if tickets.length}}
+<ul id="recent-list">
+  {{#each tickets}}
+  <li>#{{id}} {{subject}} ({{priority}})</li>
+  {{/each}}
+</ul>
+{{else}}
+<p id="recent-empty">No tickets yet.</p>
+{{/if}}
+<p class="hint">Loaded <time datetime="{{renderedAt}}">{{renderedAt}}</time></p>

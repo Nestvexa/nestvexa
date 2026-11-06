@@ -213,6 +213,7 @@ const extensions = [
   '@nestvexa/ai',
   '@nestvexa/flags',
   '@nestvexa/offline',
+  '@nestvexa/mail',
 ];
 for (const [name, manifest] of manifests) {
   if (extensions.includes(name)) continue;
@@ -238,7 +239,7 @@ for (const directory of [
 ]) {
   await forbid(
     join('packages', directory, 'src'),
-    /from\s+['"]@nestvexa\/(?:i18n|ui|ai|flags|offline)\b/,
+    /from\s+['"]@nestvexa\/(?:i18n|ui|ai|flags|offline|mail)\b/,
     'Framework package imports an optional extension',
   );
 }

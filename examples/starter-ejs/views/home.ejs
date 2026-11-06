@@ -1,0 +1,21 @@
+<h1><%= title %></h1>
+<p>
+  This page uses an EJS layout, a <code>nav</code> partial and two helpers. It
+  lists <%= plural(features.length, 'feature') %>:
+</p>
+<ul id="features">
+  <% for (const feature of features) { %>
+  <li><%= feature %></li>
+  <% } %>
+</ul>
+<h2>Escaping is on by default</h2>
+<p><code>&lt;%= value %&gt;</code> escapes; this string stays text:</p>
+<pre id="untrusted"><%= untrusted %></pre>
+<h2>A Live component written in EJS</h2>
+<%= counter %>
+<noscript>
+  <p>
+    The counter needs JavaScript. The <a href="/contact">contact form</a> works
+    without it.
+  </p>
+</noscript>

@@ -108,37 +108,38 @@ data-only grammar — no expressions are evaluated. See the
 
 ## Packages
 
-| Package                                                         | Purpose                                                                                  |
-| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| [nestvexa](packages/nestvexa/README.md)                         | Default distribution: core + views + HBS + Live + client + Alpine assets; `nestvexa` bin |
-| [@nestvexa/core](packages/core/README.md)                       | Configuration, module, registries, capability contracts                                  |
-| [@nestvexa/views](packages/views/README.md)                     | Engine contracts, `SafeHtml`, rendering registry                                         |
-| [@nestvexa/engine-hbs](packages/engine-hbs/README.md)           | Handlebars adapter                                                                       |
-| [@nestvexa/live](packages/live/README.md)                       | Live components: generated Nest routes, bound state, nesting, events, effects            |
-| [@nestvexa/client](packages/client/README.md)                   | Browser runtime (one ESM bundle, 48 KiB gzip budget)                                     |
-| [@nestvexa/alpine](packages/alpine/README.md)                   | Alpine `$live` bridge and CSP startup                                                    |
-| [@nestvexa/inertia](packages/inertia/README.md)                 | Inertia v3 server adapter (optional)                                                     |
-| [@nestvexa/forms](packages/forms/README.md)                     | Validation adapters (Zod, class-validator), hardening, no-JS forms (optional)            |
-| [@nestvexa/uploads](packages/uploads/README.md)                 | Streaming uploads, tokens, quotas, S3 SigV4, downloads (optional)                        |
-| [@nestvexa/engine-ejs](packages/engine-ejs/README.md)           | EJS adapter (optional)                                                                   |
-| [@nestvexa/engine-pug](packages/engine-pug/README.md)           | Pug adapter (optional)                                                                   |
-| [@nestvexa/engine-nunjucks](packages/engine-nunjucks/README.md) | Nunjucks adapter (optional)                                                              |
-| [@nestvexa/actions](packages/actions/README.md)                 | Authorized universal server actions and typed client generation (optional)               |
-| [@nestvexa/vite](packages/vite/README.md)                       | Vite manifest tags, static serving, dev server and SSR bundles (optional)                |
-| [@nestvexa/react](packages/react/README.md)                     | Official `@inertiajs/react` boot and SSR entry helpers (optional)                        |
-| [@nestvexa/vue](packages/vue/README.md)                         | Official `@inertiajs/vue3` boot and SSR entry helpers (optional)                         |
-| [@nestvexa/svelte](packages/svelte/README.md)                   | Official `@inertiajs/svelte` (Svelte 5) boot and SSR helpers (optional)                  |
-| [@nestvexa/islands](packages/islands/README.md)                 | Allowlisted React/Vue/Svelte islands with explicit DOM ownership (optional)              |
-| [@nestvexa/i18n](packages/i18n/README.md)                       | Locale negotiation, ICU-style catalogs, Intl formatting, RTL helpers (optional)          |
-| [@nestvexa/ui](packages/ui/README.md)                           | Unstyled accessible HBS/Live primitives with keyboard module and theme (optional)        |
-| [@nestvexa/ai](packages/ai/README.md)                           | Provider-neutral streaming chat with server-enforced tool approval (optional)            |
-| [@nestvexa/flags](packages/flags/README.md)                     | Server-enforced feature flags: guard, view and Live policy helpers (optional)            |
-| [@nestvexa/offline](packages/offline/README.md)                 | Identity-scoped drafts, read-only snapshots, safe reconnect (optional)                   |
-| [@nestvexa/realtime](packages/realtime/README.md)               | SSE/WebSocket/polling invalidation, Redis-protocol broker, jobs (optional)               |
-| [@nestvexa/realtime-redis](packages/realtime-redis/README.md)   | Redis Live state store and realtime broker for multiple replicas (optional)              |
-| [@nestvexa/cache](packages/cache/README.md)                     | Privacy-scoped cache with tags and single flight (optional)                              |
-| [@nestvexa/observability](packages/observability/README.md)     | Tracing spans, metrics, redacted logs, devtools (optional)                               |
-| [@nestvexa/cli](packages/cli/README.md)                         | `nestvexa` command line                                                                  |
+| Package                                                         | Purpose                                                                                         |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| [nestvexa](packages/nestvexa/README.md)                         | Default distribution: core + views + HBS + Live + client + Alpine assets; `nestvexa` bin        |
+| [@nestvexa/core](packages/core/README.md)                       | Configuration, module, registries, capability contracts                                         |
+| [@nestvexa/views](packages/views/README.md)                     | Engine contracts, `SafeHtml`, rendering registry                                                |
+| [@nestvexa/engine-hbs](packages/engine-hbs/README.md)           | Handlebars adapter                                                                              |
+| [@nestvexa/live](packages/live/README.md)                       | Live components: generated Nest routes, bound state, nesting, events, effects                   |
+| [@nestvexa/client](packages/client/README.md)                   | Browser runtime (one ESM bundle, 48 KiB gzip budget)                                            |
+| [@nestvexa/alpine](packages/alpine/README.md)                   | Alpine `$live` bridge and CSP startup                                                           |
+| [@nestvexa/inertia](packages/inertia/README.md)                 | Inertia v3 server adapter (optional)                                                            |
+| [@nestvexa/forms](packages/forms/README.md)                     | Validation adapters (Zod, class-validator), hardening, no-JS forms (optional)                   |
+| [@nestvexa/uploads](packages/uploads/README.md)                 | Streaming uploads, tokens, quotas, S3 SigV4, downloads (optional)                               |
+| [@nestvexa/engine-ejs](packages/engine-ejs/README.md)           | EJS adapter (optional)                                                                          |
+| [@nestvexa/engine-pug](packages/engine-pug/README.md)           | Pug adapter (optional)                                                                          |
+| [@nestvexa/engine-nunjucks](packages/engine-nunjucks/README.md) | Nunjucks adapter (optional)                                                                     |
+| [@nestvexa/actions](packages/actions/README.md)                 | Authorized universal server actions and typed client generation (optional)                      |
+| [@nestvexa/vite](packages/vite/README.md)                       | Vite manifest tags, static serving, dev server and SSR bundles (optional)                       |
+| [@nestvexa/react](packages/react/README.md)                     | Official `@inertiajs/react` boot and SSR entry helpers (optional)                               |
+| [@nestvexa/vue](packages/vue/README.md)                         | Official `@inertiajs/vue3` boot and SSR entry helpers (optional)                                |
+| [@nestvexa/svelte](packages/svelte/README.md)                   | Official `@inertiajs/svelte` (Svelte 5) boot and SSR helpers (optional)                         |
+| [@nestvexa/islands](packages/islands/README.md)                 | Allowlisted React/Vue/Svelte islands with explicit DOM ownership (optional)                     |
+| [@nestvexa/i18n](packages/i18n/README.md)                       | Locale negotiation, ICU-style catalogs, Intl formatting, RTL helpers (optional)                 |
+| [@nestvexa/ui](packages/ui/README.md)                           | Unstyled accessible HBS/Live primitives with keyboard module and theme (optional)               |
+| [@nestvexa/ai](packages/ai/README.md)                           | Provider-neutral streaming chat with server-enforced tool approval (optional)                   |
+| [@nestvexa/flags](packages/flags/README.md)                     | Server-enforced feature flags: guard, view and Live policy helpers (optional)                   |
+| [@nestvexa/offline](packages/offline/README.md)                 | Identity-scoped drafts, read-only snapshots, safe reconnect (optional)                          |
+| [@nestvexa/mail](packages/mail/README.md)                       | Email templates through your view engine, provider-neutral transports, notifications (optional) |
+| [@nestvexa/realtime](packages/realtime/README.md)               | SSE/WebSocket/polling invalidation, Redis-protocol broker, jobs (optional)                      |
+| [@nestvexa/realtime-redis](packages/realtime-redis/README.md)   | Redis Live state store and realtime broker for multiple replicas (optional)                     |
+| [@nestvexa/cache](packages/cache/README.md)                     | Privacy-scoped cache with tags and single flight (optional)                                     |
+| [@nestvexa/observability](packages/observability/README.md)     | Tracing spans, metrics, redacted logs, devtools (optional)                                      |
+| [@nestvexa/cli](packages/cli/README.md)                         | `nestvexa` command line                                                                         |
 
 Optional packages are never pulled in by the default install; frameworks (React, Vue,
 Svelte, Vite, template engines) are peer dependencies. `scripts/boundaries.mjs`
@@ -162,7 +163,37 @@ pnpm --filter @nestvexa/example-admin-i18n start      # http://127.0.0.1:3110 i1
 pnpm --filter @nestvexa/example-actions-basic start   # http://127.0.0.1:3111 universal server actions
 pnpm --filter @nestvexa/example-hybrid-dashboard start # http://127.0.0.1:3112/hybrid Live + islands
 pnpm --filter @nestvexa/example-custom-engine start   # http://127.0.0.1:3113 EJS/Pug/Nunjucks
+pnpm --filter @nestvexa/example-starter-ejs start     # http://127.0.0.1:3114 EJS MVC + Live
+pnpm --filter @nestvexa/example-live-crud start       # http://127.0.0.1:3115/tasks Live CRUD
+pnpm --filter @nestvexa/example-realtime-dashboard start # http://127.0.0.1:3116 SSE dashboard
+pnpm --filter @nestvexa/example-upload-to-s3 start    # http://127.0.0.1:3117 S3 uploads (needs S3_* env)
+pnpm --filter @nestvexa/example-multi-tenant start    # http://127.0.0.1:3119 tenants and roles
+pnpm --filter @nestvexa/example-express-host start    # http://127.0.0.1:3120 same app on Express
+pnpm --filter @nestvexa/example-fastify-host start    # http://127.0.0.1:3121 same app on Fastify
+pnpm --filter @nestvexa/example-offline-progressive start # http://127.0.0.1:3122 offline/no-JS
+pnpm --filter @nestvexa/example-integration-matrix start  # http://127.0.0.1:3123 every renderer in one server
 ```
+
+Every example has a README (what it shows, how to run it, security notes) and a
+Playwright spec under `tests/browser/` with an axe accessibility check. The
+names in the planned repository layout map to these directories:
+
+| Planned name                    | Example                                                                                                                                                                                                                         |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `starter-hbs`                   | [starter-hbs](examples/starter-hbs/README.md) (MVC) and [starter-live](examples/starter-live/README.md) (default Live setup)                                                                                                    |
+| `starter-ejs`                   | [starter-ejs](examples/starter-ejs/README.md)                                                                                                                                                                                   |
+| `live-counter`                  | [live-counter](examples/live-counter/README.md)                                                                                                                                                                                 |
+| `live-crud`                     | [live-crud](examples/live-crud/README.md); a smaller board is `/projects` in starter-live                                                                                                                                       |
+| `auth-forms`                    | [auth-forms](examples/auth-forms/README.md)                                                                                                                                                                                     |
+| `inertia-react/vue/svelte`      | [inertia-react](examples/inertia-react/README.md), [inertia-vue](examples/inertia-vue/README.md), [inertia-svelte](examples/inertia-svelte/README.md); all three in one host: [inertia-mixed](examples/inertia-mixed/README.md) |
+| `hybrid-dashboard`              | `examples/hybrid-dashboard` (`/hybrid`, Live + React/Vue/Svelte islands)                                                                                                                                                        |
+| `realtime-dashboard`            | [realtime-dashboard](examples/realtime-dashboard/README.md)                                                                                                                                                                     |
+| `upload-to-s3`                  | [upload-to-s3](examples/upload-to-s3/README.md); local-disk storage: [uploads](examples/uploads/README.md)                                                                                                                      |
+| `multi-tenant`                  | [multi-tenant](examples/multi-tenant/README.md)                                                                                                                                                                                 |
+| `express-host` / `fastify-host` | [express-host](examples/express-host/README.md) / [fastify-host](examples/fastify-host/README.md) (one shared `app.ts`)                                                                                                         |
+| `offline-progressive`           | [offline-progressive](examples/offline-progressive/README.md)                                                                                                                                                                   |
+| `integration-matrix`            | [integration-matrix](examples/integration-matrix/README.md)                                                                                                                                                                     |
+| `apps/playground`               | Not a separate app: [integration-matrix](examples/integration-matrix/README.md) is the one-server playground                                                                                                                    |
 
 The Live starter contains `/board`, `/team` (nested components), `/projects` (CRUD
 board: search, sort, pagination, validation, events, optimistic UI, downloads),

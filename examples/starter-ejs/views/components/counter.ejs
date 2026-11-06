@@ -1,0 +1,15 @@
+<section aria-label="Counter">
+  <p>
+    Count: <output id="count" aria-live="polite"><%= count %></output>
+  </p>
+  <button type="button" nv:click="increment">Increase</button>
+  <button type="button" nv:click="reset">Reset</button>
+  <label for="counter-name">Your name</label>
+  <input
+    id="counter-name"
+    nv:model.live.debounce.150ms="name"
+    value="<%= name %>"
+    maxlength="60"
+  />
+  <p id="greeting" aria-live="polite"><%= greeting %></p>
+</section>
