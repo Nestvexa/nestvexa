@@ -59,6 +59,20 @@ export default defineConfig({
       url: 'http://127.0.0.1:3111/api/health',
       reuseExistingServer: false,
     },
+    // Standalone distributed-live replicas for the WebSocket and `auto`
+    // transport browser tests (the Redis two-replica suite is test:services).
+    {
+      command: 'pnpm --filter @nestvexa/example-distributed-live start',
+      url: 'http://127.0.0.1:3226/api/health',
+      env: { PORT: '3226', REALTIME_TRANSPORT: 'websocket' },
+      reuseExistingServer: false,
+    },
+    {
+      command: 'pnpm --filter @nestvexa/example-distributed-live start',
+      url: 'http://127.0.0.1:3227/api/health',
+      env: { PORT: '3227', REALTIME_TRANSPORT: 'auto' },
+      reuseExistingServer: false,
+    },
     // Phase 9-11 frontend adapters (Vite production builds + SSR). The React
     // example renders through the official Inertia SSR server process.
     {

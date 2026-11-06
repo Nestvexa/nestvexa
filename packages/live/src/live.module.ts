@@ -32,7 +32,7 @@ import type { ComponentDefinition } from './metadata.js';
 import { LIVE_OPTIONS, LiveRuntime } from './runtime.js';
 import { LiveInfrastructureModule } from './registration.js';
 import type { LiveHostOptions } from './runtime.js';
-import { MemoryLiveStore } from './store.js';
+import { isLiveStateStore } from './store.js';
 
 const ROUTE = Symbol('nv:route');
 const DOWNLOAD_ACTION = '$download';
@@ -193,11 +193,10 @@ function factoryOptions(
     typeof renderer.dispose !== 'function'
   )
     throw new Error('Live runtime factory requires a view engine adapter');
-  if (
-    snapshot.store !== undefined &&
-    !(snapshot.store instanceof MemoryLiveStore)
-  )
-    throw new Error('Live runtime factory requires a MemoryLiveStore instance');
+  if (snapshot.store !== undefined && !isLiveStateStore(snapshot.store))
+    throw new Error(
+      'Live runtime factory store must implement LiveStateStore (create, peek, transaction, revoke, delete, close)',
+    );
   return Object.freeze({
     origin: snapshot.origin,
     resolveIdentity: snapshot.resolveIdentity,

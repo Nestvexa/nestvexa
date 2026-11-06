@@ -29,6 +29,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { tap } from 'rxjs';
 import { afterEach, describe, expect, it } from 'vitest';
+import { memoryStore } from './support/memory-store.js';
 import { HbsEngine } from '../packages/engine-hbs/dist/index.js';
 import {
   Action,
@@ -445,7 +446,7 @@ describe.each(['express', 'fastify'] as const)(
       const host = await fixture(platform);
       host.enableUpdateHooks();
       expect(
-        host.runtime.store.peek(
+        memoryStore(host.runtime).peek(
           host.initial.snapshot,
           'tenant-a/session-alice/principal-alice',
         ).state['bootCount'],
@@ -546,12 +547,12 @@ describe.each(['express', 'fastify'] as const)(
         expect(await response.text()).not.toContain('Private');
         expect(host.hooks).not.toContain('beforeAction');
         expect(() =>
-          host.runtime.store.peek(
+          memoryStore(host.runtime).peek(
             host.initial.snapshot,
             'tenant-a/session-alice/principal-alice',
           ),
         ).toThrow('Live state is unavailable');
-        expect(host.runtime.store.size).toBe(0);
+        expect(memoryStore(host.runtime).size).toBe(0);
         const hookCount = host.hooks.length;
         host.failHook(undefined);
         const corrected = await host.post(host.initial, { label: 'next' });
@@ -654,7 +655,7 @@ describe.each(['express', 'fastify'] as const)(
       expect((await host.post(host.initial, { label: 'change' })).status).toBe(
         403,
       );
-      expect(host.runtime.store.size).toBe(1);
+      expect(memoryStore(host.runtime).size).toBe(1);
       expect(host.hooks).toEqual([]);
     });
 
@@ -669,7 +670,7 @@ describe.each(['express', 'fastify'] as const)(
         const response = await host.post(host.initial, updates);
         expect(response.status).toBe(422);
         expect(await response.json()).toMatchObject({ code });
-        expect(host.runtime.store.size).toBe(1);
+        expect(memoryStore(host.runtime).size).toBe(1);
         expect(host.hooks).toEqual([]);
       }
       expect((await host.post(host.initial, { label: 'valid' })).status).toBe(
@@ -750,7 +751,7 @@ describe.each(['express', 'fastify'] as const)(
         release.resolve();
         expect((await waiting).status).toBe(409);
         expect(host.hooks).toEqual(['hydrate', 'dehydrate']);
-        expect(host.runtime.store.size).toBe(1);
+        expect(memoryStore(host.runtime).size).toBe(1);
       } finally {
         release.resolve();
         await waiting.catch(() => undefined);
@@ -780,7 +781,7 @@ describe.each(['express', 'fastify'] as const)(
         release.resolve();
         expect((await waiting).status).toBe(503);
         expect(host.hooks).toEqual([]);
-        expect(host.runtime.store.size).toBe(0);
+        expect(memoryStore(host.runtime).size).toBe(0);
       } finally {
         release.resolve();
         await waiting.catch(() => undefined);

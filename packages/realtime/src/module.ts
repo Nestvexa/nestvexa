@@ -14,6 +14,7 @@ import type {
   DynamicModule,
   INestApplication,
   InjectionToken,
+  BeforeApplicationShutdown,
   OnApplicationShutdown,
   OptionalFactoryDependency,
   Type,
@@ -26,6 +27,8 @@ import type { RealtimeBroker, RealtimeEvent } from './broker.js';
 import { RealtimeHub, RealtimeRejection } from './hub.js';
 import type {
   HubLimits,
+  PresenceMember,
+  PresenceSnapshot,
   RealtimeCloseReason,
   RealtimeIdentity,
   RealtimeSink,
@@ -46,6 +49,13 @@ export interface RealtimeModuleOptions {
     identity: RealtimeIdentity,
     channel: string,
   ) => boolean | Promise<boolean>;
+  /**
+   * Optional public presence descriptor per connected identity (for example
+   * `{ id: user.publicId, label: user.displayName }`). Never return the binding.
+   */
+  readonly describePresence?: (
+    identity: RealtimeIdentity,
+  ) => PresenceMember | undefined | Promise<PresenceMember | undefined>;
   /** WebSocket identity from the raw upgrade request (session middleware does not run there). */
   readonly resolveUpgradeIdentity?: (
     request: IncomingMessage,
@@ -55,12 +65,15 @@ export interface RealtimeModuleOptions {
   readonly tokenTtlMs?: number;
   readonly limits?: Partial<HubLimits>;
 }
-const defaults: HubLimits = {
+const defaults: Required<HubLimits> = {
   maxConnections: 1000,
   maxConnectionsPerIdentity: 8,
   queueLimit: 64,
   heartbeatMs: 15_000,
   revalidateMs: 30_000,
+  subscribesPerMinute: 60,
+  publishesPerMinute: 120,
+  maxPresenceMembers: 100,
 };
 function endpointOf(value: string | undefined): string {
   const endpoint = value ?? '/_nestvexa/realtime';
@@ -80,7 +93,9 @@ function validate(options: RealtimeModuleOptions): HubLimits {
     throw new Error('Realtime origin must be an exact HTTP(S) origin');
   if (
     typeof options.resolveIdentity !== 'function' ||
-    typeof options.authorizeChannel !== 'function'
+    typeof options.authorizeChannel !== 'function' ||
+    (options.describePresence !== undefined &&
+      typeof options.describePresence !== 'function')
   )
     throw new Error(
       'Realtime identity and channel authorization policies are required',
@@ -98,7 +113,9 @@ function validate(options: RealtimeModuleOptions): HubLimits {
 
 /** Publish events, sign subscriptions and revoke connections from host code. */
 @Injectable()
-export class RealtimeService implements OnApplicationShutdown {
+export class RealtimeService
+  implements BeforeApplicationShutdown, OnApplicationShutdown
+{
   readonly hub: RealtimeHub;
   readonly broker: RealtimeBroker;
   readonly signer: TokenSigner;
@@ -117,9 +134,39 @@ export class RealtimeService implements OnApplicationShutdown {
     });
     this.hub = new RealtimeHub(this.broker, this.signer, options, limits);
   }
-  /** Invalidate subscribers of a channel. `data` is public JSON (≤16 KiB). */
-  publish(channel: string, data: unknown = null): Promise<RealtimeEvent> {
+  /**
+   * Invalidate subscribers of a channel. `data` is public JSON (≤16 KiB).
+   * Pass the acting `identity` for user-triggered publishes: it is charged
+   * against `limits.publishesPerMinute` and rejected with 429 beyond it.
+   */
+  async publish(
+    channel: string,
+    data: unknown = null,
+    options: { readonly identity?: RealtimeIdentity } = {},
+  ): Promise<RealtimeEvent> {
+    if (
+      options.identity !== undefined &&
+      !this.hub.takePublish(options.identity)
+    )
+      throw new HttpException({ statusCode: 429, code: 'RATE_LIMITED' }, 429);
     return this.broker.publish(channel, data);
+  }
+  /**
+   * Members connected to `channel` on this replica, for a reader who may read
+   * the channel now (403 otherwise). Presence is per process: with several
+   * replicas each one reports its own connections.
+   */
+  async presence(
+    identity: RealtimeIdentity,
+    channel: string,
+  ): Promise<PresenceSnapshot> {
+    const name = parseChannel(channel);
+    if (!(await this.options.authorizeChannel(identity, name)))
+      throw new HttpException(
+        { statusCode: 403, code: 'CHANNEL_FORBIDDEN' },
+        403,
+      );
+    return this.hub.presence(name);
   }
   /**
    * Sign a subscription token for the channels this identity may read now.
@@ -142,6 +189,13 @@ export class RealtimeService implements OnApplicationShutdown {
   }
   closeChannel(channel: string): void {
     this.hub.closeChannel(channel);
+  }
+  /**
+   * End every stream before Nest closes the HTTP server: open SSE, long-poll
+   * and WebSocket connections would otherwise hold the server open.
+   */
+  beforeApplicationShutdown(): void {
+    this.hub.shutdown();
   }
   async onApplicationShutdown(): Promise<void> {
     this.hub.shutdown();

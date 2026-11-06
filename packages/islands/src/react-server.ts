@@ -18,7 +18,10 @@ export function reactIslandRenderer<Props extends object, Services = unknown>(
       createElement(component, {
         ...(props as Props),
         // Server services are application-typed by convention, like the loader's.
-        island: serverIslandContext(context, options) as IslandContext<Services>,
+        island: serverIslandContext(
+          context,
+          options,
+        ) as IslandContext<Services>,
       }),
     );
 }

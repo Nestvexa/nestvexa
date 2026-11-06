@@ -1,5 +1,6 @@
 ﻿// Real external service checks (not part of `pnpm test`): Redis pub/sub across
-// two processes and a broker restart, S3-compatible storage and clamd.
+// two processes and a broker restart, the Redis Live state store, the
+// two-replica browser acceptance suite, S3-compatible storage and clamd.
 // Each section runs only when its environment variables are present; the
 // report records exactly which services were exercised. See
 // docs/guides/production-services.md for the Docker commands.
@@ -11,6 +12,7 @@ import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { setTimeout as delay } from 'node:timers/promises';
 import { RespRealtimeBroker } from '../packages/realtime/dist/index.js';
+import { RedisLiveStore } from '../packages/realtime-redis/dist/index.js';
 import { ClamdScanner, S3Storage } from '../packages/uploads/dist/index.js';
 
 const env = process.env;
@@ -75,7 +77,12 @@ process.stdin.resume();`,
       lines.push(...parts.filter(Boolean).map((line) => JSON.parse(line)));
     });
     try {
-      await waitFor(() => lines.includes('ready'), 'subscriber process');
+      // Cold module loading can take tens of seconds on loaded CI hosts.
+      await waitFor(
+        () => lines.includes('ready'),
+        'subscriber process',
+        60_000,
+      );
       await delay(200);
       const publisher = new RespRealtimeBroker({ port, prefix });
       await publisher.publish('board:1', { revision: 1 });
@@ -113,6 +120,149 @@ process.stdin.resume();`,
       child.stdin.end();
       child.kill();
     }
+  });
+
+if (env.NESTVEXA_REDIS_PORT)
+  await check('redis-live-store', async (step) => {
+    const port = Number(env.NESTVEXA_REDIS_PORT);
+    const prefix = 'nvstore' + randomBytes(4).toString('hex') + ':';
+    const options = {
+      host: env.NESTVEXA_REDIS_HOST ?? '127.0.0.1',
+      port,
+      prefix,
+      ...(env.NESTVEXA_REDIS_PASSWORD
+        ? { password: env.NESTVEXA_REDIS_PASSWORD }
+        : {}),
+    };
+    const alice = 'tenant-a/session-alice/principal-alice';
+    const bob = 'tenant-a/session-bob/principal-bob';
+    const a = new RedisLiveStore(options);
+    const b = new RedisLiveStore(options);
+    const code = async (run) => {
+      try {
+        await run();
+        return 'ok';
+      } catch (error) {
+        return error?.code ?? error?.message ?? String(error);
+      }
+    };
+    const expect = (actual, expected, label) => {
+      if (actual !== expected)
+        throw new Error(`${label}: expected ${expected}, got ${actual}`);
+    };
+    try {
+      const created = await a.create('counter', alice, { count: 0 });
+      const continued = await b.transaction(
+        created.snapshot,
+        alice,
+        0,
+        async (snapshot) => ({
+          state: { count: snapshot.state.count + 1 },
+          html: '<p>1</p>',
+        }),
+      );
+      expect(continued.revision, 1, 'commit on the second store');
+      expect((await a.peek(created.snapshot, alice)).state.count, 1, 'read');
+      step('state created by one store instance is continued by another');
+      const replay = await code(() =>
+        a.transaction(created.snapshot, alice, 0, async (s) => ({
+          state: s.state,
+          html: '',
+        })),
+      );
+      expect(replay, 'STALE_REVISION', 'replayed revision');
+      expect(
+        await code(() => b.peek(created.snapshot, bob)),
+        'INVALID_SNAPSHOT',
+        'foreign binding',
+      );
+      step('replayed revisions and foreign bindings are rejected');
+      let release;
+      const gate = new Promise((resolve) => (release = resolve));
+      const running = a.transaction(created.snapshot, alice, 1, async (s) => {
+        await gate;
+        return { state: s.state, html: '' };
+      });
+      await delay(50);
+      const busy = await code(() =>
+        b.transaction(created.snapshot, alice, 1, async (s) => ({
+          state: s.state,
+          html: '',
+        })),
+      );
+      release();
+      await running;
+      expect(busy, 'COMPONENT_BUSY', 'concurrent transaction');
+      step(
+        'one transaction per entry across store instances (SET NX PX lease)',
+      );
+      const revoked = await a.create('counter', alice, { count: 0 });
+      const interrupted = await code(() =>
+        a.transaction(revoked.snapshot, alice, 0, async (s) => {
+          await b.revoke(alice);
+          return { state: s.state, html: '' };
+        }),
+      );
+      expect(interrupted, 'INVALID_SNAPSHOT', 'revoke during transaction');
+      expect(
+        await code(() => a.peek(revoked.snapshot, alice)),
+        'INVALID_SNAPSHOT',
+        'revoked state stays gone',
+      );
+      step('revoke during a transaction aborts the WATCH/MULTI/EXEC commit');
+      const short = new RedisLiveStore({
+        ...options,
+        ttlMs: 300,
+        lockTtlMs: 200,
+      });
+      const expiring = await short.create('counter', alice, { count: 0 });
+      await delay(450);
+      expect(
+        await code(() => short.peek(expiring.snapshot, alice)),
+        'INVALID_SNAPSHOT',
+        'TTL expiry',
+      );
+      const leased = await short.create('counter', alice, { count: 0 });
+      const lapsed = await code(() =>
+        short.transaction(leased.snapshot, alice, 0, async (s) => {
+          await delay(260);
+          return { state: s.state, html: '' };
+        }),
+      );
+      expect(lapsed, 'INVALID_SNAPSHOT', 'expired lease');
+      await short.close();
+      step('Redis PX enforces entry TTL and transaction lease expiry');
+    } finally {
+      await a.close();
+      await b.close();
+    }
+  });
+
+if (env.NESTVEXA_REDIS_PORT && env.NESTVEXA_SERVICES_BROWSER !== '0')
+  await check('redis-two-replicas-browser', async (step) => {
+    // Two example replicas (SSE and WebSocket) behind a proxy, one Redis.
+    // A constant command line (nothing interpolated) through the shell, so
+    // pnpm's Windows .cmd shim resolves.
+    const run = spawnSync(
+      'pnpm exec playwright test -c playwright.services.config.ts --project=chromium',
+      {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: true,
+        timeout: 900_000,
+        env,
+      },
+    );
+    process.stdout.write(run.stdout ?? '');
+    process.stderr.write(run.stderr ?? '');
+    if (run.status !== 0)
+      throw new Error(
+        `playwright.services.config.ts exited with ${run.status}`,
+      );
+    const passed = /(\d+) passed/.exec(run.stdout ?? '')?.[1] ?? '?';
+    step(
+      `${passed} browser tests passed: replica B publish refreshes a browser on replica A (SSE) and back (WebSocket); Live state created on A continues on B; cross-identity isolation on both replicas`,
+    );
   });
 
 if (env.NESTVEXA_S3_ENDPOINT)

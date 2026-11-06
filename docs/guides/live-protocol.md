@@ -1,6 +1,6 @@
 # Live protocol and server state
 
-The experimental `nestvexa-live/1` protocol uses an opaque, random server-state reference. It does not sign or encrypt a browser state snapshot. State is held in a bounded, single-process `MemoryLiveStore`; rendering may expose public state in HTML or response data, so never put secrets in public component fields.
+The experimental `nestvexa-live/1` protocol uses an opaque, random server-state reference. It does not sign or encrypt a browser state snapshot. State is held in a pluggable `LiveStateStore`: by default a bounded, single-process `MemoryLiveStore`, or a shared store such as `RedisLiveStore` (`@nestvexa/realtime-redis`) for several replicas, with the same binding, revision, TTL and invalidation semantics; rendering may expose public state in HTML or response data, so never put secrets in public component fields.
 
 ## Request contract
 

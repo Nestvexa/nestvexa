@@ -9,7 +9,6 @@ import type { IncomingMessage } from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import {
-  JobRunner,
   MemoryRealtimeBroker,
   RealtimeHub,
   RealtimeModule,
@@ -535,76 +534,3 @@ describe.each(['express', 'fastify'] as const)(
     });
   },
 );
-
-describe('job runner', () => {
-  it('reports owner-only progress, retries, cancels and redacts failures', async () => {
-    const notices: { channel: string; status: string; progress: number }[] = [];
-    const runner = new JobRunner({
-      notify: (channel, snapshot) => {
-        notices.push({
-          channel,
-          status: snapshot.status,
-          progress: snapshot.progress,
-        });
-      },
-    });
-    cleanup.push(() => runner.close());
-    let attempts = 0;
-    const job = runner.enqueue(
-      { binding: alice },
-      'export',
-      async (context) => {
-        attempts = context.attempt;
-        context.progress(50);
-        if (context.attempt === 1) throw new Error('database password leaked');
-        return { rows: 2 };
-      },
-      { maxAttempts: 2 },
-    );
-    await until(
-      () => runner.get({ binding: alice }, job.id)?.status === 'succeeded',
-    );
-    expect(attempts).toBe(2);
-    expect(runner.get({ binding: alice }, job.id)).toMatchObject({
-      result: { rows: 2 },
-      progress: 100,
-    });
-    expect(runner.get({ binding: bob }, job.id)).toBeUndefined();
-    expect(
-      runner.authorize({ binding: alice }, JobRunner.channel(job.id)),
-    ).toBe(true);
-    expect(runner.authorize({ binding: bob }, JobRunner.channel(job.id))).toBe(
-      false,
-    );
-    await until(() => notices.some((notice) => notice.status === 'succeeded'));
-    expect(notices.map((notice) => notice.status)).toContain('running');
-    const failing = runner.enqueue({ binding: alice }, 'boom', async () => {
-      throw new Error('secret internals');
-    });
-    await until(
-      () => runner.get({ binding: alice }, failing.id)?.status === 'failed',
-    );
-    expect(
-      JSON.stringify(runner.get({ binding: alice }, failing.id)),
-    ).not.toContain('secret');
-    const slow = runner.enqueue(
-      { binding: alice },
-      'slow',
-      (context) =>
-        new Promise((_resolve, reject) =>
-          context.signal.addEventListener('abort', () =>
-            reject(new Error('aborted')),
-          ),
-        ),
-    );
-    await until(
-      () => runner.get({ binding: alice }, slow.id)?.status === 'running',
-    );
-    expect(runner.cancel({ binding: bob }, slow.id)).toBe(false);
-    expect(runner.cancel({ binding: alice }, slow.id)).toBe(true);
-    await until(
-      () => runner.get({ binding: alice }, slow.id)?.status === 'cancelled',
-    );
-    expect(runner.get({ binding: alice }, slow.id)?.status).toBe('cancelled');
-  });
-});

@@ -23,6 +23,7 @@ import { REQUEST } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
 import { afterEach, describe, expect, it } from 'vitest';
+import { memoryStore } from './support/memory-store.js';
 import { HbsEngine } from '../packages/engine-hbs/dist/index.js';
 import {
   Action,
@@ -274,7 +275,7 @@ describe.each(['express', 'fastify'] as const)(
       for (const html of mounted.html) {
         expect(html).toContain('<output>1</output><span>alice</span>');
         expect(html).not.toContain('private-service-sentinel');
-        const stored = f.runtime.store.peek(
+        const stored = memoryStore(f.runtime).peek(
           f.snapshot(html),
           'tenant-a/session-alice/principal-alice',
         );
@@ -409,7 +410,7 @@ describe.each(['express', 'fastify'] as const)(
       const f = await fixture(platform);
       const failed = await f.mounts({ 'x-fail-constructor': 'yes' });
       expect(failed.response.status).toBe(418);
-      expect(f.runtime.store.size).toBe(0);
+      expect(memoryStore(f.runtime).size).toBe(0);
       expect(f.disposed).toEqual([]);
       const mounted = await f.mounts();
       const token = f.snapshot(mounted.html[0] ?? '');

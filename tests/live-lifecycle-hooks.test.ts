@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { afterEach, describe, expect, it } from 'vitest';
+import { memoryStore } from './support/memory-store.js';
 import {
   Controller,
   Get,
@@ -214,7 +215,7 @@ describe.each(['express', 'fastify'] as const)(
         'dispose',
       ]);
       expect(
-        host.runtime.store.peek(
+        memoryStore(host.runtime).peek(
           mounted.snapshot,
           'lifecycle-authoritative-session',
         ).state,
@@ -258,7 +259,7 @@ describe.each(['express', 'fastify'] as const)(
         expect(host.calls.filter((name) => name === 'onError')).toHaveLength(1);
         expect(host.calls.filter((name) => name === 'dispose')).toHaveLength(1);
         expect(host.failures).toHaveLength(1);
-        expect(host.runtime.store.size).toBe(0);
+        expect(memoryStore(host.runtime).size).toBe(0);
         expect(host.session).toEqual({});
       },
     );
@@ -290,7 +291,7 @@ describe.each(['express', 'fastify'] as const)(
         expect(host.calls.filter((name) => name === 'onError')).toHaveLength(1);
         expect(host.calls.filter((name) => name === 'dispose')).toHaveLength(1);
         expect(host.session).toEqual(session);
-        expect(host.runtime.store.size).toBe(0);
+        expect(memoryStore(host.runtime).size).toBe(0);
         expect((await host.action(initial.snapshot)).status).toBe(410);
       },
     );
@@ -319,7 +320,7 @@ describe.each(['express', 'fastify'] as const)(
         (await host.action(initial.snapshot, {}, { secret: 'attempt' })).status,
       ).toBe(422);
       expect(host.calls).toEqual([]);
-      expect(host.runtime.store.size).toBe(1);
+      expect(memoryStore(host.runtime).size).toBe(1);
     });
     it('observes final session persistence failures after cleanup and revokes the committed token', async () => {
       const host = await fixture(platform);
@@ -331,7 +332,7 @@ describe.each(['express', 'fastify'] as const)(
       expect(host.calls.slice(-2)).toEqual(['dispose', 'onError']);
       expect(host.calls.filter((name) => name === 'onError')).toHaveLength(1);
       expect(host.calls.filter((name) => name === 'dispose')).toHaveLength(1);
-      expect(host.runtime.store.size).toBe(0);
+      expect(memoryStore(host.runtime).size).toBe(0);
     });
     it('observes mount session persistence failure after cleanup without leaving a usable snapshot', async () => {
       const host = await fixture(platform);
@@ -339,7 +340,7 @@ describe.each(['express', 'fastify'] as const)(
       const response = await host.mount();
       expect(response.response.status).toBe(503);
       expect(host.calls.slice(-2)).toEqual(['dispose', 'onError']);
-      expect(host.runtime.store.size).toBe(0);
+      expect(memoryStore(host.runtime).size).toBe(0);
     });
   },
 );
