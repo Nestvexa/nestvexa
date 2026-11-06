@@ -41,11 +41,25 @@ export class MemoryRealtimeBroker implements RealtimeBroker {
   readonly #handlers = new Map<string, Set<RealtimeHandler>>();
   readonly #history = new Map<string, RealtimeEvent[]>();
   readonly #replaySize: number;
+  readonly #replayChannels: number;
   #sequence = 0;
-  constructor(options: { readonly replaySize?: number } = {}) {
+  /**
+   * `replaySize` events are kept per channel for reconnect replay, for at most
+   * `replayChannels` channels (least recently published evicted first), so
+   * per-user or per-record channel names cannot grow memory without bound.
+   */
+  constructor(
+    options: {
+      readonly replaySize?: number;
+      readonly replayChannels?: number;
+    } = {},
+  ) {
     this.#replaySize = options.replaySize ?? 100;
+    this.#replayChannels = options.replayChannels ?? 10_000;
     if (!Number.isSafeInteger(this.#replaySize) || this.#replaySize < 0)
       throw new Error('Invalid realtime replay size');
+    if (!Number.isSafeInteger(this.#replayChannels) || this.#replayChannels < 1)
+      throw new Error('Invalid realtime replay channel limit');
   }
   async publish(channel: string, data: unknown): Promise<RealtimeEvent> {
     const name = parseChannel(channel);
@@ -63,7 +77,14 @@ export class MemoryRealtimeBroker implements RealtimeBroker {
       const history = this.#history.get(event.channel) ?? [];
       history.push(event);
       if (history.length > this.#replaySize) history.shift();
+      // Re-insert so Map order is least recently published first.
+      this.#history.delete(event.channel);
       this.#history.set(event.channel, history);
+      while (this.#history.size > this.#replayChannels) {
+        const oldest = this.#history.keys().next().value;
+        if (oldest === undefined) break;
+        this.#history.delete(oldest);
+      }
     }
     for (const handler of [...(this.#handlers.get(event.channel) ?? [])])
       handler(event);
@@ -92,6 +113,10 @@ export class MemoryRealtimeBroker implements RealtimeBroker {
     let count = 0;
     for (const handlers of this.#handlers.values()) count += handlers.size;
     return count;
+  }
+  /** Channels currently holding replay history (bounded by `replayChannels`). */
+  get replayChannels(): number {
+    return this.#history.size;
   }
   async close(): Promise<void> {
     this.#handlers.clear();

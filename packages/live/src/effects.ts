@@ -132,14 +132,26 @@ export function safeRedirectPath(url: string): string {
 export function safeFilename(name: string): string {
   if (typeof name !== 'string')
     throw new Error('Download filename is required');
-  const cleaned = [...name.normalize('NFC')]
-    .filter((character) => {
-      const code = character.charCodeAt(0);
-      return code >= 32 && code !== 127 && !'/\\:*?"<>|'.includes(character);
-    })
-    .join('')
-    .replace(/^[.\s]+|[.\s]+$/g, '')
-    .slice(0, 180);
+  // Code-point iteration: unpaired surrogates become U+FFFD (they cannot be
+  // UTF-8 encoded into the header) and truncation never splits a pair.
+  // C1 controls and bidi/invisible formatting characters are display-spoofing
+  // vectors (`invoice\u202efdp.exe`), so they are dropped as well.
+  const characters = [
+    ...name.replace(/\p{Cs}/gu, '\ufffd').normalize('NFC'),
+  ].filter((character) => {
+    const code = character.codePointAt(0) ?? 0;
+    return (
+      code >= 32 &&
+      code !== 127 &&
+      !(code >= 0x80 && code <= 0x9f) &&
+      !/[\u061c\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/u.test(
+        character,
+      ) &&
+      !'/\\:*?"<>|'.includes(character)
+    );
+  });
+  const trimmed = characters.join('').replace(/^[.\s]+|[.\s]+$/g, '');
+  const cleaned = [...trimmed].slice(0, 180).join('');
   if (!cleaned)
     throw new Error('Download filename is empty after sanitization');
   return cleaned;
@@ -157,7 +169,7 @@ export function downloadLive(
   const contentType = options.contentType ?? 'application/octet-stream';
   if (
     typeof contentType !== 'string' ||
-    !/^[a-z0-9][a-z0-9!#/** After this action commits, navigate the browser to an application-relative path. */^_.+-]{0,63}\/[a-z0-9][a-z0-9!#/** After this action commits, navigate the browser to an application-relative path. */^_.+-]{0,63}(?:;\s*charset=[a-z0-9_-]{1,32})?$/i.test(
+    !/^[a-z0-9][a-z0-9!#$&^_.+-]{0,63}\/[a-z0-9][a-z0-9!#$&^_.+-]{0,63}(?:;\s*charset=[a-z0-9_-]{1,32})?$/i.test(
       contentType,
     )
   )

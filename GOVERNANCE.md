@@ -45,16 +45,19 @@ required delivery.
   [feature matrix](docs/feature-matrix.md) when status changes).
 - The [pull request template](.github/PULL_REQUEST_TEMPLATE.md) asks for reproduction,
   platform, migration notes, and security, privacy and performance implications.
-- Dependency updates run the full CI matrix. Runtime-critical packages (NestJS,
-  Inertia clients, Alpine, template engines, frameworks) are never auto-merged.
+- Dependency updates (Dependabot, weekly) run the full CI matrix. Runtime-critical
+  packages (NestJS, Inertia clients, Alpine, template engines, frameworks) are never
+  auto-merged.
 
 ## Compatibility and deprecation
 
 - **Before 1.0** (current: `0.1.0-alpha.0`): no stability guarantee. Breaking changes
   are allowed in any release but must be listed in the Changeset and a migration note.
-- **From 1.0**: semver per package. A public API stays deprecated for at least one minor
-  release and 90 days before it is removed in the next major. Deprecations must be
-  listed in the changelog and should warn once in development.
+- **From 1.0**: semver on one coordinated version shared by `nestvexa` and every
+  `@nestvexa/*` package (a Changesets fixed group). A public API stays deprecated
+  for at least one minor release and 90 days before it is removed in the next major.
+  Deprecations must be listed in the changelog and should warn once in development.
+  Details: [versioning and deprecation policy](docs/release/versioning-and-deprecation.md).
 - **Live protocol**: versioned on the wire (`nestvexa-live/1`). The server rejects any
   other protocol version; a new major needs a reload or upgrade path
   ([ADR 0008](docs/adr/0008-compatibility-and-upgrades.md)).
@@ -69,14 +72,21 @@ required delivery.
 ## Release cadence
 
 There is no fixed cadence before 1.0. Releases happen when the owner approves a green
-[release process](docs/contributing/release-process.md) run. After 1.0 the target is
+[release process](docs/contributing/release-process.md) run. The publishing steps
+(manual workflow dispatch, protected `npm-release` environment, npm trusted
+publishing with provenance, SBOM per tarball) are in the
+[release runbook](docs/release/release-process.md). After 1.0 the target is
 a minor release roughly monthly and patch releases as needed, with security fixes
 prioritised.
 
 ## Security
 
 Vulnerabilities are reported privately as described in [SECURITY.md](SECURITY.md). The
-owner controls advisory publication and disclosure timing.
+owner controls advisory publication and disclosure timing. Internal reviews (for
+example [2026-11](docs/security/internal-review-2026-11.md)) are recorded in
+`docs/security/`; they do not replace the independent review that gates 1.0.
+Security-sensitive paths (security docs, release scripts, workflows, lockfile) always
+require owner review in [CODEOWNERS](.github/CODEOWNERS).
 
 ## Community extensions
 

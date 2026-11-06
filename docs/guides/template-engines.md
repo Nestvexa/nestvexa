@@ -197,7 +197,7 @@ app.useGlobalFilters(
 All first-party adapters, and adapters built with the kit below, enforce the same rules as HBS:
 
 - View IDs are root-relative forward-slash identifiers: no absolute paths, `..`/`.` segments, backslashes, drive letters, `:` streams, empty segments or NUL bytes. Real paths must stay inside the real root (symlink/junction escapes are rejected).
-- Template-authored includes follow the same rules: EJS and Pug allow `/x` (root-relative) and descending relative references; Nunjucks names are always root-relative. Raw includes cannot read files outside the root, and template size limits apply to every included file.
+- Template-authored includes follow the same rules: EJS and Pug allow `/x` (root-relative) and descending relative references; Nunjucks names are always root-relative. Raw includes cannot read files outside the root, and template size limits apply to every included file. View IDs and references containing control characters, unpaired surrogates or Unicode noncharacters are refused before any filesystem call (on Windows, Node aborts the process for paths containing U+10FFFF). The EJS adapter resolves `include()` itself, so EJS never probes the filesystem with a raw reference.
 - Models accept finite JSON values, `undefined` and `SafeHtml` only. Prototype keys, accessors (never invoked), class instances, functions, symbols, cycles, depth over 32 and more than 10,000 values are rejected.
 - Engine features that would widen file access or execution are not used: EJS `renderFile` option merging and global cache, Pug's global cache and `jstransformer-*` auto-loading, Nunjucks `FileSystemLoader`/`watch` and `autoescape: false`.
 - Errors are `ViewError` (`INVALID_VIEW`, `UNSAFE_MODEL`, `UNSUPPORTED_CAPABILITY`, `RENDER_FAILED`). With `debug` (default when `cache` is off) messages name the failing template and line, for example `Unable to render view: home (partials/row.hbs:2)`; production messages name only the view. HBS locates parse errors, helper and built-in helper exceptions, missing helpers and missing partials (by the line of the `{{> name}}` reference); precompiled HBS views report the template but no line for missing partials. Never send `cause` to clients.
@@ -224,7 +224,7 @@ Checklist for adapter authors: declare only capabilities you implement; never pa
 
 - Umbrella `NestvexaModule.forRoot({ views: { engine } })` selection of a non-HBS engine is not implemented.
 - Streaming, async helpers/filters and precompilation for EJS, Pug and Nunjucks are unsupported.
-- Themes with precompiled HBS views, and `/x` references that stay inside the current namespace in EJS (EJS gives the include hook no parent file), are not supported.
+- Themes with precompiled HBS views are not supported. In EJS, `/x` always names the default root (it never stays inside the current namespace); use `ns::x` or a relative reference for namespaced partials.
 - `routesFromControllers` encodes neither host nor version constraints and uses only the first path of a multi-path handler.
 
 ## CLI

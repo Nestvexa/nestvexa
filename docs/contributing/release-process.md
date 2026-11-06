@@ -14,9 +14,10 @@ releases; the owner publishes.
 - The Live wire protocol is versioned separately (`nestvexa-live/1`). A protocol
   change needs a new protocol version and a reload or migration path
   ([ADR 0002](../adr/0002-live-protocol.md), [ADR 0008](../adr/0008-compatibility-and-upgrades.md)).
-- Packages are versioned independently. Changesets bumps internal dependents (patch)
-  when a dependency changes (`updateInternalDependencies: patch` in
-  `.changeset/config.json`).
+- `nestvexa` and every public `@nestvexa/*` package share one coordinated version: a
+  Changesets `fixed` group in `.changeset/config.json` bumps all of them together;
+  private examples are never versioned. Policy:
+  [versioning and deprecation](../release/versioning-and-deprecation.md).
 
 ## Changesets
 
@@ -36,28 +37,32 @@ changes need no Changeset. `pnpm changeset` creates the file interactively.
 ## Preparing a release (maintainer)
 
 1. Confirm `main` is green in CI on all four matrix jobs.
-2. `pnpm changeset version` to apply pending Changesets, bump versions and write each
+2. `pnpm release:prepare` (optionally `--target <version>`) checks the coordinated
+   version and the pending Changesets plan without changing anything.
+3. `pnpm changeset version` to apply pending Changesets, bump versions and write each
    package `CHANGELOG.md`. Review the diff and commit it.
-3. Run the full gate locally or with the manual
-   [release workflow](../../.github/workflows/release.yml): `pnpm test:all`. It ends
-   with `pnpm release:check`, which fails until every phase in `progress.json` is Done
-   and every evidence report (`vitest.json`, `playwright.json`, `pack.json`,
-   `release-matrix.json`, `security-review.json`) is green.
-4. `pnpm test:pack` writes the tarballs to `artifacts/packages/`. The release workflow
-   uploads them as `owner-review-tarballs` for inspection.
+4. Run the full gate locally: `pnpm test:all`. It ends with `pnpm release:check`,
+   which fails until every phase in `progress.json` is Done and every evidence report
+   (`vitest.json`, `playwright.json`, `pack.json` with a verified SBOM per tarball,
+   `release-matrix.json`, `security-review.json`, `load.json`) is green; formats are
+   in [release evidence](../release/evidence-formats.md).
+5. `pnpm test:pack` writes the tarballs to `artifacts/packages/` and a CycloneDX SBOM
+   per tarball to `artifacts/sbom/`.
 
 ## Publishing (owner only)
 
-The owner reviews the tarballs, then publishes them with npm provenance from an
-authorised account, creates the git tag and pushes it. No workflow in this repository
-publishes or pushes automatically, and none holds registry credentials.
+The owner tags the release and runs the manual
+[release workflow](../../.github/workflows/release.yml) for that tag: full matrix,
+release-candidate verification, then a protected `npm-release` environment that
+publishes the verified tarballs with npm trusted publishing (OIDC) and provenance.
+No workflow runs on push, no workflow pushes, and no registry token is stored. Setup,
+dry runs and rollback: [release runbook](../release/release-process.md).
 
 > **Known gap:** on 2026-11-05, `npm view nestvexa` and `npm view @nestvexa/core` both
 > return 404 from the public registry. [Implementation status](../implementation/STATUS.md)
 > says an alpha preview was published under the `alpha` tag, but the registry does
 > not show it. Until the owner confirms the publication (or publishes),
-> install instructions must use the local tarballs from `pnpm test:pack`. SBOM
-> generation is not automated.
+> install instructions must use the local tarballs from `pnpm test:pack`.
 
 ## After a release
 
