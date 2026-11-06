@@ -60,7 +60,7 @@
   },
   "devDependencies": {
     "@inertiajs/core": "3.10.0",
-    "@inertiajs/svelte": "3.10.0",
+    "@inertiajs/svelte": "3.11.0",
     "svelte": "5.57.3"
   }
 }
