@@ -25,7 +25,12 @@ import {
   endOperation,
   withinDeadline,
 } from './cancellation.js';
-import { ActionLocks, ActionReplayCache } from './action-policy.js';
+import {
+  isLiveActionCoordination,
+  memoryActionPolicy,
+  sharedActionPolicy,
+} from './action-policy.js';
+import type { ActionPolicy } from './action-policy.js';
 import { MemoryLiveStore } from './store.js';
 import type {
   ChildReference,
@@ -142,6 +147,9 @@ interface Rendered {
 const maxChildDepth = 8;
 /** Upper bound on waiting for in-flight Live requests during shutdown. */
 const shutdownDrainMs = 10_000;
+/** Shared identity-lock lease without an action deadline (the maximum deadline). */
+const maxLeaseMs = 300_000;
+const leaseMarginMs = 1_000;
 /** Rebuild a stored JSON value into the component field type. */
 function hydrated(
   component: ComponentDefinition,
@@ -280,8 +288,8 @@ export class LiveRuntime implements OnApplicationShutdown {
   readonly #controllers = new Set<AbortController>();
   /** Mount/action requests still running; drained (bounded) during shutdown. */
   readonly #inflight = new Set<Promise<unknown>>();
-  readonly #replays = new ActionReplayCache();
-  readonly #locks = new ActionLocks();
+  /** Idempotent replay and identity locks: shared when the store coordinates replicas. */
+  readonly #actions: ActionPolicy;
   constructor(
     @Inject(LIVE_OPTIONS) private readonly options: RuntimeOptions,
     @Inject(ModuleRef) private readonly moduleRef: ModuleRef,
@@ -289,6 +297,9 @@ export class LiveRuntime implements OnApplicationShutdown {
     private readonly registry: LiveApplicationRegistry,
   ) {
     this.store = options.store ?? new MemoryLiveStore();
+    this.#actions = isLiveActionCoordination(this.store)
+      ? sharedActionPolicy(this.store)
+      : memoryActionPolicy();
     this.registry.register(
       this,
       options.definitions,
@@ -1168,7 +1179,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     if (!admitted) fail(403, 'ADMISSION_REQUIRED');
     const { identity, payload, component, action, capabilities } = admitted;
     let completed: object | undefined;
-    let release: (() => void) | undefined;
+    let release: (() => Promise<void>) | undefined;
     try {
       const synchronization = action === INTERNAL_SYNC_ACTION;
       const selected = component.actions.get(action);
@@ -1184,7 +1195,7 @@ export class LiveRuntime implements OnApplicationShutdown {
       // An identical retry of a committed idempotent action replays its result
       // before the (now stale) revision check; nothing executes again.
       const replayed = selected?.idempotent
-        ? this.#replays.lookup(
+        ? await this.#actions.lookup(
             identity.binding,
             component.name,
             action,
@@ -1193,7 +1204,16 @@ export class LiveRuntime implements OnApplicationShutdown {
         : undefined;
       if (replayed) return replayed;
       if (selected?.concurrency === 'identity')
-        release = this.#locks.acquire(identity.binding, component.name, action);
+        release = await this.#actions.acquire(
+          identity.binding,
+          component.name,
+          action,
+          // A shared lease outlives the action deadline slightly; without a
+          // deadline it is bounded by the longest supported one.
+          component.timeoutMs === undefined
+            ? maxLeaseMs
+            : component.timeoutMs + leaseMarginMs,
+        );
       const updates = await this.validatedUpdates(component, identity, payload);
       let url: readonly UrlStateEffect[] = [];
       let persist: (() => void) | undefined;
@@ -1354,7 +1374,7 @@ export class LiveRuntime implements OnApplicationShutdown {
         ...(realtime === undefined ? {} : { realtime }),
       };
       if (selected?.idempotent)
-        this.#replays.remember(
+        await this.#actions.remember(
           identity.binding,
           component.name,
           action,
@@ -1366,7 +1386,7 @@ export class LiveRuntime implements OnApplicationShutdown {
       if (completed) await this.observeError(completed, error);
       mapped(error);
     } finally {
-      release?.();
+      await release?.();
       this.#admissions.delete(request);
     }
   }
@@ -1496,7 +1516,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     this.registry.release(this);
     this.#rate.clear();
     this.#downloads.clear();
-    this.#replays.clear();
+    this.#actions.clear();
     // Memory stores discard state; shared stores close connections only.
     await this.store.close();
   }

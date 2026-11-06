@@ -171,9 +171,18 @@ Overlapping work is always rejected, never queued: a queued request would carry 
 revision. Non-idempotent duplicates are rejected with `409 STALE_REVISION`, so a payment
 or order action is never executed twice by a replayed request. Replays are kept for five
 minutes, at most 1,000 per runtime (oldest evicted; an evicted retry fails safely with
-`409`). Replays and identity locks are single-process; a multi-replica deployment needs
-sticky sessions or a shared store (DATA-004/005). The browser runtime does not retry
-automatically; the option serves programmatic clients and network-level retries.
+`409`). With the default `MemoryLiveStore`, replays and identity locks are
+process-local. A store that also implements `LiveActionCoordination` (for example
+`RedisLiveStore` from `@nestvexa/realtime-redis`) shares both across replicas
+automatically: a retry replays on any replica, and an identity lock is a store lease
+(`SET NX PX`) that lasts the component `timeoutMs` plus one second, or 300 s without a
+deadline, so a crashed replica cannot hold it forever. Shared replay records are keyed
+by a SHA-256 digest and sealed with AES-256-GCM under a key derived from the identity
+binding, snapshot token and request ID, none of which the store holds; a tampered or
+relocated record is ignored and the retry fails safely with `409 STALE_REVISION`. A
+replayed `download` URL is served only by the replica that created it. The browser
+runtime does not retry automatically; the option serves programmatic clients and
+network-level retries.
 
 ## Deadlines, cancellation and shutdown
 
@@ -200,8 +209,8 @@ seconds for in-flight Live requests to settle before the HTTP server and store c
 | Flash messages per action              | 8                                         | server error               |
 | Downloads                              | 5 MiB, single use, 60 s, 100 pending      | `503 DOWNLOAD_CAPACITY`    |
 | Realtime channels per component        | 32, signer token at most 8,192 characters | server error               |
-| Idempotent replays                     | 1,000 per runtime, 5 minutes              | evicted → `409`            |
-| Identity-scoped action locks           | 10,000 concurrent                         | `503 STORE_CAPACITY`       |
+| Idempotent replays                     | 1,000 per runtime (shared: store), 5 min  | evicted → `409`            |
+| Identity-scoped action locks           | 10,000 concurrent (shared: store leases)  | `503 STORE_CAPACITY`       |
 | Component deadline (`timeoutMs`)       | 1–300,000 ms, default none                | `504`                      |
 | Async computed deadline                | default 30 s, at most 300 s               | `504 COMPUTED_TIMEOUT`     |
 | Shutdown drain                         | 10 s                                      | —                          |

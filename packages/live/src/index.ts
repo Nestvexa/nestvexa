@@ -70,6 +70,10 @@ export {
 } from './errors.js';
 export { liveAbortSignal } from './cancellation.js';
 export {
+  isLiveActionCoordination,
+  type LiveActionCoordination,
+} from './action-policy.js';
+export {
   dispatchLiveEvent,
   redirectLive,
   downloadLive,

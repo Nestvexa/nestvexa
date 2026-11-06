@@ -20,6 +20,7 @@ import {
 import type {
   ChildReference,
   JsonValue,
+  LiveActionCoordination,
   LiveStateStore,
   LiveTransactionCallback,
   LiveTransactionResult,
@@ -61,6 +62,9 @@ const anyUuid =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const hashPattern = /^[0-9a-f]{64}$/;
 const maxHtmlBytes = 1_048_576;
+const coordinationKeyPattern = /^[A-Za-z0-9_-]{43}$/;
+/** Sealed replay records hold one response (at most ~2 MiB of JSON) in base64url. */
+const maxReplayBytes = 4 * 1_048_576;
 
 function optionsError(message: string): never {
   throw new LiveProtocolError('INVALID_STORE_OPTIONS', 500, message);
@@ -122,7 +126,7 @@ function children(
  * Targets a single Redis primary (standalone or Sentinel-managed). Redis
  * Cluster is not supported: commits span keys in different hash slots.
  */
-export class RedisLiveStore implements LiveStateStore {
+export class RedisLiveStore implements LiveStateStore, LiveActionCoordination {
   readonly #commands: RespConnection;
   /** Dedicated connection: WATCH/MULTI state is connection-scoped. */
   readonly #transactions: RespConnection;
@@ -590,6 +594,69 @@ export class RedisLiveStore implements LiveStateStore {
       this.#commands.command('DEL', this.#lockKey(tokenHash)),
     ]);
     return expectReply(removed) === 1;
+  }
+  #coordinationKey(kind: 'r' | 'a', key: string): string {
+    // Live passes SHA-256 digests; anything else is a programming error.
+    if (typeof key !== 'string' || !coordinationKeyPattern.test(key))
+      optionsError('Invalid Live coordination key');
+    return `${this.#prefix}${kind}:${key}`;
+  }
+  #coordinationTtl(ttlMs: number): string {
+    return String(boundedInteger(ttlMs, 1, 86_400_000, 'coordination TTL'));
+  }
+  /**
+   * Sealed idempotent replay record shared by replicas (`LiveActionCoordination`).
+   * Values are ciphertext produced by Live; this store never sees responses.
+   */
+  async readReplay(key: string): Promise<string | undefined> {
+    const raw = expectReply(
+      await this.#commands.command('GET', this.#coordinationKey('r', key)),
+    );
+    return typeof raw === 'string' ? raw : undefined;
+  }
+  async writeReplay(key: string, value: string, ttlMs: number): Promise<void> {
+    if (
+      typeof value !== 'string' ||
+      !/^r1\.[A-Za-z0-9_-]+$/.test(value) ||
+      value.length > maxReplayBytes
+    )
+      optionsError('Invalid Live replay record');
+    expectReply(
+      await this.#commands.command(
+        'SET',
+        this.#coordinationKey('r', key),
+        value,
+        'PX',
+        this.#coordinationTtl(ttlMs),
+      ),
+    );
+  }
+  /** Per-identity action lease (`SET NX PX`), shared by replicas; expires after `ttlMs`. */
+  async acquireActionLease(
+    key: string,
+    owner: string,
+    ttlMs: number,
+  ): Promise<boolean> {
+    if (typeof owner !== 'string' || !/^[A-Za-z0-9_-]{16,64}$/.test(owner))
+      optionsError('Invalid Live lease owner');
+    const reply = expectReply(
+      await this.#commands.command(
+        'SET',
+        this.#coordinationKey('a', key),
+        owner,
+        'NX',
+        'PX',
+        this.#coordinationTtl(ttlMs),
+      ),
+    );
+    return reply === 'OK';
+  }
+  /** Compare-and-delete: a lease that expired and was taken by another owner stays. */
+  async releaseActionLease(key: string, owner: string): Promise<void> {
+    const lease = this.#coordinationKey('a', key);
+    await this.#atomic([lease], async (run) =>
+      (await run('GET', lease)) === owner ? [['DEL', lease]] : null,
+    );
   }
   /** Close connections; shared state stays in Redis for the other replicas. */
   async close(): Promise<void> {
