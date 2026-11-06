@@ -1,8 +1,9 @@
 # @nestvexa/realtime-redis
 
 Optional Redis adapters for running Nestvexa on several replicas: a shared Live
-state store (`RedisLiveStore`) and cross-instance realtime pub/sub
-(`RedisRealtimeBroker`). Both speak RESP2 over `node:net`; there is no Redis
+state store (`RedisLiveStore`), cross-instance realtime pub/sub
+(`RedisRealtimeBroker`), shared presence (`RedisPresenceStore`) and a durable
+job queue (`RedisJobQueue`). All speak RESP2 over `node:net`; there is no Redis
 client library dependency. Not part of the default `nestvexa` install.
 
 ## Install
@@ -20,7 +21,11 @@ is not supported** (commits span hash slots).
 
 ```ts
 import { RedisLiveStore } from '@nestvexa/realtime-redis';
-import { RedisRealtimeBroker } from '@nestvexa/realtime-redis/realtime';
+import {
+  RedisJobQueue,
+  RedisPresenceStore,
+  RedisRealtimeBroker,
+} from '@nestvexa/realtime-redis/realtime';
 
 const redis = {
   host: 'redis',
@@ -31,6 +36,13 @@ const redis = {
 RealtimeModule.forRoot({
   ...realtimeOptions,
   broker: new RedisRealtimeBroker({ ...redis, prefix: 'shop:prod:rt:' }),
+  presence: {
+    store: new RedisPresenceStore({ ...redis, prefix: 'shop:prod:presence:' }),
+  },
+});
+const jobs = new JobRunner({
+  queue: new RedisJobQueue({ ...redis, prefix: 'shop:prod:jobs:' }),
+  notify: (channel, job) => realtime.publish(channel, { status: job.status }),
 });
 NestvexaModule.forRoot(config, {
   components,
@@ -44,8 +56,8 @@ NestvexaModule.forRoot(config, {
 Every replica must share the realtime `secrets`, the public `origin` and an
 identity that resolves identically on every replica (a shared session store or
 a signed stateless cookie). The
-[distributed example](../../examples/distributed-live) runs two replicas behind
-one Redis.
+[distributed example](../../examples/distributed-live) runs replicas on Express
+and Fastify behind one Redis.
 
 ## `RedisLiveStore` options
 
@@ -89,10 +101,59 @@ at-most-once per connected subscriber: events published while a replica is
 disconnected from Redis are lost and browsers recover with an authorized
 refresh. Replay windows are per replica.
 
+## Presence
+
+`RedisPresenceStore` implements `PresenceStore` from `@nestvexa/realtime`.
+Each replica writes its members per channel to
+`<prefix>pm:<replica>:<channel>` with a Redis expiry (`PX`, the module's
+presence `ttlMs`, default 30 s) and rewrites it every third of the TTL; the set
+`<prefix>pr:<channel>` names candidate replicas and is pruned on read. A
+replica that exits gracefully removes its entries; one that crashes drops out
+when its key expires. Entries hold public descriptors only (never bindings) and
+are re-validated by every reader. Cost: one `SET` + `SADD` + `PEXPIRE` per
+presence change and per channel per heartbeat; one `SMEMBERS` plus a `GET` per
+replica per `presence()` call.
+
+## Durable jobs
+
+`RedisJobQueue` implements `JobQueue` for `JobRunner`, so jobs survive
+restarts and any worker can run them:
+
+- `<prefix>j:<id>` holds the record (validated on every read; a tampered record
+  is never shown, authorized or executed); sorted sets `queued` (by creation),
+  `running` (by lease expiry) and `done` (by finish time) index work, crash
+  recovery and retention; `<prefix>k:<sha256>` maps an owner-scoped idempotency
+  key to its job.
+- Every change is a `WATCH`/`MULTI`/`EXEC` compare-and-set on the job record:
+  one worker holds a lease at a time and a worker that lost its lease cannot
+  write. Racing claimants get distinct jobs.
+- At-least-once: a job whose worker died (no lease renewal) is claimed again
+  once its lease lapses, with `attempts` incremented; handlers must be
+  idempotent. A graceful `JobRunner.close()` hands running jobs back at once.
+- Cost: claim/update/cancel are about five round trips each and are serialized
+  per queue instance on one transaction connection. Progress updates go through
+  the same path, so report coarse progress.
+
+| Option                                             | Default          | Meaning                               |
+| -------------------------------------------------- | ---------------- | ------------------------------------- |
+| `host`, `port`, `username`, `password`, `database` | as above         | Redis primary                         |
+| `prefix`                                           | `nestvexa:jobs:` | Key namespace (`[a-z0-9:._-]{0,64}`)  |
+| `commandTimeoutMs`                                 | 5000             | Per-command timeout; failures surface |
+
+**BullMQ.** No BullMQ adapter ships. `JobQueue` is a storage contract (claim,
+lease-conditional update, cancel flag); BullMQ owns its worker loop, locks,
+retries and backoff, and has no cooperative cancellation of active jobs, so an
+adapter would either bypass BullMQ's processing model or not satisfy the
+contract (cross-worker cancel, owner-scoped idempotency, lease-checked writes).
+It would also pull `bullmq` and `ioredis` into the install. Use
+`RedisJobQueue`, or run BullMQ directly (the realtime guide shows how to publish
+its progress to `job:<id>` channels).
+
 ## Testing
 
 ```sh
-pnpm exec vitest run tests/live-store-contract.test.ts   # RESP test double
+pnpm exec vitest run tests/live-store-contract.test.ts tests/realtime-job-queue.test.ts \
+  tests/realtime-distributed.test.ts                       # RESP test double
 NESTVEXA_REDIS_PORT=6379 pnpm test:services                # real Redis
 ```
 
