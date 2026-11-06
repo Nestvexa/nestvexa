@@ -1,0 +1,47 @@
+{
+  "name": "@nestvexa/mail",
+  "version": "0.1.0-alpha.0",
+  "description": "Optional provider-neutral email and notification bridge: templates through Nestvexa view engines, Nest module, console/test transports",
+  "license": "MIT",
+  "author": "Nestvexa contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nestvexa/nestvexa.git",
+    "directory": "packages/mail"
+  },
+  "homepage": "https://github.com/Nestvexa/nestvexa/tree/main/packages/mail#readme",
+  "bugs": {
+    "url": "https://github.com/Nestvexa/nestvexa/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": "^22.13.0 || ^24.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src"
+  },
+  "peerDependencies": {
+    "@nestjs/common": "^12.0.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  }
+}
