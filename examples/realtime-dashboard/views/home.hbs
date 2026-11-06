@@ -1,0 +1,12 @@
+<h1>{{title}}</h1>
+<form id="role-form" method="post" action="/role">
+  <input type="hidden" name="_csrf" value="{{csrf}}" />
+  {{#if operator}}
+  <input type="hidden" name="role" value="viewer" />
+  <button type="submit">Switch to viewer</button>
+  {{else}}
+  <input type="hidden" name="role" value="operator" />
+  <button type="submit">Switch to operator (demo)</button>
+  {{/if}}
+</form>
+{{dashboard}}
