@@ -3,8 +3,9 @@ import type { Server, Socket } from 'node:net';
 
 /**
  * In-process RESP2 test double. NOT Redis: it implements only the commands the
- * Nestvexa Redis adapters use (strings with NX/XX/PX, sets, expiry, optimistic
- * WATCH/MULTI/EXEC, PUBLISH/SUBSCRIBE, AUTH), with lazily applied expiry and a
+ * Nestvexa Redis adapters use (strings with NX/XX/PX, INCR, sets, sorted sets
+ * with ZRANGEBYSCORE, expiry, optimistic WATCH/MULTI/EXEC, PUBLISH/SUBSCRIBE,
+ * AUTH), with lazily applied expiry and a
  * per-key version for WATCH. Real-server behavior is checked by
  * `pnpm test:services` against Redis.
  */
@@ -12,7 +13,7 @@ export interface RespDouble {
   readonly port: number;
   readonly server: Server;
   /** Raw stored values by key (for tamper and at-rest assertions). */
-  readonly values: Map<string, string | Set<string>>;
+  readonly values: Map<string, string | Set<string> | Map<string, number>>;
   /** Commands received, without arguments (for diagnostics). */
   readonly log: string[];
   /** Resets every client connection, like a server restart that keeps data. */
@@ -38,7 +39,7 @@ function array(items: readonly string[]): string {
 export async function respDouble(
   options: { readonly password?: string } = {},
 ): Promise<RespDouble> {
-  const values = new Map<string, string | Set<string>>();
+  const values = new Map<string, string | Set<string> | Map<string, number>>();
   const expiry = new Map<string, number>();
   const versions = new Map<string, number>();
   const subscribers = new Map<string, Set<Socket>>();
@@ -72,6 +73,21 @@ export async function respDouble(
     const value = values.get(key);
     return value instanceof Set ? value : undefined;
   };
+  const zset = (key: string): Map<string, number> | undefined => {
+    if (!live(key)) return undefined;
+    const value = values.get(key);
+    return value instanceof Map ? value : undefined;
+  };
+  /** Parse a ZRANGEBYSCORE bound: `-inf`, `+inf`, `n` or exclusive `(n`. */
+  const bound = (text: string): { value: number; open: boolean } => {
+    const open = text.startsWith('(');
+    const raw = open ? text.slice(1) : text;
+    const value =
+      raw === '-inf' ? -Infinity : raw === '+inf' ? Infinity : Number(raw);
+    return { value, open };
+  };
+  const wrongType =
+    '-WRONGTYPE Operation against a key holding the wrong kind of value\r\n';
   /** Execute one command; returns the encoded reply. */
   function execute(socket: Socket, parts: string[]): string {
     const [raw = '', ...args] = parts;
@@ -151,6 +167,68 @@ export async function respDouble(
         if (target && !target.size) remove(key);
         else if (removed) touch(key);
         return `:${removed}\r\n`;
+      }
+      case 'INCR': {
+        const key = args[0] ?? '';
+        const next = Number(string(key) ?? '0') + 1;
+        if (!Number.isSafeInteger(next))
+          return '-ERR value is not an integer or out of range\r\n';
+        values.set(key, String(next));
+        touch(key);
+        return `:${next}\r\n`;
+      }
+      case 'ZADD': {
+        const [key = '', ...pairs] = args;
+        if (live(key) && !zset(key)) return wrongType;
+        if (!pairs.length || pairs.length % 2) return '-ERR syntax error\r\n';
+        const target = zset(key) ?? new Map<string, number>();
+        let added = 0;
+        for (let index = 0; index < pairs.length; index += 2) {
+          const score = Number(pairs[index]);
+          if (Number.isNaN(score)) return '-ERR value is not a valid float\r\n';
+          const member = pairs[index + 1] ?? '';
+          if (!target.has(member)) added++;
+          target.set(member, score);
+        }
+        values.set(key, target);
+        touch(key);
+        return `:${added}\r\n`;
+      }
+      case 'ZREM': {
+        const [key = '', ...members] = args;
+        if (live(key) && !zset(key)) return wrongType;
+        const target = zset(key);
+        let removed = 0;
+        for (const member of members) if (target?.delete(member)) removed++;
+        if (target && !target.size) remove(key);
+        else if (removed) touch(key);
+        return `:${removed}\r\n`;
+      }
+      case 'ZCARD':
+        return `:${zset(args[0] ?? '')?.size ?? 0}\r\n`;
+      case 'ZRANGEBYSCORE': {
+        const [key = '', min = '', max = '', ...rest] = args;
+        const low = bound(min);
+        const high = bound(max);
+        let offset = 0;
+        let count = Infinity;
+        if (rest.length) {
+          if (rest.length !== 3 || (rest[0] ?? '').toUpperCase() !== 'LIMIT')
+            return '-ERR syntax error\r\n';
+          offset = Number(rest[1]);
+          count = Number(rest[2]);
+          if (count < 0) count = Infinity;
+        }
+        // Redis orders by score, then lexicographically by member.
+        const sorted = [...(zset(key) ?? new Map<string, number>())]
+          .filter(
+            ([, score]) =>
+              (low.open ? score > low.value : score >= low.value) &&
+              (high.open ? score < high.value : score <= high.value),
+          )
+          .sort(([a, x], [b, y]) => x - y || (a < b ? -1 : a > b ? 1 : 0))
+          .map(([member]) => member);
+        return array(sorted.slice(offset, offset + count));
       }
       case 'SMEMBERS':
         return array([...(set(args[0] ?? '') ?? [])]);
