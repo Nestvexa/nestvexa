@@ -267,7 +267,7 @@ describe('devtools Live inspector', () => {
     const response = await f.dev();
     const html = await response.text();
     expect(response.headers.get('content-security-policy')).toBe(
-      "default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+      "default-src 'none'; style-src 'self'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
     );
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
     expect(html).not.toMatch(/<script|\sstyle=|\son[a-z]+=/i);

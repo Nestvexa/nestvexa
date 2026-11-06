@@ -26,7 +26,7 @@ data is produced.
    serves an HTML page, a stylesheet and `data.json` under
    `/_nestvexa/devtools` (configurable). It is rendered on the server, runs no
    script and is served with `Content-Security-Policy: default-src 'none';
-style-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors
+style-src 'self'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors
 'none'`. Data comes from `MemoryInstrumentation` (spans from Live, actions,
    uploads, Inertia, SSR, realtime, assets, jobs, guards and requests) and from
    `DevtoolsInspector`, which receives Live's structural `inspector` hook (the

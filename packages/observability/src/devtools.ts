@@ -372,7 +372,7 @@ export function renderDevtools(
     options.refresh === undefined
       ? ''
       : `<meta http-equiv="refresh" content="${options.refresh}">`;
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${refresh}<title>Nestvexa devtools</title><link rel="stylesheet" href="${path}/devtools.css"></head><body><header><h1>Nestvexa devtools <small>(development only)</small></h1><p>Generated ${escape(snapshot.generatedAt)}. ${options.refresh === undefined ? `<a href="${path}?refresh=3">Refresh every 3 seconds</a>` : `<a href="${path}">Stop refreshing</a>`} · <a href="${path}/data.json">data.json</a></p><nav aria-label="Sections"><ul>${sections
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${refresh}<title>Nestvexa devtools</title><link rel="icon" href="data:,"><link rel="stylesheet" href="${path}/devtools.css"></head><body><header><h1>Nestvexa devtools <small>(development only)</small></h1><p>Generated ${escape(snapshot.generatedAt)}. ${options.refresh === undefined ? `<a href="${path}?refresh=3">Refresh every 3 seconds</a>` : `<a href="${path}">Stop refreshing</a>`} · <a href="${path}/data.json">data.json</a></p><nav aria-label="Sections"><ul>${sections
     .map(([id, label]) => `<li><a href="#${id}">${label}</a></li>`)
     .join(
       '',
@@ -439,7 +439,7 @@ export class DevtoolsModule {
       @Header('Content-Type', 'text/html; charset=utf-8')
       @Header(
         'Content-Security-Policy',
-        "default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+        "default-src 'none'; style-src 'self'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
       )
       @Header('X-Content-Type-Options', 'nosniff')
       @Header('Referrer-Policy', 'no-referrer')

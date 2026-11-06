@@ -144,7 +144,7 @@ environment is `production`; without an explicit `environment`, requests answer
 404 once `NODE_ENV` is `production`. Every resource (page, stylesheet,
 `data.json`, `spans.json`) requires the host `authorize(request)` check. The
 page is server-rendered, runs no script, escapes every value and is served
-`no-store` with `Content-Security-Policy: default-src 'none'; style-src 'self';
+`no-store` with `Content-Security-Policy: default-src 'none'; style-src 'self'; img-src data:;
 base-uri 'none'; form-action 'none'; frame-ancestors 'none'`. Live never passes
 identities, tokens, snapshots or HTML to the inspector, and sensitive state
 keys are redacted.
