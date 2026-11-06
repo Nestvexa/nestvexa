@@ -234,6 +234,130 @@ importers:
         specifier: 1.19.0
         version: 1.19.0
 
+  examples/cli-generated:
+    dependencies:
+      '@inertiajs/react':
+        specifier: 3.10.0
+        version: 3.10.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@inertiajs/svelte':
+        specifier: 3.10.0
+        version: 3.10.0(svelte@5.57.3(@typescript-eslint/types@8.72.0))
+      '@inertiajs/vue3':
+        specifier: 3.10.0
+        version: 3.10.0(vue@3.5.44(typescript@6.0.3))
+      '@nestjs/common':
+        specifier: 12.2.0
+        version: 12.2.0(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/core':
+        specifier: 12.2.0
+        version: 12.2.0(@nestjs/common@12.2.0(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@12.2.0)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/platform-express':
+        specifier: 12.2.0
+        version: 12.2.0(@nestjs/common@12.2.0(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@12.2.0)
+      '@nestvexa/actions':
+        specifier: workspace:*
+        version: link:../../packages/actions
+      '@nestvexa/engine-ejs':
+        specifier: workspace:*
+        version: link:../../packages/engine-ejs
+      '@nestvexa/engine-nunjucks':
+        specifier: workspace:*
+        version: link:../../packages/engine-nunjucks
+      '@nestvexa/engine-pug':
+        specifier: workspace:*
+        version: link:../../packages/engine-pug
+      '@nestvexa/forms':
+        specifier: workspace:*
+        version: link:../../packages/forms
+      '@nestvexa/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
+      '@nestvexa/inertia':
+        specifier: workspace:*
+        version: link:../../packages/inertia
+      '@nestvexa/islands':
+        specifier: workspace:*
+        version: link:../../packages/islands
+      '@nestvexa/react':
+        specifier: workspace:*
+        version: link:../../packages/react
+      '@nestvexa/realtime':
+        specifier: workspace:*
+        version: link:../../packages/realtime
+      '@nestvexa/svelte':
+        specifier: workspace:*
+        version: link:../../packages/svelte
+      '@nestvexa/uploads':
+        specifier: workspace:*
+        version: link:../../packages/uploads
+      '@nestvexa/vite':
+        specifier: workspace:*
+        version: link:../../packages/vite
+      '@nestvexa/vue':
+        specifier: workspace:*
+        version: link:../../packages/vue
+      express-session:
+        specifier: 1.19.0
+        version: 1.19.0
+      nestvexa:
+        specifier: workspace:*
+        version: link:../../packages/nestvexa
+      react:
+        specifier: 19.3.1
+        version: 19.3.1
+      react-dom:
+        specifier: 19.3.1
+        version: 19.3.1(react@19.3.1)
+      reflect-metadata:
+        specifier: 0.2.2
+        version: 0.2.2
+      rxjs:
+        specifier: 7.8.2
+        version: 7.8.2
+      svelte:
+        specifier: 5.57.3
+        version: 5.57.3(@typescript-eslint/types@8.72.0)
+      vue:
+        specifier: 3.5.44
+        version: 3.5.44(typescript@6.0.3)
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@inertiajs/core':
+        specifier: 3.10.0
+        version: 3.10.0
+      '@sveltejs/vite-plugin-svelte':
+        specifier: 7.3.1
+        version: 7.3.1(svelte@5.57.3(@typescript-eslint/types@8.72.0))(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
+      '@types/express-session':
+        specifier: 1.19.0
+        version: 1.19.0
+      '@types/react':
+        specifier: 19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 19.3.0
+        version: 19.3.0(@types/react@19.3.0)
+      '@vitejs/plugin-react':
+        specifier: 6.1.2
+        version: 6.1.2(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
+      '@vitejs/plugin-vue':
+        specifier: 6.0.10
+        version: 6.0.10(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))(vue@3.5.44(typescript@6.0.3))
+      svelte-check:
+        specifier: 4.7.7
+        version: 4.7.7(picomatch@4.0.7)(svelte@5.57.3(@typescript-eslint/types@8.72.0))(typescript@6.0.3)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vite:
+        specifier: 8.3.5
+        version: 8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1)
+      vue-tsc:
+        specifier: 3.3.14
+        version: 3.3.14(typescript@6.0.3)
+
   examples/custom-engine:
     dependencies:
       '@nestjs/common':

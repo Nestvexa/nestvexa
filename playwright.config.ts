@@ -137,5 +137,17 @@ export default defineConfig({
       url: 'http://127.0.0.1:3110/api/health',
       reuseExistingServer: false,
     },
+    // The CLI-generated reference app, with built assets and SSR (no Vite dev servers).
+    {
+      command: 'pnpm --filter @nestvexa/example-cli-generated start',
+      url: 'http://127.0.0.1:3126',
+      env: {
+        PORT: '3126',
+        NESTVEXA_ASSETS: 'build',
+        NESTVEXA_ORIGIN: 'http://127.0.0.1:3126',
+      },
+      reuseExistingServer: false,
+      timeout: 180000,
+    },
   ],
 });
