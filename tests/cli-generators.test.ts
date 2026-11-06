@@ -299,7 +299,35 @@ describe(
         'npm run build:react && npm run build:vue && npm run build:svelte',
       );
       expect(pkg.scripts['dev:vue']).toBe('vite -c vite.vue.config.ts');
+      // Each root gets an SSR entry, an SSR bundle step and production wiring.
+      expect(pkg.scripts['build:react']).toBe(
+        'vite build -c vite.react.config.ts && vite build -c vite.react.config.ts --ssr client/react/ssr.tsx --outDir dist/react/ssr',
+      );
+      expect(pkg.scripts['build:svelte']).toContain(
+        '--ssr client/svelte/ssr.ts --outDir dist/svelte/ssr',
+      );
+      const ssrEntries = {
+        react: ['client/react/ssr.tsx', 'createReactSsrRender'],
+        vue: ['client/vue/ssr.ts', 'createVueSsrRender'],
+        svelte: ['client/svelte/ssr.ts', 'createSvelteSsrRender'],
+      } as const;
+      for (const [framework, [file, factory]] of Object.entries(ssrEntries)) {
+        const entry = read(root, file);
+        expect(entry).toContain(
+          `import { ${factory} } from '@nestvexa/${framework}/ssr';`,
+        );
+        expect(entry).toContain("import { pages } from './setup';");
+        expect(entry).toMatch(/^export const render = /m);
+      }
+      expect(read(root, 'client/svelte/ssr.ts')).toContain(
+        "import { createInertiaApp } from '@inertiajs/svelte';",
+      );
       const config = read(root, 'src/nestvexa/inertia.config.ts');
+      expect(config).toContain(
+        'renderer: moduleSsrRenderer(ssrBundle, { timeoutMs: 3000 })',
+      );
+      expect(config).toContain('production && existsSync(ssrBundle)');
+      expect(config).toContain('dist/${key}/ssr/ssr.js');
       expect(config).toMatch(
         /react: \{ entry: 'client\/react\/app.tsx', devPort: 5173 \},\n\s+vue:/,
       );

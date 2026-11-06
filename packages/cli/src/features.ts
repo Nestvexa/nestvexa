@@ -224,6 +224,7 @@ export function ensureFramework(
     app.inertiaApp(framework),
   );
   plan.ensure(`${directory}/setup.ts`, app.inertiaSetup(framework));
+  plan.ensure(`${directory}/${meta.ssr}`, app.inertiaSsr(framework));
   plan.ensure(
     `${directory}/tsconfig.json`,
     app.inertiaClientTsconfig(framework),
@@ -244,7 +245,8 @@ export function ensureFramework(
     );
   addScripts(plan, {
     [`dev:${framework}`]: `vite -c vite.${framework}.config.ts`,
-    [`build:${framework}`]: `vite build -c vite.${framework}.config.ts`,
+    // Client bundle (manifest) and the SSR bundle the host imports in production.
+    [`build:${framework}`]: `vite build -c vite.${framework}.config.ts && vite build -c vite.${framework}.config.ts --ssr ${directory}/${meta.ssr} --outDir dist/${framework}/ssr`,
     [`typecheck:${framework}`]: typecheckCommand(framework),
   });
   extendScript(plan, 'build:client', run(project, `build:${framework}`));

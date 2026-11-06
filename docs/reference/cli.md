@@ -65,8 +65,12 @@ Each `add react|vue|svelte` root is isolated: its own Vite config, base
 version and dev server port (5173/5174/5175). In development the Inertia root view
 points at that Vite dev server (`npm run dev:react` next to the Nest server); with
 `NODE_ENV=production` the manifest is read at startup (missing builds fail fast)
-and `configureInertia(app)` serves the built files. Generated roots are
-client-rendered; add SSR as in `examples/inertia-mixed`. The server `tsconfig.json`
+and `configureInertia(app)` serves the built files. Each root also gets an SSR
+entry (`client/<fw>/ssr.ts[x]`, `render(page)` from `@nestvexa/<fw>/ssr`);
+`build:<fw>` bundles it to `dist/<fw>/ssr/ssr.js` and, with
+`NODE_ENV=production`, `inertia.config.ts` renders pages in-process from that
+bundle (`moduleSsrRenderer`, 3 s timeout, `fallback` mode: a failure serves the
+client-rendered document). Development stays client-rendered. The server `tsconfig.json`
 (and `tsconfig.build.json`) get `client` and `vite.*.config.ts` excluded when they
 have no `include`; a tsconfig with comments is left untouched and an instruction is
 printed.
@@ -135,7 +139,9 @@ default responses.
 platform; Fastify hosts get an explicit error (exit 2) with documentation
 pointers. Live components keep the umbrella HBS renderer (`make:component --view`
 accepts only `hbs`). `make:resource --orm` generates only the in-memory service.
-Generated Inertia roots have no SSR entry. The generated session/identity
+Generated Inertia roots render SSR in production only (development mounts on
+the client), and an `inertia.config.ts` created by an older CLI version is not
+rewritten. The generated session/identity
 policies are guest starters and must be replaced for production. `inspect:*`
 reads source statically and cannot see routes registered dynamically.
 `make:test` targets vitest (jest projects get `@jest/globals` imports, not
