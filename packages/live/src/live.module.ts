@@ -21,7 +21,7 @@ import type {
   Provider,
   Type,
 } from '@nestjs/common';
-import { ModuleRef } from '@nestjs/core';
+import { DiscoveryModule, ModuleRef } from '@nestjs/core';
 import { GUARDS_METADATA, ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 import {
   definition,
@@ -31,6 +31,10 @@ import {
 import type { ComponentDefinition } from './metadata.js';
 import { LIVE_OPTIONS, LiveRuntime } from './runtime.js';
 import { LiveInfrastructureModule } from './registration.js';
+import {
+  LIVE_GENERATED_CONTROLLER,
+  LiveRouteConflictCheck,
+} from './route-conflicts.js';
 import type { LiveHostOptions } from './runtime.js';
 import { isLiveStateStore } from './store.js';
 
@@ -241,6 +245,7 @@ function providers(
     options,
     LiveRuntime,
     LiveAdmissionGuard,
+    LiveRouteConflictCheck,
     ...definitions.map((component) => ({
       provide: component.type,
       useClass: component.type,
@@ -274,6 +279,7 @@ function generatedController(
   Controller({ path: `${endpoint}/${component.name}`, scope: Scope.REQUEST })(
     LiveController,
   );
+  Reflect.defineMetadata(LIVE_GENERATED_CONTROLLER, true, LiveController);
   const existingGuards: unknown[] =
     Reflect.getMetadata(GUARDS_METADATA, LiveController) ?? [];
   Reflect.defineMetadata(
@@ -419,7 +425,11 @@ export class LiveModule {
     const { endpoint, basePath, definitions } = structure(options);
     return {
       module: LiveModule,
-      imports: [LiveInfrastructureModule, ...(options.imports ?? [])],
+      imports: [
+        LiveInfrastructureModule,
+        DiscoveryModule,
+        ...(options.imports ?? []),
+      ],
       controllers: definitions.map((component) =>
         generatedController(component, endpoint),
       ),
@@ -452,7 +462,7 @@ export class LiveModule {
       throw new Error('Live async configuration requires useFactory');
     return {
       module: LiveModule,
-      imports: [LiveInfrastructureModule, ...imports],
+      imports: [LiveInfrastructureModule, DiscoveryModule, ...imports],
       controllers: definitions.map((component) =>
         generatedController(component, endpoint),
       ),

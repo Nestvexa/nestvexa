@@ -110,8 +110,9 @@ flowchart TD
 - **Live does not depend on core.** The master specification (ARCH-010) says Live
   "depends on core/views". In code Live needs only the view contracts and Nest, so the
   edge is `live --> views`; the umbrella composes core and Live. This is deliberate
-  ([ADR 0001](../adr/0001-architecture.md)) and keeps Live usable without the MVC
-  bridge.
+  ([ADR 0001](../adr/0001-architecture.md), evaluated in
+  [ADR 0030](../adr/0030-live-kernel-boundary.md)) and keeps Live usable without the
+  MVC bridge.
 - **Browser packages.** `@nestvexa/client` has no dependencies at all and
   `@nestvexa/alpine` only depends on it. Neither imports `@nestjs/*`.
 - **Frontend adapters.** `@nestvexa/react`, `@nestvexa/vue` and `@nestvexa/svelte`

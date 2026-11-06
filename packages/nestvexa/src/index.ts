@@ -81,6 +81,8 @@ function integrated<Dependencies extends unknown[]>(
   if (typeof factory !== 'function')
     throw new Error('Live policy useFactory is required');
   const browser = NestvexaBrowserModule.register(live.browser, live.basePath);
+  // Both values are validated enums; the core option documents the canonical sample.
+  const browserMode: string = live.browser?.mode ?? 'alpine';
   // The same exported module object is imported by MVC and Live: no global DI escape.
   const renderer = NestvexaRendererModule.configure(core, browser);
   const registration = LiveModule.registerAsync<
@@ -101,6 +103,13 @@ function integrated<Dependencies extends unknown[]>(
         !config.value.security.requireAuthorizedActions
       )
         throw new Error('Integrated Live requires CSRF and authorized actions');
+      if (
+        config.value.live.client !== undefined &&
+        config.value.live.client !== browserMode
+      )
+        throw new Error(
+          `live.client "${config.value.live.client}" must match the Live browser mode "${browserMode}"`,
+        );
       const policies = await factory(...dependencies);
       dataObject(
         policies,

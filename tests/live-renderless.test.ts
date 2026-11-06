@@ -581,25 +581,48 @@ describe.each(['express', 'fastify'] as const)(
       ).toBe('changed');
     });
 
-    it.each([
-      null,
-      '',
-      'renderless-v2',
-      'renderless-v1, other',
-      'RENDERLESS-V1',
-    ])('falls back to full rendering for capability %s', async (capability) => {
-      const f = await fixture(platform);
-      const response = await f.post(f.initial, { capability });
-      expect(response.status).toBe(201);
-      const reply = (await response.json()) as Reply;
-      expect(reply).not.toHaveProperty('renderless');
-      expect(reply.html).toContain('<b>4</b>');
-      expect(f.hooks).toContain('beforeRender');
-      expect(f.hooks).toContain('afterRender');
-      expect(f.hooks).toContain('computed');
-      expect(f.hooks).toContain('computed:async');
-      expect(f.renders()).toBe(1);
-    });
+    it.each(['renderless-v1, other-v1', 'other-v2,renderless-v1'])(
+      'negotiates renderless from capability list %s',
+      async (capability) => {
+        const f = await fixture(platform);
+        const response = await f.post(f.initial, { capability });
+        expect(response.status).toBe(201);
+        const reply = (await response.json()) as Reply;
+        expect(reply).toMatchObject({ renderless: true, html: '' });
+        expect(f.renders()).toBe(0);
+      },
+    );
+
+    it.each(['RENDERLESS-V1', 'renderless-v1, other', 'renderless-v1;x'])(
+      'rejects malformed capability header %s before effects',
+      async (capability) => {
+        const f = await fixture(platform);
+        const response = await f.post(f.initial, { capability });
+        expect(response.status).toBe(400);
+        expect(await response.json()).toEqual({
+          statusCode: 400,
+          code: 'INVALID_CAPABILITIES',
+        });
+        expect(f.renders()).toBe(0);
+      },
+    );
+
+    it.each([null, '', 'renderless-v2', 'other-v1'])(
+      'falls back to full rendering for capability %s',
+      async (capability) => {
+        const f = await fixture(platform);
+        const response = await f.post(f.initial, { capability });
+        expect(response.status).toBe(201);
+        const reply = (await response.json()) as Reply;
+        expect(reply).not.toHaveProperty('renderless');
+        expect(reply.html).toContain('<b>4</b>');
+        expect(f.hooks).toContain('beforeRender');
+        expect(f.hooks).toContain('afterRender');
+        expect(f.hooks).toContain('computed');
+        expect(f.hooks).toContain('computed:async');
+        expect(f.renders()).toBe(1);
+      },
+    );
 
     it.each(['normal', '_sync'])(
       'renders %s even when support is negotiated',
