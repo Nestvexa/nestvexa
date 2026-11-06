@@ -125,6 +125,7 @@ Class decorator. `id` is lowercase kebab-case (`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`,
 | `concurrency` | `'parallel'`       | `'serial'` runs one call at a time per tenant + subject + group.           |
 | `input`       | none               | Runtime schema (`safeParseAsync`/`safeParse`/`parse`) applied after pipes. |
 | `output`      | none               | Runtime schema applied to the returned data.                               |
+| `job`         | `false`            | Long-running: return `acceptJob(...)`, answer 202 with a job ticket.       |
 
 Options are copied once at decoration; accessors, inherited and unknown keys are
 rejected. Method-level `@UseGuards`, `@UsePipes`, `@UseInterceptors`,
@@ -180,6 +181,59 @@ Every response carries `x-nestvexa-request-id` and `Cache-Control: no-store`.
 message arrays become `issues`. 5xx and non-HTTP errors always use a generic
 message; `detail` is added only when `exposeErrorDetails: true`.
 
+### Long-running actions (202 job tickets)
+
+```ts
+@ServerAction({ id: 'export-report', job: true })
+exportReport(@ActionInput() input: { rows: number }) {
+  return acceptJob('export-report', async ({ progress, signal }) => {
+    progress(50); // 0-100
+    if (signal.aborted) throw new Error('cancelled');
+    return { url: '/reports/1.csv' }; // JSON-safe result, typed for the client
+  });
+}
+// Host policy:
+ActionsModule.register({
+  /* ... */
+  jobs: { queue: new JobRunner(), channel: JobRunner.channel, pollAfterMs: 500 },
+});
+```
+
+The route answers `202` with `{ ok: true, data: null, job: { id, status, progress, pollAfterMs, stream? } }`
+(an idempotent job action replays the same ticket). `POST <prefix>/_jobs/status`
+and `/_jobs/cancel` with `{ input: { id } }` go through the same admission
+(origin, CSRF, identity, rate limit, body limits), then host `authorize` with
+`{ group: '_jobs', action: 'status' | 'cancel' }`, then the queue's owner-bound
+`get`/`cancel`. Another identity's job id is a plain `404 JOB_NOT_FOUND`.
+
+`jobs.queue` is the structural `ActionJobQueue` (`enqueue(owner, name, handler, options?)`,
+`get(owner, id)`, `cancel?(owner, id)`); `@nestvexa/realtime`'s `JobRunner`
+satisfies it without a package dependency, and a durable queue can implement the
+same three methods. The owner is derived from the verified identity (default an
+opaque tenant + subject hash; `jobs.owner(identity)` lets the realtime host use
+its own binding so `JobRunner.authorize` guards the `stream.channel`
+subscription). Failures expose only the queue's generic message; job results
+follow the same JSON-safety and size limits as action data. Contract errors:
+`JOB_REQUIRED` (job action returned something else), `JOB_NOT_DECLARED`
+(`acceptJob` without `job: true`), `JOBS_UNAVAILABLE` (no queue, 503).
+
+### Tracing and structured logs
+
+`instrumentation` (`{ start(name, attributes) → { end(outcome, attributes) } }`)
+and `logger` (`{ info, warn, error }(message, fields)`) are structurally the
+`@nestvexa/observability` interfaces: pass `MemoryInstrumentation`,
+`openTelemetryInstrumentation(tracer)`, `combineInstrumentation(...)` or
+`createLogger()` directly. Each call records one `nestvexa.action` span
+(attributes `nestvexa.action.group/id/version`, `nestvexa.request_id`; ended with
+`http.status_code`, `nestvexa.action.code`, `nestvexa.action.reason`,
+`nestvexa.action.replayed`, `nestvexa.job.id`) and one `nestvexa.action` log
+record (`ActionCallLog`: request id, group, action, version, status, code,
+reason, duration, replayed, job id) at info/warn/error for 2xx/4xx/5xx. The
+final status is read from the response, so rejections by guards, admission or
+host filters are recorded too. Redaction is by construction: inputs, outputs,
+identities, headers and error messages are never part of spans or records.
+Telemetry failures never affect the response.
+
 ### `ActionsModule.register(options)` / `registerAsync(options)`
 
 Static options (needed before DI resolves): `groups`, `prefix`
@@ -205,6 +259,14 @@ Static options (needed before DI resolves): `groups`, `prefix`
 | `idempotency.ttlMs`                    | 86400000                   | Replay retention.                                               |
 | `exposeErrorDetails`                   | `false`                    | Development only.                                               |
 | `onError(event)`                       | logs 5xx via Nest `Logger` | `{ requestId, action, code, status, error }`.                   |
+| `instrumentation`                      | none                       | One span per call (see Tracing).                                |
+| `logger`                               | none                       | One structured record per call (see Tracing).                   |
+| `jobs.queue` / `channel` / `owner`     | none                       | Job queue, streaming channel mapper, owner binding.             |
+| `jobs.pollAfterMs`                     | 1000                       | Poll hint in tickets (100-60000).                               |
+
+`authorize` must return exactly `true` (or a promise of it); any other value,
+including truthy objects or strings, is a `403 POLICY`, and a throwing policy
+fails closed with `500`.
 
 Startup rejects: undecorated classes, empty groups, duplicate group ids, duplicate
 `id`+`version`, colliding client names, schemas without `@ActionInput`, invalid
@@ -234,6 +296,25 @@ getter; default `<meta name="nestvexa-csrf" content>`), `csrfHeader`,
   Aborts reject with the signal's reason. Fetch redirects are treated as errors.
 - Idempotent actions get a fresh key per call unless you pass `idempotencyKey`;
   reuse the same key yourself when retrying.
+- Job actions resolve to an `ActionJobHandle<T>`: `status()`, `wait({ intervalMs, timeoutMs, signal, onProgress })`
+  (rejects with reason `JOB_FAILED`/`JOB_CANCELLED`/`JOB_WAIT`), `cancel()` and
+  `stream?.channel`. `client.job(idOrTicket)` re-attaches after a reload.
+- `settle(promise)` returns `{ ok: true, data } | { ok: false, error: ActionFailure<Field> }`
+  where `error.issues[n].path[0]` is typed as the action's input field union.
+- `createActionController(method, { initialData, optimistic, abortPrevious, onSuccess, onError })`
+  is the framework-neutral state machine behind the generated bindings:
+  `getSnapshot()` (`status`, `pending`, `data`, `error`, `optimistic`),
+  `subscribe` (Svelte store contract), `listen` (no immediate call),
+  `run(...)` (never rejects for action failures), `reset()`, `abort()`.
+  Optimistic data is rolled back on failure or abort; a newer call aborts the
+  previous one by default and stale results are ignored.
+- `bindActionElement(element, method, { input, event?, onSettled, ...controllerOptions })`
+  binds a server-rendered form or button (Live/HBS pages): `aria-busy` and
+  `data-nv-action-state` reflect the call, issues set `aria-invalid` on
+  `[name=<field>]` and fill `[data-nv-error-for=<field>]` with text, and a
+  bubbling `nv:action` event carries the outcome. Returns an unbind function.
+- `isActionClientError` also recognizes errors created by another bundled copy
+  of the client (for example inside a separately built island chunk).
 
 ## Code generation (`@nestvexa/actions/codegen`)
 
@@ -249,7 +330,30 @@ named interfaces/aliases/enums become declarations (collisions get `_2`), and
 (sorted, no timestamps, `\n` line endings) and unchanged files are not rewritten.
 Errors produce diagnostics with file/line and nothing is written.
 
-CLI: `nestvexa-actions-codegen --out <dir> [--project tsconfig.json] [--name actions-client] [--client-module <specifier>] [--check]`.
+Each method is emitted as `ActionMethod<Input, Output, Field>`, where `Field` is
+the union of top-level input property names (`never` without input), and per
+action the aliases `<Group><Action>Input`, `Output`, `Error`
+(`ActionFailure<Field>`, the typed validation-error union) and `Optimistic`
+(`ActionOptimisticUpdate<Output, Input>`). Job actions are emitted as
+`ActionMethod<Input, ActionJobHandle<Result>, Field>` with `Result` taken from
+`acceptJob`'s handler.
+
+`targets: ['react', 'vue', 'svelte', 'live']` also writes
+`<name>.<target>.js/.d.ts`:
+
+| Target   | Export                             | Per action (e.g. `cart.addItem`)                                                                 |
+| -------- | ---------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `react`  | `createActionHooks(actions)`       | `useCartAddItem(options?)` → state + `run/reset/abort` (`useSyncExternalStore`)                  |
+| `vue`    | `createActionComposables(actions)` | `useCartAddItem(options?)` → `{ state: shallowRef, run, reset, abort }`, disposed with the scope |
+| `svelte` | `createActionStores(actions)`      | `cartAddItem(options?)` → store (`$store`) with `run/reset/abort`                                |
+| `live`   | `createActionBindings(actions)`    | `bindCartAddItem(element, options)` → unbind (Live/HBS pages)                                    |
+
+The JavaScript of the React and Vue targets imports the framework in your
+application; the declarations only import `@nestvexa/actions/client`, so they
+typecheck without framework types and this package never depends on a
+framework.
+
+CLI: `nestvexa-actions-codegen --out <dir> [--project tsconfig.json] [--name actions-client] [--client-module <specifier>] [--targets react,vue,svelte,live] [--check]`.
 Exit codes: 0 ok, 1 diagnostics or out of date (`--check`), 2 usage.
 
 ## Security model
@@ -280,9 +384,16 @@ class filters on the group win; the actions envelope filter is the last resort.
 Root suites (build first): `tests/actions-metadata.test.ts`, `actions-runtime.test.ts`,
 `actions-http.test.ts` (Express and Fastify apps with global/class/method guards,
 request-scoped providers, pipes, interceptors, filters and the negative corpus),
-`actions-client.test.ts`, `actions-codegen.test.ts` (deterministic output and
-`tsc --noEmit` against passing and failing consumer fixtures) and the browser
-spec `tests/browser/actions.spec.ts` (Chromium, Firefox, WebKit).
+`actions-client.test.ts`, `actions-codegen.test.ts` (deterministic output,
+framework targets and `tsc --noEmit` against passing and failing consumer
+fixtures), `actions-jobs.test.ts` (202 tickets, owner-bound polling and
+cancellation over Express and Fastify, `JobRunner` compatibility, spans and
+redacted logs), `actions-security.test.ts` (expired/tampered tokens, expired
+idempotency records, non-boolean policies, unguarded groups),
+`actions-client-state.test.ts` (controller, `settle`, element binding in
+Chromium) and the browser specs `tests/browser/actions.spec.ts` and
+`tests/browser/islands.spec.ts` (typed actions from React, Vue and Svelte
+islands).
 
 ## Caveats
 
