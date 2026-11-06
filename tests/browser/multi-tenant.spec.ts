@@ -16,6 +16,8 @@ const globexNames = [
   'Fleet telematics rollout',
   'Depot safety review',
 ];
+// Several flows sign in more than once (scrypt by design); allow slow hosts.
+test.describe.configure({ timeout: 90_000 });
 
 async function signIn(browser: Browser, email: string): Promise<Page> {
   const context = await browser.newContext();
