@@ -107,6 +107,12 @@ async function uploadSources(path) {
   }
 }
 await uploadSources('packages/uploads/src');
+// The uploads browser entry ships to SPA bundles: no Node, Nest or framework imports.
+await forbid(
+  'packages/uploads/src/browser',
+  /from\s+['"](?:node:|@nestjs\/|react|vue|svelte|@inertiajs\/|\.\.\/)/,
+  'Uploads browser entry imports a server or framework module',
+);
 const uploadsManifest = manifests.get('@nestvexa/uploads');
 if (
   uploadsManifest &&
@@ -249,6 +255,29 @@ await forbid(
   nodeOrNest,
   'Browser module imports Node or Nest',
 );
+// UI kit framework wrappers (ADR 0033) run in browsers and SSR; the HBS
+// helpers and the markup contract never import a component framework, and
+// the contract stays free of the views package so browsers can load it.
+await forbid(
+  'packages/ui/src/adapters',
+  nodeOrNest,
+  'UI framework wrapper imports Node or Nest',
+);
+for (const entry of await readdir('packages/ui/src', { withFileTypes: true }))
+  if (entry.isFile() && entry.name.endsWith('.ts')) {
+    const text = await readFile(join('packages/ui/src', entry.name), 'utf8');
+    if (/from\s+['"](?:react|react-dom|vue|svelte)(?:\/[^'"]*)?['"]/.test(text))
+      throw new Error(
+        `UI server entry imports a component framework: packages/ui/src/${entry.name}`,
+      );
+    if (
+      ['markup.ts', 'html.ts'].includes(entry.name) &&
+      /from\s+['"](?:node:|@nestvexa\/)/.test(text)
+    )
+      throw new Error(
+        `UI markup contract must stay dependency-free: packages/ui/src/${entry.name}`,
+      );
+  }
 await forbid(
   'packages/ai/src/browser',
   nodeOrNest,

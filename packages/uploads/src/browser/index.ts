@@ -104,6 +104,8 @@ interface Request {
   readonly headers: Readonly<Record<string, string>>;
   readonly body: XMLHttpRequestBodyInit | null;
   readonly sameOrigin: boolean;
+  /** Server-side cleanup after a failure or abort: never cancelled by the signal. */
+  readonly cleanup?: boolean;
   readonly progress?: (loaded: number) => void;
 }
 
@@ -203,9 +205,10 @@ export async function uploadFiles(
 
   const send = (request: Request): Promise<Record<string, unknown>> =>
     new Promise((resolve, reject) => {
-      if (signal?.aborted) return reject(new BrowserUploadError('ABORTED'));
+      if (!request.cleanup && signal?.aborted)
+        return reject(new BrowserUploadError('ABORTED'));
       const xhr = new XMLHttpRequest();
-      current = xhr;
+      if (!request.cleanup) current = xhr;
       xhr.open(request.method, request.url);
       xhr.timeout = timeout;
       if (request.sameOrigin) xhr.setRequestHeader('x-nestvexa-csrf', csrf());
@@ -267,6 +270,7 @@ export async function uploadFiles(
       headers: {},
       body: null,
       sameOrigin: true,
+      cleanup: true,
     }).catch(() => undefined);
   };
   const abort = () => current?.abort();
