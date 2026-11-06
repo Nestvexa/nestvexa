@@ -81,7 +81,9 @@ export interface InertiaModuleOptions extends InertiaAppOptions {
   /**
    * Optional structural tracing hook (for example from
    * @nestvexa/observability). Emits `nestvexa.inertia.render` per page
-   * response with the component name, app, response kind and page size.
+   * response with the component name, app, response kind and page size, and
+   * `nestvexa.ssr.render` around each SSR render (head/body sizes, or the
+   * closed SSR error type and whether the client-rendered fallback was used).
    */
   readonly instrumentation?: InertiaInstrumentation;
 }

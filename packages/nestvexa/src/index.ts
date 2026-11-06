@@ -122,6 +122,7 @@ function integrated<Dependencies extends unknown[]>(
           'maxRequestsPerMinute',
           'realtime',
           'instrumentation',
+          'inspector',
         ],
         'umbrella Live policies',
       );

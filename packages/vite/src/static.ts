@@ -2,6 +2,8 @@ import { createReadStream, readdirSync, statSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { extname, isAbsolute, join, resolve } from 'node:path';
 import { ViteConfigurationError } from './errors.js';
+import { isViteInstrumentation, startSpan } from './instrumentation.js';
+import type { ViteInstrumentation } from './instrumentation.js';
 
 export interface ViteStaticOptions {
   /** Absolute build output directory (Vite `build.outDir`, e.g. `dist/client`). */
@@ -18,6 +20,12 @@ export interface ViteStaticOptions {
   readonly sourceMaps?: boolean;
   /** Maximum indexed files. Default 10 000. */
   readonly maxFiles?: number;
+  /**
+   * Optional tracing hook (for example from @nestvexa/observability):
+   * `nestvexa.asset.serve` for each request under the prefix, with the
+   * content type, bytes, status, cache flags and whether the file exists.
+   */
+  readonly instrumentation?: ViteInstrumentation;
 }
 
 /** Connect/Express/middie-compatible middleware over raw Node objects. */
@@ -146,6 +154,14 @@ export function viteStaticMiddleware(
   if (!isDirectory)
     throw new ViteConfigurationError(`Static root ${root} is not a directory`);
   const prefix = normalizePrefix(options.prefix ?? '/');
+  if (
+    options.instrumentation !== undefined &&
+    !isViteInstrumentation(options.instrumentation)
+  )
+    throw new ViteConfigurationError(
+      'Static instrumentation must have a start() method',
+    );
+  const instrumentation = options.instrumentation;
   const files = indexDirectory(
     root,
     options.immutable ?? defaultImmutable,
@@ -165,7 +181,22 @@ export function viteStaticMiddleware(
       return;
     }
     const file = files.get(relative);
-    if (!file) return next();
+    const span = startSpan(instrumentation, 'nestvexa.asset.serve', {
+      'nestvexa.asset.method': request.method === 'HEAD' ? 'HEAD' : 'GET',
+      'nestvexa.asset.hit': file !== undefined,
+    });
+    if (!file) {
+      // Not an asset of this build: the next handler (often a 404) owns it.
+      span.end('ok');
+      return next();
+    }
+    const served = (status: number, bytes: number) =>
+      span.end('ok', {
+        status,
+        'nestvexa.asset.type': file.type,
+        'nestvexa.asset.bytes': bytes,
+        'nestvexa.asset.immutable': file.immutable,
+      });
     response.setHeader('Content-Type', file.type);
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader(
@@ -180,16 +211,20 @@ export function viteStaticMiddleware(
     ) {
       response.statusCode = 304;
       response.end();
+      served(304, 0);
       return;
     }
     response.setHeader('Content-Length', String(file.size));
     response.statusCode = 200;
     if (request.method === 'HEAD') {
       response.end();
+      served(200, 0);
       return;
     }
     const stream = createReadStream(file.path);
+    stream.once('end', () => served(200, file.size));
     stream.on('error', (error) => {
+      span.end('error', { status: 500 });
       if (!response.headersSent) next(error);
       else response.destroy(error);
     });

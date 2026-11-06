@@ -1,3 +1,4 @@
+import { currentRequestId } from './request.js';
 import { currentTraceContext } from './trace-context.js';
 import type { TraceContext } from './trace-context.js';
 
@@ -114,6 +115,8 @@ export interface SpanRecord {
   readonly at: number;
   /** Inbound W3C trace id of the request, for correlating with your tracing backend. */
   readonly traceId?: string;
+  /** Request id assigned by `requestTracingMiddleware`. */
+  readonly requestId?: string;
 }
 export interface MetricSummary {
   readonly name: string;
@@ -136,6 +139,7 @@ export class MemoryInstrumentation implements LiveInstrumentation {
   start(name: string, attributes: SpanAttributes): LiveSpan {
     const started = this.now();
     const traceId = currentTraceContext()?.traceId;
+    const requestId = currentRequestId();
     let ended = false;
     return {
       end: (outcome, extra = {}) => {
@@ -149,6 +153,7 @@ export class MemoryInstrumentation implements LiveInstrumentation {
             attributes: Object.freeze({ ...attributes, ...extra }),
             at: Date.now(),
             ...(traceId === undefined ? {} : { traceId }),
+            ...(requestId === undefined ? {} : { requestId }),
           }),
         );
         if (this.#records.length > this.capacity) this.#records.shift();

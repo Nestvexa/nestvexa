@@ -102,6 +102,66 @@ export interface LiveHostOptions {
       channels: readonly string[],
     ): string | undefined | Promise<string | undefined>;
   };
+  /**
+   * Development-only inspection hook (for example `DevtoolsInspector` from
+   * @nestvexa/observability). Receives the registered component catalog once
+   * and, after each top-level mount or action render, the component's public
+   * state (the JSON the template renders). Never identities, tokens,
+   * snapshots or HTML. Do not configure it in production.
+   */
+  readonly inspector?: LiveInspector;
+}
+/** Static shape of a registered component, for development inspectors. */
+export interface LiveComponentDescription {
+  readonly name: string;
+  readonly view: string;
+  readonly lazy: false | 'load' | 'visible';
+  readonly actions: readonly string[];
+  readonly states: readonly {
+    readonly name: string;
+    readonly writable: boolean;
+  }[];
+  readonly computed: readonly string[];
+  readonly children: readonly string[];
+  readonly listeners: readonly string[];
+  readonly realtime: boolean;
+}
+/** One top-level render observed by a `LiveInspector`. */
+export interface LiveRenderInspection {
+  readonly component: string;
+  /** Why the component rendered: its first mount, an action or a model sync. */
+  readonly cause: 'mount' | 'action' | 'sync';
+  /** The action id for `action` (registered names only). */
+  readonly action?: string;
+  /** Fields updated by the request (model synchronization), names only. */
+  readonly fields: readonly string[];
+  readonly revision: number;
+  readonly state: Readonly<Record<string, JsonValue>>;
+  readonly stateBytes: number;
+  readonly htmlBytes: number;
+}
+export interface LiveInspector {
+  registered?(components: readonly LiveComponentDescription[]): void;
+  rendered?(inspection: LiveRenderInspection): void;
+}
+export function describeComponent(
+  component: ComponentDefinition,
+): LiveComponentDescription {
+  return Object.freeze({
+    name: component.name,
+    view: component.view,
+    lazy: component.lazy,
+    actions: Object.freeze([...component.actions.keys()].sort()),
+    states: Object.freeze(
+      [...component.states].map(([name, options]) =>
+        Object.freeze({ name, writable: options.writable === true }),
+      ),
+    ),
+    computed: Object.freeze([...component.computed.keys()]),
+    children: Object.freeze([...component.children.keys()]),
+    listeners: Object.freeze([...component.listeners.keys()]),
+    realtime: component.realtime !== undefined,
+  });
 }
 export interface RuntimeOptions extends LiveHostOptions {
   readonly definitions: readonly ComponentDefinition[];
@@ -247,6 +307,33 @@ function equal(left: string, right: string): boolean {
 function fail(status: number, code: string): never {
   throw new HttpException({ statusCode: status, code }, status);
 }
+/**
+ * Span attributes of a failed request: the HTTP status and the closed protocol
+ * error code (`CSRF_REJECTED`, `ACTION_FORBIDDEN`, ...). Messages and causes
+ * stay out of telemetry.
+ */
+function errorAttributes(
+  error: unknown,
+): Readonly<Record<string, string | number>> {
+  if (error instanceof LiveProtocolError)
+    return { status: error.status, 'nestvexa.error_code': error.code };
+  if (!(error instanceof HttpException)) return {};
+  const body: unknown = error.getResponse();
+  const code: unknown =
+    typeof body === 'object' && body !== null
+      ? Reflect.get(body, 'code')
+      : undefined;
+  return typeof code === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(code)
+    ? { status: error.getStatus(), 'nestvexa.error_code': code }
+    : { status: error.getStatus() };
+}
+function responseHtmlBytes(response: unknown): number {
+  const html: unknown =
+    typeof response === 'object' && response !== null
+      ? Reflect.get(response, 'html')
+      : undefined;
+  return typeof html === 'string' ? Buffer.byteLength(html) : 0;
+}
 function mapped(error: unknown): never {
   if (error instanceof LiveProtocolError)
     throw new HttpException(
@@ -268,6 +355,8 @@ export class LiveRuntime implements OnApplicationShutdown {
   private closed = false;
   readonly store: LiveStateStore;
   readonly #admissions = new WeakMap<object, Admission>();
+  /** Component name of each created instance, for lifecycle hook spans. */
+  readonly #components = new WeakMap<object, string>();
   readonly #rate = new Map<string, { start: number; count: number }>();
   readonly #computed = new WeakMap<object, () => void>();
   readonly #downloads = new Map<
@@ -297,6 +386,39 @@ export class LiveRuntime implements OnApplicationShutdown {
       options.definitions,
       options.endpoint ?? '/_nestvexa/live',
     );
+    try {
+      options.inspector?.registered?.(this.describeComponents());
+    } catch {
+      // Inspection is best effort and never blocks startup.
+    }
+  }
+  /** The registered component catalog (names, actions, state fields); no instances or state. */
+  describeComponents(): readonly LiveComponentDescription[] {
+    return Object.freeze(this.options.definitions.map(describeComponent));
+  }
+  /** Report a top-level render to the development inspector; failures are ignored. */
+  private inspect(
+    component: ComponentDefinition,
+    rendered: Pick<Rendered, 'html' | 'state'>,
+    detail: Pick<LiveRenderInspection, 'cause' | 'fields' | 'revision'> & {
+      readonly action?: string;
+    },
+  ): void {
+    const inspector = this.options.inspector;
+    if (!inspector?.rendered) return;
+    try {
+      inspector.rendered(
+        Object.freeze({
+          component: component.name,
+          ...detail,
+          state: freezeJson(structuredClone(rendered.state)),
+          stateBytes: Buffer.byteLength(JSON.stringify(rendered.state)),
+          htmlBytes: Buffer.byteLength(rendered.html),
+        }),
+      );
+    } catch {
+      // Inspection is best effort.
+    }
   }
   private async identity(request: object): Promise<LiveIdentity> {
     if (this.closed) fail(503, 'LIVE_SHUTDOWN');
@@ -330,8 +452,23 @@ export class LiveRuntime implements OnApplicationShutdown {
     if (++bucket.count > (this.options.maxRequestsPerMinute ?? 60))
       fail(429, 'RATE_LIMIT');
   }
-  /** Runs as a real Nest class guard, before application component/method guards. */
-  async admit(
+  /**
+   * Runs as a real Nest class guard, before application component/method guards.
+   * Traced as `nestvexa.live.admit`: origin, CSRF, rate-limit and authorization
+   * rejections carry their closed error code.
+   */
+  admit(
+    request: object,
+    component: ComponentDefinition,
+    action: string,
+  ): Promise<void> {
+    return this.traced(
+      'nestvexa.live.admit',
+      { 'nestvexa.component': component.name, 'nestvexa.action': action },
+      () => this.admitUntraced(request, component, action),
+    );
+  }
+  private async admitUntraced(
     request: object,
     component: ComponentDefinition,
     action: string,
@@ -477,6 +614,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     // mounts, while its dependencies still share the actual request context.
     const instance = await this.moduleRef.create(component.type, context);
     applyStateDefaults(instance, component);
+    this.#components.set(instance, component.name);
     return instance;
   }
   private async operation<T>(
@@ -658,10 +796,7 @@ export class LiveRuntime implements OnApplicationShutdown {
       return value;
     } catch (error) {
       try {
-        span?.end(
-          'error',
-          error instanceof HttpException ? { status: error.getStatus() } : {},
-        );
+        span?.end('error', errorAttributes(error));
       } catch {
         // Telemetry is best effort.
       }
@@ -1036,10 +1171,22 @@ export class LiveRuntime implements OnApplicationShutdown {
     if (method !== undefined && typeof method !== 'function')
       throw new Error(`Lifecycle hook ${name} must be a method`);
     try {
-      if (typeof method === 'function')
-        await withinDeadline(instance, 'HOOK_TIMEOUT', () =>
-          Reflect.apply(method, instance, args),
-        );
+      if (typeof method === 'function') {
+        const run = () =>
+          withinDeadline(instance, 'HOOK_TIMEOUT', () =>
+            Reflect.apply(method, instance, args),
+          );
+        const component = this.#components.get(instance);
+        // Only hooks the component defines are traced.
+        if (component === undefined || !this.options.instrumentation)
+          await run();
+        else
+          await this.traced(
+            'nestvexa.live.hook',
+            { 'nestvexa.component': component, 'nestvexa.hook': name },
+            run,
+          );
+      }
     } finally {
       this.#computed.get(instance)?.();
     }
@@ -1139,6 +1286,11 @@ export class LiveRuntime implements OnApplicationShutdown {
       await this.observeError(instance, error);
       mapped(error);
     }
+    this.inspect(component, captured, {
+      cause: 'mount',
+      fields: [],
+      revision: snapshot.revision,
+    });
     return SafeHtml.trusted(
       this.wrapper(component, snapshot, identity, captured.html, {
         realtime: captured.realtime,
@@ -1159,6 +1311,10 @@ export class LiveRuntime implements OnApplicationShutdown {
           'nestvexa.revision': admitted.payload.revision,
         },
         () => this.executeUntraced(request, input),
+        // Server side of the client morph: the size of the HTML it applies.
+        (response) => ({
+          'nestvexa.response_html_bytes': responseHtmlBytes(response),
+        }),
       ),
     );
   }
@@ -1226,20 +1382,32 @@ export class LiveRuntime implements OnApplicationShutdown {
               component,
               async () => {
                 if (this.closed) fail(503, 'LIVE_SHUTDOWN');
-                for (const [key, value] of Object.entries(
-                  cloneState(snapshot.state),
-                )) {
-                  if (!component.states.has(key))
-                    fail(409, 'STATE_SCHEMA_CHANGED');
-                  Object.defineProperty(instance, key, {
-                    value: hydrated(component, key, value),
-                    writable: true,
-                    enumerable: true,
-                    configurable: true,
-                  });
-                }
-                await this.hook(instance, 'boot');
-                await this.hook(instance, 'hydrate');
+                await this.traced(
+                  'nestvexa.live.hydrate',
+                  {
+                    'nestvexa.component': component.name,
+                    'nestvexa.revision': snapshot.revision,
+                  },
+                  async () => {
+                    for (const [key, value] of Object.entries(
+                      cloneState(snapshot.state),
+                    )) {
+                      if (!component.states.has(key))
+                        fail(409, 'STATE_SCHEMA_CHANGED');
+                      Object.defineProperty(instance, key, {
+                        value: hydrated(component, key, value),
+                        writable: true,
+                        enumerable: true,
+                        configurable: true,
+                      });
+                    }
+                    await this.hook(instance, 'boot');
+                    await this.hook(instance, 'hydrate');
+                  },
+                  () => ({
+                    'nestvexa.state_fields': Object.keys(snapshot.state).length,
+                  }),
+                );
                 for (const [key, value] of Object.entries(updates)) {
                   const previous = snapshot.state[key];
                   if (previous === undefined) fail(409, 'STATE_SCHEMA_CHANGED');
@@ -1356,6 +1524,12 @@ export class LiveRuntime implements OnApplicationShutdown {
         ...(attachment === undefined ? {} : { download: attachment }),
         ...(realtime === undefined ? {} : { realtime }),
       };
+      this.inspect(component, result, {
+        cause: synchronization ? 'sync' : 'action',
+        ...(synchronization ? {} : { action }),
+        fields: Object.keys(updates),
+        revision: result.revision,
+      });
       if (selected?.idempotent)
         this.#replays.remember(
           identity.binding,
