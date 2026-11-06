@@ -5,6 +5,7 @@ import {
   isActionClientError,
 } from '@nestvexa/actions/client';
 import { createActions } from './generated/actions-client.js';
+import { createActionBindings } from './generated/actions-client.live.js';
 import type { CartSummary } from './generated/actions-client.js';
 
 const status = document.getElementById('status');
@@ -51,16 +52,32 @@ async function run(operation: () => Promise<CartSummary>, done: string) {
   }
 }
 
-document.addEventListener('click', (event) => {
-  if (!(event.target instanceof HTMLButtonElement)) return;
-  const button = event.target;
-  const product = button.dataset['product'];
-  if (product)
-    void run(
-      () => actions.cart.addItem({ productId: product, quantity: 1 }),
-      'Added to cart.',
-    );
-  else if (button.id === 'clear-cart') void run(() => actions.cart.clear(), '');
+// Generated Live/HBS helper: binds each server-rendered product button to the
+// typed cart.add-item action (state in data-nv-action-state / aria-busy).
+const bindings = createActionBindings(actions);
+for (const button of document.querySelectorAll<HTMLButtonElement>(
+  'button[data-product]',
+))
+  bindings.bindCartAddItem(button, {
+    input: (element) => ({
+      productId: element.dataset['product'] ?? '',
+      quantity: 1,
+    }),
+    onSettled: (outcome) => {
+      if (outcome.ok) {
+        render(outcome.data);
+        say('Added to cart.');
+      } else
+        say(
+          outcome.error.code === 'UNAUTHENTICATED'
+            ? 'Sign in to use the cart.'
+            : `${outcome.error.code}: ${outcome.error.message}`,
+        );
+    },
+  });
+
+document.getElementById('clear-cart')?.addEventListener('click', () => {
+  void run(() => actions.cart.clear(), '');
 });
 
 if (document.querySelector('form[action="/logout"]'))

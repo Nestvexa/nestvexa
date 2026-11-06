@@ -10,6 +10,8 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const result = await generateActionClient({
   project: `${root}tsconfig.json`,
   outDir: `${root}browser/generated`,
+  // Live/HBS element helpers bind the server-rendered buttons.
+  targets: ['live'],
 });
 for (const diagnostic of result.diagnostics)
   console.error(formatDiagnostic(diagnostic));
