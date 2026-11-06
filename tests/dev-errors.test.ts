@@ -79,11 +79,15 @@ describe('development error page source locations', () => {
       await failure(() => engine.render('pages/helper', { title: 'x' })),
       { viewsRoot: views, projectRoot: root, editor: 'idea' },
     );
-    // Handlebars runtime errors (missing helpers) carry no line: the file is still linked.
+    // The HBS adapter's debug mode also locates runtime errors (missing helpers).
     expect(runtime.template).toMatchObject({
       view: 'pages/helper',
-      display: 'views/pages/helper.hbs',
-      excerpt: [],
+      display: 'views/pages/helper.hbs:2',
+    });
+    expect(runtime.template?.excerpt.find((line) => line.current)).toEqual({
+      line: 2,
+      text: '{{missing title}}',
+      current: true,
     });
     expect(runtime.template?.href).toContain('idea://open?file=');
     await engine.dispose();
@@ -118,7 +122,11 @@ describe('development error page source locations', () => {
       'Unable to render view: ../secret.txt (../secret.txt:1)',
     );
     escape.name = 'ViewError';
-    expect(templateFailure(escape)).toEqual({ view: '../secret.txt', line: 1 });
+    expect(templateFailure(escape)).toEqual({
+      view: '../secret.txt',
+      file: '../secret.txt',
+      line: 1,
+    });
     const report = describeError(escape, {
       viewsRoot: views,
       projectRoot: root,

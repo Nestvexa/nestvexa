@@ -121,9 +121,15 @@ function viewFile(root: string, view: string): string | undefined {
   return undefined;
 }
 /** View id and 1-based line of a template failure, from any first-party engine. */
-export function templateFailure(
-  error: unknown,
-): { view: string; line?: number; column?: number } | undefined {
+export function templateFailure(error: unknown):
+  | {
+      view: string;
+      /** Template file named by the engine, used to locate the source. */
+      file?: string;
+      line?: number;
+      column?: number;
+    }
+  | undefined {
   let view: string | undefined;
   let line: number | undefined;
   let column: number | undefined;
@@ -132,7 +138,13 @@ export function templateFailure(
       // Engines in debug mode: "Unable to render view: <view> (<template>:<line>)".
       const located = /\(([^()\s]+):(\d+)\)\s*$/.exec(item.message);
       if (located?.[1] && located[2])
-        return { view: located[1], line: Number(located[2]) };
+        return {
+          // Engines name the template file; the view id drops its extension
+          // while the file name keeps it to open the right engine's source.
+          view: located[1].replace(/\.(?:hbs|handlebars|ejs|pug|njk)$/, ''),
+          file: located[1],
+          line: Number(located[2]),
+        };
       view ??= /^Unable to render view: ([^\s(]+)/.exec(item.message)?.[1];
       continue;
     }
@@ -217,7 +229,7 @@ export function describeError(
   const failure = templateFailure(error);
   let template: TemplateLocation | undefined;
   if (failure && options.viewsRoot) {
-    const file = viewFile(options.viewsRoot, failure.view);
+    const file = viewFile(options.viewsRoot, failure.file ?? failure.view);
     if (file) {
       const line = failure.line ?? 1;
       const found = location(file, line, failure.column, root, editor);
