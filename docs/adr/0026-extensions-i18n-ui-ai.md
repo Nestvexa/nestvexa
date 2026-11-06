@@ -96,3 +96,15 @@ components render through engine-level helpers only.
 
 See the guides: [i18n](../guides/i18n.md), [UI kit](../guides/ui-kit.md),
 [AI](../guides/ai.md), [offline](../guides/offline.md).
+
+## Amendment (2026-11-06): `@nestvexa/mail`
+
+The email/notification bridge (spec 16.5, EXT-029) follows the same rules as a
+sixth opt-in package, listed in the boundaries extension list. It is a bridge, not
+a provider: it renders mail views through the host's existing view engine (typed
+structurally against `render(view, model, options)`, so it has no workspace or
+engine dependency), validates messages against header injection, and delivers
+through a provider-neutral `MailTransport` implemented by the host's nodemailer
+transporter or `@nestjs-modules/mailer` `MailerService` (both typed structurally).
+The console and memory transports deliver nothing and refuse production. See the
+[mail guide](../guides/mail.md).

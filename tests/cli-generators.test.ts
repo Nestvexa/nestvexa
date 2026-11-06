@@ -1,188 +1,29 @@
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import {
   existsSync,
-  mkdirSync,
   readFileSync,
   readdirSync,
-  realpathSync,
   rmSync,
-  symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { pinned, run, satisfies } from '../packages/cli/dist/index.js';
+import {
+  freshApp as fixtureApp,
+  idempotent,
+  json,
+  node,
+  ok,
+  read,
+  repo,
+} from './support/cli-fixture.js';
 
-const repo = resolve(import.meta.dirname, '..');
-const fixtures = join(repo, 'artifacts', 'cli-generators');
-const frontend = join(repo, 'examples', 'inertia-mixed', 'node_modules');
-// Assigned port range for this suite: 3240-3259.
-const port = 3241;
-
-function link(root: string, name: string, target: string): void {
-  const path = join(root, 'node_modules', name);
-  mkdirSync(dirname(path), { recursive: true });
-  symlinkSync(realpathSync(target), path, 'junction');
-}
-/** A strict ESM Nest app whose node_modules resolve the workspace packages like an install. */
-function freshApp(
-  name: string,
-  type: 'module' | 'commonjs' = 'module',
-): string {
-  const root = join(fixtures, name);
-  rmSync(root, { recursive: true, force: true });
-  mkdirSync(join(root, 'src'), { recursive: true });
-  link(root, 'nestvexa', join(repo, 'packages', 'nestvexa'));
-  for (const directory of readdirSync(join(repo, 'packages'))) {
-    const manifest = join(repo, 'packages', directory, 'package.json');
-    if (!existsSync(manifest)) continue;
-    const { name: pkg } = JSON.parse(readFileSync(manifest, 'utf8')) as {
-      name: string;
-    };
-    if (pkg.startsWith('@nestvexa/'))
-      link(root, pkg, join(repo, 'packages', directory));
-  }
-  for (const pkg of [
-    'react',
-    'react-dom',
-    'vue',
-    'svelte',
-    'vite',
-    'vue-tsc',
-    'svelte-check',
-    '@inertiajs/core',
-    '@inertiajs/react',
-    '@inertiajs/vue3',
-    '@inertiajs/svelte',
-    '@types/react',
-    '@types/react-dom',
-    '@vitejs/plugin-react',
-    '@vitejs/plugin-vue',
-    '@sveltejs/vite-plugin-svelte',
-  ])
-    link(root, pkg, join(frontend, pkg));
-  writeFileSync(
-    join(root, 'package.json'),
-    JSON.stringify(
-      {
-        name,
-        private: true,
-        type,
-        scripts: { build: 'tsc -p tsconfig.json' },
-        dependencies: {
-          '@nestjs/common': '12.2.0',
-          '@nestjs/core': '12.2.0',
-          '@nestjs/platform-express': '12.2.0',
-          'reflect-metadata': '0.2.2',
-          rxjs: '7.8.2',
-        },
-        devDependencies: { typescript: '6.0.3' },
-      },
-      null,
-      2,
-    ) + '\n',
-  );
-  writeFileSync(
-    join(root, 'tsconfig.json'),
-    JSON.stringify(
-      {
-        compilerOptions: {
-          module: 'nodenext',
-          moduleResolution: 'nodenext',
-          target: 'es2023',
-          experimentalDecorators: true,
-          emitDecoratorMetadata: true,
-          esModuleInterop: true,
-          strict: true,
-          exactOptionalPropertyTypes: true,
-          noUncheckedIndexedAccess: true,
-          skipLibCheck: true,
-          rootDir: '.',
-          outDir: 'dist',
-          types: ['node'],
-        },
-      },
-      null,
-      2,
-    ) + '\n',
-  );
-  const ext = type === 'module' ? '.js' : '';
-  writeFileSync(
-    join(root, 'src', 'main.ts'),
-    `import 'reflect-metadata';
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module${ext}';
-
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { logger: ['error'] });
-  await app.listen(Number(process.env['PORT'] ?? 3000), '127.0.0.1');
-}
-void bootstrap();
-`,
-  );
-  writeFileSync(
-    join(root, 'src', 'app.module.ts'),
-    `import { Module } from '@nestjs/common';
-import { AppController } from './app.controller${ext}';
-
-@Module({
-  imports: [],
-  controllers: [AppController],
-  providers: [],
-})
-export class AppModule {}
-`,
-  );
-  writeFileSync(
-    join(root, 'src', 'app.controller.ts'),
-    `import { Controller, Get } from '@nestjs/common';
-
-@Controller()
-export class AppController {
-  @Get()
-  getHello(): string {
-    return 'Hello World!';
-  }
-}
-`,
-  );
-  return root;
-}
-const read = (root: string, path: string) =>
-  readFileSync(join(root, path), 'utf8');
-const json = (output: { stdout: string[] }) =>
-  JSON.parse(output.stdout.at(-1) ?? '{}') as {
-    ok: boolean;
-    changes?: string[];
-    messages?: string[];
-    data?: unknown;
-    error?: string;
-  };
-function ok(output: {
-  exitCode: number;
-  stdout: string[];
-  stderr: string[];
-}): void {
-  expect(output.exitCode, [...output.stdout, ...output.stderr].join('\n')).toBe(
-    0,
-  );
-}
-function node(args: readonly string[], cwd: string) {
-  const result = spawnSync(process.execPath, args, { cwd, encoding: 'utf8' });
-  return { status: result.status, output: `${result.stdout}${result.stderr}` };
-}
-/** Applying the same command again changes nothing; the dry run touches nothing. */
-function idempotent(root: string, args: readonly string[]): void {
-  const before = read(root, 'package.json');
-  const dry = run([...args, '--dry-run'], root);
-  ok(dry);
-  expect(dry.stdout[0]).toMatch(/^(create|update) /);
-  expect(read(root, 'package.json')).toBe(before);
-  ok(run(args, root));
-  const again = json(run([...args, '--json'], root));
-  expect(again).toMatchObject({ ok: true, changes: [] });
-}
+// Port of the booted fixture (DX round 2 range 3480-3499).
+const port = 3484;
+const freshApp = (name: string, type: 'module' | 'commonjs' = 'module') =>
+  fixtureApp(name, { type });
 
 describe('pinned dependency versions', () => {
   it('match the versions the repository examples are built with', () => {
@@ -299,9 +140,12 @@ describe(
         'npm run build:react && npm run build:vue && npm run build:svelte',
       );
       expect(pkg.scripts['dev:vue']).toBe('vite -c vite.vue.config.ts');
+      expect(pkg.scripts['build:vue']).toBe(
+        'vite build -c vite.vue.config.ts && vite build -c vite.vue.config.ts --ssr client/vue/ssr.ts',
+      );
       const config = read(root, 'src/nestvexa/inertia.config.ts');
       expect(config).toMatch(
-        /react: \{ entry: 'client\/react\/app.tsx', devPort: 5173 \},\n\s+vue:/,
+        /react: \{ entry: 'client\/react\/app.tsx', ssr: 'client\/react\/ssr.tsx', devPort: 5173 \},\n\s+vue:/,
       );
       const module = read(root, 'src/app.module.ts');
       expect(module.match(/InertiaModule\.forRoot/g)).toHaveLength(1);

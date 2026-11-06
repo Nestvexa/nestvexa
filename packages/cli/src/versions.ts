@@ -5,6 +5,8 @@
  * without this table following. First-party packages use `^<CLI version>`.
  */
 export const pinned = Object.freeze({
+  '@fastify/cookie': '11.1.5',
+  '@fastify/session': '11.1.6',
   '@inertiajs/core': '3.10.0',
   '@inertiajs/react': '3.10.0',
   '@inertiajs/svelte': '3.10.0',

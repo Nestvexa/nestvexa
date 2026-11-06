@@ -1,0 +1,29 @@
+<form nv:submit="submit" novalidate aria-label="Contact">
+  <p>
+    <label for="{{fields.name.id}}">Name</label>
+    <input
+      id="{{fields.name.id}}"
+      type="text"
+      nv:model.blur="name"
+      value="{{name}}"
+      aria-invalid="{{fields.name.ariaInvalid}}"
+      {{#if fields.name.describedBy}}aria-describedby="{{fields.name.describedBy}}"{{/if}}
+    />
+    {{#if fields.name.invalid}}<span id="{{fields.name.errorId}}" role="alert">{{fields.name.message}}</span>{{/if}}
+  </p>
+  <p>
+    <label for="{{fields.email.id}}">Email</label>
+    <input
+      id="{{fields.email.id}}"
+      type="email"
+      nv:model.blur="email"
+      value="{{email}}"
+      aria-invalid="{{fields.email.ariaInvalid}}"
+      {{#if fields.email.describedBy}}aria-describedby="{{fields.email.describedBy}}"{{/if}}
+    />
+    {{#if fields.email.invalid}}<span id="{{fields.email.errorId}}" role="alert">{{fields.email.message}}</span>{{/if}}
+  </p>
+  <button type="submit" nv:loading.attr="disabled" nv:target="submit">Submit</button>
+  <p role="status">{{status}}</p>
+</form>
+<!-- contact-form: values are escaped by default. -->

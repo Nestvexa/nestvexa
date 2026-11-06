@@ -216,6 +216,7 @@ function factoryOptions(
     'instrumentation',
     'events',
     'assetVersion',
+    'inspector',
   ]);
   for (const key of Reflect.ownKeys(options)) {
     if (typeof key !== 'string' || !allowed.has(key))
@@ -269,6 +270,9 @@ function factoryOptions(
     ...(snapshot.assetVersion === undefined
       ? {}
       : { assetVersion: snapshot.assetVersion }),
+    ...(snapshot.inspector === undefined
+      ? {}
+      : { inspector: snapshot.inspector }),
   });
 }
 

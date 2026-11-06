@@ -36,7 +36,7 @@ function array(items: readonly string[]): string {
 }
 
 export async function respDouble(
-  options: { readonly password?: string } = {},
+  options: { readonly password?: string; readonly port?: number } = {},
 ): Promise<RespDouble> {
   const values = new Map<string, string | Set<string>>();
   const expiry = new Map<string, number>();
@@ -291,7 +291,9 @@ export async function respDouble(
       }
     });
   });
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  await new Promise<void>((resolve) =>
+    server.listen(options.port ?? 0, '127.0.0.1', resolve),
+  );
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('No port');
   return {

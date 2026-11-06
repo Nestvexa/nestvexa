@@ -4,6 +4,9 @@
  * compile in a strict Nest project; `tests/cli-generators.test.ts` type-checks
  * the output with `tsc`, `vue-tsc` and `svelte-check`.
  */
+import { sessionIdExpression } from './templates.js';
+import type { Platform } from './templates.js';
+
 export type Engine = 'ejs' | 'pug' | 'nunjucks';
 export type Framework = 'react' | 'vue' | 'svelte';
 
@@ -73,6 +76,7 @@ export function engineConfig(engine: Engine): string {
   const { className, extension, package: name } = engines[engine];
   return `import type { INestApplication } from '@nestjs/common';
 import { ${className} } from '${name}';
+import { registerViewEngine } from 'nestvexa';
 import { resolve } from 'node:path';
 
 /**
@@ -86,29 +90,12 @@ export const ${engine}Engine = new ${className}({
   defaultLayout: 'layouts/main',
 });
 
-type RenderCallback = (error: Error | null, html?: string) => void;
-interface ExpressViewHost {
-  engine(
-    extension: string,
-    render: (file: string, options: Record<string, unknown>, done: RenderCallback) => void,
-  ): unknown;
-}
-function isExpressViewHost(value: unknown): value is ExpressViewHost {
-  return (
-    typeof value === 'function' &&
-    typeof Reflect.get(value, 'engine') === 'function'
-  );
-}
-
-/** Registers the \`.${extension}\` view engine with Express. Call before \`app.listen()\`. */
+/**
+ * Registers the \`.${extension}\` view engine on Express or Fastify. Call before
+ * \`app.listen()\`; dispose the engine on shutdown if you create it per test.
+ */
 export async function ${engineFunction(engine)}(app: INestApplication): Promise<void> {
-  const host: unknown = app.getHttpAdapter().getInstance();
-  if (!isExpressViewHost(host))
-    throw new Error('The ${engine} view engine is wired for the Express platform only');
-  await ${engine}Engine.initialize();
-  host.engine('${extension}', (file, options, done) =>
-    ${engine}Engine.renderFile(file, options, done),
-  );
+  await registerViewEngine(app, '${extension}', ${engine}Engine);
 }
 `;
 }
@@ -186,12 +173,20 @@ export class ${pascal}Controller {
 export function inertiaConfig(session: boolean): string {
   return `import type { INestApplication } from '@nestjs/common';
 import type { InertiaAppOptions, InertiaModuleOptions } from '@nestvexa/inertia';
-import { ViteAssets, viteInertiaRootView, viteStaticMiddleware } from '@nestvexa/vite';
+import {
+  ViteAssets,
+  moduleSsrRenderer,
+  viteInertiaRootView,
+  viteStaticMiddleware,
+} from '@nestvexa/vite';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 export interface InertiaFramework {
   /** Vite input of the browser entry. */
   readonly entry: string;
+  /** SSR entry (\`vite build --ssr\`); production renders pages on the server with it. */
+  readonly ssr?: string;
   /** Port of this root's Vite dev server (\`npm run dev:<key>\`). */
   readonly devPort: number;
 }
@@ -204,14 +199,19 @@ export const inertiaFrameworks: Record<string, InertiaFramework> = {
 };
 
 const root = process.cwd();
-const production = process.env['NODE_ENV'] === 'production';
+/**
+ * Built assets (manifests, SSR bundles) in production, or in development with
+ * NESTVEXA_ASSETS=build (end-to-end tests without Vite dev servers).
+ */
+const built =
+  process.env['NODE_ENV'] === 'production' || process.env['NESTVEXA_ASSETS'] === 'build';
 
 function inertiaApp(key: string, framework: InertiaFramework): InertiaAppOptions {
   // Production reads dist/<key>/client/.vite/manifest.json at startup and fails
   // fast when the build is missing; development points at the Vite dev server.
   const assets = new ViteAssets({
-    mode: production ? 'production' : 'development',
-    ...(production ? {} : { devOrigin: \`http://localhost:\${framework.devPort}\` }),
+    mode: built ? 'production' : 'development',
+    ...(built ? {} : { devOrigin: \`http://localhost:\${framework.devPort}\` }),
     apps: {
       [key]: {
         entries: [framework.entry],
@@ -220,7 +220,27 @@ function inertiaApp(key: string, framework: InertiaFramework): InertiaAppOptions
       },
     },
   });
-  return { version: assets.version(key), rootView: viteInertiaRootView(assets, { app: key }) };
+  return {
+    version: assets.version(key),
+    rootView: viteInertiaRootView(assets, { app: key }),
+    ...(built && framework.ssr ? { ssr: ssrOptions(key) } : {}),
+  };
+}
+
+/**
+ * Production SSR from the built bundle (dist/<key>/ssr/ssr.mjs), imported once
+ * in-process. A failed render falls back to the client-rendered root view.
+ * Development renders in the browser through the Vite dev server.
+ */
+function ssrOptions(key: string): NonNullable<InertiaAppOptions['ssr']> {
+  const bundle = join(root, \`dist/\${key}/ssr/ssr.mjs\`);
+  if (!existsSync(bundle))
+    throw new Error(\`\${bundle} is missing; run the \${key} build before starting\`);
+  return {
+    renderer: moduleSsrRenderer(bundle, { timeoutMs: 3000 }),
+    mode: 'fallback',
+    onError: (error) => console.warn(\`\${key} SSR failed: \${error instanceof Error ? error.message : 'unknown error'}\`),
+  };
 }
 
 /** Options for \`InertiaModule.forRoot\`. Pages select their root with \`@InertiaPage(name, { app })\`. */
@@ -234,9 +254,9 @@ export function inertiaOptions(): InertiaModuleOptions {
   };
 }
 
-/** Serves each root's built assets in production; Vite dev servers serve them in development. */
+/** Serves each root's built assets; Vite dev servers serve them in development. */
 export function configureInertia(app: INestApplication): void {
-  if (!production) return;
+  if (!built) return;
   for (const key of Object.keys(inertiaFrameworks))
     app.use(viteStaticMiddleware({ root: join(root, \`dist/\${key}/client\`), prefix: \`/build/\${key}/\` }));
 }
@@ -246,17 +266,19 @@ export function inertiaApp(framework: Framework): string {
   if (framework === 'react')
     return `import '@vitejs/plugin-react/preamble';
 import { mountReactInertiaApp } from '@nestvexa/react';
-import { pages } from './setup';
+import { pages, title } from './setup';
 
-// Generated by \`nestvexa add react\`: the browser entry of the React Inertia root.
-void mountReactInertiaApp({ pages, title: (title) => (title ? \`\${title} · React\` : 'React') });
+// Generated by \`nestvexa add react\`: the browser entry of the React Inertia root
+// (hydrates the server-rendered page in production).
+void mountReactInertiaApp({ pages, title });
 `;
   if (framework === 'vue')
     return `import { mountVueInertiaApp } from '@nestvexa/vue';
-import { pages } from './setup';
+import { pages, title } from './setup';
 
-// Generated by \`nestvexa add vue\`: the browser entry of the Vue Inertia root.
-void mountVueInertiaApp({ pages, title: (title) => (title ? \`\${title} · Vue\` : 'Vue') });
+// Generated by \`nestvexa add vue\`: the browser entry of the Vue Inertia root
+// (hydrates the server-rendered page in production).
+void mountVueInertiaApp({ pages, title });
 `;
   return `import { createInertiaApp } from '@inertiajs/svelte';
 import { mountSvelteInertiaApp } from '@nestvexa/svelte';
@@ -272,6 +294,9 @@ export function inertiaSetup(framework: Framework): string {
   return `import { createPageRegistry } from '@nestvexa/${framework}';
 import type { ${type} } from '@nestvexa/${framework}';
 
+// Shared by the browser entry and the SSR entry so both resolve the same pages
+// (a prerequisite for clean hydration).
+
 /**
  * The only components the server may name for this root. Each page is its own
  * lazily loaded chunk; unknown names reject instead of importing a module path.
@@ -280,7 +305,14 @@ export const pages = createPageRegistry(import.meta.glob<${type}>('./pages/**/*.
   base: './pages/',
   extensions: ['.${page}'],
 });
-`;
+${
+  framework === 'svelte'
+    ? ''
+    : `
+/** Document title of every page of this root. */
+export const title = (title: string): string => (title ? \`\${title} · ${label}\` : '${label}');
+`
+}`;
 }
 export function inertiaClientTsconfig(framework: Framework): string {
   const config = {
@@ -322,7 +354,9 @@ import { defineConfig } from 'vite';
 
 // Generated by \`nestvexa add ${framework}\`: an independent build for the ${frameworks[framework].label}
 // Inertia root (manifest in dist/${framework}/client/.vite). Other roots are untouched.
-export default defineConfig({
+// \`vite build --ssr ${ssrEntry(framework)}\` writes the server bundle dist/${framework}/ssr/ssr.mjs
+// (.mjs: an ES module whatever the project's package type).
+export default defineConfig(({ isSsrBuild }) => ({
   base: '/build/${framework}/',
   plugins: [${plugin.call}],
   server: {
@@ -331,13 +365,71 @@ export default defineConfig({
     cors: true,
     origin: 'http://localhost:${devPort}',
   },
-  build: {
-    outDir: 'dist/${framework}/client',
-    emptyOutDir: true,
-    manifest: true,
-    rolldownOptions: { input: '${entry}' },
-  },
-});
+  build: isSsrBuild
+    ? {
+        outDir: 'dist/${framework}/ssr',
+        emptyOutDir: true,
+        rolldownOptions: { output: { entryFileNames: '[name].mjs' } },
+      }
+    : {
+        outDir: 'dist/${framework}/client',
+        emptyOutDir: true,
+        manifest: true,
+        rolldownOptions: { input: '${entry}' },
+      },
+}));
+`;
+}
+/** Project-relative SSR entry of a generated root. */
+export function ssrEntry(framework: Framework): string {
+  return `client/${framework}/ssr.${framework === 'react' ? 'tsx' : 'ts'}`;
+}
+export function inertiaSsr(framework: Framework): string {
+  const port = { react: 13716, vue: 13717, svelte: 13718 }[framework];
+  const serve = `// Optional: \`node dist/${framework}/ssr/ssr.mjs\` serves the same render function through the
+// official Inertia SSR HTTP server for HttpSsrGateway deployments.`;
+  if (framework === 'react')
+    return `import { createReactSsrRender, isMainModule, startReactSsrServer } from '@nestvexa/react/ssr';
+import { pages, title } from './setup';
+
+// Generated by \`nestvexa add react\`: \`render(page)\` → \`{ head, body }\`, imported
+// in-process by the Nest host in production (inertia.config.ts).
+export const render = createReactSsrRender({ pages, title });
+
+${serve}
+if (isMainModule(import.meta.url))
+  startReactSsrServer(render, { port: Number(process.env['SSR_PORT'] ?? ${port}) });
+`;
+  if (framework === 'vue')
+    return `import { createVueSsrRender, isMainModule, startVueSsrServer } from '@nestvexa/vue/ssr';
+import { pages, title } from './setup';
+
+// Generated by \`nestvexa add vue\`: \`render(page)\` → \`{ head, body }\`, imported
+// in-process by the Nest host in production (inertia.config.ts).
+export const render = createVueSsrRender({ pages, title });
+
+${serve}
+if (isMainModule(import.meta.url))
+  startVueSsrServer(render, { port: Number(process.env['SSR_PORT'] ?? ${port}) });
+`;
+  return `import { createInertiaApp } from '@inertiajs/svelte';
+import createServer from '@inertiajs/svelte/server';
+import {
+  createSvelteSsrRender,
+  isMainModule,
+  startOfficialSsrServer,
+} from '@nestvexa/svelte/ssr';
+import { pages } from './setup';
+
+// Generated by \`nestvexa add svelte\`: \`render(page)\` → \`{ head, body }\`, imported
+// in-process by the Nest host in production (inertia.config.ts).
+export const render = createSvelteSsrRender({ createInertiaApp, pages });
+
+${serve}
+if (isMainModule(import.meta.url))
+  startOfficialSsrServer(createServer, render, {
+    port: Number(process.env['SSR_PORT'] ?? ${port}),
+  });
 `;
 }
 export function inertiaPage(framework: Framework, pascal: string): string {
@@ -704,7 +796,7 @@ export class ${pascal}Actions {
 }
 `;
 }
-export function actionsConfig(): string {
+export function actionsConfig(platform: Platform = 'express'): string {
   return `import type { Type } from '@nestjs/common';
 import type { ActionsModuleOptions } from '@nestvexa/actions';
 
@@ -718,7 +810,7 @@ export const allowedActions: Record<string, readonly string[]> = {
 };
 
 /**
- * Host-owned policy. This starter uses the express-session guest session and
+ * Host-owned policy. This starter uses the ${platform === 'fastify' ? '@fastify/session' : 'express-session'} guest session and
  * CSRF token created by \`nestvexa init\`; replace it with your authentication.
  */
 export const actionsOptions: ActionsModuleOptions = {
@@ -726,7 +818,7 @@ export const actionsOptions: ActionsModuleOptions = {
   origin: process.env['NESTVEXA_ORIGIN'] ?? 'http://localhost:3000',
   resolveIdentity: (request) => {
     const session: unknown = Reflect.get(request, 'session');
-    const id: unknown = Reflect.get(request, 'sessionID');
+    const id: unknown = ${sessionIdExpression(platform)};
     const csrf: unknown =
       session && typeof session === 'object' ? Reflect.get(session, 'csrf') : undefined;
     if (typeof id !== 'string' || typeof csrf !== 'string') return null;
@@ -862,7 +954,7 @@ describe('${pascal} (HTTP)', () => {
 
 // ---------------------------------------------------------------- features
 
-export function realtimeConfig(): string {
+export function realtimeConfig(platform: Platform = 'express'): string {
   return `import { UnauthorizedException } from '@nestjs/common';
 import type { RealtimeModuleOptions } from '@nestvexa/realtime';
 import { randomBytes } from 'node:crypto';
@@ -885,8 +977,8 @@ export function realtimeSecrets(): string[] {
 export const realtimeOptions: RealtimeModuleOptions = {
   secrets: realtimeSecrets(),
   origin: process.env['NESTVEXA_ORIGIN'] ?? 'http://localhost:3000',
-  resolveIdentity: (request) => {
-    const id: unknown = Reflect.get(request, 'sessionID');
+  resolveIdentity: (request) => {${platform === 'fastify' ? "\n    const session: unknown = Reflect.get(request, 'session');" : ''}
+    const id: unknown = ${sessionIdExpression(platform)};
     if (typeof id !== 'string') throw new UnauthorizedException();
     return { binding: \`session:\${id}\` };
   },
@@ -895,7 +987,7 @@ export const realtimeOptions: RealtimeModuleOptions = {
 };
 `;
 }
-export function uploadsConfig(): string {
+export function uploadsConfig(platform: Platform = 'express'): string {
   return `import { UnauthorizedException } from '@nestjs/common';
 import type { UploadsModuleOptions } from '@nestvexa/uploads';
 import { resolve } from 'node:path';
@@ -911,7 +1003,7 @@ export const uploadsOptions: UploadsModuleOptions = {
   directory: resolve(process.env['UPLOADS_DIRECTORY'] ?? 'storage/uploads'),
   resolveIdentity: (request) => {
     const session: unknown = Reflect.get(request, 'session');
-    const id: unknown = Reflect.get(request, 'sessionID');
+    const id: unknown = ${sessionIdExpression(platform)};
     const csrf: unknown =
       session && typeof session === 'object' ? Reflect.get(session, 'csrf') : undefined;
     if (typeof id !== 'string' || typeof csrf !== 'string') throw new UnauthorizedException();
@@ -979,6 +1071,69 @@ export function configureDevtools(app: INestApplication): void {
       projectRoot: process.cwd(),
     }),
   );
+}
+`;
+}
+export function redisConfig(): string {
+  return `import type { LiveStateStore } from '@nestvexa/live';
+import { MemoryLiveStore } from '@nestvexa/live';
+import { MemoryRealtimeBroker } from '@nestvexa/realtime';
+import type { RealtimeBroker } from '@nestvexa/realtime';
+import { RedisLiveStore } from '@nestvexa/realtime-redis';
+import { RedisRealtimeBroker } from '@nestvexa/realtime-redis/realtime';
+
+interface RedisConnection {
+  readonly host: string;
+  readonly port: number;
+  readonly username?: string;
+  readonly password?: string;
+  readonly database?: number;
+}
+
+/**
+ * Generated by \`nestvexa add redis\`. REDIS_URL (\`redis://[user:password@]host:port[/db]\`)
+ * switches Live state and realtime pub/sub to Redis so several replicas share
+ * them; without it the app runs as a single process with in-memory state.
+ * The URL holds credentials: it is never logged.
+ */
+export function redisConnection(): RedisConnection | undefined {
+  const value = process.env['REDIS_URL'];
+  if (value === undefined || value === '') return undefined;
+  const url = new URL(value);
+  if (url.protocol !== 'redis:')
+    throw new Error('REDIS_URL must use redis:// (TLS needs a local stunnel or proxy)');
+  const database = url.pathname.length > 1 ? Number(url.pathname.slice(1)) : undefined;
+  if (database !== undefined && !Number.isInteger(database))
+    throw new Error('REDIS_URL database must be an integer');
+  return {
+    host: url.hostname,
+    port: url.port ? Number(url.port) : 6379,
+    ...(url.username ? { username: decodeURIComponent(url.username) } : {}),
+    ...(url.password ? { password: decodeURIComponent(url.password) } : {}),
+    ...(database === undefined ? {} : { database }),
+  };
+}
+/** Key namespace per application and environment. */
+const prefix = process.env['REDIS_PREFIX'] ?? 'nestvexa:';
+
+/** Live state store: shared in Redis when REDIS_URL is set. */
+export function liveStore(): LiveStateStore {
+  const redis = redisConnection();
+  return redis
+    ? new RedisLiveStore({ ...redis, prefix: \`\${prefix}live:\` })
+    : new MemoryLiveStore();
+}
+/** Realtime broker: Redis PUBLISH/SUBSCRIBE when REDIS_URL is set. */
+export function realtimeBroker(): RealtimeBroker {
+  const redis = redisConnection();
+  return redis
+    ? new RedisRealtimeBroker({
+        host: redis.host,
+        port: redis.port,
+        ...(redis.password === undefined ? {} : { password: redis.password }),
+        prefix: \`\${prefix}rt:\`,
+      })
+    : new MemoryRealtimeBroker();
 }
 `;
 }

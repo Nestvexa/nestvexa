@@ -53,6 +53,7 @@ flowchart TD
     ai[ai]
     flags[flags]
     offline[offline]
+    mail[mail]
   end
   cli[cli]
 
@@ -120,7 +121,7 @@ flowchart TD
   Inertia client and framework as **required peers**. `@nestvexa/inertia` (the server
   adapter) depends only on views and never imports a client framework.
 - **Standalone optional packages.** actions, realtime, cache, observability, ai,
-  flags, offline and uploads have no workspace edges; they integrate through Nest DI
+  flags, offline, mail and uploads have no workspace edges; they integrate through Nest DI
   and public contracts, so installing one never drags in another.
 - **Optional peer edges.** `forms -.-> live` lets the forms package offer Live helpers
   from its `@nestvexa/forms/live` subpath without making Live mandatory;
@@ -148,6 +149,7 @@ flowchart TD
 | [@nestvexa/islands](../../packages/islands/README.md)                 | `@nestvexa/views`                                                                                                     | —                                | `react` (optional), `react-dom` (optional), `vue` (optional), `svelte` (optional)                                             | false         |
 | [@nestvexa/live](../../packages/live/README.md)                       | `@nestvexa/views`                                                                                                     | —                                | `@nestjs/common`, `@nestjs/core`, `reflect-metadata`, `rxjs`                                                                  | false         |
 | [nestvexa](../../packages/nestvexa/README.md)                         | `@nestvexa/core`, `@nestvexa/views`, `@nestvexa/engine-hbs`, `@nestvexa/live`, `@nestvexa/client`, `@nestvexa/alpine` | `@alpinejs/csp@3.17.5`           | `@nestjs/common`, `@nestjs/core`, `reflect-metadata`, `rxjs`, `@nestvexa/cli` (optional)                                      | false         |
+| [@nestvexa/mail](../../packages/mail/README.md)                       | —                                                                                                                     | —                                | `@nestjs/common`, `reflect-metadata`, `rxjs`                                                                                  | false         |
 | [@nestvexa/observability](../../packages/observability/README.md)     | —                                                                                                                     | —                                | `@nestjs/common`, `@nestjs/core`, `reflect-metadata`, `rxjs`                                                                  | false         |
 | [@nestvexa/offline](../../packages/offline/README.md)                 | —                                                                                                                     | —                                | —                                                                                                                             | false         |
 | [@nestvexa/react](../../packages/react/README.md)                     | `@nestvexa/vite`                                                                                                      | —                                | `@inertiajs/core` (optional), `@inertiajs/react`, `react`, `react-dom`                                                        | false         |
@@ -188,9 +190,9 @@ adds a `default` condition next to `import` so CommonJS Nest apps can load a pac
 through Node 22.12+ `require(esm)` without a dual-package identity hazard. The browser
 client ships one canonical bundle ([ADR 0015](../adr/0015-production-client-bundle.md)).
 
-> **Known gap:** on 2026-11-05 only 13 packages carry the `default` condition (`nestvexa`,
+> **Known gap:** on 2026-11-05 only 14 packages carry the `default` condition (`nestvexa`,
 > core, views, engine-hbs, live, client, alpine, inertia, islands, realtime, cache,
-> observability, cli). The `exports` of actions, ai, engine-ejs, engine-pug,
+> observability, cli, mail). The `exports` of actions, ai, engine-ejs, engine-pug,
 > engine-nunjucks, flags, forms, i18n, offline, react, vue, svelte, ui, uploads and vite
 > declare only `types`/`import`, so `require()` from a CommonJS host fails with
 > `ERR_PACKAGE_PATH_NOT_EXPORTED`; use `await import()` there until the manifests are

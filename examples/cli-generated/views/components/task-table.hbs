@@ -1,0 +1,11 @@
+<section aria-label="Task">
+  <form nv:submit="create">
+    <label for="task-draft">Name</label>
+    <input id="task-draft" nv:model="draft" value="{{draft}}" maxlength="80" />
+    <button type="submit">Add</button>
+    {{#if error}}<p role="alert">{{error}}</p>{{/if}}
+  </form>
+  <ul>
+    {{#each rows}}<li data-nv-key="task-{{id}}">{{name}}</li>{{else}}<li>No items yet.</li>{{/each}}
+  </ul>
+</section>

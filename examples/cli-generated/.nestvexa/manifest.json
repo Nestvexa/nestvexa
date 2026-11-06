@@ -1,0 +1,337 @@
+{
+  "version": 2,
+  "cli": "0.1.0-alpha.0",
+  "files": {
+    "client/islands/clicker.tsx": {
+      "sha256": "ff271f3569e8a8d009a2fafd416500132f85caa118d738a55436e15631d516b8",
+      "feature": "island:clicker",
+      "template": "island.react",
+      "templateVersion": 1
+    },
+    "client/islands/index.ts": {
+      "sha256": "631346d641701f5dc5fd49e6e7c26ac808db79759c777052727d01fed00a1941",
+      "feature": "island:clicker"
+    },
+    "client/islands/shims.d.ts": {
+      "sha256": "b63e088b88e088dd1226efd7d8cf7082b1c6307559339f44e8946abd42a6bbae",
+      "feature": "island:clicker"
+    },
+    "client/islands/tsconfig.json": {
+      "sha256": "c590ce09fec0d3cfce962fa22538ea4e0ddf83ba0d02fd58bf3ad85e668b5579",
+      "feature": "island:clicker"
+    },
+    "client/react/app.tsx": {
+      "sha256": "e0fd2f50b73782dea085cfc4a79a4ccb3d6bbec6c7edd43aa0befbf0db768d26",
+      "feature": "page:react-dashboard"
+    },
+    "client/react/pages/ReactDashboard.tsx": {
+      "sha256": "b166d17bf86b61201962b2a5757b85422095258f434b6d3eeb3de9633ae51097",
+      "feature": "page:react-dashboard",
+      "template": "page.component.react",
+      "templateVersion": 1
+    },
+    "client/react/pages/Welcome.tsx": {
+      "sha256": "875a2c0736636466c4c8cc7f1df22c360b1841bc57c2adc7ff23978be7468f7f",
+      "feature": "page:react-dashboard",
+      "template": "page.component.react",
+      "templateVersion": 1
+    },
+    "client/react/setup.ts": {
+      "sha256": "247426f0b0c0e40dc7968f28944ad05ffad2994ec2df4360fbdbb0d911d7c06e",
+      "feature": "page:react-dashboard"
+    },
+    "client/react/ssr.tsx": {
+      "sha256": "8ab42a8ab6d14090fb1f9cb198ff42b0f3940f7b6ab8c6f1f8499538e5e7e84b",
+      "feature": "page:react-dashboard"
+    },
+    "client/react/tsconfig.json": {
+      "sha256": "f3c8a9092b263cffdd0e70a9bece2084b0a33d134b0e84a23569c64953d3de23",
+      "feature": "page:react-dashboard"
+    },
+    "client/svelte/app.ts": {
+      "sha256": "ac72d7ecd3099d314d8154c942b9d9a57261503e46769a138af4d56ff2a9cef7",
+      "feature": "page:svelte-dashboard"
+    },
+    "client/svelte/pages/SvelteDashboard.svelte": {
+      "sha256": "471916bab36fb412147c2e76e86954cfb92d90a78d2d55b1373a672bb38b246d",
+      "feature": "page:svelte-dashboard",
+      "template": "page.component.svelte",
+      "templateVersion": 1
+    },
+    "client/svelte/pages/Welcome.svelte": {
+      "sha256": "471916bab36fb412147c2e76e86954cfb92d90a78d2d55b1373a672bb38b246d",
+      "feature": "page:svelte-dashboard",
+      "template": "page.component.svelte",
+      "templateVersion": 1
+    },
+    "client/svelte/setup.ts": {
+      "sha256": "e2ebbba588419be40449233f6eb7cfb38fa9bd92a3da4b957bcfdd1c5ff0f286",
+      "feature": "page:svelte-dashboard"
+    },
+    "client/svelte/ssr.ts": {
+      "sha256": "ff475baf9a4ea02345b7a556ffcacd988bde4c6fc923e77767806cadad01d724",
+      "feature": "page:svelte-dashboard"
+    },
+    "client/svelte/tsconfig.json": {
+      "sha256": "8aa872a2671060cbd93648850061244bf69e39907805e4dcf84221b84bfeb502",
+      "feature": "page:svelte-dashboard"
+    },
+    "client/vue/app.ts": {
+      "sha256": "a5f7424423fd4ec76f72fad224dea1cbebc7623bbcd6447b57786ee0f1d795f8",
+      "feature": "page:vue-dashboard"
+    },
+    "client/vue/pages/VueDashboard.vue": {
+      "sha256": "618f8a13050c0d21e96fef90fbb8784b601fadcb56acc11fc8d7086b4e13d421",
+      "feature": "page:vue-dashboard",
+      "template": "page.component.vue",
+      "templateVersion": 1
+    },
+    "client/vue/pages/Welcome.vue": {
+      "sha256": "618f8a13050c0d21e96fef90fbb8784b601fadcb56acc11fc8d7086b4e13d421",
+      "feature": "page:vue-dashboard",
+      "template": "page.component.vue",
+      "templateVersion": 1
+    },
+    "client/vue/setup.ts": {
+      "sha256": "4b53fa400a8d41e76bd3835394e8169f98f16b92eb1a89448d6afe4d16eecccd",
+      "feature": "page:vue-dashboard"
+    },
+    "client/vue/ssr.ts": {
+      "sha256": "29fa2969507b592fe602711339ba19c963c340d807e012c65ecc5c231d92fea6",
+      "feature": "page:vue-dashboard"
+    },
+    "client/vue/tsconfig.json": {
+      "sha256": "c6dbe2696c5beb268487ca48a86f8016ab08868a2a7e28e38a8527524879ac58",
+      "feature": "page:vue-dashboard"
+    },
+    "locales/en/common.json": {
+      "sha256": "c93e246314c9048843fd9a25437046e21b58636bccb521fc0c743d0565717d9e",
+      "feature": "add:i18n"
+    },
+    "src/actions/greeter.actions.ts": {
+      "sha256": "bfec290e5990c9299ff500d3aafad6f1ae2d451fe8427339faf3f0b4545f7a38",
+      "feature": "action:greeter",
+      "template": "action.group",
+      "templateVersion": 1
+    },
+    "src/nestvexa/actions.config.ts": {
+      "sha256": "d89244d522896e86aaf423b598b8a50cb63f02a0f1cd17c7b06ab3b20c18cd62",
+      "feature": "action:greeter"
+    },
+    "src/nestvexa/components/counter.component.ts": {
+      "sha256": "81ab173801501708e2fe9492a2b97b48498f2ccbf07eda35fe66ce5fcbce08ca",
+      "feature": "init"
+    },
+    "src/nestvexa/engines/ejs.engine.ts": {
+      "sha256": "accb43c89ca23df40f7d544ab22e46ee8577640faa2f1fb494ac9e08406c7918",
+      "feature": "page:report-ejs"
+    },
+    "src/nestvexa/engines/nunjucks.engine.ts": {
+      "sha256": "1d1f4baeb51294f5bc35aacbb8b221bb8735526a98c5fdf5fec253ec24c2c945",
+      "feature": "page:report-nunjucks"
+    },
+    "src/nestvexa/engines/pug.engine.ts": {
+      "sha256": "40a618de3251bccb5f495cb7ec35c6146a3bb6975603485a82dd7b3d6c87b5ba",
+      "feature": "page:report-pug"
+    },
+    "src/nestvexa/forms/contact.form.ts": {
+      "sha256": "cfc1275edf6ccbaabd7eb41657bb17dd4df9f663ad1cb22bb29cbeac6f3fb184",
+      "feature": "form:contact",
+      "template": "form.component",
+      "templateVersion": 1
+    },
+    "src/nestvexa/i18n.config.ts": {
+      "sha256": "7059ef18e87e1f9cfd5b0dfe4a13c6d1392342237cf1120f4382287b556cab08",
+      "feature": "add:i18n"
+    },
+    "src/nestvexa/inertia.config.ts": {
+      "sha256": "21959a1c9204a61734d7486a4ad83658f5ff0c5f04e328c07f241f240662e3ae",
+      "feature": "page:react-dashboard"
+    },
+    "src/nestvexa/islands.serve.ts": {
+      "sha256": "96e3fc5adf9be42e9bf5dbfe6b8633aa87a7c0bc55a469ae551b34d78df681be",
+      "feature": "island:clicker"
+    },
+    "src/nestvexa/islands.ts": {
+      "sha256": "d543e7ac00545327133f7dd07103f8487441de21058da3042dad8726dd76535e",
+      "feature": "island:clicker"
+    },
+    "src/nestvexa/nestvexa.config.ts": {
+      "sha256": "80e830b6b12db03a4bbf48918b4048183e7c09cda84848c29dd79a43537ab617",
+      "feature": "init"
+    },
+    "src/nestvexa/realtime.config.ts": {
+      "sha256": "1181cacd829555bf60824de03b25c9e652a0ada0336e91c61660bc220e98dda1",
+      "feature": "add:realtime"
+    },
+    "src/nestvexa/uploads.config.ts": {
+      "sha256": "2c3237e1b54734057d0b832389291c5579be1e43a487a51133865dc7719bb90f",
+      "feature": "add:uploads"
+    },
+    "src/nestvexa/welcome.controller.ts": {
+      "sha256": "6e8ad74e623e2e4e09a213dba813111caff376d65ffa2425666ed855ad3d28db",
+      "feature": "init"
+    },
+    "src/pages/home.controller.ts": {
+      "sha256": "1a0be4ba9b9c90a77215f4bb45cdd94d62b9139e595cc5b1d0ed90042756f119",
+      "feature": "page:home",
+      "template": "page.controller.hbs",
+      "templateVersion": 1
+    },
+    "src/pages/react-dashboard.controller.ts": {
+      "sha256": "def93e6bf1d16d1cfd4834807d3575001af96b1fd6c49a359be8fb434d4b018f",
+      "feature": "page:react-dashboard",
+      "template": "page.controller.react",
+      "templateVersion": 1
+    },
+    "src/pages/react-welcome.controller.ts": {
+      "sha256": "884ac12c5b80828bccd2ab87557aace18c81dc8db2e3823cdb7f1365e122a922",
+      "feature": "page:react-dashboard"
+    },
+    "src/pages/report-ejs.controller.ts": {
+      "sha256": "7dcf1601655b593af2a83ff3154ab1ac8affaf575df502d50fa0c53ed68c3597",
+      "feature": "page:report-ejs",
+      "template": "page.controller.ejs",
+      "templateVersion": 1
+    },
+    "src/pages/report-nunjucks.controller.ts": {
+      "sha256": "ac86d01022b01a3ede151221e2c0856cd9bbc9212218dbfa0c4c0c2364f2d093",
+      "feature": "page:report-nunjucks",
+      "template": "page.controller.nunjucks",
+      "templateVersion": 1
+    },
+    "src/pages/report-pug.controller.ts": {
+      "sha256": "e5c2b4a64697dc5a2b911396b6038a51396f663d290f5bea6027fbe2e63d29e9",
+      "feature": "page:report-pug",
+      "template": "page.controller.pug",
+      "templateVersion": 1
+    },
+    "src/pages/svelte-dashboard.controller.ts": {
+      "sha256": "31ddc891a486da2efde1626c77ebbc417c1d66ab16ccbd4985b1b637d8b7ed66",
+      "feature": "page:svelte-dashboard",
+      "template": "page.controller.svelte",
+      "templateVersion": 1
+    },
+    "src/pages/svelte-welcome.controller.ts": {
+      "sha256": "2c2fb79eedec898b6d477c90de9466d0db6f1ead7c51216a33fa13a7a6ee7572",
+      "feature": "page:svelte-dashboard"
+    },
+    "src/pages/vue-dashboard.controller.ts": {
+      "sha256": "8b4a53a2dc656bb0475a7d366d032a4b895bcc5a7e53024463a697ff57b1750d",
+      "feature": "page:vue-dashboard",
+      "template": "page.controller.vue",
+      "templateVersion": 1
+    },
+    "src/pages/vue-welcome.controller.ts": {
+      "sha256": "5ed238f83a2a36a3a77be6da82212b32499495ecd9333f4e061c40b2e4102413",
+      "feature": "page:vue-dashboard"
+    },
+    "src/policies/owner.policy.ts": {
+      "sha256": "428b41678b5b35138f8f28936eb4f04e182c3f744b7fd1ee25e7a8df91fc73f7",
+      "feature": "policy:owner",
+      "template": "policy.guard",
+      "templateVersion": 2
+    },
+    "src/task/task-table.component.ts": {
+      "sha256": "36536443921f006b7246ae534aadf42045a895166d018e3ed2e997ec649cd06f",
+      "feature": "resource:task",
+      "template": "resource.component",
+      "templateVersion": 1
+    },
+    "src/task/task.controller.ts": {
+      "sha256": "d22464b123a97aae23fae6060975d8f7f27dcb7ac7356da171979f331bfa5c3a",
+      "feature": "resource:task",
+      "template": "resource.controller",
+      "templateVersion": 1
+    },
+    "src/task/task.module.ts": {
+      "sha256": "6de76a0868026d0987e080708a22327e412fad4e67582fda5870384def43c8f6",
+      "feature": "resource:task",
+      "template": "resource.module.crud",
+      "templateVersion": 1
+    },
+    "src/task/task.service.ts": {
+      "sha256": "42137e87e6f7c9dfdb842d2772c81e7856911b99e7ee9d50f25c730a4f07e120",
+      "feature": "resource:task",
+      "template": "resource.service",
+      "templateVersion": 1
+    },
+    "views/components/contact-form.hbs": {
+      "sha256": "5a8606251fcae8cbe4d90485bd41164d2118db9fbc756be438e6d03833b2f7c8",
+      "feature": "form:contact",
+      "template": "form.view",
+      "templateVersion": 1
+    },
+    "views/components/counter.hbs": {
+      "sha256": "dc8d5137ae33737e05918dc3d6cb614cb3f87d4a474e13e2d093f1b71df9a9a2",
+      "feature": "init"
+    },
+    "views/components/task-table.hbs": {
+      "sha256": "2f5dbe7347171331a794b83111a2491ea57069c0dd5db3d06c4889392b02b253",
+      "feature": "resource:task",
+      "template": "resource.view",
+      "templateVersion": 1
+    },
+    "views/layout.hbs": {
+      "sha256": "192e09b1ca2f2b87d08fbd0a17ac6b22d5f7f1f960e1cbacd488a0fbb83573ce",
+      "feature": "init"
+    },
+    "views/layouts/main.ejs": {
+      "sha256": "4b3f202b4a77910549385f72d66ebe7e41de229fee3b61d36d7571bc6cb14d58",
+      "feature": "page:report-ejs"
+    },
+    "views/layouts/main.njk": {
+      "sha256": "1a135baa3af947d4949a4e9055ce43ee7381034c60b12bc85fbd87230e919a7c",
+      "feature": "page:report-nunjucks"
+    },
+    "views/layouts/main.pug": {
+      "sha256": "a2b2b7ccab80d29b988ae79e3f9540b9cc1323597ba2246c079e7f940aba1fbf",
+      "feature": "page:report-pug"
+    },
+    "views/pages/home.hbs": {
+      "sha256": "82c9a9ba39efa65aeca04583129e5b6bfe6350fdcfa0213a09202d1e021a352d",
+      "feature": "page:home",
+      "template": "page.view.hbs",
+      "templateVersion": 1
+    },
+    "views/pages/report-ejs.ejs": {
+      "sha256": "a81f5de481ab10427610f7dc273cdd81c38419eca05e894dcfafe77dd9f1f11d",
+      "feature": "page:report-ejs",
+      "template": "page.view.ejs",
+      "templateVersion": 1
+    },
+    "views/pages/report-nunjucks.njk": {
+      "sha256": "53324690e875d03a8c487e060be86b8b91d91b9942ba47b143333024483be6df",
+      "feature": "page:report-nunjucks",
+      "template": "page.view.nunjucks",
+      "templateVersion": 1
+    },
+    "views/pages/report-pug.pug": {
+      "sha256": "29980df01af8e899329c23a510ebb092471b8f0ebd923f5b882bb9092a949d2b",
+      "feature": "page:report-pug",
+      "template": "page.view.pug",
+      "templateVersion": 1
+    },
+    "views/welcome.hbs": {
+      "sha256": "6f3e668fc0c825f8d63aede359b7411b0fc8bb8aeb2fa9d6a263dad493a7e457",
+      "feature": "init"
+    },
+    "vite.islands.config.ts": {
+      "sha256": "cbe8308ce86b0d9667f60716a02ae2a42c542946d79fdf5ee081a350973a6808",
+      "feature": "island:clicker"
+    },
+    "vite.react.config.ts": {
+      "sha256": "182719307af286ade0ee83741c8396b82b30a6f3846375eda300fde066edccf8",
+      "feature": "page:react-dashboard"
+    },
+    "vite.svelte.config.ts": {
+      "sha256": "792384c73427f7dd902b0d3e0df2ee3fa47b77dfe0bef63e1a93bc0d195804e9",
+      "feature": "page:svelte-dashboard"
+    },
+    "vite.vue.config.ts": {
+      "sha256": "4a0ae89effae3d412d59f16169d60987d4c2ff6e78d72c3b56e53c8148b2e184",
+      "feature": "page:vue-dashboard"
+    }
+  },
+  "migrations": []
+}

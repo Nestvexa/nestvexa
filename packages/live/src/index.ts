@@ -8,6 +8,9 @@ export {
   LiveRuntime,
   type LiveHostOptions,
   type LiveIdentity,
+  type LiveInspector,
+  type LiveComponentDescription,
+  type LiveRenderInspection,
 } from './runtime.js';
 export type {
   LiveLifecycleHooks,

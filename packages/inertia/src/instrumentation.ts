@@ -59,3 +59,45 @@ export async function traced<T>(
     throw error;
   }
 }
+
+const ssrErrorTypes = new Set([
+  'browser-api',
+  'component-resolution',
+  'render',
+  'connection',
+  'timeout',
+  'invalid-response',
+]);
+/** Start a span that the caller ends; a throwing hook yields no span. */
+export function startSpan(
+  hook: InertiaInstrumentation | undefined,
+  name: string,
+  attributes: InertiaSpanAttributes,
+): { end(outcome: 'ok' | 'error', attributes?: InertiaSpanAttributes): void } {
+  let span: ReturnType<InertiaInstrumentation['start']> | undefined;
+  try {
+    span = hook?.start(name, attributes);
+  } catch {
+    span = undefined;
+  }
+  return {
+    end(outcome, extra) {
+      try {
+        span?.end(outcome, extra);
+      } catch {
+        // Telemetry is best effort.
+      }
+    },
+  };
+}
+/**
+ * Closed classification of an SSR failure (`InertiaSsrError`/`ViteSsrError`
+ * `type`); anything else is `unknown`. Messages stay out of telemetry.
+ */
+export function ssrErrorType(error: unknown): string {
+  const type: unknown =
+    typeof error === 'object' && error !== null
+      ? Reflect.get(error, 'type')
+      : undefined;
+  return typeof type === 'string' && ssrErrorTypes.has(type) ? type : 'unknown';
+}

@@ -87,7 +87,10 @@ Options: `secrets` (1–8, ≥32 bytes, first signs), `origin` (exact), `resolve
 `endpoint?`, `tokenTtlMs?` (default 15 min), `limits?` (`maxConnections` 1000,
 `maxConnectionsPerIdentity` 8, `queueLimit` 64, `heartbeatMs` 15000,
 `revalidateMs` 30000, `subscribesPerMinute` 60, `publishesPerMinute` 120,
-`maxPresenceMembers` 100). `auto` transport falls back from SSE to long-polling
+`maxPresenceMembers` 100), `instrumentation?` (structural tracing hook:
+`nestvexa.realtime.publish`, `.subscribe`, `.connection` and `.deliver` spans
+with transports, channel kinds, counts, sizes and rejection codes; never full
+channel names, payloads, tokens or identities). `auto` transport falls back from SSE to long-polling
 at runtime; see the [realtime guide](../../docs/guides/realtime.md) for presence,
 rate limits, jobs (including a BullMQ adapter recipe) and multiple replicas.
 

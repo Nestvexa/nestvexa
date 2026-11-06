@@ -19,21 +19,27 @@ import { pins } from './versions.js';
 
 export type { CommandContext, CommandResult } from './context.js';
 
-/** `nestvexa init`: wire HBS + Live + Alpine into an existing Nest (Express) app. */
+/**
+ * `nestvexa init`: wire HBS + Live + Alpine into an existing Nest app. Guest
+ * sessions use express-session on Express and @fastify/session on Fastify.
+ */
 export function init(context: CommandContext): CommandResult {
   const project = detectProject(context.cwd);
-  if (project.platform !== 'express')
-    throw new CliError(
-      'init wires express-session for Live identity/CSRF. For Fastify, follow docs/guides/default-live-setup.md and configure @fastify/session.',
-    );
+  const fastify = project.platform === 'fastify';
   const plan = newPlan(project, 'init');
   const ext = project.esm ? '.js' : '';
   const base = project.sourceRoot;
-  addDependencies(
-    plan,
-    { nestvexa: `^${templates.version}`, ...pins('express-session') },
-    pins('@types/express-session'),
-  );
+  if (fastify)
+    addDependencies(plan, {
+      nestvexa: `^${templates.version}`,
+      ...pins('@fastify/cookie', '@fastify/session'),
+    });
+  else
+    addDependencies(
+      plan,
+      { nestvexa: `^${templates.version}`, ...pins('express-session') },
+      pins('@types/express-session'),
+    );
   plan.create('views/layout.hbs', templates.layoutView(), {
     force: context.force,
   });
@@ -54,11 +60,17 @@ export function init(context: CommandContext): CommandResult {
   );
   plan.create(
     `${base}/nestvexa/nestvexa.config.ts`,
-    templates.liveConfig(project.esm),
+    templates.liveConfig(project.esm, project.platform),
     {
       force: context.force,
     },
   );
+  if (fastify)
+    plan.create(
+      `${base}/nestvexa/session.ts`,
+      templates.fastifySession(project.esm),
+      { force: context.force },
+    );
   plan.create(
     `${base}/nestvexa/welcome.controller.ts`,
     templates.welcomeController(project.esm),
@@ -95,10 +107,13 @@ export function init(context: CommandContext): CommandResult {
     throw new CliError(`${project.mainFile} not found`);
   let main = insertBeforeListen(
     mainText,
-    templates.mainSetup,
+    fastify ? templates.fastifyMainSetup : templates.mainSetup,
     'configureNestvexa(',
   );
-  if (main !== mainText) {
+  if (main !== mainText && fastify) {
+    main = ensureImport(main, 'nestvexa', ['configureNestvexa']);
+    main = ensureImport(main, `./nestvexa/session${ext}`, ['configureSession']);
+  } else if (main !== mainText) {
     main = ensureImport(main, 'nestvexa', ['configureNestvexa']);
     main = ensureImport(main, `./nestvexa/nestvexa.config${ext}`, [
       'sessionSecret',
