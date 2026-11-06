@@ -131,6 +131,8 @@ export interface ComponentDefinition {
   readonly listeners: ReadonlyMap<string, readonly string[]>;
   /** Method returning the realtime channels that refresh this component. */
   readonly realtime?: string;
+  /** `@Title` getter or method name. */
+  readonly title?: string;
   readonly states: ReadonlyMap<string, StateOptions>;
   readonly computed: ReadonlyMap<string, ComputedDefinition>;
   readonly stateContext: StateContextDefinition;
@@ -147,6 +149,9 @@ const ACTION_OPTIONS = Symbol('nv:action-options');
 const PROPS = Symbol('nv:props');
 const LISTENERS = Symbol('nv:listeners');
 const REALTIME = Symbol('nv:realtime');
+const RENDERLESS = Symbol('nv:renderless');
+const VALIDATORS = Symbol('nv:validators');
+const TITLE = Symbol('nv:title');
 const reservedMembers = new Set([
   ...lifecycleHookNames,
   ...Object.getOwnPropertyNames(Object.prototype),
@@ -625,6 +630,174 @@ export function Action(options: ActionOptions = {}): MethodDecorator {
     );
   };
 }
+/**
+ * Equivalent to `@Action({ renderless: true })` on an `@Action` method:
+ * acknowledge state without rendering when the client negotiates
+ * `renderless-v1`. Using it on a method without `@Action` fails at startup.
+ */
+export function Renderless(): MethodDecorator {
+  return (target, key) => {
+    const name = property(key);
+    const prior: Set<string> | undefined = Reflect.getMetadata(
+      RENDERLESS,
+      target,
+    );
+    Reflect.defineMetadata(
+      RENDERLESS,
+      new Set([...(prior ?? []), name]),
+      target,
+    );
+  };
+}
+/** A Standard Schema v1 object (Zod 3.24+, Valibot, ArkType, …). */
+export interface StandardSchemaLike {
+  readonly '~standard': {
+    readonly version: 1;
+    validate(
+      value: unknown,
+    ):
+      | { readonly value: unknown; readonly issues?: undefined }
+      | { readonly issues: readonly LiveSchemaIssueLike[] }
+      | Promise<
+          | { readonly value: unknown; readonly issues?: undefined }
+          | { readonly issues: readonly LiveSchemaIssueLike[] }
+        >;
+  };
+}
+interface LiveSchemaIssueLike {
+  readonly message: string;
+  readonly path?: readonly (PropertyKey | { readonly key: PropertyKey })[];
+}
+/** A schema with Zod-style `safeParse`. */
+export interface SafeParseSchemaLike {
+  safeParse(value: unknown):
+    | { readonly success: true; readonly data: unknown }
+    | {
+        readonly success: false;
+        readonly error: {
+          readonly issues: readonly {
+            readonly message: string;
+            readonly path: readonly PropertyKey[];
+          }[];
+        };
+      };
+}
+export type LiveValidator =
+  | ((value: JsonValue) => boolean | Promise<boolean>)
+  | StandardSchemaLike
+  | SafeParseSchemaLike;
+/** Normalized schema outcome used by `@Validate` and `schemaPipe`. */
+export type SchemaOutcome =
+  | { readonly ok: true; readonly value: unknown }
+  | {
+      readonly ok: false;
+      readonly issues: readonly { path: string; message: string }[];
+    };
+function issuePath(
+  path: readonly (PropertyKey | { readonly key: PropertyKey })[] | undefined,
+): string {
+  return (path ?? [])
+    .map((segment) =>
+      String(
+        typeof segment === 'object' && segment !== null ? segment.key : segment,
+      ),
+    )
+    .join('.')
+    .slice(0, 200);
+}
+/** Run a schema (Standard Schema or `safeParse`) and normalize the result. */
+export async function runSchema(
+  schema: StandardSchemaLike | SafeParseSchemaLike,
+  value: unknown,
+): Promise<SchemaOutcome> {
+  const issues = (
+    list: readonly {
+      readonly message: string;
+      readonly path?: readonly (PropertyKey | { readonly key: PropertyKey })[];
+    }[],
+  ) =>
+    Object.freeze(
+      list.slice(0, 20).map((issue) =>
+        Object.freeze({
+          path: issuePath(issue.path),
+          message: String(issue.message).slice(0, 200),
+        }),
+      ),
+    );
+  if (isStandardSchema(schema)) {
+    const result = await schema['~standard'].validate(value);
+    return result.issues === undefined
+      ? { ok: true, value: result.value }
+      : { ok: false, issues: issues(result.issues) };
+  }
+  const result = schema.safeParse(value);
+  return result.success
+    ? { ok: true, value: result.data }
+    : { ok: false, issues: issues(result.error.issues) };
+}
+function isStandardSchema(value: unknown): value is StandardSchemaLike {
+  if (typeof value !== 'object' || value === null) return false;
+  const standard: unknown = Reflect.get(value, '~standard');
+  return (
+    typeof standard === 'object' &&
+    standard !== null &&
+    Reflect.get(standard, 'version') === 1 &&
+    typeof Reflect.get(standard, 'validate') === 'function'
+  );
+}
+function isSafeParseSchema(value: unknown): value is SafeParseSchemaLike {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof Reflect.get(value, 'safeParse') === 'function'
+  );
+}
+/** Convert a `@Validate` argument into a boolean state validator. */
+function stateValidator(
+  validator: LiveValidator,
+): (value: JsonValue) => boolean | Promise<boolean> {
+  if (typeof validator === 'function') return validator;
+  if (isStandardSchema(validator) || isSafeParseSchema(validator))
+    return async (value) => (await runSchema(validator, value)).ok;
+  throw new Error(
+    '@Validate requires a function, a Standard Schema or a safeParse schema',
+  );
+}
+/**
+ * Validate client writes to a writable `@State` field with a function, a
+ * Standard Schema (Zod, Valibot, ArkType, …) or a `safeParse` schema before any
+ * hook or action runs (`422 STATE_INVALID`). Equivalent to
+ * `@State({ writable: true, validate })`; the schema's output is not applied,
+ * the validated JSON value is. Combine with `@State({ writable: true })`.
+ */
+export function Validate(validator: LiveValidator): PropertyDecorator {
+  const validate = stateValidator(validator);
+  return (target, key) => {
+    const name = property(key);
+    const prior: Map<string, (value: JsonValue) => boolean | Promise<boolean>> =
+      new Map(Reflect.getMetadata(VALIDATORS, target));
+    if (prior.has(name)) throw new Error(`Duplicate @Validate on ${name}`);
+    prior.set(name, validate);
+    Reflect.defineMetadata(VALIDATORS, prior, target);
+  };
+}
+/**
+ * Mark a zero-argument getter or method returning the document title. After
+ * each rendered action the response carries `title`, and the browser sets
+ * `document.title` for a top-level component (nested components are ignored).
+ * Plain text, 1–200 characters without control characters.
+ */
+export function Title(): MethodDecorator {
+  return (target, key, descriptor) => {
+    const name = property(key);
+    const read: unknown = descriptor.get ?? descriptor.value;
+    if (typeof read !== 'function' || read.length !== 0)
+      throw new Error('@Title requires a zero-argument getter or method');
+    if (Reflect.getMetadata(TITLE, target) !== undefined)
+      throw new Error('Only one @Title member per component');
+    Reflect.defineMetadata(TITLE, name, target);
+  };
+}
 /** A single DTO input at argument zero, transformed by ordinary Nest pipes. */
 export function ActionInput(
   ...pipes: (Type<PipeTransform> | PipeTransform)[]
@@ -672,6 +845,25 @@ export function definition(type: Type<object>): ComponentDefinition {
   const states: Map<string, StateOptions> = new Map(
     Reflect.getMetadata(STATES, type.prototype),
   );
+  const validators: Map<
+    string,
+    (value: JsonValue) => boolean | Promise<boolean>
+  > = new Map(Reflect.getMetadata(VALIDATORS, type.prototype));
+  for (const [field, validate] of validators) {
+    const state = states.get(field);
+    if (!state?.writable)
+      throw new Error(
+        `@Validate on ${field} requires @State({ writable: true })`,
+      );
+    if (state.validate)
+      throw new Error(
+        `${field} declares both @Validate and @State({ validate })`,
+      );
+    states.set(field, Object.freeze({ ...state, validate }));
+  }
+  const renderlessMethods: Set<string> = new Set(
+    Reflect.getMetadata(RENDERLESS, type.prototype),
+  );
   const computed: Map<string, ComputedDefinition> = new Map(
     Reflect.getMetadata(COMPUTED, type.prototype),
   );
@@ -698,8 +890,21 @@ export function definition(type: Type<object>): ComponentDefinition {
       );
     const selected: Omit<ActionDefinition, 'method' | 'input'> =
       Reflect.getOwnMetadata(ACTION_OPTIONS, declaration.owner, method) ?? {};
-    actions.set(id, Object.freeze({ method, input, ...selected }));
+    actions.set(
+      id,
+      Object.freeze({
+        method,
+        input,
+        ...selected,
+        ...(renderlessMethods.has(method) ? { renderless: true as const } : {}),
+      }),
+    );
   }
+  for (const method of renderlessMethods)
+    if (![...methods.values()].includes(method))
+      throw new Error(
+        `${type.name}.${method} uses @Renderless without @Action`,
+      );
   for (const name of states.keys())
     if (computed.has(name) || [...methods.values()].includes(name))
       throw new Error(`Duplicate live member ${name}`);
@@ -785,10 +990,20 @@ export function definition(type: Type<object>): ComponentDefinition {
         '@RealtimeChannels cannot use Nest route/enhancer decorators',
       );
   }
+  const title: unknown = Reflect.getMetadata(TITLE, type.prototype);
+  if (
+    typeof title === 'string' &&
+    (states.has(title) ||
+      computed.has(title) ||
+      [...methods.values()].includes(title) ||
+      title === realtime)
+  )
+    throw new Error(`Duplicate live member ${title}`);
   return Object.freeze({
     type,
     name: options.name,
     ...(typeof realtime === 'string' ? { realtime } : {}),
+    ...(typeof title === 'string' ? { title } : {}),
     view: options.view,
     children: options.children ?? new Map<string, Type<object>>(),
     lazy: options.lazy ?? false,

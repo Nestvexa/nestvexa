@@ -34,6 +34,12 @@ export {
   Modelable,
   OnEvent,
   RealtimeChannels,
+  Renderless,
+  Validate,
+  Title,
+  type LiveValidator,
+  type StandardSchemaLike,
+  type SafeParseSchemaLike,
   describeLiveState,
   type LiveStateDescription,
   type PropMode,
@@ -69,6 +75,7 @@ export {
   type LiveErrorRecovery,
 } from './errors.js';
 export { liveAbortSignal } from './cancellation.js';
+export { schemaPipe } from './schema-pipe.js';
 export {
   LiveEvents,
   liveDomainEvent,

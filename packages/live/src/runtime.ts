@@ -280,6 +280,27 @@ function mapped(error: unknown): never {
     );
   throw error;
 }
+/** The `@Title` value: plain text, 1–200 characters without control characters. */
+function documentTitle(
+  instance: object,
+  component: ComponentDefinition,
+): string | undefined {
+  if (component.title === undefined) return undefined;
+  const member: unknown = Reflect.get(instance, component.title);
+  const value: unknown =
+    typeof member === 'function' ? Reflect.apply(member, instance, []) : member;
+  if (
+    typeof value !== 'string' ||
+    value.length < 1 ||
+    value.length > 200 ||
+    [...value].some((character) => {
+      const code = character.charCodeAt(0);
+      return code < 32 || code === 127;
+    })
+  )
+    throw new Error('@Title must return 1–200 characters of plain text');
+  return value;
+}
 /** A read-only view of a parent-owned JSON value: any write fails with 409. */
 function readOnlyView(value: unknown): unknown {
   if (value === null || typeof value !== 'object') return value;
@@ -1316,6 +1337,7 @@ export class LiveRuntime implements OnApplicationShutdown {
       let redirect: string | undefined;
       let download: LiveDownload | undefined;
       let realtime: string | undefined;
+      let title: string | undefined;
       let flash: readonly string[] = [];
       const context: RenderContext = {
         request,
@@ -1412,6 +1434,7 @@ export class LiveRuntime implements OnApplicationShutdown {
                     });
                 url = captured.url;
                 realtime = captured.realtime;
+                if (!renderless) title = documentTitle(instance, component);
                 persist = () =>
                   persistStateContext(
                     captured.state,
@@ -1473,6 +1496,7 @@ export class LiveRuntime implements OnApplicationShutdown {
         ...(redirect === undefined ? {} : { redirect }),
         ...(attachment === undefined ? {} : { download: attachment }),
         ...(realtime === undefined ? {} : { realtime }),
+        ...(title === undefined ? {} : { title }),
       };
       if (selected?.idempotent)
         await this.#actions.remember(

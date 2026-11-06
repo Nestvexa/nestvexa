@@ -128,6 +128,8 @@ export interface LiveResponse {
   readonly realtime?: string;
   /** Single-use same-origin attachment created by the action. */
   readonly download?: { readonly url: string; readonly filename: string };
+  /** `@Title` text; applied to `document.title` for top-level components. */
+  readonly title?: string;
 }
 export interface LiveEvent {
   readonly name: string;
@@ -184,6 +186,19 @@ export function parseRedirect(value: unknown): string {
     })
   )
     throw new LiveClientError('RESPONSE', 'Unsafe Live redirect');
+  return value;
+}
+function parseTitle(value: unknown): string {
+  if (
+    typeof value !== 'string' ||
+    !value ||
+    value.length > 200 ||
+    [...value].some((character) => {
+      const code = character.charCodeAt(0);
+      return code < 32 || code === 127;
+    })
+  )
+    throw new LiveClientError('RESPONSE', 'Invalid Live title');
   return value;
 }
 function parseRealtimeToken(value: unknown): string {
@@ -279,5 +294,8 @@ export function parseLiveResponse(value: unknown): LiveResponse {
     ...(value['realtime'] === undefined
       ? {}
       : { realtime: parseRealtimeToken(value['realtime']) }),
+    ...(value['title'] === undefined
+      ? {}
+      : { title: parseTitle(value['title']) }),
   };
 }

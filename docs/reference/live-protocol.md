@@ -124,6 +124,10 @@ the package can emit is listed with the status it is emitted with.
 | `HOOK_TIMEOUT`             | 504    | retry-later | A lifecycle hook exceeded the component timeoutMs.                       |
 | `ACTION_TIMEOUT`           | 504    | retry-later | An action exceeded the component timeoutMs.                              |
 
+With `NestvexaExceptionFilter` from `@nestvexa/core` registered globally, every error
+body also carries `correlationId` (equal to the `x-request-id` response header) and
+thrown non-HTTP errors become `500 INTERNAL_ERROR` without message or stack.
+
 Recovery values: **fix-request** (retrying the same bytes cannot succeed), **deny** (do
 not retry automatically), **reload** (server state is gone; reload the page),
 **resync** (refresh the component, let the user repeat the intent), **retry-later**

@@ -37,6 +37,7 @@ function form(state: Form): string {
     `<label for="email">Email</label><input id="email" nv:model="email"${invalid} value="${escape(state.email)}">` +
     (state.errors ? '<p id="email-error">Enter an email address</p>' : '') +
     '<button id="submit" type="submit" nv:loading.attr="disabled">Save</button>' +
+    '<button id="ping" type="button" nv:click="ping">Ping</button>' +
     '</form>'
   );
 }
@@ -54,12 +55,15 @@ const page = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>
   parentId,
   'signup-page',
   { title: 'Join' },
-  `<h1>Join</h1>${root(childId, 'signup-form', { name: '', email: '' }, form(initial), ' data-nv-key="nv-child:form:main"')}`,
+  `<h1>Join</h1><button id="hello" type="button" nv:click="hello">Hello</button>${root(childId, 'signup-form', { name: '', email: '' }, form(initial), ' data-nv-key="nv-child:form:main"')}`,
   ` data-nv-listeners="${escape(JSON.stringify({ 'signup.checked': ['checked'] }))}"`,
 )}</main></body></html>`;
 const boot = `import { createLiveClient } from '/index.js';
 window.nvErrors = [];
-createLiveClient({ onError(error) { window.nvErrors.push(error.code ?? error.name); } }).mount();`;
+window.nvClient = createLiveClient({ onError(error) { window.nvErrors.push(error.code ?? error.name); } });
+window.nvClient.mount();`;
+/** Every Live POST the fake server received: path and parsed envelope. */
+const posted: { path: string; updates: unknown; input: unknown }[] = [];
 
 async function body(request: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
@@ -89,6 +93,50 @@ beforeAll(async () => {
         void readFile(bundleUrl, 'utf8').then(send, () =>
           response.writeHead(404).end(),
         );
+      return;
+    }
+    if (
+      request.method === 'POST' &&
+      (path === '/live/signup-form/ping' || path === '/live/signup-page/hello')
+    ) {
+      void body(request).then((text) => {
+        const envelope = JSON.parse(text) as {
+          requestId: string;
+          revision: number;
+          updates: Partial<Form>;
+          input: unknown;
+        };
+        posted.push({ path, updates: envelope.updates, input: envelope.input });
+        const child = path.includes('signup-form');
+        const state = child
+          ? {
+              name: envelope.updates.name ?? '',
+              email: envelope.updates.email ?? '',
+            }
+          : { title: 'Join' };
+        response.writeHead(200, { 'content-type': 'application/json' }).end(
+          JSON.stringify({
+            protocol: 'nestvexa-live/1',
+            requestId: envelope.requestId,
+            component: {
+              id: child ? childId : parentId,
+              name: child ? 'signup-form' : 'signup-page',
+              revision: envelope.revision + 1,
+            },
+            snapshot: token,
+            state,
+            // @Title: only a top-level component may change document.title.
+            title: child ? 'Child must not win' : 'Join · updated',
+            html: child
+              ? form({
+                  name: state.name ?? '',
+                  email: state.email ?? '',
+                  errors: false,
+                })
+              : `<h1>Join</h1><button id="hello" type="button" nv:click="hello">Hello</button><div data-nv-component="${childId}" data-nv-key="nv-child:form:main" data-nv-stub=""></div>`,
+          }),
+        );
+      });
       return;
     }
     if (request.method === 'POST' && path === '/live/signup-page/checked') {
@@ -213,6 +261,61 @@ describe('nested child forms', () => {
       .toBe('1');
     await expect.poll(() => active(target)).toBe('email');
     expect(await target.evaluate(() => window.nvErrors)).toEqual([]);
+    await target.close();
+  });
+
+  it('owns nested directives by the nearest root and attaches listeners once (PROT-006)', async () => {
+    const target = await open();
+    posted.length = 0;
+    // A second mount() of the same client must not attach listeners twice.
+    await target.evaluate(() =>
+      (window as unknown as { nvClient: { mount(): void } }).nvClient.mount(),
+    );
+    await target.click('#ping');
+    await expect.poll(() => posted.length).toBe(1);
+    await expect
+      .poll(() =>
+        target.getAttribute('[data-nv-name="signup-form"]', 'data-nv-revision'),
+      )
+      .toBe('1');
+    expect(await target.title()).toBe('Nested forms');
+    await target.click('#hello');
+    await expect.poll(() => posted.length).toBe(2);
+    await target.waitForTimeout(200);
+    expect(posted.map((entry) => entry.path)).toEqual([
+      '/live/signup-form/ping',
+      '/live/signup-page/hello',
+    ]);
+    // The parent response kept the child (stub): the child still works.
+    await target.click('#ping');
+    await expect.poll(() => posted.length).toBe(3);
+    expect(posted[2]?.path).toBe('/live/signup-form/ping');
+    // The parent's title applied; the nested child's title was ignored.
+    expect(await target.title()).toBe('Join · updated');
+    expect(await target.evaluate(() => window.nvErrors)).toEqual([]);
+    await target.close();
+  });
+
+  it('bundles only changed fields with the action ID in one request (PROT-007)', async () => {
+    const target = await open();
+    posted.length = 0;
+    await target.fill('#name', 'Ada');
+    await target.fill('#email', 'ada@example.com');
+    // Deferred models send nothing until an action runs.
+    await target.waitForTimeout(150);
+    expect(posted).toEqual([]);
+    await target.click('#ping');
+    await expect.poll(() => posted.length).toBe(1);
+    expect(posted[0]).toEqual({
+      path: '/live/signup-form/ping',
+      updates: { name: 'Ada', email: 'ada@example.com' },
+      input: null,
+    });
+    // Acknowledged fields are not resent; an unchanged field never is.
+    await target.fill('#name', 'Grace');
+    await target.click('#ping');
+    await expect.poll(() => posted.length).toBe(2);
+    expect(posted[1]?.updates).toEqual({ name: 'Grace' });
     await target.close();
   });
 

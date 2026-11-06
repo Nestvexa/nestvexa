@@ -1424,6 +1424,11 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         state.root.setAttribute('data-nv-realtime', result.realtime);
         refreshRealtime();
       }
+      if (
+        result.title !== undefined &&
+        !state.root.parentElement?.closest('[data-nv-component]')
+      )
+        doc.title = result.title;
       propagateModel(state, previousValues);
       if (result.events?.length) deliverEvents(result.events, state);
       if (result.download) {
