@@ -1,0 +1,52 @@
+<section aria-labelledby="documents-title">
+  <h2 id="documents-title">Upload documents</h2>
+  <form nv:submit="attach">
+    <label for="document-files">
+      Up to 3 files (PNG, JPEG, PDF or TXT), 1 MB each
+    </label>
+    <input
+      id="document-files"
+      type="file"
+      multiple
+      accept=".png,.jpg,.jpeg,.pdf,.txt"
+      aria-describedby="document-files-status"
+      nv:upload="files"
+    />
+    <progress
+      id="document-files-progress"
+      aria-label="Upload progress"
+      value="0"
+      max="1"
+      nv:upload.progress="files"
+    ></progress>
+    <p
+      id="document-files-status"
+      role="status"
+      aria-live="polite"
+      nv:upload.status="files"
+    ></p>
+    <button type="button" nv:upload.cancel="files">
+      Cancel or clear selection
+    </button>
+    <button type="submit">Store uploaded files</button>
+  </form>
+  <p id="documents-message" role="status" aria-live="polite">{{message}}</p>
+  <h2>Stored files</h2>
+  {{#if items.length}}
+  <ul id="document-list">
+    {{#each items}}
+    <li>
+      <a href="/files/{{id}}/download" download>Download {{name}}</a>
+      ({{size}}, {{contentType}})
+      <a href="/files/{{id}}/link">Presigned link for {{name}}</a>
+      <form method="post" action="/files/{{id}}/delete">
+        <input type="hidden" name="_csrf" value="{{../csrf}}" />
+        <button type="submit">Delete {{name}}</button>
+      </form>
+    </li>
+    {{/each}}
+  </ul>
+  {{else}}
+  <p id="document-empty">No files stored yet.</p>
+  {{/if}}
+</section>
