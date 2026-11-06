@@ -17,6 +17,7 @@ import type {
   PresenceMember,
   PresenceStore,
   RealtimeModuleOptions,
+  RealtimeTransportName,
 } from '../packages/realtime/dist/index.js';
 import { RedisPresenceStore } from '../packages/realtime-redis/dist/realtime.js';
 import { respDouble } from './support/resp-double.js';
@@ -412,7 +413,7 @@ describe.each(['express', 'fastify'] as const)(
       for (const transports of [[], ['sse', 'sse'], ['carrier-pigeon']])
         await expect(
           replica(platform, {
-            transports: transports as RealtimeModuleOptions['transports'],
+            transports: transports as RealtimeTransportName[],
           }),
         ).rejects.toThrow(/transports/);
     });
