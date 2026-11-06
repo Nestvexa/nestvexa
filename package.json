@@ -34,6 +34,7 @@
     "test:node22": "pnpm dlx node@22.23.4 scripts/runtime-check.mjs",
     "test:node24": "pnpm dlx node@24.22.1 scripts/runtime-check.mjs",
     "release:check": "node scripts/release-check.mjs",
+    "release:prepare": "node scripts/release-prepare.mjs",
     "test:all": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:e2e && pnpm test:pack && pnpm docs:build && pnpm ledger:check && pnpm audit --audit-level high && pnpm release:check",
     "dev": "pnpm --filter @nestvexa/example-starter-hbs dev"
   },
