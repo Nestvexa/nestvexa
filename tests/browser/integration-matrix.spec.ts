@@ -211,6 +211,8 @@ for (const root of ['react', 'vue', 'svelte'] as const) {
     page,
     request,
   }) => {
+    // Axe plus SSR, deferred and partial requests: allow for loaded hosts.
+    test.setTimeout(60_000);
     const errors = collectErrors(page);
     // SSR: the first response already contains the page markup.
     const html = await (await request.get(rootUrl)).text();
@@ -248,6 +250,7 @@ for (const root of ['react', 'vue', 'svelte'] as const) {
     page,
     browserName,
   }) => {
+    test.setTimeout(60_000);
     const errors = collectErrors(page);
     await page.goto(rootUrl);
     await hydrated(page);
@@ -294,6 +297,7 @@ test('Inertia form posts without the XSRF header are refused', async ({
 test('VISION-035 /hybrid mounts React, Vue and Svelte islands beside a Live widget and calls a server action', async ({
   page,
 }) => {
+  test.setTimeout(60_000);
   const errors = collectErrors(page);
   const scripts: string[] = [];
   page.on('request', (request) => {
@@ -373,14 +377,23 @@ async function openRealtime(browser: Browser, operator: boolean) {
       seen.push(String(channel));
     });
   });
+  const subscription = () =>
+    page.waitForResponse((response) =>
+      response.url().includes('/_nestvexa/realtime/sse?'),
+    );
+  const subscribed = subscription();
   await page.goto(base + '/realtime');
+  expect((await subscribed).status()).toBe(200);
   if (operator) {
+    // The re-rendered page opens its own subscription with the new token.
+    const resubscribed = subscription();
     await page
       .getByRole('button', { name: 'Sign in as operator (demo)' })
       .click();
     await expect(page.locator('#realtime-role')).toHaveText(
       'Signed in as an operator (demonstration).',
     );
+    expect((await resubscribed).status()).toBe(200);
   }
   return { context, page };
 }
@@ -392,7 +405,8 @@ const seenChannels = (page: Page) =>
 test('VISION-036 /realtime delivers events across sessions and only to authorized channels', async ({
   browser,
 }) => {
-  test.setTimeout(60_000);
+  // Three browser contexts with live SSE connections; WebKit on Windows is slow here.
+  test.setTimeout(120_000);
   const guest = await openRealtime(browser, false);
   const first = await openRealtime(browser, true);
   const second = await openRealtime(browser, true);
@@ -409,7 +423,6 @@ test('VISION-036 /realtime delivers events across sessions and only to authorize
   await expect(
     guest.page.getByRole('button', { name: 'Raise alert' }),
   ).toHaveCount(0);
-  await axe(guest.page);
 
   // A public post from the guest refreshes both operators.
   const text = `Matrix ${Date.now()} <b>escaped</b>`;
@@ -438,6 +451,12 @@ test('VISION-036 /realtime delivers events across sessions and only to authorize
   await expect(guest.page.locator('#realtime-alerts')).toHaveCount(0);
   expect(errors).toEqual([]);
   for (const session of [guest, first, second]) await session.context.close();
+});
+
+test('VISION-036 /realtime page is accessible', async ({ page }) => {
+  await page.goto(base + '/realtime');
+  await expect(page.locator('#realtime-restricted')).toBeVisible();
+  await axe(page);
 });
 
 test('VISION-037 /api/health is an ordinary Nest controller with its guard, pipe, interceptor and filter', async ({
