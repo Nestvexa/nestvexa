@@ -75,3 +75,20 @@ button {
   border-left: 4px solid #d1d5db;
   padding-left: 1rem;
 }
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+/* Pushes WhenVisible content well below the first viewport. */
+.spacer {
+  height: 150vh;
+}
+
+/* Tall rows so infinite scroll needs real scrolling to reach the end. */
+.tall-item {
+  min-height: 4rem;
+}

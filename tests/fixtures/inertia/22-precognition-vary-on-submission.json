@@ -1,0 +1,29 @@
+{
+  "name": "An ordinary submission to a Precognition route runs the handler and still varies on Precognition",
+  "source": [
+    "https://inertiajs.com/docs/v3/core-concepts/the-protocol (Vary: 'Set to Precognition on every response that passes through the Precognition middleware')"
+  ],
+  "notes": "The submission handler redirects; the response merges both Vary values.",
+  "serverVersion": "",
+  "request": {
+    "method": "POST",
+    "path": "/precognition/users",
+    "headers": {
+      "x-inertia": "true",
+      "x-requested-with": "XMLHttpRequest",
+      "content-type": "application/json"
+    },
+    "body": {
+      "name": "Jonathan",
+      "email": "jonathan@example.com"
+    }
+  },
+  "response": {
+    "status": 302,
+    "headers": {
+      "location": "/users",
+      "vary": "Precognition, X-Inertia"
+    },
+    "absentHeaders": ["precognition", "precognition-success"]
+  }
+}

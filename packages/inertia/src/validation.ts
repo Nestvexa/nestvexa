@@ -15,7 +15,8 @@ export interface InertiaValidationOptions {
  * Thrown (or produced by `inertiaValidationExceptionFactory`) when input is
  * invalid. `InertiaValidationFilter` flashes the errors into the host session
  * and redirects back, which is how Inertia expects validation to work: the
- * client never receives a 422 for page visits.
+ * client never receives a 422 for page visits. Precognition requests get the
+ * `422` validation-only reply instead.
  */
 export class InertiaValidationException extends Error {
   readonly errors: Readonly<Record<string, readonly string[]>>;
@@ -69,7 +70,8 @@ export function inertiaValidationExceptionFactory(
 
 /**
  * Stores validation errors in the host session and redirects back (303 after
- * PUT/PATCH/DELETE). Requires a host session; without one it answers 500 and
+ * PUT/PATCH/DELETE). For `Precognition: true` requests it answers the `422`
+ * Precognition reply (no session needed). Requires a host session; without one it answers 500 and
  * logs a configuration error instead of silently dropping the errors.
  */
 @Catch(InertiaValidationException)
@@ -87,6 +89,14 @@ export class InertiaValidationFilter implements ExceptionFilter<InertiaValidatio
     const http = host.switchToHttp();
     const request = http.getRequest<object>();
     const response = http.getResponse<object>();
+    // A Precognition client expects the errors themselves, never a redirect.
+    if (this.inertia.isPrecognitive(request)) {
+      this.inertia.write(
+        response,
+        this.inertia.precognitionReply(request, exception.errors),
+      );
+      return;
+    }
     if (!this.inertia.hasSession(request)) {
       this.#logger.error('InertiaValidationException requires a host session');
       this.inertia.write(response, {

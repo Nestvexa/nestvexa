@@ -6,6 +6,15 @@ import type { ConsoleMessage, Page, Request } from '@playwright/test';
 // Vite production build (client + SSR bundle) driven by the official
 // @inertiajs/{react,vue3,svelte} 3.10.0 client against @nestvexa/inertia.
 
+/**
+ * Origin of an example server. `NESTVEXA_E2E_<NAME>_URL` (for example
+ * `NESTVEXA_E2E_REACT_URL`) points a spec at a server started on another port
+ * for isolated local runs; the root config uses the default ports.
+ */
+export function exampleUrl(name: string, port: number): string {
+  return process.env[`NESTVEXA_E2E_${name}_URL`] ?? `http://127.0.0.1:${port}`;
+}
+
 export interface FrameworkSuite {
   readonly framework: 'React' | 'Vue' | 'Svelte';
   readonly base: string;

@@ -13,7 +13,10 @@ import {
   renderAssetTags,
   resolveEntryAssets,
   viteInertiaRootView,
+  viteViewHelpers,
 } from '../packages/vite/dist/index.js';
+import { HbsEngine } from '../packages/engine-hbs/dist/index.js';
+import { SafeHtml } from '../packages/views/dist/index.js';
 import {
   PageNotFoundError,
   PageRegistryError,
@@ -329,6 +332,102 @@ describe('Inertia root view', () => {
       }),
     ).toContain('/client/app.tsx');
     expect(() => viteInertiaRootView(assets, { lang: 'en"><x' })).toThrow();
+  });
+});
+
+describe('view helpers for server-rendered (HBS/Live) pages', () => {
+  let directory: string;
+  let assets: ViteAssets;
+  let engine: HbsEngine;
+  const nonce = 'cmFuZG9tLW5vbmNlLTEyMw==';
+
+  beforeAll(async () => {
+    directory = await mkdtemp(join(tmpdir(), 'nestvexa-vite-views-'));
+    const manifestPath = join(directory, 'manifest.json');
+    await writeFile(manifestPath, JSON.stringify(manifestJson));
+    assets = new ViteAssets({
+      apps: {
+        live: {
+          entries: ['client/app.tsx'],
+          manifest: manifestPath,
+          base: '/build/live/',
+        },
+        admin: {
+          entries: ['client/admin.ts'],
+          manifest: manifestPath,
+          base: '/build/admin/',
+        },
+      },
+    });
+    await writeFile(
+      join(directory, 'layout.hbs'),
+      '<head>{{viteTags "live" nonce=cspNonce}}</head>',
+    );
+    await writeFile(join(directory, 'admin.hbs'), '{{viteTags "admin"}}');
+    await writeFile(join(directory, 'missing.hbs'), '{{viteTags "nope"}}');
+    await writeFile(
+      join(directory, 'extra.hbs'),
+      '{{viteTags "live" nonce=cspNonce async=true}}',
+    );
+    await writeFile(join(directory, 'implicit.hbs'), '{{viteTags}}');
+    engine = new HbsEngine({ root: directory });
+    engine.registerHelpers(viteViewHelpers(assets));
+    await engine.initialize();
+  });
+  afterAll(async () => {
+    await engine.dispose();
+    await rm(directory, { recursive: true, force: true });
+  });
+
+  it('renders css, modulepreload and entry tags with the request nonce through HBS', async () => {
+    const html = await engine.render('layout', { cspNonce: nonce });
+    expect(html).toBe(
+      `<head><meta property="csp-nonce" nonce="${nonce}">` +
+        '<link rel="stylesheet" href="/build/live/assets/vendor-H8i9j0k1.css">' +
+        '<link rel="stylesheet" href="/build/live/assets/app-D4e5f6g7.css">' +
+        `<link rel="modulepreload" href="/build/live/assets/vendor-C1a2b3c4.js" nonce="${nonce}">` +
+        `<script type="module" src="/build/live/assets/app-B9xk2Q_a.js" nonce="${nonce}"></script></head>`,
+    );
+    // Without a nonce variable the tags are still emitted, nonce-free.
+    expect(await engine.render('admin', {})).toBe(
+      '<link rel="stylesheet" href="/build/admin/assets/vendor-H8i9j0k1.css">' +
+        '<link rel="modulepreload" href="/build/admin/assets/vendor-C1a2b3c4.js">' +
+        '<script type="module" src="/build/admin/assets/admin-P6q7r8s9.js"></script>',
+    );
+  });
+
+  it('rejects unsafe nonces, unknown apps and options instead of printing them', async () => {
+    await expect(
+      engine.render('layout', { cspNonce: '"><script>alert(1)</script>' }),
+    ).rejects.toThrow();
+    await expect(engine.render('missing', {})).rejects.toThrow();
+    await expect(engine.render('extra', { cspNonce: nonce })).rejects.toThrow();
+    // Two apps are configured, so the app name is required.
+    await expect(engine.render('implicit', {})).rejects.toThrow();
+  });
+
+  it('supports plain-object calls (EJS/Pug/Nunjucks), a default app and custom names', () => {
+    const { viteTags } = viteViewHelpers(assets);
+    const tags = viteTags?.('admin', { nonce });
+    expect(tags).toBeInstanceOf(SafeHtml);
+    expect((tags as SafeHtml).value).toContain(
+      `admin-P6q7r8s9.js" nonce="${nonce}"`,
+    );
+    const { assetTags } = viteViewHelpers(assets, {
+      name: 'assetTags',
+      app: 'live',
+    });
+    expect((assetTags?.() as SafeHtml).value).toContain('app-B9xk2Q_a.js');
+    expect(() => viteViewHelpers(assets, { app: 'vue' })).toThrow(
+      /Unknown Vite app "vue"/,
+    );
+    expect(() => viteViewHelpers(assets, { name: 'bad name' })).toThrow(
+      ViteConfigurationError,
+    );
+    expect(() => viteTags?.('admin', { nonce: 42 })).toThrow(
+      /nonce must be a string/,
+    );
+    expect(() => viteTags?.('admin', 'extra')).toThrow(ViteConfigurationError);
   });
 });
 

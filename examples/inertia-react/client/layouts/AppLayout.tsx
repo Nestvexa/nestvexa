@@ -33,6 +33,7 @@ export default function AppLayout({
           <Link href="/">Home</Link>
           <Link href="/users">Users</Link>
           <Link href="/uploads">Uploads</Link>
+          <Link href="/features">Features</Link>
           <Link href="/broken">Broken page</Link>
         </nav>
       </header>

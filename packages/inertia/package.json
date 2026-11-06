@@ -37,7 +37,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run ../../tests/inertia-protocol.test.ts ../../tests/inertia-http.test.ts ../../tests/inertia-security.test.ts",
+    "test": "vitest run ../../tests/inertia-protocol.test.ts ../../tests/inertia-http.test.ts ../../tests/inertia-security.test.ts ../../tests/inertia-precognition.test.ts ../../tests/inertia-golden.test.ts",
     "lint": "eslint src"
   },
   "dependencies": {

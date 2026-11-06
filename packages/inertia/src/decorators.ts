@@ -1,7 +1,13 @@
 import { SetMetadata, UseInterceptors, applyDecorators } from '@nestjs/common';
-import { INERTIA_PAGE_METADATA } from './constants.js';
+import { INERTIA_PAGE_METADATA, PRECOGNITION_METADATA } from './constants.js';
 import { InertiaConfigurationError } from './errors.js';
 import { InertiaInterceptor } from './interceptor.js';
+import { isPrecognitionSchema } from './precognition.js';
+import type {
+  PrecognitionMetadata,
+  PrecognitionValidator,
+  PrecognitiveOptions,
+} from './precognition.js';
 import type { InertiaRenderOptions } from './results.js';
 import { validComponent } from './text.js';
 
@@ -64,4 +70,49 @@ export function InertiaPage(
  */
 export function UseInertia(): ClassDecorator & MethodDecorator {
   return UseInterceptors(InertiaInterceptor);
+}
+
+/**
+ * Answers Precognition requests for this route with validation only: the
+ * handler (and its pipes) never runs for them. Passing input answers `204`
+ * with `Precognition-Success: true`; failing input answers `422` with
+ * `{ message, errors }` (errors as message arrays, filtered by
+ * `Precognition-Validate-Only`). Every response of the route carries
+ * `Vary: Precognition`. Ordinary submissions reach the handler unchanged, so
+ * validate them there as usual (for example with the same adapter).
+ *
+ * ```ts
+ * const user = zodAdapter(z.object({ name: z.string().min(1) }));
+ * @Post('users') @Precognitive(user) store(@Body() body: unknown) { ... }
+ * ```
+ */
+export function Precognitive(
+  validator: PrecognitionValidator,
+  options: PrecognitiveOptions = {},
+): MethodDecorator {
+  if (typeof validator !== 'function' && !isPrecognitionSchema(validator))
+    throw new InertiaConfigurationError(
+      '@Precognitive requires a validator function or a schema with validate()',
+    );
+  if (typeof options !== 'object' || options === null)
+    throw new InertiaConfigurationError(
+      '@Precognitive options must be an object',
+    );
+  for (const key of Object.keys(options))
+    if (key !== 'input')
+      throw new InertiaConfigurationError(
+        `Unknown @Precognitive option "${key}"`,
+      );
+  if (options.input !== undefined && typeof options.input !== 'function')
+    throw new InertiaConfigurationError(
+      '@Precognitive input must be a function',
+    );
+  const metadata: PrecognitionMetadata = Object.freeze({
+    validator,
+    input: options.input,
+  });
+  return applyDecorators(
+    SetMetadata(PRECOGNITION_METADATA, metadata),
+    UseInterceptors(InertiaInterceptor),
+  );
 }

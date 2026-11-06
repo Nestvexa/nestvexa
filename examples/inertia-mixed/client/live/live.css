@@ -1,0 +1,10 @@
+/* Loaded through the Vite manifest; the browser test reads this marker. */
+:root {
+  --live-assets: loaded;
+}
+
+.live-panel {
+  border: 2px solid #1d4ed8;
+  border-radius: 0.5rem;
+  padding: 1rem;
+}

@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { Controller, Get, Inject, Post, Put, Req } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Post, Put, Req } from '@nestjs/common';
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -8,12 +8,14 @@ import {
   InertiaPage,
   InertiaService,
   InertiaValidationException,
+  Precognitive,
   defer,
   deepMerge,
   location,
   merge,
   once,
   redirect,
+  isPrecognitionRequest,
   scroll,
 } from '../packages/inertia/dist/index.js';
 import type { INestApplication } from '@nestjs/common';
@@ -37,6 +39,7 @@ interface Fixture {
     readonly method: string;
     readonly path: string;
     readonly headers: Readonly<Record<string, string>>;
+    readonly body?: unknown;
   };
   readonly response: {
     readonly status: number;
@@ -68,6 +71,20 @@ const event = {
   start_date: '2019-06-02',
   description: "Come out and celebrate Jonathan's 36th birthday party!",
 };
+
+/** Field rules of the Precognition vectors (the messages Laravel's validator uses). */
+function userErrors(input: unknown): Record<string, string> | undefined {
+  const body = (input ?? {}) as Record<string, unknown>;
+  const errors: Record<string, string> = {};
+  if (typeof body['name'] !== 'string' || body['name'] === '')
+    errors['name'] = 'The name field is required.';
+  if (
+    typeof body['email'] !== 'string' ||
+    !/^[^\s@]+@[^\s@]+$/.test(body['email'])
+  )
+    errors['email'] = 'The email must be a valid email address.';
+  return Object.keys(errors).length ? errors : undefined;
+}
 
 @Controller()
 class GoldenController {
@@ -229,6 +246,15 @@ class GoldenController {
   create() {
     return {};
   }
+
+  @Post('precognition/users')
+  @Precognitive(userErrors)
+  storeUser(@Req() request: object, @Body() body: unknown) {
+    if (isPrecognitionRequest(request)) forbidden.push('precognition handler');
+    const errors = userErrors(body);
+    if (errors) throw new InertiaValidationException(errors);
+    return redirect('/users');
+  }
 }
 
 @Controller()
@@ -316,7 +342,7 @@ describe.each(['express', 'fastify'] as const)(
     afterAll(closeAll);
 
     it('loads every fixture with an upstream citation', () => {
-      expect(fixtures.length).toBeGreaterThanOrEqual(17);
+      expect(fixtures.length).toBeGreaterThanOrEqual(22);
       for (const fixture of fixtures) {
         expect(fixture.source.length, fixture.name).toBeGreaterThan(0);
         expect(fixture.source.join(' '), fixture.name).toMatch(
@@ -349,6 +375,9 @@ describe.each(['express', 'fastify'] as const)(
         const result = await browser.send(fixture.request.path, {
           method: fixture.request.method,
           headers: { ...fixture.request.headers, ...versionHeader, ...sid },
+          ...(fixture.request.body === undefined
+            ? {}
+            : { body: fixture.request.body }),
         });
         compare(fixture, result);
         expect(

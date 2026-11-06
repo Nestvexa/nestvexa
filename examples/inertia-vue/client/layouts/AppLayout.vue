@@ -26,6 +26,7 @@ const success = computed(() => {
     <nav aria-label="Main">
       <Link href="/">Home</Link>
       <Link href="/users">Users</Link>
+      <Link href="/features">Features</Link>
       <Link href="/broken">Broken page</Link>
     </nav>
   </header>

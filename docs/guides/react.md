@@ -83,6 +83,38 @@ API with a `File` value (`forceFormData: true`); the example validates with
 Nest's `FileInterceptor` and redirects with flash data. CSRF stays host-owned
 (the example mirrors a session token into `XSRF-TOKEN`).
 
+## Live validation (Precognition)
+
+`useForm('post', '/features/signup', data)` enables Precognition in the
+official client: `form.validate('name')` (here on blur) sends a
+validation-only request and `form.invalid()`/`form.valid()`/`form.errors`
+reflect the answer. Declare the Nest route with `@Precognitive(schema)`; the
+same `@nestvexa/forms` adapter validates the real submission in the handler
+(see `examples/inertia-react/src/features.ts` and the
+[Inertia guide](inertia.md#precognition-live-validation)).
+
+## Client-owned features verified in the browser
+
+`/features` in the example is a tour of the official client's features, each
+asserted against the wire traffic in `tests/browser/inertia-react-features.spec.ts`:
+hover prefetch reused on click (`<Link prefetch="hover">`), instant visits
+(`<Link component="Features/Slow">` renders before the server answers),
+`router.visit`/`router.post` and `<Link method="post">`, view transitions
+(when the browser has `document.startViewTransition`), `usePoll` partial
+reloads, `<InfiniteScroll>` over a `scroll()` prop and a `merge()` prop,
+`<WhenVisible>` over an `optional()` prop, `useRemember`/remembered `useForm`,
+`once()` props reused with `X-Inertia-Except-Once-Props`, history encryption
+(`encryptHistory`) with `clearHistory` invalidating old entries, `optimistic`
+visits with rollback on a validation error, Precognition, and a 2.6 MB page
+payload over SSR and XHR. The server side of each is ordinary Nest code.
+
+## Client-only mode
+
+`pnpm start:csr` runs the same build without SSR (the `ssr` option is
+omitted); `mountReactInertiaApp` then mounts with `createRoot` into the empty
+root. The browser test checks the document carries no server markup and that
+navigation and validation work.
+
 ## Error boundaries
 
 `mountReactInertiaApp` wraps the app in `ErrorBoundary`; the example also puts
