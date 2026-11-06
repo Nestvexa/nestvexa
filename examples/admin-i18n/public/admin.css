@@ -128,3 +128,12 @@ main:focus {
   max-inline-size: 40rem;
   margin-block-start: 1rem;
 }
+
+.kit-toolbar,
+.kit-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+  margin-block: 1rem;
+}

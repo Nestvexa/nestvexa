@@ -1,0 +1,93 @@
+{{uiBreadcrumbs crumbs label=(t "kit:breadcrumb")}}
+<h1 id="page-title">{{t "kit:heading"}}</h1>
+<p>
+  {{t "common:notifications"}} {{uiBadge (t "kit:unread" count=unread)
+  count=unread live=true id="kit-unread"}}
+</p>
+{{#if archivedText}} {{#uiAlert tone="success" id="kit-archived" dismissLabel=(t
+"common:dismiss")}}
+<p>{{archivedText}}</p>
+{{/uiAlert}} {{/if}} {{#uiAlert tone="info" title=(t "kit:notice.title")
+id="kit-notice" live=false}}
+<p>{{t "kit:notice.body"}}</p>
+{{/uiAlert}}
+
+<div class="kit-toolbar">
+  {{#uiMenu id="kit-actions" label=(t "kit:actions")}} {{uiMenuItem (t
+  "kit:menu.admin") href="/admin"}} {{uiMenuItem (t "kit:menu.newProduct")
+  href="/admin/products/new"}} {{uiMenuItem (t "kit:menu.copy")
+  value="copy-link"}} {{/uiMenu}} {{#uiPopover id="kit-help" label=(t
+  "kit:help") title=(t "kit:helpTitle")}}
+  <p>{{t "kit:helpBody"}}</p>
+  {{/uiPopover}} {{#uiTooltip id="kit-price-tip" text=(t "kit:priceTip")
+  label=(t "kit:priceHelp")}}<span aria-hidden="true">?</span>{{/uiTooltip}}
+  {{uiDialogTrigger "kit-filters" label=(t "kit:openFilters")}}
+</div>
+
+{{#uiAccordion id="kit-faq" level=2}} {{#uiAccordionItem id="shipping" title=(t
+"kit:faq.shipping") open=true}}
+<p>{{t "kit:faq.shippingBody"}}</p>
+{{/uiAccordionItem}} {{#uiAccordionItem id="returns" title=(t
+"kit:faq.returns")}}
+<p>{{t "kit:faq.returnsBody"}}</p>
+{{/uiAccordionItem}} {{/uiAccordion}}
+
+<div class="kit-fields">
+  {{uiDatePicker id="kit-launch" name="launch" label=(t "kit:launch")
+  locale=lang min="2026-01-01" max="2027-12-31"}} {{uiFileUpload id="kit-files"
+  name="files" label=(t "kit:attachments") accept=".png,.pdf" multiple=true
+  hint=(t "kit:attachmentsHint") dropLabel=(t "kit:drop") selectedLabel=(t
+  "kit:selectedFiles")}}
+</div>
+
+{{#uiWizard id="kit-wizard" label=(t "kit:wizard.label") current=step
+stepLabel=(t "kit:wizard.step") completedLabel=(t "kit:wizard.completed")}}
+{{#uiWizardStep id="details" title=(t "kit:wizard.details")
+href="/admin/kit?step=details"}}
+<p>{{t "kit:wizard.detailsBody"}}</p>
+<a class="nv-button" href="/admin/kit?step=pricing">{{t "kit:wizard.next"}}</a
+>{{/uiWizardStep}} {{#uiWizardStep id="pricing" title=(t "kit:wizard.pricing")
+href="/admin/kit?step=pricing"}}
+<p>{{t "kit:wizard.pricingBody"}}</p>
+<a class="nv-button" href="/admin/kit?step=review">{{t "kit:wizard.next"}}</a
+>{{/uiWizardStep}} {{#uiWizardStep id="review" title=(t "kit:wizard.review")}}
+<p>{{t "kit:wizard.reviewBody"}}</p>
+{{/uiWizardStep}} {{/uiWizard}}
+
+<form method="post" action="/admin/kit/archive" id="kit-bulk">
+  <input type="hidden" name="_csrf" value="{{csrf}}" />
+  <div class="kit-toolbar">
+    {{uiTableSearch table="kit-products" label=(t "kit:table.search")
+    client=true resultsLabel=(t "kit:table.results")}} {{uiTableFilter
+    table="kit-products" key="category" label=(t "kit:table.category")
+    allLabel=(t "kit:table.allCategories") options=categoryOptions client=true
+    resultsLabel=(t "kit:table.results")}}
+  </div>
+  {{#uiDataTable id="kit-products" caption=(t "kit:table.caption")
+  selectionLabel=(t "kit:table.selected")}}
+  <thead>
+    <tr>
+      {{uiSelectAll table="kit-products" label=(t "kit:table.selectAll")}}
+      <th scope="col">{{t "kit:table.name"}}</th>
+      <th scope="col">{{t "kit:table.category"}}</th>
+      <th scope="col">{{t "kit:table.status"}}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each products}}
+    <tr data-category="{{category}}">
+      {{uiSelectRow name="ids" value=id label=selectLabel}}
+      <td>{{name}}</td>
+      <td>{{categoryLabel}}</td>
+      <td>{{statusLabel}}</td>
+    </tr>
+    {{/each}}
+  </tbody>
+  {{/uiDataTable}}
+  <button type="submit" class="nv-button">{{t "kit:table.archive"}}</button>
+</form>
+
+{{#uiDrawer id="kit-filters" title=(t "kit:filters") closeLabel=(t
+"common:close")}}
+<p>{{t "kit:filtersBody"}}</p>
+{{/uiDrawer}}

@@ -14,6 +14,7 @@
     "@nestvexa/ai": "workspace:*",
     "@nestvexa/flags": "workspace:*",
     "@nestvexa/i18n": "workspace:*",
+    "@nestvexa/observability": "workspace:*",
     "@nestvexa/offline": "workspace:*",
     "@nestvexa/ui": "workspace:*",
     "express-session": "1.19.0",
