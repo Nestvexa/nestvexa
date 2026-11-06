@@ -25,6 +25,12 @@ import { PassThrough } from 'node:stream';
 import { MemoryRealtimeBroker } from './broker.js';
 import type { RealtimeBroker, RealtimeEvent } from './broker.js';
 import { RealtimeHub, RealtimeRejection } from './hub.js';
+import {
+  channelKind,
+  isRealtimeInstrumentation,
+  startSpan,
+} from './instrumentation.js';
+import type { RealtimeInstrumentation } from './instrumentation.js';
 import type {
   HubLimits,
   PresenceMember,
@@ -64,6 +70,13 @@ export interface RealtimeModuleOptions {
   readonly endpoint?: string;
   readonly tokenTtlMs?: number;
   readonly limits?: Partial<HubLimits>;
+  /**
+   * Optional tracing hook (for example `MemoryInstrumentation` or
+   * `openTelemetryInstrumentation` from @nestvexa/observability): spans
+   * `nestvexa.realtime.publish`, `.subscribe`, `.connection` and `.deliver`
+   * with transports, channel kinds, counts, sizes and rejection codes only.
+   */
+  readonly instrumentation?: RealtimeInstrumentation;
 }
 const defaults: Required<HubLimits> = {
   maxConnections: 1000,
@@ -132,7 +145,18 @@ export class RealtimeService
         ? {}
         : { ttlMs: options.tokenTtlMs }),
     });
-    this.hub = new RealtimeHub(this.broker, this.signer, options, limits);
+    if (
+      options.instrumentation !== undefined &&
+      !isRealtimeInstrumentation(options.instrumentation)
+    )
+      throw new Error('Realtime instrumentation must have a start() method');
+    this.hub = new RealtimeHub(
+      this.broker,
+      this.signer,
+      options,
+      limits,
+      options.instrumentation,
+    );
   }
   /**
    * Invalidate subscribers of a channel. `data` is public JSON (≤16 KiB).
@@ -149,7 +173,26 @@ export class RealtimeService
       !this.hub.takePublish(options.identity)
     )
       throw new HttpException({ statusCode: 429, code: 'RATE_LIMITED' }, 429);
-    return this.broker.publish(channel, data);
+    const span = startSpan(
+      this.options.instrumentation,
+      'nestvexa.realtime.publish',
+      {
+        'nestvexa.realtime.channel_kind':
+          typeof channel === 'string' ? channelKind(channel) : 'invalid',
+      },
+    );
+    try {
+      const event = await this.broker.publish(channel, data);
+      span.end('ok', {
+        'nestvexa.realtime.payload_bytes': Buffer.byteLength(
+          JSON.stringify(event.data) ?? '',
+        ),
+      });
+      return event;
+    } catch (error) {
+      span.end('error');
+      throw error;
+    }
   }
   /**
    * Members connected to `channel` on this replica, for a reader who may read
@@ -304,6 +347,7 @@ function controller(endpoint: string): Type<object> {
           tokensOf(tokens),
           sink,
           cursor,
+          'sse',
         );
       } catch (error) {
         rejection(error);
@@ -357,6 +401,7 @@ function controller(endpoint: string): Type<object> {
           tokensOf(tokens),
           sink,
           cursor,
+          'poll',
         );
       } catch (error) {
         rejection(error);
@@ -524,6 +569,7 @@ export async function attachRealtimeWebSocket(
               tokensOf(tokens),
               sink,
               parseCursor(cursor),
+              'websocket',
             );
             if (open) ws.send(JSON.stringify({ type: 'ready' }));
             else subscription.close();

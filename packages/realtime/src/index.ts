@@ -27,6 +27,11 @@ export {
   type RealtimeModuleAsyncOptions,
 } from './module.js';
 export {
+  type RealtimeInstrumentation,
+  type RealtimeSpan,
+  type RealtimeSpanAttributes,
+} from './instrumentation.js';
+export {
   createTokenSigner,
   parseChannel,
   RealtimeTokenError,
