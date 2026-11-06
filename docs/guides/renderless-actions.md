@@ -37,9 +37,13 @@ export class ActivityPanel {
 | Response `html`                                                | rendered fragment | `""` with `renderless: true`         |
 | Browser DOM                                                    | keyed morph       | retained subtree, bindings refreshed |
 
-The server answers renderless **only** when the request carries the exact header
-`x-nestvexa-capabilities: renderless-v1`. Any other value (missing, different
-case, a list, a later version) receives a normal rendered response. The bundled
+The server answers renderless **only** when the `x-nestvexa-capabilities` token
+list contains `renderless-v1` (for example `renderless-v1` or
+`future-v2, renderless-v1`). A missing header, an empty value or only other
+well-formed tokens (such as `renderless-v2`) receive a normal rendered response;
+a malformed header (uppercase, separators other than commas, more than 16 tokens)
+is rejected with `400 INVALID_CAPABILITIES` before any guard or component code
+runs. See [capability negotiation](../reference/live-protocol.md#capability-negotiation-and-versioning). The bundled
 client sends the capability for ordinary actions. Stream refreshes, which must
 replace HTML, never send it, and the client rejects a renderless reply to such a
 request instead of silently keeping stale markup.
