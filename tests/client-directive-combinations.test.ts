@@ -785,11 +785,11 @@ const loadingRows: Row[] = [
     name: 'nv:loading.attr.delay disables a slow control only after the delay',
     ...counter,
     hold: true,
-    html: `${output}<button id="go" type="button" nv:click="increment" nv:loading.attr.delay.100ms="disabled">Go</button>`,
+    html: `${output}<button id="go" type="button" nv:click="increment" nv:loading.attr.delay.1000ms="disabled">Go</button>`,
     steps: [
       { click: '#go' },
       { expect: { attrs: { '#go': { disabled: null } } } },
-      { wait: 250 },
+      { wait: 1300 },
       { expect: { attrs: { '#go': { disabled: '' } } } },
       { release: 'all' },
       { expect: { attrs: { '#go': { disabled: null } } } },
