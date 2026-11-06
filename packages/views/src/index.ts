@@ -27,6 +27,11 @@ export interface RenderOptions {
   readonly partials?: Readonly<Record<string, string>>;
   readonly slots?: Readonly<Record<string, SafeHtml>>;
   readonly helpers?: Readonly<Record<string, ViewHelper>>;
+  /**
+   * Registered theme whose override directory is searched first for the view,
+   * its layouts and its partials. Unknown themes fail with `INVALID_VIEW`.
+   */
+  readonly theme?: string;
 }
 /** Engines render trusted templates with explicitly supplied public view models. */
 export interface ViewEngineAdapter {
@@ -209,8 +214,41 @@ export {
   copyViewModel,
   expressViewModel,
   invokeViewHelper,
+  normalizeQualifiedViewId,
   normalizeViewId,
+  parseViewName,
   resolveTemplateReference,
   type TemplateRootOptions,
   type ViewModelLimits,
+  type ViewName,
 } from './adapter-kit.js';
+export {
+  RouteTable,
+  assetHelpers,
+  escapeHtml,
+  grantPermissions,
+  helperArguments,
+  pageMetaHelpers,
+  permissionHelpers,
+  routeHelpers,
+  routesFromControllers,
+  type ControllerRouteOptions,
+  type HelperArguments,
+  type PageMeta,
+  type PageMetaOptions,
+  type RouteParams,
+  type RouteTableOptions,
+  type ViewAssetProvider,
+  type ViewPermissionCheck,
+} from './helpers.js';
+export {
+  ViewErrorPageFilter,
+  errorStatus,
+  renderErrorPage,
+  templateLocation,
+  type ErrorPage,
+  type ErrorPageHost,
+  type ErrorPageOptions,
+  type TemplateLocation,
+  type ViewErrorPageFilterOptions,
+} from './error-pages.js';

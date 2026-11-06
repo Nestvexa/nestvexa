@@ -109,3 +109,34 @@ export {
   type SubmitFormOptions,
   type SubmitOutcome,
 } from './progressive.js';
+export {
+  defineForm,
+  type FileFieldOptions,
+  type FormDefinition,
+  type FormDefinitionOptions,
+  type FormSnapshot,
+  type FormViewData,
+} from './form.js';
+export {
+  classValidatorHints,
+  hintAttributeString,
+  hintAttributes,
+  hintsFromJsonSchema,
+  zodHints,
+  type FieldHint,
+  type FormHints,
+  type JsonSchemaSource,
+} from './hints.js';
+export {
+  defaultUploadMessages,
+  finalizeFileField,
+  isUploadError,
+  uploadFormErrors,
+  type FinalizeFieldResult,
+} from './uploads.js';
+export {
+  FormValidationPipe,
+  actionSchema,
+  type FormActionSchema,
+  type FormSchemaIssue,
+} from './nest.js';

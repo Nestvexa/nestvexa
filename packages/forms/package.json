@@ -42,7 +42,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run ../../tests/forms-adapters.test.ts ../../tests/forms-hardening.test.ts ../../tests/forms-state.test.ts ../../tests/forms-progressive.test.ts ../../tests/forms-live.test.ts",
+    "test": "vitest run ../../tests/forms-adapters.test.ts ../../tests/forms-hardening.test.ts ../../tests/forms-state.test.ts ../../tests/forms-progressive.test.ts ../../tests/forms-live.test.ts ../../tests/forms-state-object.test.ts ../../tests/forms-actions.test.ts",
     "lint": "eslint src"
   },
   "peerDependencies": {

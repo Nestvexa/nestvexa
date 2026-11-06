@@ -32,6 +32,13 @@ export interface NunjucksOptions {
   readonly filters?: Readonly<Record<string, ViewHelper>>;
   readonly trimBlocks?: boolean;
   readonly lstripBlocks?: boolean;
+  /** Namespace -> trusted directory, addressed as `admin::users/index`. */
+  readonly namespaces?: Readonly<Record<string, string>>;
+  /**
+   * Theme -> trusted override directory, selected per render with
+   * `RenderOptions.theme`. Each theme gets its own environment and cache.
+   */
+  readonly themes?: Readonly<Record<string, string>>;
 }
 
 const capabilities: ViewCapabilities = Object.freeze({
@@ -106,8 +113,11 @@ export class NunjucksEngine implements ViewEngineAdapter {
   readonly #root: TemplateRoot;
   readonly #options: NunjucksOptions;
   readonly #debug: boolean;
-  readonly #loader: RootLoader;
-  readonly #env: nunjucks.Environment;
+  /** One environment per theme (`''` = no theme): Nunjucks caches by template name. */
+  readonly #environments = new Map<
+    string,
+    { readonly env: nunjucks.Environment; readonly loader: RootLoader }
+  >();
   readonly #aliases: Aliases;
   /** Partial aliases of the synchronous render currently executing. */
   #activeAliases: Aliases | undefined;
@@ -118,6 +128,10 @@ export class NunjucksEngine implements ViewEngineAdapter {
       ...(options.maxTemplateBytes === undefined
         ? {}
         : { maxTemplateBytes: options.maxTemplateBytes }),
+      ...(options.namespaces === undefined
+        ? {}
+        : { namespaces: options.namespaces }),
+      ...(options.themes === undefined ? {} : { themes: options.themes }),
     });
     this.#options = Object.freeze({ ...options });
     this.#debug = options.debug ?? !options.cache;
@@ -126,25 +140,36 @@ export class NunjucksEngine implements ViewEngineAdapter {
     assertViewAliases(helpers);
     assertViewAliases(filters);
     this.#aliases = this.#aliasMap(options.partials ?? {});
-    this.#loader = new RootLoader({ source: (name) => this.#source(name) });
-    this.#env = new nunjucks.Environment(this.#loader, {
-      autoescape: true,
-      throwOnUndefined: false,
-      trimBlocks: options.trimBlocks ?? false,
-      lstripBlocks: options.lstripBlocks ?? false,
-      // Retains the original cause chain; ViewError hides it from HTTP clients.
-      dev: true,
-    });
-    for (const [name, helper] of Object.entries(helpers))
-      this.#env.addGlobal(name, adapt(helper));
-    for (const [name, filter] of Object.entries(filters))
-      this.#env.addFilter(name, adapt(filter));
+    for (const theme of [undefined, ...this.#root.themes]) {
+      const loader = new RootLoader({
+        source: (name) => this.#source(name, theme),
+      });
+      const env = new nunjucks.Environment(loader, {
+        autoescape: true,
+        throwOnUndefined: false,
+        trimBlocks: options.trimBlocks ?? false,
+        lstripBlocks: options.lstripBlocks ?? false,
+        // Retains the original cause chain; ViewError hides it from HTTP clients.
+        dev: true,
+      });
+      for (const [name, helper] of Object.entries(helpers))
+        env.addGlobal(name, adapt(helper));
+      for (const [name, filter] of Object.entries(filters))
+        env.addFilter(name, adapt(filter));
+      this.#environments.set(theme ?? '', { env, loader });
+    }
+  }
+  #environment(theme: string | undefined): nunjucks.Environment {
+    const entry = this.#environments.get(theme ?? '');
+    if (!entry) throw new ViewError('INVALID_VIEW', 'Unknown view theme');
+    return entry.env;
   }
   async initialize(): Promise<void> {
     await this.#root.assertDirectory();
   }
   clearCache(): void {
-    this.#loader.cache = undefined;
+    for (const { loader } of this.#environments.values())
+      loader.cache = undefined;
   }
   async dispose(): Promise<void> {
     this.clearCache();
@@ -161,25 +186,30 @@ export class NunjucksEngine implements ViewEngineAdapter {
    * names are partial aliases (render-level first) or extensionless IDs; they
    * are never cached so render-local aliases cannot be served stale.
    */
-  #source(name: string): nunjucks.LoaderSource {
+  #source(name: string, theme: string | undefined): nunjucks.LoaderSource {
     const file = name.endsWith('.njk');
     const id = file
       ? this.#root.id(name)
       : (this.#activeAliases?.[name] ??
         this.#aliases[name] ??
         this.#root.id(name));
-    const filename = this.#root.resolveSync(id);
+    const filename = this.#root.resolveSync(id, undefined, theme);
     return {
       src: this.#root.readSync(filename),
       path: filename,
       noCache: !this.#options.cache || !file,
     };
   }
-  #run(view: string, context: object, aliases: Aliases): string {
+  #run(
+    view: string,
+    context: object,
+    aliases: Aliases,
+    theme: string | undefined,
+  ): string {
     const previous = this.#activeAliases;
     this.#activeAliases = aliases;
     try {
-      const html: unknown = this.#env.render(view, context);
+      const html: unknown = this.#environment(theme).render(view, context);
       if (typeof html !== 'string')
         throw new ViewError(
           'RENDER_FAILED',
@@ -196,9 +226,10 @@ export class NunjucksEngine implements ViewEngineAdapter {
     options: RenderOptions = {},
   ): Promise<string> {
     try {
+      const theme = this.#root.theme(options.theme);
       const id = this.#root.id(view);
       // Fail closed on missing or escaping views before Nunjucks sees the name.
-      await this.#root.resolve(id);
+      await this.#root.resolve(id, undefined, theme);
       const safe = copyViewModel(model, trusted);
       const aliases = this.#aliasMap({ ...options.partials });
       const helpers = options.helpers ?? {};
@@ -220,8 +251,8 @@ export class NunjucksEngine implements ViewEngineAdapter {
       context['slots'] = copyViewModel(slots, trusted);
       const layoutView = options.layout ?? this.#options.defaultLayout;
       const layout = layoutView ? this.#root.id(layoutView) : undefined;
-      if (layout) await this.#root.resolve(layout);
-      const html = this.#run(id, context, aliases);
+      if (layout) await this.#root.resolve(layout, undefined, theme);
+      const html = this.#run(id, context, aliases, theme);
       if (!layout) return html;
       return this.#run(
         layout,
@@ -229,6 +260,7 @@ export class NunjucksEngine implements ViewEngineAdapter {
           body: new SafeString(html),
         }),
         aliases,
+        theme,
       );
     } catch (cause) {
       const policy = policyError(cause);
