@@ -156,6 +156,8 @@ export interface EventDirective {
   readonly key?: string;
   readonly debounceMs?: number;
   readonly throttleMs?: number;
+  /** Listen on the owning window/document while the declaring element stays owned. */
+  readonly scope?: 'window' | 'document';
 }
 const keyNames: Readonly<Record<string, string>> = Object.freeze({
   enter: 'Enter',
@@ -199,11 +201,18 @@ export function parseEventDirective(
   let key: string | undefined;
   let debounceMs: number | undefined;
   let throttleMs: number | undefined;
+  let scope: 'window' | 'document' | undefined;
   for (let index = 0; index < modifiers.length; index++) {
     const modifier = modifiers[index];
     if (!modifier || enabled.has(modifier)) invalid();
     enabled.add(modifier);
     if (flags.has(modifier)) continue;
+    if (modifier === 'window' || modifier === 'document') {
+      // Global listeners exist for click/keydown only; one scope per binding.
+      if (kind === 'submit' || scope !== undefined) invalid();
+      scope = modifier;
+      continue;
+    }
     if (Object.hasOwn(keyNames, modifier)) {
       if (kind !== 'keydown' || key !== undefined) invalid();
       key = keyNames[modifier];
@@ -222,6 +231,9 @@ export function parseEventDirective(
     if (modifier === 'debounce') debounceMs = interval;
     else throttleMs = interval;
   }
+  // `.self` cannot match a global target and a window listener runs too late to stop propagation.
+  if (scope !== undefined && (enabled.has('self') || enabled.has('stop')))
+    invalid();
   const directive: EventDirective = Object.freeze({
     kind,
     action: parseIdentifier(value),
@@ -236,6 +248,7 @@ export function parseEventDirective(
     ...(key === undefined ? {} : { key }),
     ...(debounceMs === undefined ? {} : { debounceMs }),
     ...(throttleMs === undefined ? {} : { throttleMs }),
+    ...(scope === undefined ? {} : { scope }),
   });
   parsedNames.set(directive, name);
   return directive;
@@ -281,6 +294,7 @@ function signature(directive: EventDirective): string {
     directive.key,
     directive.debounceMs,
     directive.throttleMs,
+    directive.scope,
   ]);
 }
 function keyboard(event: Event, directive: EventDirective): boolean {

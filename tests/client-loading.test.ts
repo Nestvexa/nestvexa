@@ -66,7 +66,12 @@ describe('closed loading directive grammar', () => {
   it.each([
     ['nv:loading', 'save'],
     ['nv:loading.remove', 'x'],
-    ['nv:loading.delay', ''],
+    ['nv:loading.delay', 'x'],
+    ['nv:loading.delay.0ms', ''],
+    ['nv:loading.delay.10001ms', ''],
+    ['nv:loading.delay.remove', ''],
+    ['nv:loading.delay.delay', ''],
+    ['nv:loading.delay.5s', ''],
     ['nv:loading.class.remove.remove', 'busy'],
     ['nv:loading.remove.class', 'busy'],
     ['nv:loading.attr.class', 'disabled'],
