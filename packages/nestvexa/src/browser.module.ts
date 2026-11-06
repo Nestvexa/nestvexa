@@ -159,12 +159,14 @@ export class NestvexaBrowserService implements OnApplicationShutdown {
     const { entries } = this.assets.getManifest();
     return `import {createLiveClient} from ${JSON.stringify(entries.live)};
 import Alpine from ${JSON.stringify(entries.alpine)};
-import {startLiveAlpine} from ${JSON.stringify(entries.alpineAdapter)};
-const app = startLiveAlpine(Alpine, createLiveClient(${this.clientConfig()}), {
-  configure(Alpine, client) {
-    document.dispatchEvent(new CustomEvent('nestvexa:alpine:init', {detail: Object.freeze({Alpine, client})}));
-  }
-});
+import {adoptLiveAlpine, hostAlpine, startLiveAlpine} from ${JSON.stringify(entries.alpineAdapter)};
+const configure = (Alpine, client) => {
+  document.dispatchEvent(new CustomEvent('nestvexa:alpine:init', {detail: Object.freeze({Alpine, client})}));
+};
+const host = hostAlpine();
+const app = host === undefined
+  ? startLiveAlpine(Alpine, createLiveClient(${this.clientConfig()}), {configure})
+  : adoptLiveAlpine(host, createLiveClient(${this.clientConfig()}), {configure});
 export {app};\n`;
   }
   private clientConfig(): string {
