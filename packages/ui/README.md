@@ -1,8 +1,10 @@
 # @nestvexa/ui
 
 Optional, unstyled, accessible UI primitives for Nestvexa HBS views and Live
-components: dialog, tabs, editable combobox, toast region, sortable table
-headers, pagination, disclosure and progress. Markup is rendered on the server by
+components: dialog, drawer, tabs, editable combobox, menu button, popover,
+tooltip, accordion, disclosure, breadcrumbs, badge, alert, toast region, date
+picker, file uploader, step wizard, data table (sortable headers, search,
+filters, row selection), pagination and progress. Markup is rendered on the server by
 trusted Handlebars helpers. A small optional browser module adds keyboard and
 focus behavior, and an optional stylesheet adds a theme with dark mode, RTL and
 reduced-motion support. Alpha software.
@@ -26,11 +28,12 @@ workspace or packed tarballs. Node `^22.13.0 || ^24.0.0`, ESM only.
 
 ## Entry points
 
-| Entry                    | Runs in | Contents                                           |
-| ------------------------ | ------- | -------------------------------------------------- |
-| `@nestvexa/ui`           | Node    | `uiHelpers`, `UiError`, `escapeHtml`               |
-| `@nestvexa/ui/browser`   | Browser | `initUi`, `openDialog`, `closeDialog`, `showToast` |
-| `@nestvexa/ui/theme.css` | Browser | Optional stylesheet (plain CSS, no build)          |
+| Entry                     | Runs in | Contents                                                    |
+| ------------------------- | ------- | ----------------------------------------------------------- |
+| `@nestvexa/ui`            | Node    | `uiHelpers`, `UiError`, `escapeHtml`                        |
+| `@nestvexa/ui/browser`    | Browser | `initUi`, `openDialog`, `closeDialog`, `showToast`          |
+| `@nestvexa/ui/theme.css`  | Browser | Optional stylesheet (plain CSS, no build)                   |
+| `@nestvexa/ui/tokens.css` | Browser | Design tokens only (custom properties, no component styles) |
 
 `@nestvexa/ui/browser` is a single self-contained ES module
 (`dist/browser/index.js`) with no relative imports, so it can be served as one
@@ -133,6 +136,26 @@ contain no `\` or control characters, so `javascript:` URLs, `//host` and
 | `{{#uiDisclosure summary [open=true] [id]}}…{{/uiDisclosure}}`                                                        | Native `<details class="nv-disclosure"><summary>`. Works without JavaScript. [APG disclosure](https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `{{uiProgress id label [value] [max=100] [valueText]}}`                                                               | `<label for>` plus a native `<progress>`. It is indeterminate when `value` is null or omitted, and `aria-valuetext` is set when `valueText` is given. `0 ≤ value ≤ max`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `{{uiVisuallyHidden "text"}}`                                                                                         | `<span class="nv-visually-hidden">`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+
+### Second slice: navigation, overlays, inputs and data tables
+
+| Helper                                                                                                                                  | Output and ARIA pattern                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `{{#uiDrawer id title closeLabel [side=end\|start] [closeOn] [describedBy] [class]}}…{{/uiDrawer}}`                                     | A `uiDialog` with `class="nv-dialog nv-drawer"`, `data-nv-ui-variant="drawer"` and `data-side`. Opened by `uiDialogTrigger`, with the same focus trap, Escape and focus return. `start`/`end` follow the text direction.                                                                                                                                                                                                                                                                                                                         |
+| `{{uiBreadcrumbs items label}}`                                                                                                         | `<nav aria-label><ol>`; 1–16 `{ label, href }` items, every item but the last needs a same-origin `href`; the last carries `aria-current="page"`. [APG breadcrumb](https://www.w3.org/WAI/ARIA/apg/patterns/breadcrumb/)                                                                                                                                                                                                                                                                                                                         |
+| `{{uiBadge label [count] [max=99] [tone] [live] [id]}}`                                                                                 | `<span class="nv-badge" data-tone>`. With `count`, the number is shown (`aria-hidden`, `99+` above `max`) and `label` (with `{count}`) is visually hidden text. `live=true` adds `role="status"` so morph-updated counts are announced (live notification badge). Tones: `neutral`, `info`, `success`, `warning`, `danger`.                                                                                                                                                                                                                      |
+| `{{#uiAlert [tone] [title] [id] [dismissLabel] [live=false]}}…{{/uiAlert}}`                                                             | `warning`/`danger` use `role="alert"`, `info`/`success` `role="status"`, `live=false` none. `title` with `id` labels it. `dismissLabel` renders a `hidden` dismiss button the module reveals; dismissing removes the alert and moves focus to `<main>` if it was inside. [APG alert](https://www.w3.org/WAI/ARIA/apg/patterns/alert/)                                                                                                                                                                                                            |
+| `{{#uiAccordion id [level=3] [multiple]}}{{#uiAccordionItem id title [open]}}…{{/uiAccordionItem}}{{/uiAccordion}}`                     | `<hN><button aria-expanded aria-controls>` headers and `role="region"` panels (regions only up to 6 items). Collapsed panels carry `data-nv-ui-collapsed`, which the theme hides only under `@media (scripting: enabled)`. Single-open unless `multiple`. Keys: Enter/Space, ArrowDown/ArrowUp (wrapping), Home, End. [APG accordion](https://www.w3.org/WAI/ARIA/apg/patterns/accordion/)                                                                                                                                                       |
+| `{{#uiMenu id label [class]}}{{uiMenuItem label (href \| action \| value) [disabled]}}{{/uiMenu}}`                                      | `aria-haspopup="menu"` button and `role="menu"` list of `role="menuitem"` links, Live action buttons (`nv:click`) or value buttons. Value items dispatch a bubbling `nv-ui-menu-select` event with `detail: { menu, value }`. Disabled items get `aria-disabled` and lose their target. Keys: Enter/Space/ArrowDown open on the first item, ArrowUp on the last; ArrowUp/ArrowDown wrap, Home, End, type-ahead, Escape returns focus, Tab closes; outside clicks close. [APG menu button](https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/) |
+| `{{#uiPopover id label [title] [class]}}…{{/uiPopover}}`                                                                                | Disclosure button (`aria-expanded`, `aria-haspopup="dialog"`) controlling a non-modal `role="dialog"` panel labelled by `title` or the button. Opening moves focus into the panel; Escape closes and returns focus; focus leaving or an outside click closes it.                                                                                                                                                                                                                                                                                 |
+| `{{#uiTooltip id text [label] [class]}}trigger content{{/uiTooltip}}`                                                                   | A button with `aria-describedby` pointing to a `role="tooltip"` element (described even while hidden). Shown on hover and focus, kept while the pointer is over the bubble, dismissed with Escape without moving focus (WCAG 1.4.13). Needs text content or `label`. [APG tooltip](https://www.w3.org/WAI/ARIA/apg/patterns/tooltip/)                                                                                                                                                                                                            |
+| `{{uiDatePicker id name label [value] [min] [max] [required] [locale] [dateStyle=long] [model] [describedBy]}}`                         | Native `<input type="date">` (the browser provides the calendar and its keyboard support) plus an `<output aria-live="polite">` with the value formatted by `Intl.DateTimeFormat` in UTC, so no time zone shifts the day. `locale` defaults to the nearest `lang` in the browser. Values are strict `YYYY-MM-DD`. With `model`, a hidden text input carries `nv:model.change` and receives the value (Live models do not bind date inputs).                                                                                                      |
+| `{{uiFileUpload id label selectedLabel (name \| model) [accept] [multiple] [required] [hint] [dropLabel] [progressLabel cancelLabel]}}` | Labelled `<input type="file">`, a selection list (file names as text with localized sizes) and a `role="status"` count. `dropLabel` adds a drop zone revealed by the module; dropped files are filtered by `accept` and dispatched as `input`/`change`. Without `model` it is a named input for native multipart forms (`UploadsService.receiveForm`); with `model` it emits `nv:upload`, `nv:upload.progress`, `nv:upload.status` and `nv:upload.cancel`, which `@nestvexa/client` drives against `@nestvexa/uploads` (neither is imported).    |
+| `{{#uiWizard id label current stepLabel completedLabel [level=2]}}{{#uiWizardStep id title [href]}}…{{/uiWizardStep}}{{/uiWizard}}`     | Server-driven steps: an ordered list with `aria-current="step"`, completed steps announced with a visually hidden suffix and optionally linked, and only the current step's body under a `tabindex="-1"` heading (`stepLabel` with `{step}` and `{total}`). When a Live morph changes `data-nv-ui-current` in place, the module focuses the new heading. 2–16 steps.                                                                                                                                                                             |
+| `{{#uiDataTable id caption [selectionLabel] [class]}}<thead>…</thead><tbody>…</tbody>{{/uiDataTable}}`                                  | `<table class="nv-table">` with a caption and a `role="status"` line (`aria-describedby`) announcing filter results and the selection count.                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `{{uiTableSearch table label [client] [model] [name] [value] [placeholder] [resultsLabel]}}`                                            | `role="search"` with a labelled `type="search"` input. `client=true` filters rendered rows in the browser (case-insensitive, locale-aware); `model` binds `nv:model.live.debounce.300ms` so the server filters; `name` submits it with a GET form.                                                                                                                                                                                                                                                                                               |
+| `{{uiTableFilter table key label allLabel options [client] [model] [name] [value] [resultsLabel]}}`                                     | Native `<select>`; `client=true` matches rows on `data-{key}`, `model` binds `nv:model.change`.                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `{{uiSelectAll table label}}` / `{{uiSelectRow name value label [checked]}}`                                                            | Header and row checkboxes. Select-all applies to rows visible under the current filter and shows the mixed (`indeterminate`) state; selected rows get `data-nv-ui-selected`. Row checkboxes are named, so a native form posts the selection.                                                                                                                                                                                                                                                                                                     |
 
 **Sort actions take no arguments.** Live action directives are bare registered
 identifiers (see [directives](../../docs/reference/directives.md)), so pass one
@@ -299,8 +322,18 @@ number of listeners per root. Combobox filtering is linear in the option count
 pnpm --filter @nestvexa/views build
 pnpm --filter @nestvexa/engine-hbs build
 pnpm --filter @nestvexa/ui build
-pnpm exec vitest run tests/ui-helpers.test.ts tests/ui-browser.test.ts
+pnpm exec vitest run tests/ui-helpers.test.ts tests/ui-primitives.test.ts tests/ui-browser.test.ts tests/ui-primitives-browser.test.ts
+# every browser engine for the second slice:
+NV_UI_BROWSERS=chromium,firefox,webkit pnpm exec vitest run tests/ui-primitives-browser.test.ts
 ```
+
+[`tests/ui-primitives.test.ts`](../../tests/ui-primitives.test.ts) covers the
+second slice's markup, escaping and rejected input;
+[`tests/ui-primitives-browser.test.ts`](../../tests/ui-primitives-browser.test.ts)
+runs keyboard, focus, RTL, no-JavaScript and axe checks under a strict CSP in
+Chromium, Firefox and WebKit, and
+[`tests/browser/admin-ui-kit.spec.ts`](../../tests/browser/admin-ui-kit.spec.ts)
+exercises the primitives in the admin example.
 
 [`tests/ui-helpers.test.ts`](../../tests/ui-helpers.test.ts) renders through a
 real `HbsEngine`: markup contracts, escaping, rejected ids, hrefs and action
@@ -312,10 +345,17 @@ theme preferences and axe.
 
 ## Caveats and limits
 
-- Not yet provided: datepicker, file uploader, drawer, step wizard, popover,
-  dropdown menu, breadcrumbs or chart wrapper. The data table is headers
-  (`uiSortHeader`) plus `uiPagination` on your own `<table class="nv-table">`.
-  There is no selection or filtering helper.
+- Not yet provided: chart wrapper and form-field wrappers. Client-side table
+  filtering works on the rendered rows only; use `model` or a GET form for
+  server-side search over paginated data.
+- Menus, popovers and accordions reset to their server state when a Live
+  morph restores `data-nv-ui-collapsed` (the server state wins, as with tabs).
+- The date picker relies on the native date input; browsers without one fall
+  back to a text input that still submits `YYYY-MM-DD` and is validated on the
+  server.
+- Dark mode needs the page surface to use the tokens (for example
+  `body { background: var(--nv-bg); color: var(--nv-text) }`); the theme does
+  not style `body`.
 - The combobox filters options rendered on the server (up to 500). There is
   no remote search.
 - Tabs use automatic activation. Manual activation is not configurable.

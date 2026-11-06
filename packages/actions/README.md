@@ -187,24 +187,25 @@ Static options (needed before DI resolves): `groups`, `prefix`
 (`'actions'` default | `'host'`). Host policy (direct or from `registerAsync`'s
 `useFactory` with `inject`):
 
-| Option                                 | Default                    |                                                                 |
-| -------------------------------------- | -------------------------- | --------------------------------------------------------------- |
-| `origin`                               | required                   | Exact origin or list; the `Origin` header must match.           |
-| `resolveIdentity(request)`             | required                   | `{ subject, tenant?, csrfToken? }` or `null`.                   |
-| `authorize(identity, action, request)` | required                   | Coarse policy for every call, before group guards.              |
-| `csrf.required`                        | `true`                     | Disable only for non-cookie (bearer/mTLS) auth.                 |
-| `csrf.header`                          | `x-nestvexa-csrf`          |                                                                 |
-| `rateLimit`                            | 120/min per tenant+subject | `(ctx) => boolean`, `createFixedWindowRateLimit()`, or `false`. |
-| `limits.maxBodyBytes`                  | 65536                      | Declared `Content-Length` and re-serialized body.               |
-| `limits.maxDepth`                      | 32                         | JSON nesting.                                                   |
-| `limits.maxNodes`                      | 10000                      | JSON values.                                                    |
-| `limits.maxOutputBytes`                | 1048576                    |                                                                 |
-| `limits.timeoutMs`                     | 30000                      | Default action deadline.                                        |
-| `limits.maxQueuedPerKey`               | 16                         | Serial queue bound.                                             |
-| `idempotency.store`                    | `MemoryIdempotencyStore`   | `begin/complete/abandon` contract for shared stores.            |
-| `idempotency.ttlMs`                    | 86400000                   | Replay retention.                                               |
-| `exposeErrorDetails`                   | `false`                    | Development only.                                               |
-| `onError(event)`                       | logs 5xx via Nest `Logger` | `{ requestId, action, code, status, error }`.                   |
+| Option                                 | Default                    |                                                                                                                                   |
+| -------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `origin`                               | required                   | Exact origin or list; the `Origin` header must match.                                                                             |
+| `resolveIdentity(request)`             | required                   | `{ subject, tenant?, csrfToken? }` or `null`.                                                                                     |
+| `authorize(identity, action, request)` | required                   | Coarse policy for every call, before group guards.                                                                                |
+| `csrf.required`                        | `true`                     | Disable only for non-cookie (bearer/mTLS) auth.                                                                                   |
+| `csrf.header`                          | `x-nestvexa-csrf`          |                                                                                                                                   |
+| `rateLimit`                            | 120/min per tenant+subject | `(ctx) => boolean`, `createFixedWindowRateLimit()`, or `false`.                                                                   |
+| `limits.maxBodyBytes`                  | 65536                      | Declared `Content-Length` and re-serialized body.                                                                                 |
+| `limits.maxDepth`                      | 32                         | JSON nesting.                                                                                                                     |
+| `limits.maxNodes`                      | 10000                      | JSON values.                                                                                                                      |
+| `limits.maxOutputBytes`                | 1048576                    |                                                                                                                                   |
+| `limits.timeoutMs`                     | 30000                      | Default action deadline.                                                                                                          |
+| `limits.maxQueuedPerKey`               | 16                         | Serial queue bound.                                                                                                               |
+| `idempotency.store`                    | `MemoryIdempotencyStore`   | `begin/complete/abandon` contract for shared stores.                                                                              |
+| `idempotency.ttlMs`                    | 86400000                   | Replay retention.                                                                                                                 |
+| `exposeErrorDetails`                   | `false`                    | Development only.                                                                                                                 |
+| `onError(event)`                       | logs 5xx via Nest `Logger` | `{ requestId, action, code, status, error }`.                                                                                     |
+| `instrumentation`                      | none                       | Structural tracing hook: `nestvexa.action` spans with group/action ids and error codes only (shape of `@nestvexa/observability`). |
 
 Startup rejects: undecorated classes, empty groups, duplicate group ids, duplicate
 `id`+`version`, colliding client names, schemas without `@ActionInput`, invalid

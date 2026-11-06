@@ -19,6 +19,10 @@ export type {
   UploadQuotaOptions,
   UploadsHostOptions,
 } from './options.js';
+export type {
+  UploadInstrumentation,
+  UploadSpanAttributes,
+} from './instrumentation.js';
 export { UploadError } from './errors.js';
 export type { UploadErrorCode } from './errors.js';
 export {

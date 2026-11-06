@@ -484,6 +484,479 @@ function toastPayload(
   };
 }
 
+function langOf(element: Element): string | undefined {
+  return element.closest('[lang]')?.getAttribute('lang') ?? undefined;
+}
+function lowerFor(element: Element, value: string): string {
+  try {
+    return value.toLocaleLowerCase(langOf(element));
+  } catch {
+    return value.toLowerCase();
+  }
+}
+/** Element by id; a missing or non-HTML target resolves to null. */
+function byId(doc: Document, value: string | null): HTMLElement | null {
+  if (!value) return null;
+  const element = doc.getElementById(value);
+  return isHtml(element) ? element : null;
+}
+/** Main landmark (or body) when the focused element is about to disappear. */
+function focusFallback(doc: Document): void {
+  const main = doc.querySelector('main');
+  if (isHtml(main)) {
+    if (!main.hasAttribute('tabindex')) main.setAttribute('tabindex', '-1');
+    focus(main);
+  }
+}
+
+// Alerts --------------------------------------------------------------------
+function setupAlert(alert: Element): void {
+  for (const button of alert.querySelectorAll('[data-nv-ui-dismiss]'))
+    if (isHtml(button)) button.hidden = false;
+}
+function dismissAlert(alert: Element): void {
+  const doc = alert.ownerDocument;
+  const hadFocus = alert.contains(doc.activeElement);
+  alert.remove();
+  if (hadFocus) focusFallback(doc);
+}
+
+// Accordion -----------------------------------------------------------------
+function accordionTriggers(accordion: Element): HTMLElement[] {
+  return [...accordion.querySelectorAll('.nv-accordion__trigger')].filter(
+    (trigger): trigger is HTMLElement =>
+      isHtml(trigger) &&
+      trigger.closest('[data-nv-ui="accordion"]') === accordion,
+  );
+}
+function setExpanded(trigger: HTMLElement, open: boolean): void {
+  trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+  const panel = byId(
+    trigger.ownerDocument,
+    trigger.getAttribute('aria-controls'),
+  );
+  if (panel) {
+    panel.hidden = !open;
+    panel.removeAttribute('data-nv-ui-collapsed');
+  }
+}
+function setupAccordion(accordion: Element): void {
+  for (const trigger of accordionTriggers(accordion))
+    setExpanded(trigger, trigger.getAttribute('aria-expanded') === 'true');
+}
+function toggleAccordion(accordion: Element, trigger: HTMLElement): void {
+  const open = trigger.getAttribute('aria-expanded') !== 'true';
+  if (open && !accordion.hasAttribute('data-nv-ui-multiple'))
+    for (const other of accordionTriggers(accordion))
+      if (other !== trigger) setExpanded(other, false);
+  setExpanded(trigger, open);
+}
+function accordionKey(
+  accordion: Element,
+  trigger: HTMLElement,
+  event: KeyboardEvent,
+): void {
+  const triggers = accordionTriggers(accordion);
+  const index = triggers.indexOf(trigger);
+  let next: number | undefined;
+  if (event.key === 'ArrowDown') next = index + 1;
+  else if (event.key === 'ArrowUp') next = index - 1;
+  else if (event.key === 'Home') next = 0;
+  else if (event.key === 'End') next = triggers.length - 1;
+  if (next === undefined || index < 0) return;
+  event.preventDefault();
+  const target = triggers[(next + triggers.length) % triggers.length];
+  if (target) focus(target);
+}
+
+// Menu button ---------------------------------------------------------------
+interface MenuParts {
+  readonly root: Element;
+  readonly button: HTMLElement;
+  readonly list: HTMLElement;
+}
+const openMenus = new Set<Element>();
+function menuParts(root: Element): MenuParts | null {
+  const button = root.querySelector('[aria-haspopup="menu"]');
+  const list = isHtml(button)
+    ? byId(root.ownerDocument, button.getAttribute('aria-controls'))
+    : null;
+  return isHtml(button) && list ? { root, button, list } : null;
+}
+function menuItems(parts: MenuParts): HTMLElement[] {
+  return [...parts.list.querySelectorAll('[role="menuitem"]')].filter(isHtml);
+}
+function setupMenu(root: Element): void {
+  const parts = menuParts(root);
+  if (!parts) return;
+  for (const item of menuItems(parts)) item.setAttribute('tabindex', '-1');
+  closeMenu(parts, false);
+}
+function openMenu(parts: MenuParts, position: 'first' | 'last'): void {
+  for (const other of [...openMenus])
+    if (other !== parts.root) {
+      const otherParts = menuParts(other);
+      if (otherParts) closeMenu(otherParts, false);
+    }
+  parts.list.hidden = false;
+  parts.button.setAttribute('aria-expanded', 'true');
+  openMenus.add(parts.root);
+  const items = menuItems(parts);
+  const target = position === 'first' ? items[0] : items.at(-1);
+  if (target) focus(target);
+}
+function closeMenu(parts: MenuParts, returnFocus: boolean): void {
+  parts.list.hidden = true;
+  parts.list.removeAttribute('data-nv-ui-collapsed');
+  parts.button.setAttribute('aria-expanded', 'false');
+  openMenus.delete(parts.root);
+  if (returnFocus) focus(parts.button);
+}
+function menuButtonKey(parts: MenuParts, event: KeyboardEvent): void {
+  // Enter and Space reach the click handler through native button activation.
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault();
+    openMenu(parts, event.key === 'ArrowUp' ? 'last' : 'first');
+  }
+}
+function activateMenuItem(parts: MenuParts, item: HTMLElement): void {
+  if (item.getAttribute('aria-disabled') === 'true') return;
+  const value = item.getAttribute('data-nv-ui-value');
+  const view = item.ownerDocument.defaultView;
+  closeMenu(parts, item.localName !== 'a');
+  if (value !== null && view)
+    parts.root.dispatchEvent(
+      new view.CustomEvent('nv-ui-menu-select', {
+        bubbles: true,
+        detail: { menu: parts.root.id, value },
+      }),
+    );
+}
+function menuKey(
+  parts: MenuParts,
+  item: HTMLElement,
+  event: KeyboardEvent,
+): void {
+  const items = menuItems(parts);
+  const index = items.indexOf(item);
+  let next: number | undefined;
+  if (event.key === 'ArrowDown') next = index + 1;
+  else if (event.key === 'ArrowUp') next = index - 1;
+  else if (event.key === 'Home') next = 0;
+  else if (event.key === 'End') next = items.length - 1;
+  else if (event.key === 'Escape') {
+    event.preventDefault();
+    closeMenu(parts, true);
+    return;
+  } else if (event.key === 'Tab') {
+    closeMenu(parts, false);
+    return;
+  } else if (event.key === ' ') {
+    // Buttons activate natively; links only navigate on Enter, so Space clicks.
+    if (item.localName === 'a') {
+      event.preventDefault();
+      if (item.getAttribute('aria-disabled') !== 'true') item.click();
+    }
+    return;
+  } else if (
+    event.key.length === 1 &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.altKey
+  ) {
+    // Type-ahead: next item whose label starts with the typed character.
+    const key = lowerFor(item, event.key);
+    const ordered = [...items.slice(index + 1), ...items.slice(0, index + 1)];
+    const match = ordered.find((entry) =>
+      lowerFor(entry, (entry.textContent ?? '').trim()).startsWith(key),
+    );
+    if (match) focus(match);
+    return;
+  }
+  if (next === undefined) return;
+  event.preventDefault();
+  const target = items[(next + items.length) % items.length];
+  if (target) focus(target);
+}
+
+// Popover -------------------------------------------------------------------
+interface PopoverParts {
+  readonly root: Element;
+  readonly trigger: HTMLElement;
+  readonly panel: HTMLElement;
+}
+const openPopovers = new Set<Element>();
+function popoverParts(root: Element): PopoverParts | null {
+  const trigger = root.querySelector('.nv-popover__trigger');
+  const panel = isHtml(trigger)
+    ? byId(root.ownerDocument, trigger.getAttribute('aria-controls'))
+    : null;
+  return isHtml(trigger) && panel ? { root, trigger, panel } : null;
+}
+function setPopover(
+  parts: PopoverParts,
+  open: boolean,
+  moveFocus: boolean,
+): void {
+  parts.panel.hidden = !open;
+  parts.panel.removeAttribute('data-nv-ui-collapsed');
+  parts.trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) openPopovers.add(parts.root);
+  else openPopovers.delete(parts.root);
+  if (!moveFocus) return;
+  if (!open) {
+    focus(parts.trigger);
+    return;
+  }
+  const target = focusables(parts.panel)[0];
+  if (target) focus(target);
+  else {
+    if (!parts.panel.hasAttribute('tabindex'))
+      parts.panel.setAttribute('tabindex', '-1');
+    focus(parts.panel);
+  }
+}
+function setupPopover(root: Element): void {
+  const parts = popoverParts(root);
+  if (parts) setPopover(parts, false, false);
+}
+
+// Tooltip -------------------------------------------------------------------
+function tooltipParts(
+  root: Element,
+): { trigger: HTMLElement; bubble: HTMLElement } | null {
+  const trigger = root.querySelector('.nv-tooltip__trigger');
+  const bubble = root.querySelector('[role="tooltip"]');
+  return isHtml(trigger) && isHtml(bubble) ? { trigger, bubble } : null;
+}
+function setTooltip(root: Element, open: boolean): void {
+  const parts = tooltipParts(root);
+  if (parts) parts.bubble.hidden = !open;
+}
+
+// Date picker ---------------------------------------------------------------
+type DateStyle = 'short' | 'medium' | 'long' | 'full';
+function dateStyle(value: string | null): DateStyle {
+  return value === 'short' || value === 'medium' || value === 'full'
+    ? value
+    : 'long';
+}
+function syncDate(wrapper: Element, notify: boolean): void {
+  const input = wrapper.querySelector('input[type="date"]');
+  if (!input || input.localName !== 'input') return;
+  const date = input as HTMLInputElement;
+  const output = wrapper.querySelector('output');
+  const value = date.value;
+  if (output) {
+    let text = '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      try {
+        text = new Intl.DateTimeFormat(
+          wrapper.getAttribute('data-nv-ui-locale') ?? langOf(wrapper),
+          {
+            dateStyle: dateStyle(wrapper.getAttribute('data-nv-ui-date-style')),
+            timeZone: 'UTC',
+          },
+        ).format(new Date(`${value}T00:00:00Z`));
+      } catch {
+        text = '';
+      }
+    }
+    if (output.textContent !== text) output.textContent = text;
+  }
+  const mirror = wrapper.querySelector('input[data-nv-ui-date-value]');
+  if (
+    notify &&
+    mirror &&
+    mirror.localName === 'input' &&
+    (mirror as HTMLInputElement).value !== value
+  ) {
+    (mirror as HTMLInputElement).value = value;
+    emit(mirror as HTMLInputElement);
+  }
+}
+
+// File uploader -------------------------------------------------------------
+function uploadInput(wrapper: Element): HTMLInputElement | null {
+  const input = wrapper.querySelector('input[type="file"]');
+  return input && input.localName === 'input'
+    ? (input as HTMLInputElement)
+    : null;
+}
+function setupUpload(wrapper: Element): void {
+  for (const zone of wrapper.querySelectorAll('[data-nv-ui-drop]'))
+    if (isHtml(zone)) zone.hidden = false;
+}
+function formatBytes(element: Element, bytes: number): string {
+  const units = ['byte', 'kilobyte', 'megabyte', 'gigabyte'] as const;
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  try {
+    return new Intl.NumberFormat(langOf(element), {
+      style: 'unit',
+      unit: units[unit] ?? 'byte',
+      unitDisplay: 'short',
+      maximumFractionDigits: unit === 0 ? 0 : 1,
+    }).format(value);
+  } catch {
+    return `${bytes} B`;
+  }
+}
+function describeFiles(wrapper: Element): void {
+  const input = uploadInput(wrapper);
+  const list = wrapper.querySelector('[data-nv-ui-files]');
+  const status = wrapper.querySelector('[data-nv-ui-upload-status]');
+  if (!input || !list) return;
+  const doc = wrapper.ownerDocument;
+  const files = [...(input.files ?? [])].slice(0, 100);
+  list.replaceChildren(
+    ...files.map((file) => {
+      const item = doc.createElement('li');
+      item.className = 'nv-upload__file';
+      // File names are user data: text nodes only.
+      item.textContent = `${file.name.slice(0, 255)} (${formatBytes(wrapper, file.size)})`;
+      return item;
+    }),
+  );
+  if (status) {
+    const template = wrapper.getAttribute('data-nv-ui-selected-label') ?? '';
+    status.textContent = files.length
+      ? template.replaceAll('{count}', String(files.length))
+      : '';
+  }
+}
+/** Mirror the input's `accept` for dropped files, which bypass the picker. */
+function accepted(input: HTMLInputElement, file: File): boolean {
+  const tokens = input.accept
+    .split(',')
+    .map((token) => token.trim().toLowerCase())
+    .filter(Boolean);
+  if (tokens.length === 0) return true;
+  const name = file.name.toLowerCase();
+  const type = file.type.toLowerCase();
+  return tokens.some((token) =>
+    token.startsWith('.')
+      ? name.endsWith(token)
+      : token.endsWith('/*')
+        ? type.startsWith(token.slice(0, -1))
+        : type === token,
+  );
+}
+function dropFiles(wrapper: Element, event: DragEvent): void {
+  const input = uploadInput(wrapper);
+  const view = wrapper.ownerDocument.defaultView;
+  const dropped = event.dataTransfer?.files;
+  if (!input || !view || !dropped || input.disabled) return;
+  const files = [...dropped].filter((file) => accepted(input, file));
+  const transfer = new view.DataTransfer();
+  for (const file of input.multiple ? files : files.slice(0, 1))
+    transfer.items.add(file);
+  input.files = transfer.files;
+  // Bubbling change lets nv:upload and forms observe the dropped selection.
+  input.dispatchEvent(new view.Event('input', { bubbles: true }));
+  input.dispatchEvent(new view.Event('change', { bubbles: true }));
+}
+
+// Data table ----------------------------------------------------------------
+function tableRows(table: HTMLElement): HTMLElement[] {
+  return [...table.querySelectorAll('tbody tr')].filter(isHtml);
+}
+function tableStatus(table: HTMLElement, message: string): void {
+  const status = table
+    .closest('[data-nv-ui="data-table"]')
+    ?.querySelector('[data-nv-ui-table-status]');
+  if (status && status.textContent !== message) status.textContent = message;
+}
+function checkbox(element: Element | null): HTMLInputElement | null {
+  return element &&
+    element.localName === 'input' &&
+    (element as HTMLInputElement).type === 'checkbox'
+    ? (element as HTMLInputElement)
+    : null;
+}
+function rowBoxes(
+  table: HTMLElement,
+  visibleOnly: boolean,
+): HTMLInputElement[] {
+  return tableRows(table)
+    .filter((row) => !visibleOnly || !row.hidden)
+    .map((row) => checkbox(row.querySelector('input[data-nv-ui-select-row]')))
+    .filter((box): box is HTMLInputElement => box !== null);
+}
+function syncSelection(table: HTMLElement): void {
+  const doc = table.ownerDocument;
+  const all = rowBoxes(table, false);
+  for (const box of all)
+    box.closest('tr')?.toggleAttribute('data-nv-ui-selected', box.checked);
+  const shown = rowBoxes(table, true);
+  const checked = shown.filter((box) => box.checked).length;
+  for (const header of doc.querySelectorAll('input[data-nv-ui-select-all]')) {
+    const box = checkbox(header);
+    if (!box || box.getAttribute('data-nv-ui-select-all') !== table.id)
+      continue;
+    box.checked = shown.length > 0 && checked === shown.length;
+    box.indeterminate = checked > 0 && checked < shown.length;
+  }
+  const label = table
+    .closest('[data-nv-ui="data-table"]')
+    ?.getAttribute('data-nv-ui-selection-label');
+  const selectedCount = all.filter((box) => box.checked).length;
+  const selection =
+    label && selectedCount
+      ? label.replaceAll('{count}', String(selectedCount))
+      : '';
+  // One polite status line: the filter result count, then the selection.
+  tableStatus(
+    table,
+    [filterResults.get(table) ?? '', selection].filter(Boolean).join('. '),
+  );
+}
+const filterResults = new WeakMap<HTMLElement, string>();
+function filterTable(table: HTMLElement): void {
+  const doc = table.ownerDocument;
+  const controls = [
+    ...doc.querySelectorAll('[data-nv-ui-filter-table]'),
+  ].filter(
+    (control) => control.getAttribute('data-nv-ui-filter-table') === table.id,
+  );
+  const query = controls
+    .filter((control) => control.localName === 'input')
+    .map((control) =>
+      lowerFor(table, (control as HTMLInputElement).value.trim()),
+    )
+    .filter(Boolean);
+  const filters = controls
+    .filter((control) => control.localName === 'select')
+    .map((control) => ({
+      key: control.getAttribute('data-nv-ui-filter-key') ?? '',
+      value: (control as HTMLSelectElement).value,
+    }))
+    .filter((entry) => entry.key && entry.value);
+  let shown = 0;
+  for (const row of tableRows(table)) {
+    const text = lowerFor(table, row.textContent ?? '');
+    const match =
+      query.every((term) => text.includes(term)) &&
+      filters.every(
+        (entry) => row.getAttribute(`data-${entry.key}`) === entry.value,
+      );
+    row.hidden = !match;
+    if (match) shown++;
+  }
+  const template = controls
+    .map((control) => control.getAttribute('data-nv-ui-results-label'))
+    .find((value) => value);
+  const filtered = query.length > 0 || filters.length > 0;
+  if (template && filtered)
+    filterResults.set(table, template.replaceAll('{count}', String(shown)));
+  else filterResults.delete(table);
+  syncSelection(table);
+}
+
 function scan(root: ParentNode, element?: Element): void {
   const all = (selector: string): Element[] => [
     ...(element?.matches(selector) ? [element] : []),
@@ -491,6 +964,17 @@ function scan(root: ParentNode, element?: Element): void {
   ];
   for (const container of all('[data-nv-ui="tabs"]')) setupTabs(container);
   for (const wrapper of all('[data-nv-ui="combobox"]')) setupCombobox(wrapper);
+  for (const alert of all('[data-nv-ui="alert"]')) setupAlert(alert);
+  for (const accordion of all('[data-nv-ui="accordion"]'))
+    setupAccordion(accordion);
+  for (const menu of all('[data-nv-ui="menu"]')) setupMenu(menu);
+  for (const popover of all('[data-nv-ui="popover"]')) setupPopover(popover);
+  for (const wrapper of all('[data-nv-ui="date"]')) syncDate(wrapper, false);
+  for (const wrapper of all('[data-nv-ui="upload"]')) setupUpload(wrapper);
+  for (const wrapper of all('[data-nv-ui="data-table"]')) {
+    const table = wrapper.querySelector('table');
+    if (isHtml(table)) syncSelection(table);
+  }
 }
 
 /**
@@ -520,6 +1004,17 @@ export function initUi(
     (event) => {
       const target = closestElement(event.target);
       if (!target || !owned(event)) return;
+      // Light dismissal: a click outside an open menu or popover closes it.
+      for (const root of [...openMenus]) {
+        const menu = root.isConnected ? menuParts(root) : null;
+        if (!menu) openMenus.delete(root);
+        else if (!root.contains(target)) closeMenu(menu, false);
+      }
+      for (const root of [...openPopovers]) {
+        const popover = root.isConnected ? popoverParts(root) : null;
+        if (!popover) openPopovers.delete(root);
+        else if (!root.contains(target)) setPopover(popover, false, false);
+      }
       const trigger = target.closest('[data-nv-ui-open]');
       if (trigger && isHtml(trigger)) {
         const dialog = doc.getElementById(
@@ -550,6 +1045,48 @@ export function initUi(
           event.clientY > box.bottom;
         // Keyboard-synthesized clicks report 0,0; only real backdrop clicks close.
         if (outside && event.detail > 0) closeDialog(target);
+        return;
+      }
+      const dismiss = target.closest('[data-nv-ui-dismiss]');
+      const alert = dismiss?.closest('[data-nv-ui="alert"]');
+      if (dismiss && alert) {
+        dismissAlert(alert);
+        return;
+      }
+      const header = target.closest('.nv-accordion__trigger');
+      const accordion = header?.closest('[data-nv-ui="accordion"]');
+      if (header && accordion && isHtml(header)) {
+        toggleAccordion(accordion, header);
+        return;
+      }
+      const menuRoot = target.closest('[data-nv-ui="menu"]');
+      const menu = menuRoot ? menuParts(menuRoot) : null;
+      if (menu && menu.button.contains(target)) {
+        if (menu.list.hidden) openMenu(menu, 'first');
+        else closeMenu(menu, true);
+        return;
+      }
+      const item = target.closest('[role="menuitem"]');
+      if (menu && item && isHtml(item) && menu.list.contains(item)) {
+        if (item.getAttribute('aria-disabled') === 'true') {
+          event.preventDefault();
+          return;
+        }
+        activateMenuItem(menu, item);
+        return;
+      }
+      const popoverRoot = target.closest('[data-nv-ui="popover"]');
+      const popover = popoverRoot ? popoverParts(popoverRoot) : null;
+      if (popover && popover.trigger.contains(target)) {
+        setPopover(popover, popover.panel.hidden !== false, true);
+        return;
+      }
+      const zone = target.closest('[data-nv-ui-drop]');
+      const upload = zone?.closest('[data-nv-ui="upload"]');
+      const picker = upload ? uploadInput(upload) : null;
+      if (zone && picker) {
+        // Pointer convenience only; keyboard users reach the labelled input.
+        picker.click();
         return;
       }
       const tab = target.closest('[role="tab"]');
@@ -584,12 +1121,59 @@ export function initUi(
       const target = closestElement(event.target);
       if (!target || !(event instanceof view.KeyboardEvent) || !owned(event))
         return;
+      if (event.key === 'Escape') {
+        // WCAG 1.4.13: Escape dismisses a visible tooltip without moving focus.
+        let dismissed = false;
+        for (const bubble of scope.querySelectorAll(
+          '[data-nv-ui="tooltip"] [role="tooltip"]',
+        ))
+          if (isHtml(bubble) && !bubble.hidden) {
+            bubble.hidden = true;
+            dismissed = true;
+          }
+        if (dismissed) {
+          event.preventDefault();
+          return;
+        }
+      }
       const dialog = target.closest('dialog');
       if (event.key === 'Tab' && isDialog(dialog) && dialog.open) {
         const combo = target.closest('[data-nv-ui="combobox"]');
         const parts = combo ? comboParts(combo) : null;
         if (parts && target === parts.input) setOpen(parts, false);
+        const menuRoot = target.closest('[data-nv-ui="menu"]');
+        const menu = menuRoot ? menuParts(menuRoot) : null;
+        if (menu) closeMenu(menu, false);
         trapTab(dialog, event);
+        return;
+      }
+      const header = target.closest('.nv-accordion__trigger');
+      const accordion = header?.closest('[data-nv-ui="accordion"]');
+      if (header === target && accordion && isHtml(target)) {
+        accordionKey(accordion, target, event);
+        return;
+      }
+      const menuRoot = target.closest('[data-nv-ui="menu"]');
+      const menu = menuRoot ? menuParts(menuRoot) : null;
+      if (menu && target === menu.button) {
+        menuButtonKey(menu, event);
+        return;
+      }
+      if (
+        menu &&
+        isHtml(target) &&
+        target.getAttribute('role') === 'menuitem' &&
+        menu.list.contains(target)
+      ) {
+        menuKey(menu, target, event);
+        return;
+      }
+      const popoverRoot = target.closest('[data-nv-ui="popover"]');
+      const popover = popoverRoot ? popoverParts(popoverRoot) : null;
+      if (popover && event.key === 'Escape' && !popover.panel.hidden) {
+        // Closing the popover takes precedence over an enclosing dialog.
+        event.preventDefault();
+        setPopover(popover, false, true);
         return;
       }
       if (
@@ -621,7 +1205,164 @@ export function initUi(
       const target = closestElement(event.target);
       const combo = target?.closest('[data-nv-ui="combobox"]');
       const parts = combo ? comboParts(combo) : null;
-      if (parts && target === parts.input && owned(event)) comboInput(parts);
+      if (parts && target === parts.input && owned(event)) {
+        comboInput(parts);
+        return;
+      }
+      const date = target?.closest('[data-nv-ui="date"]');
+      if (date && target?.matches('input[type="date"]') && owned(event)) {
+        syncDate(date, true);
+        return;
+      }
+      const table = byId(
+        doc,
+        target?.getAttribute('data-nv-ui-filter-table') ?? null,
+      );
+      if (table && target?.localName === 'input' && owned(event))
+        filterTable(table);
+    },
+    { signal },
+  );
+  scope.addEventListener(
+    'change',
+    (event) => {
+      const target = closestElement(event.target);
+      if (!target || !owned(event)) return;
+      const date = target.closest('[data-nv-ui="date"]');
+      if (date && target.matches('input[type="date"]')) {
+        syncDate(date, true);
+        return;
+      }
+      const upload = target.closest('[data-nv-ui="upload"]');
+      if (upload && target === uploadInput(upload)) {
+        describeFiles(upload);
+        return;
+      }
+      const filtered = byId(
+        doc,
+        target.getAttribute('data-nv-ui-filter-table'),
+      );
+      if (filtered && target.localName === 'select') {
+        filterTable(filtered);
+        return;
+      }
+      const all = checkbox(target);
+      const controlled = byId(
+        doc,
+        all?.getAttribute('data-nv-ui-select-all') ?? null,
+      );
+      if (all && controlled) {
+        // Select-all applies to the rows the current filter shows.
+        for (const box of rowBoxes(controlled, true)) box.checked = all.checked;
+        syncSelection(controlled);
+        return;
+      }
+      const row = all?.hasAttribute('data-nv-ui-select-row')
+        ? all.closest('table')
+        : null;
+      if (isHtml(row)) syncSelection(row);
+    },
+    { signal },
+  );
+  // Tooltips: hover and focus show the bubble; it stays while the pointer is
+  // over the trigger or the bubble itself (WCAG 1.4.13 hoverable).
+  scope.addEventListener(
+    'mouseover',
+    (event) => {
+      const tip = closestElement(event.target)?.closest(
+        '[data-nv-ui="tooltip"]',
+      );
+      if (tip) setTooltip(tip, true);
+    },
+    { signal },
+  );
+  scope.addEventListener(
+    'mouseout',
+    (event) => {
+      const tip = closestElement(event.target)?.closest(
+        '[data-nv-ui="tooltip"]',
+      );
+      const next = closestElement((event as MouseEvent).relatedTarget);
+      if (!tip || (next && tip.contains(next))) return;
+      if (!tip.contains(doc.activeElement)) setTooltip(tip, false);
+    },
+    { signal },
+  );
+  scope.addEventListener(
+    'focusin',
+    (event) => {
+      const target = closestElement(event.target);
+      const tip = target?.closest('[data-nv-ui="tooltip"]');
+      if (tip && target?.classList.contains('nv-tooltip__trigger'))
+        setTooltip(tip, true);
+    },
+    { signal },
+  );
+  scope.addEventListener(
+    'focusout',
+    (event) => {
+      const target = closestElement(event.target);
+      const next = closestElement((event as FocusEvent).relatedTarget);
+      const tip = target?.closest('[data-nv-ui="tooltip"]');
+      if (tip && !(next && tip.contains(next))) setTooltip(tip, false);
+      // Focus leaving a menu or popover closes it without moving focus back.
+      const menuRoot = target?.closest('[data-nv-ui="menu"]');
+      const menu = menuRoot ? menuParts(menuRoot) : null;
+      if (menu && next && !menu.root.contains(next) && !menu.list.hidden)
+        closeMenu(menu, false);
+      const popoverRoot = target?.closest('[data-nv-ui="popover"]');
+      const popover = popoverRoot ? popoverParts(popoverRoot) : null;
+      if (
+        popover &&
+        next &&
+        !popover.root.contains(next) &&
+        !popover.panel.hidden
+      )
+        setPopover(popover, false, false);
+    },
+    { signal },
+  );
+  // Drag and drop is a pointer convenience on top of the native file input.
+  scope.addEventListener(
+    'dragover',
+    (event) => {
+      const upload = closestElement(event.target)?.closest(
+        '[data-nv-ui="upload"]',
+      );
+      if (!upload || !upload.querySelector('[data-nv-ui-drop]')) return;
+      event.preventDefault();
+      upload.setAttribute('data-nv-ui-dragging', '');
+    },
+    { signal },
+  );
+  scope.addEventListener(
+    'dragleave',
+    (event) => {
+      const upload = closestElement(event.target)?.closest(
+        '[data-nv-ui="upload"]',
+      );
+      const next = closestElement((event as DragEvent).relatedTarget);
+      if (upload && !(next && upload.contains(next)))
+        upload.removeAttribute('data-nv-ui-dragging');
+    },
+    { signal },
+  );
+  scope.addEventListener(
+    'drop',
+    (event) => {
+      const upload = closestElement(event.target)?.closest(
+        '[data-nv-ui="upload"]',
+      );
+      if (
+        !upload ||
+        !upload.querySelector('[data-nv-ui-drop]') ||
+        !(event instanceof view.DragEvent) ||
+        !owned(event)
+      )
+        return;
+      event.preventDefault();
+      upload.removeAttribute('data-nv-ui-dragging');
+      dropFiles(upload, event);
     },
     { signal },
   );
@@ -675,12 +1416,29 @@ export function initUi(
   const observer = new view.MutationObserver((records) => {
     for (const record of records) {
       if (record.type === 'attributes') {
-        const tabs = closestElement(record.target)?.closest(
-          '[data-nv-ui="tabs"]',
-        );
         const target = closestElement(record.target);
-        if (tabs && target?.hasAttribute('data-nv-ui-inactive'))
-          setupTabs(tabs);
+        if (!target) continue;
+        const name = record.attributeName ?? '';
+        // A server re-render (Live morph) restored server-side state markers:
+        // the server state wins and the primitive is set up again.
+        if (name === 'data-nv-ui-inactive') {
+          const tabs = target.closest('[data-nv-ui="tabs"]');
+          if (tabs && target.hasAttribute(name)) setupTabs(tabs);
+        } else if (name === 'data-nv-ui-collapsed') {
+          const owner = target.closest(
+            '[data-nv-ui="accordion"], [data-nv-ui="menu"], [data-nv-ui="popover"]',
+          );
+          if (owner && target.hasAttribute(name)) scan(owner, owner);
+        } else if (
+          name === 'data-nv-ui-current' &&
+          target.getAttribute('data-nv-ui') === 'wizard' &&
+          record.oldValue !== null &&
+          record.oldValue !== target.getAttribute(name)
+        ) {
+          // Step changed in place: move focus to the new step heading.
+          const heading = target.querySelector('.nv-wizard__heading');
+          if (isHtml(heading)) focus(heading);
+        }
         continue;
       }
       for (const node of record.addedNodes) {
@@ -702,7 +1460,12 @@ export function initUi(
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ['data-nv-ui-inactive'],
+    attributeOldValue: true,
+    attributeFilter: [
+      'data-nv-ui-inactive',
+      'data-nv-ui-collapsed',
+      'data-nv-ui-current',
+    ],
   });
   const controller: UiController = {
     refresh(target?: ParentNode) {

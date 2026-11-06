@@ -35,7 +35,8 @@
       "import": "./dist/browser/index.js",
       "default": "./dist/browser/index.js"
     },
-    "./theme.css": "./theme/theme.css"
+    "./theme.css": "./theme/theme.css",
+    "./tokens.css": "./theme/tokens.css"
   },
   "types": "./dist/index.d.ts",
   "files": [

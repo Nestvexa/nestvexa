@@ -65,6 +65,29 @@ export interface LocaleCookieOptions {
   readonly path?: string;
 }
 /** Locale-bound facade for request and component code. */
+/** Which messages a client hydration payload may contain. */
+export interface HydrationSelection {
+  /** Whole namespaces, for example `['products']`. */
+  readonly namespaces?: readonly string[];
+  /** Individual keys such as `common:save`. */
+  readonly keys?: readonly string[];
+}
+/** Safe, explicit locale subset for browser renderers (see `hydration()`). */
+export interface LocaleHydration extends I18nView {
+  readonly defaultNamespace: string;
+  /** Fully qualified `namespace:key` to ICU-subset message source. */
+  readonly messages: Readonly<Record<string, string>>;
+  /** Keys resolved from a fallback locale, mapped to that locale. */
+  readonly messageLocales: Readonly<Record<string, string>>;
+}
+const maxHydratedMessages = 2000;
+const maxHydratedBytes = 256 * 1024;
+/** Characters escaped inside JSON script elements: markup and JS line separators. */
+const scriptUnsafe = new RegExp(
+  `[<>&${String.fromCharCode(0x2028, 0x2029)}]`,
+  'g',
+);
+
 export interface I18nContext {
   readonly locale: string;
   readonly dir: TextDirection;
@@ -525,6 +548,81 @@ export class I18n {
 
   has(locale: string, key: string): boolean {
     return this.#lookup(this.#require(locale), key) !== undefined;
+  }
+
+  /**
+   * Explicit client subset for islands, Inertia pages and other browser
+   * renderers: only the listed namespaces and keys, already resolved through
+   * the fallback chain. Nothing is published by default, so server-only
+   * messages never reach the browser by accident.
+   */
+  hydration(locale: string, select: HydrationSelection): LocaleHydration {
+    const resolved = this.#require(locale);
+    const namespaces = select.namespaces ?? [];
+    const keys = select.keys ?? [];
+    if (
+      !Array.isArray(namespaces) ||
+      !Array.isArray(keys) ||
+      namespaces.length + keys.length === 0
+    )
+      config('hydration needs at least one namespace or key');
+    const wanted = new Set<string>();
+    const chain = this.#chains.get(resolved) ?? [resolved];
+    for (const namespace of namespaces) {
+      if (
+        typeof namespace !== 'string' ||
+        !namespacePattern.test(namespace) ||
+        forbiddenKeys.has(namespace)
+      )
+        config('hydration namespaces must be catalog namespaces');
+      for (const candidate of chain)
+        for (const full of this.#catalogs.get(candidate)?.keys() ?? [])
+          if (full.startsWith(`${namespace}:`)) wanted.add(full);
+    }
+    for (const key of keys) wanted.add(this.#key(key));
+    const messages: Record<string, string> = Object.create(null) as Record<
+      string,
+      string
+    >;
+    const messageLocales: Record<string, string> = Object.create(
+      null,
+    ) as Record<string, string>;
+    let bytes = 0;
+    let count = 0;
+    for (const full of [...wanted].sort()) {
+      const found = this.#lookup(resolved, full);
+      if (!found) continue;
+      count++;
+      bytes += full.length + found.message.length;
+      if (count > maxHydratedMessages || bytes > maxHydratedBytes)
+        config('hydration subset is too large; select fewer namespaces');
+      messages[full] = found.message;
+      // Plural rules follow the language of the message actually chosen.
+      if (found.locale !== resolved) messageLocales[full] = found.locale;
+    }
+    return Object.freeze({
+      ...this.view(resolved),
+      defaultNamespace: this.defaultNamespace,
+      messages: Object.freeze({ ...messages }),
+      messageLocales: Object.freeze({ ...messageLocales }),
+    });
+  }
+
+  /**
+   * `<script type="application/json">` carrying a hydration payload for
+   * `readLocaleHydration()` in `@nestvexa/i18n/client`. The JSON is escaped
+   * so message text can never close the script element.
+   */
+  hydrationScript(hydration: LocaleHydration, id = 'nv-i18n'): SafeHtml {
+    if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(id))
+      config('hydration script id must be an identifier');
+    const json = JSON.stringify(hydration).replace(
+      scriptUnsafe,
+      (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`,
+    );
+    return SafeHtml.trusted(
+      `<script type="application/json" id="${id}">${json}</script>`,
+    );
   }
 
   formatDate(

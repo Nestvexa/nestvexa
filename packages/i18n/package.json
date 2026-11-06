@@ -28,6 +28,10 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js"
+    },
     "./extract": {
       "types": "./dist/extract.d.ts",
       "import": "./dist/extract.js",

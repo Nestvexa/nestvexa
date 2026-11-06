@@ -39,6 +39,10 @@ import {
   LocaleViewInterceptor,
   loadCatalogs,
 } from '@nestvexa/i18n';
+import {
+  renderBudgetInstrumentation,
+  traceContextMiddleware,
+} from '@nestvexa/observability';
 import { clearSiteDataHeader, draftScope } from '@nestvexa/offline/server';
 import { uiHelpers } from '@nestvexa/ui';
 import {
@@ -55,7 +59,12 @@ import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { AssistantPanel, assistantOptions } from './assistant.js';
-import { Catalog, CatalogModule, validateProduct } from './catalog.js';
+import {
+  Catalog,
+  CatalogModule,
+  categories,
+  validateProduct,
+} from './catalog.js';
 import { assertFormCsrf, binding, ensureCsrf, field } from './identity.js';
 import type { SessionRequest } from './identity.js';
 import { ProductForm, ProductTable } from './products.js';
@@ -70,6 +79,9 @@ const draftSecret = randomBytes(48);
 const csp =
   "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 const knownFlags = ['ai-assistant', 'bulk-export'] as const;
+const wizardSteps = ['details', 'pricing', 'review'] as const;
+// Warnings go to process.emitWarning (stderr) while developing.
+const renderBudget = renderBudgetInstrumentation();
 
 /** Optional browser modules are served from trusted package paths only. */
 function packageFile(specifier: string): string {
@@ -311,6 +323,68 @@ class AdminController {
     return { url: '/admin', statusCode: 303 };
   }
 
+  /** UI kit showcase over the same per-session catalog data. */
+  @Get('admin/kit')
+  @Header('Cache-Control', 'no-store')
+  @Header('Content-Security-Policy', csp)
+  @UseInterceptors(LocaleViewInterceptor)
+  @Render('kit')
+  async kit(@Req() request: SessionRequest, @Query('step') step?: string) {
+    const shell = await this.shell(request, '/admin/kit');
+    const context = this.i18n.forRequest(request);
+    const products = this.catalog.list(binding(request));
+    const notice = request.session.notice;
+    delete request.session.notice;
+    return {
+      ...shell,
+      title: context.t('kit:title'),
+      crumbs: [
+        { label: context.t('kit:home'), href: '/admin' },
+        { label: context.t('kit:heading') },
+      ],
+      unread: products.filter((item) => item.status === 'active').length,
+      archivedText: notice ?? '',
+      step: wizardSteps.find((entry) => entry === step) ?? 'details',
+      categoryOptions: categories.map((category) => ({
+        value: category,
+        label: context.t(`products:categories.${category}`),
+      })),
+      products: products.map((product) => ({
+        id: product.id,
+        name: product.name,
+        category: product.category,
+        categoryLabel: context.t(`products:categories.${product.category}`),
+        statusLabel: context.t(`products:status.${product.status}`),
+        selectLabel: context.t('kit:table.select', { name: product.name }),
+      })),
+    };
+  }
+
+  /** Bulk archive from the data table's selection (a native form post). */
+  @Post('admin/kit/archive')
+  @Redirect('/admin/kit', 303)
+  archiveSelected(@Req() request: SessionRequest, @Body() body: unknown) {
+    assertFormCsrf(request, body);
+    const owner = binding(request);
+    const raw: unknown =
+      body && typeof body === 'object' && Object.hasOwn(body, 'ids')
+        ? Reflect.get(body, 'ids')
+        : [];
+    const ids = (Array.isArray(raw) ? raw : [raw])
+      .filter((id): id is string => typeof id === 'string')
+      .slice(0, 100);
+    let archived = 0;
+    for (const id of new Set(ids))
+      if (this.catalog.find(owner, id)?.status === 'active') {
+        this.catalog.archive(owner, id);
+        archived++;
+      }
+    request.session.notice = this.i18n
+      .forRequest(request)
+      .t('kit:notice.archived', { count: archived });
+    return { url: '/admin/kit', statusCode: 303 };
+  }
+
   @Get('admin/activity')
   @Header('Cache-Control', 'no-store')
   @Header('Content-Type', 'text/html; charset=utf-8')
@@ -434,6 +508,8 @@ class AdminController {
           },
           // The flag is enforced before the action allowlist on every Live
           // request, including $mount and the assistant stream.
+          // Development-only render budget warnings (disabled in production).
+          instrumentation: renderBudget,
           authorize: liveFlagPolicy(
             flags,
             { 'assistant-panel': 'ai-assistant' },
@@ -449,6 +525,9 @@ class AdminController {
 class AppModule {}
 
 const app = await NestFactory.create(AppModule, { logger: ['error', 'warn'] });
+// Validated inbound W3C trace context (for example from a browser
+// OpenTelemetry SDK) is available to instrumentation for each request.
+app.use(traceContextMiddleware());
 // Local guest demonstration: production hosts supply authentication, a
 // persistent session store, a deployment secret, HTTPS cookies and policies.
 app.use(

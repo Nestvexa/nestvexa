@@ -1,0 +1,63 @@
+/*
+ * @nestvexa/ui design tokens only: custom properties for the light and dark
+ * palettes, without any component styles. Use it to theme your own markup or
+ * to override values before theme.css (which repeats these tokens so it can be
+ * served as one file). tests/ui-helpers.test.ts keeps the two in sync.
+ */
+:root {
+  color-scheme: light dark;
+  --nv-font:
+    system-ui, -apple-system, 'Segoe UI', 'Noto Sans', 'Noto Sans Arabic',
+    sans-serif;
+  --nv-bg: #ffffff;
+  --nv-surface: #f6f7f9;
+  --nv-text: #1b1f24;
+  --nv-muted: #4a5360;
+  --nv-border: #8a94a3;
+  --nv-accent: #1d4ed8;
+  --nv-accent-text: #ffffff;
+  --nv-danger: #b42318;
+  --nv-success: #136c3a;
+  --nv-warning: #8a4b00;
+  --nv-focus: #1d4ed8;
+  --nv-backdrop: rgb(15 18 22 / 0.55);
+  --nv-radius: 0.375rem;
+  --nv-space: 0.75rem;
+  --nv-duration: 160ms;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --nv-bg: #121417;
+    --nv-surface: #1c2026;
+    --nv-text: #eef1f4;
+    --nv-muted: #b8c0cc;
+    --nv-border: #7d8796;
+    --nv-accent: #8fb4ff;
+    --nv-accent-text: #0b1220;
+    --nv-danger: #ff9b8f;
+    --nv-success: #7fd8a4;
+    --nv-warning: #f5c26b;
+    --nv-focus: #8fb4ff;
+    --nv-backdrop: rgb(0 0 0 / 0.7);
+  }
+}
+:root[data-theme='dark'] {
+  --nv-bg: #121417;
+  --nv-surface: #1c2026;
+  --nv-text: #eef1f4;
+  --nv-muted: #b8c0cc;
+  --nv-border: #7d8796;
+  --nv-accent: #8fb4ff;
+  --nv-accent-text: #0b1220;
+  --nv-danger: #ff9b8f;
+  --nv-success: #7fd8a4;
+  --nv-warning: #f5c26b;
+  --nv-focus: #8fb4ff;
+  --nv-backdrop: rgb(0 0 0 / 0.7);
+}
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}

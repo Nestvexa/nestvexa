@@ -47,6 +47,10 @@ export type {
   ActionsErrorEnvelopeMode,
   ActionsHostOptions,
 } from './options.js';
+export type {
+  ActionInstrumentation,
+  ActionSpanAttributes,
+} from './instrumentation.js';
 export { ActionsModule } from './module.js';
 export type {
   ActionsModuleAsyncOptions,

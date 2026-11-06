@@ -500,6 +500,10 @@ export class LiveRuntime implements OnApplicationShutdown {
       () => this.renderUntraced(instance, component, context),
       (rendered) => ({
         'nestvexa.html_bytes': Buffer.byteLength(rendered.html),
+        // Public state is already client-safe JSON; only its size is recorded.
+        'nestvexa.state_bytes': Buffer.byteLength(
+          JSON.stringify(rendered.state),
+        ),
       }),
     );
   }

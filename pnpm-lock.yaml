@@ -156,6 +156,9 @@ importers:
       '@nestvexa/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
+      '@nestvexa/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
       '@nestvexa/offline':
         specifier: workspace:*
         version: link:../../packages/offline

@@ -8,6 +8,7 @@ import {
 } from './constants.js';
 import type { InertiaRootContext } from './document.js';
 import { InertiaConfigurationError } from './errors.js';
+import { traced } from './instrumentation.js';
 import type { ResolvedApp, ResolvedOptions } from './options.js';
 import type { InertiaPageObject } from './page.js';
 import {
@@ -420,7 +421,21 @@ export class InertiaService {
     defaultApp?: string,
   ): Promise<InertiaHttpReply> {
     if (result instanceof InertiaPageResult)
-      return this.#pageReply(request, result, defaultApp);
+      return traced(
+        this.#options.instrumentation,
+        'nestvexa.inertia.render',
+        {
+          'nestvexa.page': result.component,
+          'nestvexa.inertia.kind': this.requestInfo(request).inertia
+            ? 'json'
+            : 'document',
+        },
+        () => this.#pageReply(request, result, defaultApp),
+        (reply) => ({
+          'nestvexa.page_bytes': Buffer.byteLength(reply.body),
+          status: reply.status,
+        }),
+      );
     if (result instanceof InertiaLocationResult)
       return this.#locationReply(request, result.url);
     if (result instanceof InertiaBackResult) {

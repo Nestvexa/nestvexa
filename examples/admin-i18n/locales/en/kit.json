@@ -1,0 +1,63 @@
+{
+  "title": "UI kit",
+  "heading": "UI kit primitives",
+  "breadcrumb": "Breadcrumb",
+  "home": "Admin",
+  "link": "UI kit primitives",
+  "unread": "{count} unread notifications",
+  "notice": {
+    "title": "Preview page",
+    "body": "These primitives use the same catalog data as the admin page.",
+    "archived": "{count, plural, one {# product archived} other {# products archived}}"
+  },
+  "actions": "Actions",
+  "menu": {
+    "admin": "Back to admin",
+    "newProduct": "New product",
+    "copy": "Copy page link"
+  },
+  "help": "Help",
+  "helpTitle": "About prices",
+  "helpBody": "Prices are shown in Egyptian pounds and include tax.",
+  "priceHelp": "Price help",
+  "priceTip": "Prices include 14% VAT",
+  "faq": {
+    "shipping": "Shipping",
+    "shippingBody": "Orders ship within two business days.",
+    "returns": "Returns",
+    "returnsBody": "Unused items can be returned within thirty days."
+  },
+  "filters": "Filters",
+  "openFilters": "Open filters",
+  "filtersBody": "Use the search box and category filter above the table.",
+  "launch": "Launch date",
+  "attachments": "Attachments",
+  "attachmentsHint": "PNG or PDF files",
+  "drop": "Or drop files here",
+  "selectedFiles": "{count} files selected",
+  "wizard": {
+    "label": "New product steps",
+    "step": "Step {step} of {total}",
+    "completed": "completed",
+    "details": "Details",
+    "detailsBody": "Name and category.",
+    "pricing": "Pricing",
+    "pricingBody": "Price and tax.",
+    "review": "Review",
+    "reviewBody": "Check everything before saving.",
+    "next": "Next step"
+  },
+  "table": {
+    "caption": "Products",
+    "search": "Search products",
+    "category": "Category",
+    "allCategories": "All categories",
+    "results": "{count} results",
+    "selected": "{count} selected",
+    "selectAll": "Select all products",
+    "select": "Select {name}",
+    "name": "Name",
+    "status": "Status",
+    "archive": "Archive selected"
+  }
+}

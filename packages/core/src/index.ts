@@ -12,3 +12,25 @@ export {
   type FeatureCapability,
 } from './registry.js';
 export { NestvexaError, type NestvexaErrorCode } from './errors.js';
+export {
+  RouteName,
+  buildPath,
+  collectRoutes,
+  generateRouteModule,
+  moduleControllers,
+  routeParams,
+  type CollectRoutesOptions,
+  type RouteDefinition,
+  type RouteParam,
+} from './routes.js';
+export {
+  PLUGIN_CAPABILITIES,
+  PluginRegistry,
+  definePlugin,
+  parsePluginManifest,
+  satisfiesVersion,
+  type NestvexaPlugin,
+  type NestvexaPluginManifest,
+  type PluginCapability,
+  type PluginSetupContext,
+} from './plugins.js';

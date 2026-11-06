@@ -6,6 +6,8 @@ import {
 import { defaultRootView } from './document.js';
 import type { InertiaRootView } from './document.js';
 import { InertiaConfigurationError } from './errors.js';
+import { isInstrumentation } from './instrumentation.js';
+import type { InertiaInstrumentation } from './instrumentation.js';
 import { normalizeOrigin } from './redirect.js';
 import { defaultHeaderLimits } from './request.js';
 import type { InertiaHeaderLimits } from './request.js';
@@ -76,6 +78,12 @@ export interface InertiaModuleOptions extends InertiaAppOptions {
   readonly now?: () => number;
   /** Called for each rescued deferred prop failure. Default: Nest logger. */
   readonly onRescue?: (error: unknown, path: string, request: object) => void;
+  /**
+   * Optional structural tracing hook (for example from
+   * @nestvexa/observability). Emits `nestvexa.inertia.render` per page
+   * response with the component name, app, response kind and page size.
+   */
+  readonly instrumentation?: InertiaInstrumentation;
 }
 
 export interface ResolvedApp {
@@ -110,6 +118,7 @@ export interface ResolvedOptions {
   readonly now: () => number;
   readonly onRescue:
     ((error: unknown, path: string, request: object) => void) | undefined;
+  readonly instrumentation: InertiaInstrumentation | undefined;
 }
 
 const idPattern = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
@@ -246,5 +255,15 @@ export function resolveOptions(
     url: options.url,
     now: options.now ?? Date.now,
     onRescue: options.onRescue,
+    instrumentation: instrumentation(options.instrumentation),
   });
+}
+
+function instrumentation(value: unknown): InertiaInstrumentation | undefined {
+  if (value === undefined) return undefined;
+  if (!isInstrumentation(value))
+    throw new InertiaConfigurationError(
+      'instrumentation must implement start()',
+    );
+  return value;
 }
