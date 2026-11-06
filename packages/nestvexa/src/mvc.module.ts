@@ -135,13 +135,13 @@ export interface ViewEngineBridge {
   ): void;
   initialize?(): Promise<void>;
 }
-/** Fastify hosts: extension → adapter, consulted by the `reply.view` decorator. */
-const fastifyViewEngines = new WeakMap<object, Map<string, ViewEngineBridge>>();
+/** Per HTTP host: extension → adapter (Fastify's `reply.view` decorator consults it). */
+const viewEngines = new WeakMap<object, Map<string, ViewEngineBridge>>();
 function fastifyEngineFor(
   host: object,
   view: string,
 ): ViewEngineBridge | undefined {
-  const engines = fastifyViewEngines.get(host);
+  const engines = viewEngines.get(host);
   if (!engines) return undefined;
   const dot = view.lastIndexOf('.');
   return dot > view.lastIndexOf('/')
@@ -171,23 +171,21 @@ export async function registerViewEngine(
   const adapter = app.getHttpAdapter();
   const kind: string = adapter.getType();
   const host: unknown = adapter.getInstance();
-  if (kind === 'express') {
-    if (!expressHost(host)) throw new Error('Invalid Express view host');
-    await engine.initialize?.();
-    host.engine(extension, (file, model, done) =>
-      engine.renderFile(file, model, done),
-    );
-    return;
-  }
-  if (kind !== 'fastify' || !fastifyHost(host))
+  const express = kind === 'express' && expressHost(host);
+  if (!express && !(kind === 'fastify' && fastifyHost(host)))
     throw new Error(`Unsupported Nest HTTP adapter: ${kind}`);
-  const engines =
-    fastifyViewEngines.get(host) ?? new Map<string, ViewEngineBridge>();
+  if (host === null || (typeof host !== 'object' && typeof host !== 'function'))
+    throw new Error(`Unsupported Nest HTTP adapter: ${kind}`);
+  const engines = viewEngines.get(host) ?? new Map<string, ViewEngineBridge>();
   if (engines.has(extension))
     throw new Error(`A .${extension} view engine is already registered`);
   await engine.initialize?.();
   engines.set(extension, engine);
-  fastifyViewEngines.set(host, engines);
+  viewEngines.set(host, engines);
+  if (express)
+    host.engine(extension, (file, model, done) =>
+      engine.renderFile(file, model, done),
+    );
 }
 
 async function installViews(
