@@ -6,9 +6,12 @@ import {
   parsePluginManifest,
   satisfiesVersion,
 } from '../packages/core/dist/index.js';
-import type { NestvexaPlugin } from '../packages/core/dist/index.js';
+import type {
+  NestvexaPlugin,
+  NestvexaPluginManifest,
+} from '../packages/core/dist/index.js';
 
-const manifest = {
+const manifest: NestvexaPluginManifest = {
   name: '@acme/nestvexa-charts',
   version: '1.2.0',
   nestvexa: '^0.1.0-alpha.0',

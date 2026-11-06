@@ -79,9 +79,9 @@ describe('server hydration subset', () => {
         en: { common: { bad: '</script><script>alert(1)</script> &  ' } },
       },
     });
-    const html = hostile
-      .hydrationScript(hostile.hydration('en', { keys: ['common:bad'] }))
-      .value;
+    const html = hostile.hydrationScript(
+      hostile.hydration('en', { keys: ['common:bad'] }),
+    ).value;
     expect(
       html.startsWith('<script type="application/json" id="nv-i18n">'),
     ).toBe(true);
@@ -124,9 +124,9 @@ describe('client translator', () => {
     );
   });
   it('reads the payload from a document and rejects tampered payloads', () => {
-    const script = i18n
-      .hydrationScript(i18n.hydration('en', { keys: ['common:save'] }))
-      .value;
+    const script = i18n.hydrationScript(
+      i18n.hydration('en', { keys: ['common:save'] }),
+    ).value;
     const text = script.slice(script.indexOf('>') + 1, script.lastIndexOf('<'));
     const doc = {
       getElementById: (id: string) =>
