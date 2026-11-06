@@ -8,7 +8,7 @@ import {
 } from './constants.js';
 import type { InertiaRootContext } from './document.js';
 import { InertiaConfigurationError } from './errors.js';
-import { traced } from './instrumentation.js';
+import { ssrErrorType, startSpan, traced } from './instrumentation.js';
 import type { ResolvedApp, ResolvedOptions } from './options.js';
 import type { InertiaPageObject } from './page.js';
 import {
@@ -603,11 +603,24 @@ export class InertiaService {
     let body = `<script data-page="${app.id}" type="application/json">${escapeJsonForScript(json)}</script><div id="${app.id}"></div>`;
     if (app.ssr) {
       const context = { request, app: app.key };
+      const span = startSpan(
+        this.#options.instrumentation,
+        'nestvexa.ssr.render',
+        { 'nestvexa.page': page.component, 'nestvexa.inertia.app': app.key },
+      );
       try {
         const rendered = await app.ssr.renderer.render(page, json, context);
         head = rendered.head.join('');
         body = rendered.body;
+        span.end('ok', {
+          'nestvexa.ssr.head_elements': rendered.head.length,
+          'nestvexa.ssr.body_bytes': Buffer.byteLength(body),
+        });
       } catch (error) {
+        span.end('error', {
+          'nestvexa.ssr.error_type': ssrErrorType(error),
+          'nestvexa.ssr.fallback': app.ssr.mode !== 'strict',
+        });
         try {
           app.ssr.onError?.(error, context);
         } catch (observerError) {
