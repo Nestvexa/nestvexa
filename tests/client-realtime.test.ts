@@ -187,6 +187,26 @@ describe('browser realtime controller', () => {
     expect(FakeEventSource.instances[1]?.closed).toBe(true);
   });
 
+  it('keeps the open connection when a response only re-signs the same channels', () => {
+    const f = controller('sse');
+    const first = token(['orders', 'job:1']);
+    // Same channels, fresh expiry: a different token string.
+    const resigned = first.replace(/A{43}$/, 'B'.repeat(43));
+    f.instance.update([first]);
+    FakeEventSource.instances[0]?.ready();
+    f.instance.update([resigned]);
+    expect(FakeEventSource.instances).toHaveLength(1);
+    expect(FakeEventSource.instances[0]?.closed).toBe(false);
+    // The next reconnect uses the fresh token.
+    FakeEventSource.instances[0]?.fail(true);
+    vi.advanceTimersByTime(1000);
+    expect(FakeEventSource.instances).toHaveLength(2);
+    expect(FakeEventSource.instances[1]?.url).toContain('B'.repeat(43));
+    // A changed channel set reconnects immediately.
+    f.instance.update([token(['orders', 'job:2'])]);
+    expect(FakeEventSource.instances).toHaveLength(3);
+  });
+
   it('drops duplicate and malformed events', () => {
     const f = controller('sse');
     f.instance.update([token(['orders'])]);

@@ -279,7 +279,14 @@ export function createRealtimeController(
           'Too many realtime subscriptions',
         );
       if (sorted.join('\n') === tokens.join('\n')) return;
+      const channels = (list: readonly string[]) =>
+        [...new Set(list.flatMap(tokenChannels))].sort().join('\n');
+      const unchanged = channels(sorted) === channels(tokens);
       tokens = sorted;
+      // Responses re-sign tokens with a fresh expiry. Reconnecting for those
+      // would open a window in which events are missed; the open connection
+      // keeps its channels and the fresh tokens are used on the next connect.
+      if (unchanged && close) return;
       attempt = 0;
       connect();
     },

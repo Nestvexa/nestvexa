@@ -51,7 +51,9 @@ export const reportJobs = new JobRunner({
     typeof context.input === 'object' &&
     Reflect.get(context.input, 'fail') === true;
   for (let step = 1; step <= 4; step++) {
-    await delay(150, undefined, { signal: context.signal });
+    // Long enough for the browser to subscribe to the new job channel: events
+    // published before the subscription exists are not replayed.
+    await delay(400, undefined, { signal: context.signal });
     // The failing demo breaks halfway through every attempt.
     if (failing && step === 2) throw new Error('demo report source offline');
     context.progress(step * 25);

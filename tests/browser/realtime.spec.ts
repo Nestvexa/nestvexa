@@ -35,12 +35,15 @@ test('an event published by one session refreshes another session through SSE', 
   await second.close();
 });
 
+// Job snapshots arrive over realtime; allow for slow CI browsers.
+const job = { timeout: 15_000 };
+
 test('report job progress reaches only its owner and completes', async ({
   page,
 }) => {
   await page.goto(url);
   await page.getByRole('button', { name: 'Generate report' }).click();
-  await expect(page.locator('#report-status')).toHaveText('succeeded');
+  await expect(page.locator('#report-status')).toHaveText('succeeded', job);
   await expect(page.locator('#report-progress')).toHaveAttribute(
     'value',
     '100',
@@ -52,7 +55,7 @@ test('a running report can be cancelled by its owner', async ({ page }) => {
   await page.getByRole('button', { name: 'Generate report' }).click();
   await expect(page.locator('#report-status')).toHaveText(/queued|running/);
   await page.getByRole('button', { name: 'Cancel report' }).click();
-  await expect(page.locator('#report-status')).toHaveText('cancelled');
+  await expect(page.locator('#report-status')).toHaveText('cancelled', job);
   await expect(
     page.getByRole('button', { name: 'Retry report' }),
   ).toBeVisible();
@@ -63,7 +66,7 @@ test('a failing report is retried automatically, fails with a generic message an
 }) => {
   await page.goto(url);
   await page.getByRole('button', { name: 'Generate failing report' }).click();
-  await expect(page.locator('#report-status')).toHaveText('failed');
+  await expect(page.locator('#report-status')).toHaveText('failed', job);
   // Two automatic attempts ran before the job failed.
   await expect(page.locator('#report-attempts')).toHaveText('2');
   await expect(page.locator('#report-error')).toHaveText('The job failed.');
@@ -71,7 +74,7 @@ test('a failing report is retried automatically, fails with a generic message an
     'demo report source offline',
   );
   await page.getByRole('button', { name: 'Retry report' }).click();
-  await expect(page.locator('#report-status')).toHaveText('succeeded');
+  await expect(page.locator('#report-status')).toHaveText('succeeded', job);
   await expect(page.locator('#report-attempts')).toHaveText('1');
   await expect(page.getByRole('button', { name: 'Retry report' })).toHaveCount(
     0,
