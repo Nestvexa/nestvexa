@@ -125,6 +125,71 @@ function fastifyHost(host: unknown): host is FastifyViewHost {
   );
 }
 
+/** A first-party (or `TemplateRoot`-based) adapter for a non-HBS extension. */
+export interface ViewEngineBridge {
+  render(view: string, model: Record<string, unknown>): Promise<string>;
+  renderFile(
+    file: string,
+    options: Record<string, unknown>,
+    done: (error: Error | null, html?: string) => void,
+  ): void;
+  initialize?(): Promise<void>;
+}
+/** Fastify hosts: extension → adapter, consulted by the `reply.view` decorator. */
+const fastifyViewEngines = new WeakMap<object, Map<string, ViewEngineBridge>>();
+function fastifyEngineFor(
+  host: object,
+  view: string,
+): ViewEngineBridge | undefined {
+  const engines = fastifyViewEngines.get(host);
+  if (!engines) return undefined;
+  const dot = view.lastIndexOf('.');
+  return dot > view.lastIndexOf('/')
+    ? engines.get(view.slice(dot + 1))
+    : undefined;
+}
+
+/**
+ * Register another template engine for `@Render('<view>.<extension>')` next to
+ * the default Handlebars engine: `app.engine()` on Express; on Fastify the
+ * `reply.view` decorator of `configureNestvexa` dispatches by extension. Views
+ * without the extension keep rendering with Handlebars. Call before
+ * `app.listen()`; the engine is initialized here.
+ */
+export async function registerViewEngine(
+  app: INestApplication,
+  extension: string,
+  engine: ViewEngineBridge,
+): Promise<void> {
+  if (!/^[a-z][a-z0-9]{0,15}$/.test(extension) || extension === 'hbs')
+    throw new Error(`Invalid view engine extension: ${extension}`);
+  if (
+    typeof engine?.render !== 'function' ||
+    typeof engine.renderFile !== 'function'
+  )
+    throw new Error('A view engine needs render() and renderFile()');
+  const adapter = app.getHttpAdapter();
+  const kind: string = adapter.getType();
+  const host: unknown = adapter.getInstance();
+  if (kind === 'express') {
+    if (!expressHost(host)) throw new Error('Invalid Express view host');
+    await engine.initialize?.();
+    host.engine(extension, (file, model, done) =>
+      engine.renderFile(file, model, done),
+    );
+    return;
+  }
+  if (kind !== 'fastify' || !fastifyHost(host))
+    throw new Error(`Unsupported Nest HTTP adapter: ${kind}`);
+  const engines =
+    fastifyViewEngines.get(host) ?? new Map<string, ViewEngineBridge>();
+  if (engines.has(extension))
+    throw new Error(`A .${extension} view engine is already registered`);
+  await engine.initialize?.();
+  engines.set(extension, engine);
+  fastifyViewEngines.set(host, engines);
+}
+
 async function installViews(
   app: INestApplication,
   engine: HbsEngine,
@@ -152,7 +217,10 @@ async function installViews(
       );
     await engine.initialize();
     host.decorateReply('view', async function (view, model) {
-      const html = await engine.render(view, model);
+      const html = await (fastifyEngineFor(host, view) ?? engine).render(
+        view,
+        model,
+      );
       return this.type('text/html; charset=utf-8').send(html);
     });
   }

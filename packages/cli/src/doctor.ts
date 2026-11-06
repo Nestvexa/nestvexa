@@ -346,15 +346,30 @@ export function doctor(context: CommandContext): CommandResult {
   );
 
   // Sessions, CSRF and secrets (values are never printed).
+  // Express: session(...) in main.ts. Fastify: @fastify/session registered in
+  // any source file (`nestvexa init` puts it in src/nestvexa/session.ts).
+  const fastify = project.platform === 'fastify';
+  const sessionText = fastify
+    ? ([...sources.values()].find((text) =>
+        /register\(\s*fastifySession\b/.test(text),
+      ) ?? '')
+    : mainText;
+  const sessionRegistered = fastify
+    ? sessionText !== ''
+    : /session\(/.test(mainText);
   add(
     'session',
-    /session\(/.test(mainText) ? 'pass' : 'warn',
-    /session\(/.test(mainText)
-      ? 'A session middleware is registered'
-      : 'No session middleware found in main.ts',
+    sessionRegistered ? 'pass' : 'warn',
+    sessionRegistered
+      ? fastify
+        ? '@fastify/session is registered'
+        : 'A session middleware is registered'
+      : fastify
+        ? 'No @fastify/session registration found'
+        : 'No session middleware found in main.ts',
     'Live, actions and forms need host sessions for identity and CSRF tokens.',
   );
-  const cookie = /cookie:\s*\{([^}]*)\}/.exec(mainText)?.[1] ?? '';
+  const cookie = /cookie:\s*\{([^}]*)\}/.exec(sessionText)?.[1] ?? '';
   const cookieIssues = [
     ...(cookie && !/httpOnly:\s*true/.test(cookie)
       ? ['httpOnly is not true']
@@ -380,7 +395,9 @@ export function doctor(context: CommandContext): CommandResult {
           : 'CSRF and action authorization are enabled; session cookie flags look safe',
     'Keep security.csrf and requireAuthorizedActions enabled; use httpOnly, sameSite and secure (in production) session cookies.',
   );
-  const literal = /secret:\s*['"`][^'"`]+['"`]/.test(mainText);
+  const literal = /secret:\s*['"`][^'"`]+['"`]/.test(
+    fastify ? `${mainText}\n${sessionText}` : mainText,
+  );
   const sessionSecret = process.env['SESSION_SECRET'];
   add(
     'session-secret',

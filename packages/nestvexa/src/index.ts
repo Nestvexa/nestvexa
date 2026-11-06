@@ -16,7 +16,8 @@ export * from '@nestvexa/core';
 export * from '@nestvexa/views';
 export * from '@nestvexa/live';
 export { HbsEngine } from '@nestvexa/engine-hbs';
-export { configureNestvexa } from './mvc.module.js';
+export { configureNestvexa, registerViewEngine } from './mvc.module.js';
+export type { ViewEngineBridge } from './mvc.module.js';
 export { NestvexaBrowserService } from './browser.module.js';
 export type { NestvexaBrowserOptions } from './browser.module.js';
 

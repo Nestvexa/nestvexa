@@ -14,6 +14,7 @@ import {
   addArrayElement,
   addDependencies,
   addFactoryInjection,
+  addFactoryResultProperty,
   addObjectProperty,
   addScripts,
   detectProject,
@@ -37,13 +38,6 @@ type Notes = string[];
 
 function first(project: ProjectInfo, path: string): string {
   return `${project.sourceRoot}/${path}`;
-}
-function requireExpress(project: ProjectInfo, feature: string): void {
-  if (project.platform !== 'express')
-    throw new CliError(
-      `${feature} is wired for the Express platform by this CLI. On Fastify, follow the package README to register it manually.`,
-      2,
-    );
 }
 /** Patch main.ts with `call` before `await app.listen()`, importing `name` from `file`. */
 function patchMain(
@@ -92,9 +86,9 @@ export function ensureEngine(
   engine: Engine,
   notes: Notes,
 ): void {
-  requireExpress(project, `The ${engine} engine`);
   const { package: name, extension } = app.engines[engine];
-  addDependencies(plan, { [name]: range });
+  // registerViewEngine comes from the umbrella package (`nestvexa init`).
+  addDependencies(plan, { [name]: range, nestvexa: range });
   const file = first(project, `nestvexa/engines/${engine}.engine.ts`);
   if (plan.ensure(file, app.engineConfig(engine)))
     notes.push(`Created ${file} (views/*.${extension} render with ${engine}).`);
@@ -119,7 +113,6 @@ export function ensureInertia(
   project: ProjectInfo,
   notes: Notes,
 ): void {
-  requireExpress(project, 'Inertia');
   addDependencies(
     plan,
     { '@nestvexa/inertia': range, '@nestvexa/vite': range },
@@ -129,7 +122,10 @@ export function ensureInertia(
   if (
     plan.ensure(
       file,
-      app.inertiaConfig(project.dependencies['express-session'] !== undefined),
+      app.inertiaConfig(
+        project.dependencies['express-session'] !== undefined ||
+          project.dependencies['@fastify/session'] !== undefined,
+      ),
     )
   )
     notes.push(`Created ${file}.`);
@@ -293,7 +289,6 @@ export function ensureIslands(
   project: ProjectInfo,
   notes: Notes,
 ): void {
-  requireExpress(project, 'Islands');
   addDependencies(
     plan,
     { '@nestvexa/islands': range, '@nestvexa/vite': range },
@@ -418,7 +413,7 @@ export function ensureActions(
   notes: Notes,
 ): void {
   addDependencies(plan, { '@nestvexa/actions': range });
-  if (plan.ensure(actionsConfigPath(project), app.actionsConfig()))
+  if (plan.ensure(actionsConfigPath(project), app.actionsConfig(project.platform)))
     notes.push(
       `Created ${actionsConfigPath(project)}. ActionsModule is registered with your first \`nestvexa make:action\` (it requires a non-empty group list).`,
     );
@@ -538,10 +533,7 @@ export function add(
       addRealtime(plan, project, notes);
       break;
     case 'redis':
-      addDependencies(plan, { '@nestvexa/realtime': range });
-      notes.push(
-        'Use new RespRealtimeBroker({ host, port, password }) as `broker` in realtimeOptions for multiple replicas (docs/guides/realtime.md).',
-      );
+      addRedis(plan, project, notes);
       break;
     case 'uploads':
       addUploads(plan, project, notes);
@@ -571,7 +563,7 @@ function addRealtime(
 ): void {
   addDependencies(plan, { '@nestvexa/realtime': range });
   const file = first(project, 'nestvexa/realtime.config.ts');
-  plan.ensure(file, app.realtimeConfig());
+  plan.ensure(file, app.realtimeConfig(project.platform));
   if (
     registerInModule(
       plan,
@@ -622,15 +614,60 @@ function addRealtime(
     );
   notes.push('Set REALTIME_SECRET (at least 32 bytes) in production.');
 }
+/** Realtime plus @nestvexa/realtime-redis: shared Live state and pub/sub when REDIS_URL is set. */
+function addRedis(plan: ChangePlan, project: ProjectInfo, notes: Notes): void {
+  addRealtime(plan, project, notes);
+  addDependencies(plan, {
+    '@nestvexa/live': range,
+    '@nestvexa/realtime-redis': range,
+  });
+  const file = first(project, 'nestvexa/redis.config.ts');
+  plan.ensure(file, app.redisConfig());
+  const realtime = first(project, 'nestvexa/realtime.config.ts');
+  const realtimeText = plan.read(realtime);
+  if (realtimeText !== undefined) {
+    let next = addObjectProperty(
+      realtimeText,
+      'realtimeOptions',
+      'broker',
+      'realtimeBroker()',
+    );
+    if (next !== realtimeText)
+      next = ensureImport(
+        next,
+        relativeImport(realtime, file, project.esm),
+        ['realtimeBroker'],
+      );
+    plan.update(realtime, next);
+  }
+  const live = liveConfigPath(project);
+  const liveText = plan.read(live);
+  let next =
+    liveText === undefined
+      ? undefined
+      : addFactoryResultProperty(liveText, 'nestvexaLive', 'store', 'liveStore()');
+  if (liveText !== undefined && next !== undefined) {
+    if (next !== liveText)
+      next = ensureImport(next, relativeImport(live, file, project.esm), [
+        'liveStore',
+      ]);
+    plan.update(live, next);
+  } else
+    notes.push(
+      `Pass store: liveStore() (from ${file}) in your Live registration's useFactory.`,
+    );
+  notes.push(
+    'Set REDIS_URL=redis://[user:password@]host:port[/db] (and REDIS_PREFIX per environment) on every replica; without it state stays in-process. Replicas must share REALTIME_SECRET, SESSION_SECRET and a session store (docs/guides/production-services.md).',
+  );
+}
 function addUploads(
   plan: ChangePlan,
   project: ProjectInfo,
   notes: Notes,
 ): void {
-  requireExpress(project, 'Uploads');
   addDependencies(plan, { '@nestvexa/uploads': range });
   const file = first(project, 'nestvexa/uploads.config.ts');
-  plan.ensure(file, app.uploadsConfig());
+  plan.ensure(file, app.uploadsConfig(project.platform));
   if (
     registerInModule(
       plan,

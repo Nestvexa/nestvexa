@@ -4,6 +4,9 @@
  * compile in a strict Nest project; `tests/cli-generators.test.ts` type-checks
  * the output with `tsc`, `vue-tsc` and `svelte-check`.
  */
+import { sessionIdExpression } from './templates.js';
+import type { Platform } from './templates.js';
+
 export type Engine = 'ejs' | 'pug' | 'nunjucks';
 export type Framework = 'react' | 'vue' | 'svelte';
 
@@ -73,6 +76,7 @@ export function engineConfig(engine: Engine): string {
   const { className, extension, package: name } = engines[engine];
   return `import type { INestApplication } from '@nestjs/common';
 import { ${className} } from '${name}';
+import { registerViewEngine } from 'nestvexa';
 import { resolve } from 'node:path';
 
 /**
@@ -86,29 +90,12 @@ export const ${engine}Engine = new ${className}({
   defaultLayout: 'layouts/main',
 });
 
-type RenderCallback = (error: Error | null, html?: string) => void;
-interface ExpressViewHost {
-  engine(
-    extension: string,
-    render: (file: string, options: Record<string, unknown>, done: RenderCallback) => void,
-  ): unknown;
-}
-function isExpressViewHost(value: unknown): value is ExpressViewHost {
-  return (
-    typeof value === 'function' &&
-    typeof Reflect.get(value, 'engine') === 'function'
-  );
-}
-
-/** Registers the \`.${extension}\` view engine with Express. Call before \`app.listen()\`. */
+/**
+ * Registers the \`.${extension}\` view engine on Express or Fastify. Call before
+ * \`app.listen()\`; dispose the engine on shutdown if you create it per test.
+ */
 export async function ${engineFunction(engine)}(app: INestApplication): Promise<void> {
-  const host: unknown = app.getHttpAdapter().getInstance();
-  if (!isExpressViewHost(host))
-    throw new Error('The ${engine} view engine is wired for the Express platform only');
-  await ${engine}Engine.initialize();
-  host.engine('${extension}', (file, options, done) =>
-    ${engine}Engine.renderFile(file, options, done),
-  );
+  await registerViewEngine(app, '${extension}', ${engine}Engine);
 }
 `;
 }
@@ -704,7 +691,7 @@ export class ${pascal}Actions {
 }
 `;
 }
-export function actionsConfig(): string {
+export function actionsConfig(platform: Platform = 'express'): string {
   return `import type { Type } from '@nestjs/common';
 import type { ActionsModuleOptions } from '@nestvexa/actions';
 
@@ -718,7 +705,7 @@ export const allowedActions: Record<string, readonly string[]> = {
 };
 
 /**
- * Host-owned policy. This starter uses the express-session guest session and
+ * Host-owned policy. This starter uses the ${platform === 'fastify' ? '@fastify/session' : 'express-session'} guest session and
  * CSRF token created by \`nestvexa init\`; replace it with your authentication.
  */
 export const actionsOptions: ActionsModuleOptions = {
@@ -726,7 +713,7 @@ export const actionsOptions: ActionsModuleOptions = {
   origin: process.env['NESTVEXA_ORIGIN'] ?? 'http://localhost:3000',
   resolveIdentity: (request) => {
     const session: unknown = Reflect.get(request, 'session');
-    const id: unknown = Reflect.get(request, 'sessionID');
+    const id: unknown = ${sessionIdExpression(platform)};
     const csrf: unknown =
       session && typeof session === 'object' ? Reflect.get(session, 'csrf') : undefined;
     if (typeof id !== 'string' || typeof csrf !== 'string') return null;
@@ -862,7 +849,7 @@ describe('${pascal} (HTTP)', () => {
 
 // ---------------------------------------------------------------- features
 
-export function realtimeConfig(): string {
+export function realtimeConfig(platform: Platform = 'express'): string {
   return `import { UnauthorizedException } from '@nestjs/common';
 import type { RealtimeModuleOptions } from '@nestvexa/realtime';
 import { randomBytes } from 'node:crypto';
@@ -885,8 +872,8 @@ export function realtimeSecrets(): string[] {
 export const realtimeOptions: RealtimeModuleOptions = {
   secrets: realtimeSecrets(),
   origin: process.env['NESTVEXA_ORIGIN'] ?? 'http://localhost:3000',
-  resolveIdentity: (request) => {
-    const id: unknown = Reflect.get(request, 'sessionID');
+  resolveIdentity: (request) => {${platform === 'fastify' ? "\n    const session: unknown = Reflect.get(request, 'session');" : ''}
+    const id: unknown = ${sessionIdExpression(platform)};
     if (typeof id !== 'string') throw new UnauthorizedException();
     return { binding: \`session:\${id}\` };
   },
@@ -895,7 +882,7 @@ export const realtimeOptions: RealtimeModuleOptions = {
 };
 `;
 }
-export function uploadsConfig(): string {
+export function uploadsConfig(platform: Platform = 'express'): string {
   return `import { UnauthorizedException } from '@nestjs/common';
 import type { UploadsModuleOptions } from '@nestvexa/uploads';
 import { resolve } from 'node:path';
@@ -911,7 +898,7 @@ export const uploadsOptions: UploadsModuleOptions = {
   directory: resolve(process.env['UPLOADS_DIRECTORY'] ?? 'storage/uploads'),
   resolveIdentity: (request) => {
     const session: unknown = Reflect.get(request, 'session');
-    const id: unknown = Reflect.get(request, 'sessionID');
+    const id: unknown = ${sessionIdExpression(platform)};
     const csrf: unknown =
       session && typeof session === 'object' ? Reflect.get(session, 'csrf') : undefined;
     if (typeof id !== 'string' || typeof csrf !== 'string') throw new UnauthorizedException();
@@ -979,6 +966,69 @@ export function configureDevtools(app: INestApplication): void {
       projectRoot: process.cwd(),
     }),
   );
+}
+`;
+}
+export function redisConfig(): string {
+  return `import type { LiveStateStore } from '@nestvexa/live';
+import { MemoryLiveStore } from '@nestvexa/live';
+import { MemoryRealtimeBroker } from '@nestvexa/realtime';
+import type { RealtimeBroker } from '@nestvexa/realtime';
+import { RedisLiveStore } from '@nestvexa/realtime-redis';
+import { RedisRealtimeBroker } from '@nestvexa/realtime-redis/realtime';
+
+interface RedisConnection {
+  readonly host: string;
+  readonly port: number;
+  readonly username?: string;
+  readonly password?: string;
+  readonly database?: number;
+}
+
+/**
+ * Generated by \`nestvexa add redis\`. REDIS_URL (\`redis://[user:password@]host:port[/db]\`)
+ * switches Live state and realtime pub/sub to Redis so several replicas share
+ * them; without it the app runs as a single process with in-memory state.
+ * The URL holds credentials: it is never logged.
+ */
+export function redisConnection(): RedisConnection | undefined {
+  const value = process.env['REDIS_URL'];
+  if (value === undefined || value === '') return undefined;
+  const url = new URL(value);
+  if (url.protocol !== 'redis:')
+    throw new Error('REDIS_URL must use redis:// (TLS needs a local stunnel or proxy)');
+  const database = url.pathname.length > 1 ? Number(url.pathname.slice(1)) : undefined;
+  if (database !== undefined && !Number.isInteger(database))
+    throw new Error('REDIS_URL database must be an integer');
+  return {
+    host: url.hostname,
+    port: url.port ? Number(url.port) : 6379,
+    ...(url.username ? { username: decodeURIComponent(url.username) } : {}),
+    ...(url.password ? { password: decodeURIComponent(url.password) } : {}),
+    ...(database === undefined ? {} : { database }),
+  };
+}
+/** Key namespace per application and environment. */
+const prefix = process.env['REDIS_PREFIX'] ?? 'nestvexa:';
+
+/** Live state store: shared in Redis when REDIS_URL is set. */
+export function liveStore(): LiveStateStore {
+  const redis = redisConnection();
+  return redis
+    ? new RedisLiveStore({ ...redis, prefix: \`\${prefix}live:\` })
+    : new MemoryLiveStore();
+}
+/** Realtime broker: Redis PUBLISH/SUBSCRIBE when REDIS_URL is set. */
+export function realtimeBroker(): RealtimeBroker {
+  const redis = redisConnection();
+  return redis
+    ? new RedisRealtimeBroker({
+        host: redis.host,
+        port: redis.port,
+        ...(redis.password === undefined ? {} : { password: redis.password }),
+        prefix: \`\${prefix}rt:\`,
+      })
+    : new MemoryRealtimeBroker();
 }
 `;
 }
