@@ -152,6 +152,80 @@ does without its middleware). Multipart validation requests
 `FileInterceptor` runs after the Inertia interceptor, so file fields are not
 validated precognitively.
 
+### Forms and uploads with the official useForm
+
+`inertiaValidate(schema, input, { bag? })` runs the same structural schema as
+`@Precognitive(schema)` (every `@nestvexa/forms` adapter matches) and returns
+the parsed value or throws `InertiaValidationException`. Forms error bags map
+to `useForm().errors` unchanged: dotted paths (`items.0.name`) stay keys and
+form-level errors arrive under `_form`. For files, upload through
+`@nestvexa/uploads/browser` first (progress from the upload routes), put the
+returned `nvu_…` token in the form data, validate its shape precognitively,
+and finalize it in the handler with `finalizeFileField`; upload failures
+become field errors:
+
+```ts
+@Post('documents')
+@Precognitive(documentSchema)
+async store(@Req() request: object, @Body() body: unknown) {
+  const value = await inertiaValidate(documentSchema, body);
+  const state = documentForm.update(documentForm.create(), value);
+  const files = await finalizeFileField(documentForm, state, 'attachment', (token) =>
+    this.uploads.finalize(request, token, { purpose: 'documents' }),
+  );
+  if (!files.ok) throw new InertiaValidationException(files.errors);
+  return redirect('/documents');
+}
+```
+
+Runnable in `examples/inertia-{react,vue,svelte}` (`/documents`,
+`src/documents.ts`), tested by `tests/browser/inertia-forms-uploads.ts`.
+
+## Empty responses and the previous URL
+
+As `inertia-laravel` does, an Inertia request whose handler returns nothing is
+redirected back (`302`, `303` after PUT/PATCH/DELETE), so a mutation handler
+needs no explicit `back()`. Only `undefined` counts as empty, plain
+(non-Inertia) requests keep Nest's reply, and handlers that inject
+`@Res()`/`@Next()` or declare `@HttpCode`, `@Redirect`, `@Render` or `@Sse` are
+never touched. `emptyResponse: 'passthrough'` turns it off.
+
+With a host session, every successful (`200`), non-prefetch GET page response
+stores its relative URL (`previousUrl: true`, the default). `back()` and the
+validation filter use the same-host `Referer` first, then that stored URL,
+then the fallback; a stored value that is not a same-application relative path
+is ignored. `InertiaService.previousUrl(request)` reads it.
+
+## Testing Inertia responses
+
+`@nestvexa/inertia/testing` (Node only, test-runner neutral) reads the page
+object from an `X-Inertia` JSON reply or from the document's page script (also
+the legacy `data-page` attribute) and asserts on it:
+
+```ts
+import { assertInertia, inertiaHeaders } from '@nestvexa/inertia/testing';
+
+const response = await request(app.getHttpServer())
+  .get('/users')
+  .set(
+    inertiaHeaders({
+      version: '1',
+      partial: { component: 'Users/Index', only: ['users'] },
+    }),
+  );
+assertInertia(response, 'Users/Index')
+  .has('users', 2)
+  .where('users.0.name', 'Ada')
+  .missing('stats')
+  .hasNoErrors();
+```
+
+`prop(path)`, `has(path, length?)`, `missing`, `where(path, value | predicate)`,
+`hasErrors(...fields)`, `hasNoErrors`, `flash(key, value?)`, `deferred(prop,
+group?)`, `url` and `version` throw `InertiaAssertionError` with a readable
+message. Responses may be supertest/light-my-request objects, `{ headers,
+text }` records (with a `Headers` instance or a plain object) or a string.
+
 ## Multiple roots
 
 ```ts
@@ -258,8 +332,10 @@ official client (the server only needs the protocol pieces listed);
 | Multiple roots, path-based selection, cross-root reload                                                                                                 | Server                                     | HTTP test                                                                                                                                                                                                                                                                                                                                        |
 | Precognition (`Precognition` headers, 204/422)                                                                                                          | Server                                     | `@Precognitive`; golden 18-22; `tests/inertia-precognition.test.ts` (Express + Fastify); `inertia-react-features` with `useForm(method, url, data)`                                                                                                                                                                                              |
 | Large page payloads (multi-MB props, SSR + XHR)                                                                                                         | Server                                     | `inertia-react-features`: 2.6 MB document and XHR page, escaping verified                                                                                                                                                                                                                                                                        |
-| Automatic "empty response → back()"                                                                                                                     | Not implemented                            | return `back()` explicitly                                                                                                                                                                                                                                                                                                                       |
-| Previous-URL storage, `shareOnce()` sugar, Inertia testing helpers                                                                                      | Not implemented                            | use `once()` in `share`; HTTP tests instead of assert helpers                                                                                                                                                                                                                                                                                    |
+| Automatic "empty response → back()"                                                                                                                     | Server                                     | `emptyResponse: 'back'` (default); `tests/inertia-testing.test.ts` (Express + Fastify): 302/303 back, `@Res`/`@HttpCode`/plain requests untouched, `passthrough`                                                                                                                                                                                 |
+| Previous-URL storage                                                                                                                                    | Server                                     | `previousUrl` (default on with a session): GET non-prefetch 200 pages stored, `back()` falls back to it; tampered values ignored; `tests/inertia-testing.test.ts`                                                                                                                                                                                |
+| Inertia testing helpers                                                                                                                                 | Server                                     | `@nestvexa/inertia/testing` (`assertInertia`, `readInertiaPage`, `inertiaHeaders`); `tests/inertia-testing.test.ts`, `tests/browser/inertia-forms-uploads.ts`                                                                                                                                                                                    |
+| `shareOnce()` sugar                                                                                                                                     | Not implemented                            | use `once()` in `share`                                                                                                                                                                                                                                                                                                                          |
 | Error-page rendering helper                                                                                                                             | Not implemented                            | write a Nest filter calling `InertiaService.render` (tested pattern)                                                                                                                                                                                                                                                                             |
 
 ## Known deviations from the reference adapter

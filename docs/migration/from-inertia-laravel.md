@@ -76,10 +76,11 @@ The full status-code table, prop evaluation model and parity matrix are in the
 6. Build with Vite and `@nestvexa/vite` ([Vite guide](../guides/vite.md)) and run
    the framework SSR entry if you used SSR.
 
-> **Known gap:** Precognition (`Precognition` headers, 204/422), the automatic
-> "empty response → `back()`" rule, previous-URL storage, `shareOnce()` sugar,
-> Inertia testing assertions (`assertInertia`) and an error-page rendering helper
-> are not implemented; write a Nest exception filter that calls
+> Precognition (`@Precognitive`), the automatic "empty response → `back()`"
+> rule (`emptyResponse`), previous-URL storage (`previousUrl`) and Inertia
+> testing assertions (`assertInertia` from `@nestvexa/inertia/testing`) are
+> implemented. **Known gap:** `shareOnce()` sugar and an error-page rendering
+> helper are not implemented; write a Nest exception filter that calls
 > `InertiaService.render` for error pages. Several client-owned features
 > (history encryption, view transitions, prefetching, polling, infinite scroll)
 > are emitted by the server but not yet verified in browser tests with the

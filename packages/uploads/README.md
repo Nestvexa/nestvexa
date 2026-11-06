@@ -139,6 +139,8 @@ or `createLiveClient({ uploads: { endpoint } })`. Full walkthrough:
 | `inspectContent`, `TextValidator`, `dangerousContent`            | Content checks.                                                                                                                 |
 | `uploadReferenceField`, `parseUploadReferences`, `isUploadToken` | Live field validator and parser for `''`/`nvu_…`/comma lists.                                                                   |
 | `UploadError` (`code: UploadErrorCode`)                          | `HttpException` with body `{ statusCode, code }` — never names, paths, tokens or identities.                                    |
+| `@nestvexa/uploads/browser`: `uploadFiles`, `uploadFile`         | Framework-neutral browser uploader for SPA pages (Inertia React/Vue/Svelte): progress, abort, tokens; see the guide.            |
+| `BrowserUploadError`, `browserUploadMessage`, `readCookie`       | Closed failure codes, default messages, and reading the host's `XSRF-TOKEN` cookie.                                             |
 
 ### Generated routes (prefix default `/_nestvexa/uploads`)
 
@@ -216,7 +218,7 @@ All need the host identity and `x-nestvexa-csrf`; non-GET routes need the exact
 
 ```sh
 pnpm build
-pnpm exec vitest run tests/uploads-validation.test.ts tests/uploads-http.test.ts tests/uploads-limits.test.ts tests/uploads-s3.test.ts tests/client-upload.test.ts
+pnpm exec vitest run tests/uploads-validation.test.ts tests/uploads-http.test.ts tests/uploads-limits.test.ts tests/uploads-s3.test.ts tests/client-upload.test.ts tests/uploads-browser.test.ts
 pnpm exec playwright test tests/browser/uploads.spec.ts
 ```
 
@@ -250,9 +252,9 @@ state and `finalizeFileField` maps `UploadError` codes to field errors; see the
 - Polyglot files (valid image headers carrying other data) cannot be ruled out by
   signature checks; downloads are therefore served as sandboxed attachments.
 - Direct (S3) uploads are re-read in full on completion and finalization.
-- Inertia/React/Vue/Svelte upload adapters are not implemented yet; the Inertia
-  examples upload multipart with the official `useForm` progress and Nest's
-  own file interceptor, not this package.
+- `@nestvexa/uploads/browser` is framework-neutral (no React/Vue/Svelte
+  hooks); SPA pages keep progress in their own state as the Inertia examples
+  do. It does not persist resumable sessions across reloads either.
 
 ## Compatibility
 

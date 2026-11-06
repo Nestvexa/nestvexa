@@ -7,6 +7,7 @@ import {
   markDocument,
   sameDocument,
 } from './inertia-framework-suite.js';
+import { defineFormsUploadsSuite } from './inertia-forms-uploads.js';
 
 // examples/inertia-react: Vite production build, official @inertiajs/react
 // 3.10.0 client, SSR through the official Inertia SSR server process
@@ -15,6 +16,7 @@ import {
 const base = exampleUrl('REACT', 3106);
 
 defineFrameworkSuite({ framework: 'React', base });
+defineFormsUploadsSuite({ framework: 'React', base });
 defineClientOnlySuite({
   framework: 'React',
   base: exampleUrl('REACT_CSR', 3210),

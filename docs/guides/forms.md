@@ -257,6 +257,18 @@ old input and flash are read once, so Back after a successful post-redirect
 shows a fresh form and never re-posts. `tests/browser/forms-history.spec.ts`
 covers these flows on the auth example.
 
+## 11. Inertia React, Vue and Svelte
+
+The adapters plug into the official Inertia `useForm` through
+`@nestvexa/inertia`: `@Precognitive(schema)` validates touched fields with a
+forms adapter, `inertiaValidate(schema, body)` validates the submission with
+the same adapter and throws `InertiaValidationException`, and the error bag
+reaches `useForm().errors` with the same keys (`_form` for form-level errors).
+File fields carry `@nestvexa/uploads` tokens uploaded through
+`@nestvexa/uploads/browser` and are finalized with `finalizeFileField`. See
+the [Inertia guide](./inertia.md#forms-and-uploads-with-the-official-useform)
+and the `/documents` pages of `examples/inertia-{react,vue,svelte}`.
+
 ## Limits
 
 - Live `nv:model` binds top-level fields only; Live repeaters need actions or

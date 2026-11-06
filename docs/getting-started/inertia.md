@@ -168,8 +168,10 @@ Configure `apps` with one root per framework and select a root per page with
 root, so navigating between roots is always a full page load
 ([multiple roots](../guides/inertia.md#multiple-roots)).
 
-> **Known gap:** Precognition, automatic "empty response → `back()`",
-> previous-URL storage and Inertia test assertion helpers are not implemented.
+> Precognition (`@Precognitive`), automatic "empty response → `back()`",
+> previous-URL storage and Inertia test assertions
+> (`@nestvexa/inertia/testing`) are implemented; see the
+> [guide](../guides/inertia.md#empty-responses-and-the-previous-url).
 > Client-owned features such as view transitions, prefetch caching, polling,
 > infinite scroll, `WhenVisible`, remembered state and history encryption are
 > emitted by the server but not yet verified with the official clients in
