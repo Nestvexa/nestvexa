@@ -27,6 +27,16 @@ export interface LiveMagic {
   set(name: string, value: string | number | boolean): void;
   /** Deliver an event to listening components; payloads are validated server-side. */
   dispatch(name: string, payload?: unknown): void;
+  /**
+   * Observe browser `nestvexa:event` deliveries with this name. The callback
+   * receives a private copy of the public payload and the source component
+   * name (or null). Returns an unsubscribe function; Alpine cleanup also
+   * removes every subscription. At most 32 subscriptions per element.
+   */
+  on(
+    name: string,
+    callback: (payload: unknown, source: string | null) => void,
+  ): () => void;
 }
 
 const installed = new WeakMap<object, LiveClientBridge>();
@@ -97,6 +107,7 @@ export function installLiveAlpine(
     const update = (event: Event): void => {
       if (!disposed && event.target === component) signal.revision++;
     };
+    const subscriptions = new Set<() => void>();
     const facade: LiveMagic = Object.freeze({
       call(action: string): Promise<void> {
         assertActive();
@@ -119,10 +130,49 @@ export function installLiveAlpine(
           throw new Error('This Live client does not support events');
         client.dispatch(name, payload);
       },
+      on(
+        name: string,
+        callback: (payload: unknown, source: string | null) => void,
+      ): () => void {
+        assertActive();
+        if (
+          typeof name !== 'string' ||
+          !/^[a-z][a-z0-9:.-]{0,63}$/.test(name) ||
+          typeof callback !== 'function'
+        )
+          throw new Error('$live.on requires a Live event name and a callback');
+        const view = element.ownerDocument?.defaultView;
+        if (!view) throw new Error('$live.on requires an attached window');
+        if (subscriptions.size >= 32)
+          throw new Error('$live.on subscription limit reached');
+        const listener = (event: Event): void => {
+          if (disposed || !element.isConnected) return;
+          const detail: unknown = Reflect.get(event, 'detail');
+          if (
+            !detail ||
+            typeof detail !== 'object' ||
+            Reflect.get(detail, 'name') !== name
+          )
+            return;
+          const source: unknown = Reflect.get(detail, 'source');
+          callback(
+            structuredClone(Reflect.get(detail, 'payload')),
+            typeof source === 'string' ? source : null,
+          );
+        };
+        view.addEventListener('nestvexa:event', listener);
+        const unsubscribe = (): void => {
+          view.removeEventListener('nestvexa:event', listener);
+          subscriptions.delete(unsubscribe);
+        };
+        subscriptions.add(unsubscribe);
+        return unsubscribe;
+      },
     });
     component.addEventListener('nestvexa:updated', update);
     utilities.cleanup(() => {
       disposed = true;
+      for (const unsubscribe of [...subscriptions]) unsubscribe();
       component.removeEventListener('nestvexa:updated', update);
       facades.delete(element);
     });

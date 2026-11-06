@@ -710,12 +710,17 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     if (componentOwners.get(state.root) === ownership)
       componentOwners.delete(state.root);
   }
-  function cancelSubtree(node: Element): void {
+  /**
+   * Cancel scheduled work for a subtree. A suspended (still rendered) component
+   * keeps its presentation state, so nv:offline keeps reflecting connectivity
+   * instead of reverting to markup that may announce a false outage.
+   */
+  function cancelSubtree(node: Element, suspended = false): void {
     initialization?.remove(node);
     background?.remove(node);
     sorting?.remove(node);
     streaming?.remove(node);
-    presentation?.remove(node);
+    if (!suspended) presentation?.remove(node);
     confirmations.cancel(node);
     focus.release(node);
     dispatcher?.cancel(node);
@@ -733,7 +738,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   }
   function suspend(state: Component, error: Error): void {
     if (state.failure || !state.active || !mounted) return;
-    cancelSubtree(state.root);
+    cancelSubtree(state.root, true);
     for (const child of components.values())
       if (child === state || state.root.contains(child.root)) {
         child.failure = error;
@@ -781,7 +786,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       if (ancestor && !usable(ancestor)) return false;
       if (ancestor?.failure && !state.failure) {
         state.failure = ancestor.failure;
-        cancelSubtree(state.root);
+        cancelSubtree(state.root, true);
         state.request?.abort();
         busy(state);
       }
