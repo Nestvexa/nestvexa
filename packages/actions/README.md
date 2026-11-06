@@ -195,7 +195,11 @@ exportReport(@ActionInput() input: { rows: number }) {
 // Host policy:
 ActionsModule.register({
   /* ... */
-  jobs: { queue: new JobRunner(), channel: JobRunner.channel, pollAfterMs: 500 },
+  jobs: {
+    queue: jobRunnerQueue(new JobRunner()),
+    channel: JobRunner.channel,
+    pollAfterMs: 500,
+  },
 });
 ```
 
@@ -207,9 +211,11 @@ and `/_jobs/cancel` with `{ input: { id } }` go through the same admission
 `get`/`cancel`. Another identity's job id is a plain `404 JOB_NOT_FOUND`.
 
 `jobs.queue` is the structural `ActionJobQueue` (`enqueue(owner, name, handler, options?)`,
-`get(owner, id)`, `cancel?(owner, id)`); `@nestvexa/realtime`'s `JobRunner`
-satisfies it without a package dependency, and a durable queue can implement the
-same three methods. The owner is derived from the verified identity (default an
+`get(owner, id)`, `cancel?(owner, id)`). `jobRunnerQueue(runner)` adapts
+`@nestvexa/realtime`'s name-registered `JobRunner` without a package dependency:
+each job name is registered on first use and the accepted work runs in the
+process that accepted it. A durable, multi-process queue can implement the same
+three methods with serializable work. The owner is derived from the verified identity (default an
 opaque tenant + subject hash; `jobs.owner(identity)` lets the realtime host use
 its own binding so `JobRunner.authorize` guards the `stream.channel`
 subscription). Failures expose only the queue's generic message; job results

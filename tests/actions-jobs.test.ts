@@ -12,6 +12,7 @@ import {
   ActionsModule,
   ServerAction,
   acceptJob,
+  jobRunnerQueue,
 } from '../packages/actions/dist/index.js';
 import type {
   ActionDescriptor,
@@ -182,7 +183,7 @@ async function fixture(
     ...(withJobs
       ? {
           jobs: {
-            queue: runner,
+            queue: jobRunnerQueue(runner),
             channel: JobRunner.channel,
             pollAfterMs: 100,
             owner: (identity: { readonly subject: string }) => ({
@@ -251,12 +252,12 @@ describe.each(['express', 'fastify'] as const)(
       expect(foreign.status).toBe(404);
       expect(foreign.body.error?.reason).toBe('JOB_NOT_FOUND');
       // The streaming handle is a realtime channel that only the owner may join.
-      expect(
+      await expect(
         f.runner.authorize({ binding: 'user:user-alice' }, `job:${id}`),
-      ).toBe(true);
-      expect(
+      ).resolves.toBe(true);
+      await expect(
         f.runner.authorize({ binding: 'user:user-bob' }, `job:${id}`),
-      ).toBe(false);
+      ).resolves.toBe(false);
 
       f.release.current.open();
       await expect
@@ -432,8 +433,8 @@ describe('job actions through the typed client', () => {
     expect(() => client.job('../etc')).toThrow(TypeError);
   });
 
-  it('is structurally compatible with the realtime JobRunner', () => {
-    const queue: ActionJobQueue = new JobRunner();
+  it('adapts the realtime JobRunner with jobRunnerQueue', () => {
+    const queue: ActionJobQueue = jobRunnerQueue(new JobRunner());
     expect(typeof queue.enqueue).toBe('function');
   });
 });
@@ -649,10 +650,14 @@ describe('action tracing and structured logs', () => {
     expect(() => register({ logger: { info() {} } })).toThrow(/logger/);
     expect(() => register({ jobs: {} })).toThrow(/jobs.queue/);
     expect(() =>
-      register({ jobs: { queue: new JobRunner(), extra: true } }),
+      register({
+        jobs: { queue: jobRunnerQueue(new JobRunner()), extra: true },
+      }),
     ).toThrow(/Unknown actions jobs option/);
     expect(() =>
-      register({ jobs: { queue: new JobRunner(), pollAfterMs: 5 } }),
+      register({
+        jobs: { queue: jobRunnerQueue(new JobRunner()), pollAfterMs: 5 },
+      }),
     ).toThrow(/pollAfterMs/);
     expect(() =>
       ServerAction({ id: 'bad', job: 'yes' as unknown as boolean }),

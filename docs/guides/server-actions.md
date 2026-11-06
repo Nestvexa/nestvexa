@@ -166,8 +166,9 @@ discriminated result for plain calls.
 
 Declare `@ServerAction({ id: 'export-report', job: true })` and return
 `acceptJob('export-report', async ({ progress, signal }) => result)`. Configure
-`jobs: { queue: new JobRunner(), channel: JobRunner.channel }` (any object with
-`enqueue`/`get`/`cancel` works; `@nestvexa/realtime` is not a dependency). The
+`jobs: { queue: jobRunnerQueue(new JobRunner()), channel: JobRunner.channel }`
+(any object with `enqueue`/`get`/`cancel` works; `@nestvexa/realtime` is not a
+dependency). The
 call answers `202`; the generated method resolves to a job handle:
 
 ```ts

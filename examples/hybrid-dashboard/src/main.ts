@@ -16,7 +16,7 @@ import session from 'express-session';
 import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { ActionsModule } from '@nestvexa/actions';
+import { ActionsModule, jobRunnerQueue } from '@nestvexa/actions';
 import { IslandRegistry } from '@nestvexa/islands';
 import type { IslandServerRenderer } from '@nestvexa/islands';
 import { MemoryInstrumentation } from '@nestvexa/observability';
@@ -254,7 +254,11 @@ class IslandsModule {}
       resolveIdentity: identity,
       authorize: (_identity, action) =>
         action.group === 'dashboard' || action.group === '_jobs',
-      jobs: { queue: jobs, channel: JobRunner.channel, pollAfterMs: 100 },
+      jobs: {
+        queue: jobRunnerQueue(jobs),
+        channel: JobRunner.channel,
+        pollAfterMs: 100,
+      },
       instrumentation: spans,
     }),
   ],

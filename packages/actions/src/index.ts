@@ -52,7 +52,7 @@ export type {
   ActionsInstrumentation,
   ActionsLogger,
 } from './options.js';
-export { AcceptedJob, acceptJob } from './jobs.js';
+export { AcceptedJob, acceptJob, jobRunnerQueue } from './jobs.js';
 export type {
   ActionJobContext,
   ActionJobHandler,
@@ -60,6 +60,7 @@ export type {
   ActionJobQueue,
   ActionJobRecord,
   ActionJobsOptions,
+  NamedJobRunner,
 } from './jobs.js';
 export { ActionsModule } from './module.js';
 export type {
