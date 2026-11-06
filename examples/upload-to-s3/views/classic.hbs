@@ -1,0 +1,45 @@
+<h1>{{title}}</h1>
+<p>
+  This form posts through the server, which validates the file and then stores
+  it in the same bucket.
+</p>
+{{#if notice}}
+<p id="classic-notice" role="status">{{notice}}</p>
+{{/if}}
+<form
+  id="classic-form"
+  method="post"
+  action="/classic"
+  enctype="multipart/form-data"
+>
+  <input type="hidden" name="_csrf" value="{{csrf}}" />
+  <label for="classic-files">
+    Up to 3 files (PNG, JPEG, PDF or TXT), 1 MB each
+  </label>
+  <input
+    id="classic-files"
+    name="files"
+    type="file"
+    multiple
+    accept=".png,.jpg,.jpeg,.pdf,.txt"
+  />
+  <button type="submit">Upload and store</button>
+</form>
+<h2>Stored files</h2>
+{{#if items.length}}
+<ul id="classic-list">
+  {{#each items}}
+  <li>
+    <a href="/files/{{id}}/download" download>Download {{name}}</a>
+    ({{size}})
+    <form method="post" action="/files/{{id}}/delete">
+      <input type="hidden" name="_csrf" value="{{../csrf}}" />
+      <input type="hidden" name="back" value="classic" />
+      <button type="submit">Delete {{name}}</button>
+    </form>
+  </li>
+  {{/each}}
+</ul>
+{{else}}
+<p>No files stored yet.</p>
+{{/if}}
