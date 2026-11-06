@@ -205,15 +205,18 @@ Children ACT-008, 012, 014 and 016 addressed; proposed Done.
 
 ## Test commands run (Windows host)
 
-- `pnpm exec vitest run` on: actions-http, actions-runtime, actions-client,
+- `pnpm exec vitest run` on actions-http, actions-runtime, actions-client,
   actions-metadata, actions-codegen, actions-jobs, actions-security,
-  actions-client-state, islands, islands-client, islands-bundle (results in the
-  final message).
+  actions-client-state, islands, islands-client, islands-bundle: 11 files, 210
+  tests passed.
 - `pnpm exec playwright test -c playwright.local.config.ts tests/browser/islands.spec.ts tests/browser/actions.spec.ts`
-  on ports 3280/3281 (chromium, firefox, webkit; results in the final message).
-- `pnpm lint` (eslint on touched paths + `node scripts/boundaries.mjs`),
-  `pnpm exec tsc -p tsconfig.tests.json --noEmit`, example `tsc -p tsconfig.client.json`,
-  `node scripts/islands-size.mjs`.
+  (uncommitted local config, ports 3280/3281) on chromium, firefox and webkit:
+  30 tests passed (the navigation race test needed `waitUntil: 'domcontentloaded'`
+  for Firefox/WebKit and was re-run green on all three browsers).
+- `pnpm lint` (eslint + boundaries) clean; `pnpm exec tsc -p tsconfig.tests.json --noEmit`
+  clean; example `tsc -p tsconfig.client.json` clean; `pnpm size:check` 44,732 /
+  49,152 gzip bytes (Live client unchanged); `pnpm size:islands` all islands
+  within budget.
 
 ## Coordinator notes
 

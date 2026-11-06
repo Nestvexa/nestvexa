@@ -330,7 +330,8 @@ test('navigation cleans up islands and wins the race against a loading chunk', a
     if (delayed++ === 0) await held;
     await route.continue();
   });
-  await page.goto(url);
+  // The held chunk can delay the load event in Firefox and WebKit.
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#chart-title')).toBeVisible();
   await expect.poll(() => delayed).toBeGreaterThan(0);
   await page.getByRole('link', { name: 'About this dashboard' }).click();
