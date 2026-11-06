@@ -92,6 +92,11 @@ export default defineConfig({
       timeout: 180000,
     },
     {
+      command: 'pnpm --filter @nestvexa/example-directive-lab start',
+      url: 'http://127.0.0.1:3360/api/health',
+      reuseExistingServer: false,
+    },
+    {
       command: 'pnpm --filter @nestvexa/example-admin-i18n start',
       url: 'http://127.0.0.1:3110/api/health',
       reuseExistingServer: false,

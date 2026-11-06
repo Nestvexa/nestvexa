@@ -1,0 +1,111 @@
+<section aria-labelledby="lab-title">
+  <h2 id="lab-title">Directive combinations</h2>
+  <p id="message" role="status" aria-live="polite">{{message}}</p>
+  <p>
+    Count:
+    <output id="count" nv:text="count">{{count}}</output>
+    · Hotkeys:
+    <output id="hotkeys">{{hotkeys}}</output>
+  </p>
+  <span nv:keydown.window.escape="hotkey" hidden>Escape counts a hotkey</span>
+
+  <h3>Events and modifiers</h3>
+  <button
+    id="increment"
+    type="button"
+    nv:click="increment"
+    nv:optimistic.increment="count"
+  >
+    Increment
+  </button>
+  <button id="once" type="button" nv:click.once="increment">
+    Increment once
+  </button>
+  <button id="debounced" type="button" nv:click.debounce.150ms="increment">
+    Debounced increment
+  </button>
+  <button id="ctrl" type="button" nv:click.ctrl="increment">
+    Control-click increment
+  </button>
+  <button
+    id="slow"
+    type="button"
+    nv:click="slow"
+    nv:loading.attr="disabled"
+    nv:target="slow"
+  >
+    Slow increment
+  </button>
+  <span
+    id="slow-status"
+    role="status"
+    nv:loading.delay.150ms=""
+    nv:target="slow"
+    hidden
+    >Working…</span
+  >
+  <span id="quick-status" nv:loading.delay.300ms="" nv:target="increment" hidden
+    >Still saving…</span
+  >
+
+  <h3>Forms and models</h3>
+  <form id="signup" nv:submit="save">
+    <label for="email">Email</label>
+    <input
+      id="email"
+      type="email"
+      required
+      nv:model="email"
+      value="{{email}}"
+    />
+    <span id="email-dirty" nv:dirty="email" hidden>Unsaved email</span>
+    <button id="save" type="submit" nv:loading.attr="disabled" nv:target="save">
+      Save
+    </button>
+  </form>
+  <p>Saved: <span id="saved">{{saved}}</span></p>
+  <label for="query">Search</label>
+  <input id="query" nv:model.live.debounce.100ms="query" value="{{query}}" />
+  <span id="syncing" nv:loading="" nv:target="$sync" hidden>Syncing</span>
+  <p>Server search: <span id="server-query">{{query}}</span></p>
+  <label for="quantity">Quantity</label>
+  <input
+    id="quantity"
+    type="number"
+    nv:model.blur.number="quantity"
+    value="{{quantity}}"
+  />
+  <p>Server quantity: <span id="server-quantity">{{quantity}}</span></p>
+
+  <h3>Confirmation, visibility and recovery</h3>
+  <button
+    id="remove"
+    type="button"
+    nv:click="remove"
+    nv:confirm="Remove the demonstration item?"
+  >
+    Remove
+  </button>
+  <button
+    id="toggle"
+    type="button"
+    nv:click="toggle"
+    nv:bind="aria-expanded:open"
+    aria-controls="panel"
+  >
+    Toggle panel
+  </button>
+  <div
+    id="panel"
+    nv:show="open"
+    nv:transition.leave="fade"
+    nv:transition.leave-end="faded"
+  >
+    <button id="close" type="button" nv:click="toggle">Close panel</button>
+  </div>
+  <button id="crash" type="button" nv:click="crash">Failing action</button>
+  <p id="offline" role="status" nv:offline="" hidden>
+    Connection may be unavailable.
+  </p>
+  <p><a id="about" href="/about" nv:navigate="">About this lab</a></p>
+</section>
