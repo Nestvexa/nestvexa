@@ -1,5 +1,6 @@
 import { Catch, HttpStatus, Inject, Logger } from '@nestjs/common';
 import type { ArgumentsHost, ExceptionFilter } from '@nestjs/common';
+import { InertiaConfigurationError } from './errors.js';
 import { InertiaService } from './service.js';
 import { assertBagName, normalizeErrors } from './validation-types.js';
 import type { InertiaErrors } from './validation-types.js';
@@ -31,6 +32,49 @@ export class InertiaValidationException extends Error {
       options.bag === undefined ? 'default' : assertBagName(options.bag);
     this.fallback = options.fallback;
   }
+}
+
+/**
+ * Any schema with `validate(input)` resolving to `{ ok: true, value }` or
+ * `{ ok: false, errors }`: every `@nestvexa/forms` adapter (`zodAdapter`,
+ * `classValidatorAdapter`, `customAdapter`) matches without a dependency.
+ */
+export interface InertiaValidationSchema<T> {
+  validate(
+    input: unknown,
+  ):
+    | { readonly ok: true; readonly value: T }
+    | { readonly ok: false; readonly errors: InertiaErrors }
+    | PromiseLike<
+        | { readonly ok: true; readonly value: T }
+        | { readonly ok: false; readonly errors: InertiaErrors }
+      >;
+}
+
+/**
+ * Validates a submission with the same schema `@Precognitive(schema)` uses
+ * and returns the parsed value, or throws `InertiaValidationException` so
+ * `InertiaValidationFilter` flashes the errors (including the
+ * `@nestvexa/forms` form-level `_form` key and dotted paths such as
+ * `items.0.name`, which the official `useForm` reads as-is) and redirects
+ * back. A malformed schema result is a configuration error, never a pass.
+ */
+export async function inertiaValidate<T>(
+  schema: InertiaValidationSchema<T>,
+  input: unknown,
+  options: InertiaValidationOptions = {},
+): Promise<T> {
+  const result: unknown = await schema.validate(input);
+  if (typeof result === 'object' && result !== null) {
+    const { ok } = result as { ok?: unknown };
+    if (ok === true && 'value' in result) return (result as { value: T }).value;
+    const errors = (result as { errors?: unknown }).errors;
+    if (ok === false && typeof errors === 'object' && errors !== null)
+      throw new InertiaValidationException(errors as InertiaErrors, options);
+  }
+  throw new InertiaConfigurationError(
+    'Validation schema returned an invalid result',
+  );
 }
 
 /** Structural subset of class-validator's `ValidationError`. */

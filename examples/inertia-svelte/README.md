@@ -10,6 +10,13 @@ navigation, `useForm` with server validation and flash, partial reload,
 deferred props, shared props, typed page props, CSP nonce, an error page
 (`/broken`) and asset version 409s.
 
+`/documents` combines `@nestvexa/forms` and `@nestvexa/uploads` with the
+official `useForm` (`src/documents.ts`): the file is uploaded through
+`@nestvexa/uploads/browser` with a progress bar, the form submits the returned
+token as JSON, Precognition validates title and token with the same forms
+schema, and upload, field and form-level (`_form`) failures appear as `useForm`
+errors. Tested by `tests/browser/inertia-forms-uploads.ts`.
+
 ```sh
 pnpm --filter @nestvexa/example-inertia-svelte build
 pnpm --filter @nestvexa/example-inertia-svelte start   # http://127.0.0.1:3108

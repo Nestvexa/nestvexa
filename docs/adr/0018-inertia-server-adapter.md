@@ -69,4 +69,4 @@ props are resolved on every page response by design.
 Only protocol v3 (clients 3.x) is supported; there is no v1/v2 mode. The public
 API is `0.1.0-alpha.0` and may change before a stable release. Precognition,
 automatic empty-response redirects, previous-URL storage and testing helpers
-are documented gaps in the [guide](../guides/inertia.md#parity-matrix).
+were added later (see the [guide](../guides/inertia.md#parity-matrix)).

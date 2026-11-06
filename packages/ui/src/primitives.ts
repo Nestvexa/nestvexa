@@ -1,6 +1,5 @@
 import type { SafeHtml, ViewHelper } from '@nestvexa/views';
 import { block, call, collect, html } from './call.js';
-import type { HelperCall } from './call.js';
 import {
   UiError,
   attributes,
@@ -12,9 +11,24 @@ import {
   optionalHref,
   optionalId,
   optionalText,
+  count,
+  joinIds,
+  list,
+  oneOf,
   own,
+  record,
   text,
 } from './html.js';
+import {
+  dataTableMarkup,
+  datePickerMarkup,
+  menuMarkup,
+  renderMarkup,
+  selectAllMarkup,
+  selectRowMarkup,
+  tableFilterMarkup,
+  tableSearchMarkup,
+} from './markup.js';
 
 /*
  * Primitives added in the second UI kit slice: breadcrumbs, badge, alert,
@@ -23,60 +37,6 @@ import {
  * slice: every attribute and label is escaped, ids and model names use the
  * closed identifier grammar and links are same-origin paths.
  */
-
-function oneOf<T extends string>(
-  value: unknown,
-  name: string,
-  allowed: readonly T[],
-  fallback: T,
-): T {
-  if (value === undefined || value === null) return fallback;
-  const match = allowed.find((entry) => entry === value);
-  if (match === undefined)
-    throw new UiError(
-      'ARGUMENT',
-      `${name} must be one of ${allowed.join(', ')}`,
-    );
-  return match;
-}
-function count(value: unknown, name: string, max = 1_000_000_000): number {
-  if (
-    typeof value !== 'number' ||
-    !Number.isSafeInteger(value) ||
-    value < 0 ||
-    value > max
-  )
-    throw new UiError('ARGUMENT', `${name} must be a non-negative integer`);
-  return value;
-}
-/** Plain `{ key: value }` records only; accessors and extra keys are rejected. */
-function record(
-  value: unknown,
-  name: string,
-  keys: readonly string[],
-): Readonly<Record<string, unknown>> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value))
-    throw new UiError('ARGUMENT', `${name} must be an object`);
-  const output: Record<string, unknown> = Object.create(null) as Record<
-    string,
-    unknown
-  >;
-  for (const key of Reflect.ownKeys(value)) {
-    if (typeof key !== 'string' || !keys.includes(key))
-      throw new UiError('ARGUMENT', `${name} has an unsupported key`);
-    output[key] = own(value, key);
-  }
-  return output;
-}
-function list(value: unknown, name: string, max: number): readonly unknown[] {
-  if (!Array.isArray(value) || value.length === 0 || value.length > max)
-    throw new UiError('ARGUMENT', `${name} must be an array of 1 to ${max}`);
-  return value;
-}
-function joinIds(...ids: (string | undefined)[]): string | undefined {
-  const present = ids.filter((entry): entry is string => entry !== undefined);
-  return present.length ? present.join(' ') : undefined;
-}
 
 // Breadcrumbs ---------------------------------------------------------------
 /** APG breadcrumb: `<nav aria-label><ol>` with `aria-current="page"` last. */
@@ -290,60 +250,23 @@ class MenuCollector {
 }
 const menuKey = 'nvUiMenu';
 /**
- * APG menu button: `aria-haspopup="menu"` trigger and a `role="menu"` list of
- * `role="menuitem"` links (`href`), Live action buttons (`action`) or value
- * buttons (`value`, reported through a `nv-ui-menu-select` DOM event).
+ * APG menu button (see `menuMarkup`): items are links (`href`), Live action
+ * buttons (`action`) or value buttons (`value`, reported through a
+ * `nv-ui-menu-select` DOM event).
  */
 function menu(this: unknown, ...args: unknown[]): SafeHtml {
   const helper = call(args, 'menu');
-  const menuId = id(helper.hash['id'], 'id');
-  const label = text(helper.hash['label'], 'label');
-  const className = classes(helper.hash['class']);
   const collector = new MenuCollector();
   collect(helper, 'menu', this, menuKey, collector, 'menuItem');
-  if (collector.items.length === 0 || collector.items.length > 64)
-    throw new UiError('ARGUMENT', 'Menu requires 1 to 64 items');
-  const items = collector.items
-    .map((item) => {
-      const common = {
-        role: 'menuitem',
-        class: 'nv-menu__item',
-        'aria-disabled': item.disabled ? 'true' : undefined,
-      };
-      const label = escapeHtml(item.label);
-      const control =
-        item.href !== undefined
-          ? `<a${attributes({ ...common, href: item.disabled ? undefined : item.href })}>${label}</a>`
-          : `<button${attributes({
-              ...common,
-              type: 'button',
-              'nv:click': item.disabled ? undefined : item.action,
-              'data-nv-ui-value': item.value,
-            })}>${label}</button>`;
-      return `<li role="none">${control}</li>`;
-    })
-    .join('');
   return html(
-    `<div${attributes({
-      class: className ? `nv-menu ${className}` : 'nv-menu',
-      'data-nv-ui': 'menu',
-      id: menuId,
-    })}><button${attributes({
-      type: 'button',
-      class: 'nv-button nv-menu__button',
-      id: `${menuId}-button`,
-      'aria-haspopup': 'menu',
-      'aria-expanded': 'false',
-      'aria-controls': `${menuId}-menu`,
-    })}>${escapeHtml(label)}<span class="nv-menu__icon" aria-hidden="true">▾</span></button><ul${attributes(
-      {
-        role: 'menu',
-        class: 'nv-menu__list',
-        id: `${menuId}-menu`,
-        'aria-labelledby': `${menuId}-button`,
-        'data-nv-ui-collapsed': true,
-      },
-    )}>${items}</ul></div>`,
+    renderMarkup(
+      menuMarkup({
+        id: helper.hash['id'],
+        label: helper.hash['label'],
+        class: helper.hash['class'],
+        items: collector.items,
+      }),
+    ),
   );
 }
 function menuItem(...args: unknown[]): SafeHtml {
@@ -434,122 +357,10 @@ function tooltip(this: unknown, ...args: unknown[]): SafeHtml {
 }
 
 // Date picker ---------------------------------------------------------------
-const isoPattern = /^(\d{4})-(\d{2})-(\d{2})$/;
-/** Strict calendar `YYYY-MM-DD` (the native date input's value format). */
-function isoDate(value: unknown, name: string): string | undefined {
-  if (value === undefined || value === null || value === '') return undefined;
-  const match = typeof value === 'string' ? isoPattern.exec(value) : null;
-  if (!match) throw new UiError('ARGUMENT', `${name} must be YYYY-MM-DD`);
-  const [year, month, day] = [
-    Number(match[1]),
-    Number(match[2]),
-    Number(match[3]),
-  ];
-  const date = new Date(Date.UTC(year, month - 1, day));
-  if (
-    date.getUTCFullYear() !== year ||
-    date.getUTCMonth() !== month - 1 ||
-    date.getUTCDate() !== day
-  )
-    throw new UiError('ARGUMENT', `${name} must be a calendar date`);
-  return match[0];
-}
-function locale(value: unknown): string | undefined {
-  if (value === undefined || value === null || value === '') return undefined;
-  if (typeof value !== 'string' || value.length > 35)
-    throw new UiError('ARGUMENT', 'locale must be a BCP 47 tag');
-  try {
-    const [canonical] = Intl.getCanonicalLocales(value);
-    if (canonical) return canonical;
-  } catch {
-    // Reported below without echoing the value.
-  }
-  throw new UiError('ARGUMENT', 'locale must be a BCP 47 tag');
-}
-const dateStyles = ['short', 'medium', 'long', 'full'] as const;
-/** Format a date-only value in UTC so no time zone can shift the day. */
-export function formatDateOnly(
-  value: string,
-  tag: string,
-  style: (typeof dateStyles)[number] = 'long',
-): string {
-  return new Intl.DateTimeFormat(tag, {
-    dateStyle: style,
-    timeZone: 'UTC',
-  }).format(new Date(`${value}T00:00:00Z`));
-}
-/**
- * Native `<input type="date">` (the browser supplies the accessible calendar
- * and keyboard behavior) plus an `<output>` with the locale-formatted value.
- * With `model`, a hidden text input carries `nv:model.change` because Live
- * models bind text-like controls only; the module mirrors the date into it.
- */
+/** Native date input with a locale-formatted output (see `datePickerMarkup`). */
 function datePicker(...args: unknown[]): SafeHtml {
   const helper = call(args, 'datePicker');
-  const inputId = id(helper.hash['id'], 'id');
-  const model = optionalId(helper.hash['model'], 'model');
-  const name =
-    model === undefined
-      ? id(helper.hash['name'], 'name')
-      : optionalId(helper.hash['name'], 'name');
-  const label = text(helper.hash['label'], 'label');
-  const value = isoDate(helper.hash['value'], 'value');
-  const min = isoDate(helper.hash['min'], 'min');
-  const max = isoDate(helper.hash['max'], 'max');
-  if (min && max && min > max)
-    throw new UiError('ARGUMENT', 'min must not exceed max');
-  if (value && ((min && value < min) || (max && value > max)))
-    throw new UiError('ARGUMENT', 'value must be between min and max');
-  const tag = locale(helper.hash['locale']);
-  const style = oneOf(
-    helper.hash['dateStyle'],
-    'dateStyle',
-    dateStyles,
-    'long',
-  );
-  const describedBy = optionalId(helper.hash['describedBy'], 'describedBy');
-  const required = flag(helper.hash['required'], 'required');
-  const formatted = value && tag ? formatDateOnly(value, tag, style) : '';
-  const output = `${inputId}-formatted`;
-  return html(
-    `<div${attributes({
-      class: 'nv-date',
-      'data-nv-ui': 'date',
-      'data-nv-ui-locale': tag,
-      'data-nv-ui-date-style': style,
-    })}><label class="nv-date__label" for="${inputId}">${escapeHtml(label)}</label><input${attributes(
-      {
-        id: inputId,
-        class: 'nv-date__input',
-        type: 'date',
-        name: model === undefined ? name : undefined,
-        value,
-        min,
-        max,
-        required,
-        'aria-describedby': joinIds(describedBy, output),
-      },
-    )}><output${attributes({
-      class: 'nv-date__formatted',
-      id: output,
-      for: inputId,
-      'aria-live': 'polite',
-    })}>${escapeHtml(formatted)}</output>${
-      model === undefined
-        ? ''
-        : `<input${attributes({
-            type: 'text',
-            id: `${inputId}-value`,
-            name,
-            value: value ?? '',
-            hidden: true,
-            tabindex: '-1',
-            autocomplete: 'off',
-            'data-nv-ui-date-value': true,
-            'nv:model.change': model,
-          })}>`
-    }</div>`,
-  );
+  return html(renderMarkup(datePickerMarkup(helper.hash)));
 }
 
 // File uploader -------------------------------------------------------------
@@ -741,162 +552,19 @@ function wizardStep(this: unknown, ...args: unknown[]): SafeHtml {
 function dataTable(this: unknown, ...args: unknown[]): SafeHtml {
   const helper = call(args, 'dataTable');
   const body = block(helper, 'dataTable')(this);
-  const tableId = id(helper.hash['id'], 'id');
-  const caption = text(helper.hash['caption'], 'caption');
-  const selection = optionalText(
-    helper.hash['selectionLabel'],
-    'selectionLabel',
-  );
-  const className = classes(helper.hash['class']);
-  return html(
-    `<div${attributes({
-      class: 'nv-data-table',
-      'data-nv-ui': 'data-table',
-      'data-nv-ui-selection-label': selection,
-    })}><table${attributes({
-      id: tableId,
-      class: className ? `nv-table ${className}` : 'nv-table',
-      'aria-describedby': `${tableId}-status`,
-    })}><caption class="nv-table__caption">${escapeHtml(caption)}</caption>${body}</table><p class="nv-data-table__status" id="${tableId}-status" role="status" data-nv-ui-table-status></p></div>`,
-  );
+  return html(renderMarkup(dataTableMarkup(helper.hash), { body }));
 }
-/** Wire a control to a table: client-side filtering and/or a Live model. */
-function tableControl(
-  helper: HelperCall,
-  suffix: string,
-): {
-  readonly table: string;
-  readonly client: boolean;
-  readonly controlId: string;
-  readonly name: string | undefined;
-  readonly model: string | undefined;
-} {
-  const table = id(helper.hash['table'], 'table');
-  const client = flag(helper.hash['client'], 'client');
-  const model = optionalId(helper.hash['model'], 'model');
-  if (client && model)
-    throw new UiError('ARGUMENT', 'Use either client filtering or a model');
-  return {
-    table,
-    client,
-    controlId: optionalId(helper.hash['id'], 'id') ?? `${table}-${suffix}`,
-    name: optionalId(helper.hash['name'], 'name'),
-    model,
-  };
-}
-/**
- * Search box for a table: `role="search"` with a labelled `type="search"`
- * input. `client=true` filters the rendered rows in the browser; `model`
- * binds a debounced Live model so the server filters; `name` submits it in a
- * GET form.
- */
 function tableSearch(...args: unknown[]): SafeHtml {
-  const helper = call(args, 'tableSearch');
-  const control = tableControl(helper, 'search');
-  const label = text(helper.hash['label'], 'label');
-  const results = optionalText(helper.hash['resultsLabel'], 'resultsLabel');
-  if (control.client && !results)
-    throw new UiError('ARGUMENT', 'Client filtering needs resultsLabel');
-  const value = optionalText(helper.hash['value'], 'value', 256) ?? '';
-  const placeholder = optionalText(helper.hash['placeholder'], 'placeholder');
-  return html(
-    `<div class="nv-table-search" role="search"><label class="nv-table-search__label" for="${control.controlId}">${escapeHtml(label)}</label><input${attributes(
-      {
-        id: control.controlId,
-        class: 'nv-table-search__input',
-        type: 'search',
-        name: control.name,
-        value,
-        placeholder,
-        autocomplete: 'off',
-        'aria-controls': control.table,
-        'data-nv-ui-filter-table': control.client ? control.table : undefined,
-        'data-nv-ui-results-label': results,
-        'nv:model.live.debounce.300ms': control.model,
-      },
-    )}></div>`,
-  );
+  return html(renderMarkup(tableSearchMarkup(call(args, 'tableSearch').hash)));
 }
-const filterKey = /^[a-z][a-z0-9-]{0,31}$/;
-/**
- * Native `<select>` filter. With `client=true` rows are matched against their
- * `data-{key}` attribute; with `model` the Live server filters (`nv:model.change`).
- */
 function tableFilter(...args: unknown[]): SafeHtml {
-  const helper = call(args, 'tableFilter');
-  const control = tableControl(helper, 'filter');
-  const key = helper.hash['key'];
-  if (typeof key !== 'string' || !filterKey.test(key))
-    throw new UiError('ID', 'key must match [a-z][a-z0-9-]{0,31}');
-  const label = text(helper.hash['label'], 'label');
-  const all = text(helper.hash['allLabel'], 'allLabel');
-  const results = optionalText(helper.hash['resultsLabel'], 'resultsLabel');
-  if (control.client && !results)
-    throw new UiError('ARGUMENT', 'Client filtering needs resultsLabel');
-  const value = optionalText(helper.hash['value'], 'value', 256) ?? '';
-  const seen = new Set<string>();
-  const options = list(helper.hash['options'], 'options', 200)
-    .map((entry) => {
-      const option = record(entry, 'option', ['value', 'label']);
-      const optionValue = text(option['value'], 'option value', 256);
-      if (seen.has(optionValue))
-        throw new UiError('ARGUMENT', 'Duplicate option value');
-      seen.add(optionValue);
-      return `<option${attributes({ value: optionValue, selected: optionValue === value })}>${escapeHtml(text(option['label'], 'label'))}</option>`;
-    })
-    .join('');
-  if (value && !seen.has(value))
-    throw new UiError('ARGUMENT', 'value must be one of the options');
-  const controlId =
-    optionalId(helper.hash['id'], 'id') ?? `${control.table}-${key}`;
-  return html(
-    `<div class="nv-table-filter"><label class="nv-table-filter__label" for="${controlId}">${escapeHtml(label)}</label><select${attributes(
-      {
-        id: controlId,
-        class: 'nv-table-filter__select',
-        name: control.name,
-        'aria-controls': control.table,
-        'data-nv-ui-filter-table': control.client ? control.table : undefined,
-        'data-nv-ui-filter-key': control.client ? key : undefined,
-        'data-nv-ui-results-label': results,
-        'nv:model.change': control.model,
-      },
-    )}><option${attributes({ value: '', selected: value === '' })}>${escapeHtml(all)}</option>${options}</select></div>`,
-  );
+  return html(renderMarkup(tableFilterMarkup(call(args, 'tableFilter').hash)));
 }
-/** Header cell with a select-all checkbox (mixed state managed by the module). */
 function selectAll(...args: unknown[]): SafeHtml {
-  const helper = call(args, 'selectAll');
-  const table = id(helper.hash['table'], 'table');
-  const label = text(helper.hash['label'], 'label');
-  return html(
-    `<th scope="col" class="nv-table__select"><input${attributes({
-      type: 'checkbox',
-      class: 'nv-table__checkbox',
-      'aria-label': label,
-      'aria-controls': table,
-      'data-nv-ui-select-all': table,
-    })}></th>`,
-  );
+  return html(renderMarkup(selectAllMarkup(call(args, 'selectAll').hash)));
 }
-/** Row cell with a named checkbox, so a native form posts the selected values. */
 function selectRow(...args: unknown[]): SafeHtml {
-  const helper = call(args, 'selectRow');
-  const name = id(helper.hash['name'], 'name');
-  const value = text(helper.hash['value'], 'value', 256);
-  const label = text(helper.hash['label'], 'label');
-  const checked = flag(helper.hash['checked'], 'checked');
-  return html(
-    `<td class="nv-table__select"><input${attributes({
-      type: 'checkbox',
-      class: 'nv-table__checkbox',
-      name,
-      value,
-      checked,
-      'aria-label': label,
-      'data-nv-ui-select-row': true,
-    })}></td>`,
-  );
+  return html(renderMarkup(selectRowMarkup(call(args, 'selectRow').hash)));
 }
 
 export const primitiveHelpers: readonly (readonly [string, ViewHelper])[] =

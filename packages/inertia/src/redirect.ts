@@ -125,3 +125,23 @@ export function relativeRequestUrl(raw: string): string {
     )
     .replace(/^\/{2,}/, '/');
 }
+
+/**
+ * Accepts a stored previous URL only when it is a same-application relative
+ * path (one leading `/`, no backslashes or control characters, at most 2048
+ * characters). Session contents are host-persisted data, so anything else is
+ * ignored rather than redirected to.
+ */
+export function storablePath(value: unknown): string | undefined {
+  if (
+    typeof value !== 'string' ||
+    value.length === 0 ||
+    value.length > 2048 ||
+    !value.startsWith('/') ||
+    value.startsWith('//') ||
+    unsafe(value) ||
+    value.trim() !== value
+  )
+    return undefined;
+  return value;
+}

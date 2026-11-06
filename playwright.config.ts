@@ -234,5 +234,42 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 180000,
     },
+    // Islands built through Vite: production build and Vite dev middleware.
+    {
+      command: 'pnpm --filter @nestvexa/example-islands-vite start',
+      url: 'http://127.0.0.1:3479',
+      env: { PORT: '3479' },
+      reuseExistingServer: false,
+      timeout: 180000,
+    },
+    {
+      command: 'pnpm --filter @nestvexa/example-islands-vite dev',
+      url: 'http://127.0.0.1:3475',
+      env: { PORT: '3475' },
+      reuseExistingServer: false,
+      timeout: 180000,
+    },
+    // Inertia adapters in Vite dev mode (HMR), each from a disposable copy.
+    {
+      command: 'node tests/browser/hmr-fixture.mjs react',
+      url: 'http://127.0.0.1:3476',
+      env: { PORT: '3476' },
+      reuseExistingServer: false,
+      timeout: 180000,
+    },
+    {
+      command: 'node tests/browser/hmr-fixture.mjs vue',
+      url: 'http://127.0.0.1:3477',
+      env: { PORT: '3477' },
+      reuseExistingServer: false,
+      timeout: 180000,
+    },
+    {
+      command: 'node tests/browser/hmr-fixture.mjs svelte',
+      url: 'http://127.0.0.1:3478',
+      env: { PORT: '3478' },
+      reuseExistingServer: false,
+      timeout: 180000,
+    },
   ],
 });

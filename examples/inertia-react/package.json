@@ -18,6 +18,8 @@
     "@nestvexa/forms": "workspace:*",
     "@nestvexa/inertia": "workspace:*",
     "@nestvexa/react": "workspace:*",
+    "@nestvexa/ui": "workspace:*",
+    "@nestvexa/uploads": "workspace:*",
     "@nestvexa/vite": "workspace:*",
     "express-session": "1.19.0",
     "react": "19.3.1",

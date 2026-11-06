@@ -41,6 +41,7 @@ import session from 'express-session';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DocumentsController, documentUploads } from './documents.js';
 import { FeaturesController } from './features.js';
 import type { AppPages, User } from './page-types.js';
 
@@ -122,7 +123,10 @@ class XsrfGuard implements CanActivate {
       response.cookie('XSRF-TOKEN', token, { sameSite: 'lax', path: '/' });
       return true;
     }
-    const sent = request.headers['x-xsrf-token'];
+    // The official client echoes XSRF-TOKEN in X-XSRF-TOKEN; the
+    // @nestvexa/uploads browser client sends the same token as x-nestvexa-csrf.
+    const sent =
+      request.headers['x-xsrf-token'] ?? request.headers['x-nestvexa-csrf'];
     const actual = Buffer.from(
       typeof sent === 'string' ? decodeURIComponent(sent) : '',
     );
@@ -226,6 +230,7 @@ class PagesController {
 
 @Module({
   imports: [
+    documentUploads(process.env['ORIGIN'] ?? `http://127.0.0.1:${port}`),
     InertiaModule.forRoot({
       version: (request) =>
         (request as SessionRequest).session.assetVersion ??
@@ -248,7 +253,7 @@ class PagesController {
           }),
     }),
   ],
-  controllers: [PagesController, FeaturesController],
+  controllers: [PagesController, FeaturesController, DocumentsController],
   providers: [{ provide: APP_GUARD, useClass: XsrfGuard }],
 })
 class AppModule {}

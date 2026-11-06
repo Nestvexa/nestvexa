@@ -130,3 +130,10 @@ pnpm --filter @nestvexa/example-inertia-react start:ssr  # SSR process
 pnpm --filter @nestvexa/example-inertia-react start      # Nest on :3106
 pnpm --filter @nestvexa/example-inertia-react dev        # Vite middleware mode + HMR
 ```
+
+## UI kit components
+
+Accessible dialog, tabs, menu, toast, date picker and data table components
+for React pages ship in `@nestvexa/ui/react`; they render the same markup as the
+HBS helpers and reuse its keyboard module. See the
+[UI kit guide](ui-kit.md#9-react-vue-and-svelte-pages).

@@ -23,6 +23,7 @@ import {
   assertSafeRedirect,
   refererPath,
   relativeRequestUrl,
+  storablePath,
 } from './redirect.js';
 import {
   isInertiaRequest,
@@ -209,6 +210,11 @@ export class InertiaService {
     return this.#options.session?.available(request) === true;
   }
 
+  /** @internal The configured empty-response behaviour (see `emptyResponse`). */
+  get emptyResponse(): 'back' | 'passthrough' {
+    return this.#options.emptyResponse;
+  }
+
   /** Adds request-scoped shared props (for guards, interceptors and middleware). */
   share(
     request: object,
@@ -267,6 +273,19 @@ export class InertiaService {
     const bags = readStoredBags(session.get(request, InertiaSessionKey.errors));
     bags[bag] = { ...(bags[bag] ?? {}), ...normalizeErrors(errors) };
     session.set(request, InertiaSessionKey.errors, bags);
+  }
+
+  /**
+   * The URL of the last successful, non-prefetch GET page response stored in
+   * the host session (see the `previousUrl` option), or undefined. Always a
+   * same-application relative path; `back()` uses it when the `Referer` is
+   * missing or unusable.
+   */
+  previousUrl(request: object): string | undefined {
+    const session = this.#options.session;
+    if (!this.#options.previousUrl || !session?.available(request))
+      return undefined;
+    return storablePath(session.get(request, InertiaSessionKey.previousUrl));
   }
 
   page(
@@ -446,6 +465,7 @@ export class InertiaService {
           plainHeader(request, 'host'),
           policy,
         ) ??
+        this.previousUrl(request) ??
         result.options.fallback ??
         this.#options.fallback;
       return this.#redirectReply(request, target, result.options);
@@ -565,6 +585,7 @@ export class InertiaService {
       );
     const { page, app } = await this.buildPage(request, result, defaultApp);
     const json = JSON.stringify(page);
+    if (status === 200) this.#rememberUrl(request, page.url);
     if (this.requestInfo(request).inertia)
       return {
         status,
@@ -741,6 +762,17 @@ export class InertiaService {
     if (fallback && info.errorBag) return { [info.errorBag]: fallback };
     if (fallback) return fallback;
     return display;
+  }
+
+  /** Stores the page URL as the session's previous URL (GET, non-prefetch). */
+  #rememberUrl(request: object, url: string): void {
+    const session = this.#options.session;
+    if (!this.#options.previousUrl || !session?.available(request)) return;
+    const info = this.requestInfo(request);
+    if (info.method !== 'GET' || info.prefetch) return;
+    const path = storablePath(url);
+    if (path !== undefined)
+      session.set(request, InertiaSessionKey.previousUrl, path);
   }
 
   #requireSession(request: object, feature: string) {

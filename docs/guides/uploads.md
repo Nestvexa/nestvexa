@@ -110,6 +110,43 @@ Neither package depends on the other; upload errors are recognized by
 `name === 'UploadError'` and their `code`. Finalization still re-checks
 identity (binding and tenant), purpose, expiry, size, hash and content.
 
+## SPA frontends (Inertia React, Vue, Svelte)
+
+Pages that are not Live components upload with the framework-neutral
+`@nestvexa/uploads/browser` entry (no framework, Node or Nest import):
+
+```ts
+import {
+  browserUploadMessage,
+  readCookie,
+  uploadFile,
+} from '@nestvexa/uploads/browser';
+
+const controller = new AbortController();
+try {
+  const token = await uploadFile(file, {
+    purpose: 'documents',
+    csrf: () => readCookie('XSRF-TOKEN'), // the host CSRF token (resolveIdentity's csrfToken)
+    signal: controller.signal,
+    onProgress: ({ percentage }) => setProgress(percentage),
+  });
+  form.setData('attachment', token); // submit the token, never the bytes
+} catch (error) {
+  setStatus(browserUploadMessage(error)); // error.code: FILE_TOO_LARGE, TYPE_NOT_ALLOWED, ABORTED, …
+}
+```
+
+It speaks the same protocol as the Live client (chunked sessions with
+per-chunk SHA-256 or presigned direct PUTs, bounded retries), sends
+`x-nestvexa-csrf`, refuses endpoints that are not same-origin paths and
+malformed purposes before any request, and discards every token and session
+of a failed or aborted batch on the server. `uploadFiles` uploads several files
+in order. Hosts that already use an XSRF guard for Inertia let it accept the
+same token in `x-nestvexa-csrf` (see `examples/inertia-react/src/main.ts`);
+the handler finalizes the token as in [Forms integration](#forms-integration).
+Tests: `tests/uploads-browser.test.ts` (real `UploadsModule`, Chromium) and
+`tests/browser/inertia-forms-uploads.ts` (React, Vue and Svelte examples).
+
 ## 4. Storage
 
 - **LocalStorage** (default): `<directory>/objects/<2-char shard>/<43-char random>`.

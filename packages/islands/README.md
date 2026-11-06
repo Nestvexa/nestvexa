@@ -13,16 +13,17 @@ npm install @nestvexa/islands
 npm install react react-dom   # and/or vue, svelte
 ```
 
-Node 22.13+ or 24 on the server. Browser bundles are built with your bundler (the
-example uses esbuild with code splitting).
+Node 22.13+ or 24 on the server. Browser bundles are built with your bundler:
+esbuild with code splitting (hybrid dashboard example) or Vite through
+`islandsVitePlugin` ([islands-vite example](../../examples/islands-vite)).
 
-| Entry                                                       | Runs in | Purpose                                              |
-| ----------------------------------------------------------- | ------- | ---------------------------------------------------- |
-| `@nestvexa/islands`                                         | server  | `IslandRegistry`, markup, SSR, signing, page context |
-| `@nestvexa/islands/build`                                   | build   | manifest from a bundler metafile, bundle analysis    |
-| `@nestvexa/islands/client`                                  | browser | loader (`createIslands`)                             |
-| `@nestvexa/islands/react\|vue\|svelte`                      | browser | framework adapters (mount or hydrate)                |
-| `@nestvexa/islands/react-server\|vue-server\|svelte-server` | server  | SSR renderers                                        |
+| Entry                                                       | Runs in | Purpose                                                                 |
+| ----------------------------------------------------------- | ------- | ----------------------------------------------------------------------- |
+| `@nestvexa/islands`                                         | server  | `IslandRegistry`, markup, SSR, signing, page context                    |
+| `@nestvexa/islands/build`                                   | build   | manifest from a bundler metafile or Vite build, bundle analysis, plugin |
+| `@nestvexa/islands/client`                                  | browser | loader (`createIslands`)                                                |
+| `@nestvexa/islands/react\|vue\|svelte`                      | browser | framework adapters (mount or hydrate)                                   |
+| `@nestvexa/islands/react-server\|vue-server\|svelte-server` | server  | SSR renderers                                                           |
 
 ## Build-time manifest
 
@@ -78,6 +79,40 @@ are a closed JSON-schema subset (`string` with `maxLength`/`enum`, `number`,
 `integer` with bounds, `boolean`, `null`, `array` with `items`/`maxItems`,
 `object` with `properties`/`required`, `anyOf`); objects never accept undeclared
 keys.
+
+### With Vite
+
+```ts
+// vite.islands.config.ts: island entries are the Vite inputs
+import { islandsVitePlugin } from '@nestvexa/islands/build';
+
+export default defineConfig(({ isSsrBuild }) => ({
+  base: '/islands/',
+  plugins: [
+    react(),
+    vue(),
+    svelte(),
+    islandsVitePlugin({ islands: definitions }),
+  ],
+  build: isSsrBuild
+    ? { outDir: 'dist/ssr' }
+    : {
+        outDir: 'dist/islands',
+        manifest: true,
+        rolldownOptions: { input: definitions.map((d) => d.entry) },
+      },
+}));
+```
+
+| Export                                                                                                       | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `islandsVitePlugin({ islands?, publicPath?, failOnViolation?, onReport?, metafile?, manifest?, analysis? })` | Records an esbuild-style metafile of the client build (static imports = budgeted closure, dynamic imports lazy, module ids reveal runtimes) and, with `islands`, writes `islands-manifest.json`, `islands-analysis.json` and `islands-metafile.json` to `<outDir>/.vite/` (not served) and fails on violations. Sets `preserveEntrySignatures: 'exports-only'` so entries keep their `default` mount export (and fails if one is lost). SSR builds are ignored. Structurally typed: no Vite import. |
+| `createViteIslandManifest(definitions, viteManifest, { base })`                                              | Island manifest from `.vite/manifest.json` alone: each entry's `file` under a same-origin `base`.                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `moduleIslandRenderers(ids, load, { cache? })` (main entry)                                                  | Renderers backed by a module exporting `renderers`: `() => import(ssrBundleUrl)` (cached; failed loads retried) or Vite's `ssrLoadModule` with `cache: false` in development.                                                                                                                                                                                                                                                                                                                       |
+
+The loader is a separate, later Vite build that bundles the generated manifest;
+see the [Vite section of the islands guide](../../docs/guides/islands.md#building-islands-with-vite).
+Verified with Vite 8.3.5.
 
 ## Server: registry and markup
 
@@ -232,9 +267,13 @@ origin only.
 
 ```sh
 pnpm build
-pnpm vitest run tests/islands.test.ts tests/islands-client.test.ts tests/islands-bundle.test.ts
-pnpm exec playwright test tests/browser/islands.spec.ts
+pnpm vitest run tests/islands.test.ts tests/islands-client.test.ts tests/islands-bundle.test.ts tests/islands-vite.test.ts
+pnpm exec playwright test tests/browser/islands.spec.ts tests/browser/islands-vite.spec.ts
 ```
+
+`islands-vite.test.ts` covers the Vite plugin, `createViteIslandManifest`,
+`moduleIslandRenderers` and the islands-vite example build;
+`islands-vite.spec.ts` covers that example in production and dev mode.
 
 `islands.test.ts` covers the registry, schemas, secret keys, signing (tamper,
 foreign island, expiry, rotation), context escaping, noscript, SSR fallback and
