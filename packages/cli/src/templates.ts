@@ -240,7 +240,9 @@ export class ${pascal}Policy implements CanActivate {
     if (!request.user) throw new ForbiddenException();
     return this.allows(request.user);
   }
-  protected allows(_user: unknown): boolean {
+  /** Your rule for an authenticated user; denies until implemented. */
+  protected allows(user: unknown): boolean {
+    void user;
     return false;
   }
 }
