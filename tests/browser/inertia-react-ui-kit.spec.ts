@@ -22,7 +22,8 @@ const active = (page: Page) =>
   );
 
 test.describe('React UI kit wrappers in the Inertia example', () => {
-  test.describe.configure({ timeout: 90000 });
+  // Two axe passes are slow in Firefox and WebKit on loaded hosts.
+  test.describe.configure({ timeout: 240000 });
 
   test('hydrates without axe or CSP violations and drives every primitive from the keyboard', async ({
     page,

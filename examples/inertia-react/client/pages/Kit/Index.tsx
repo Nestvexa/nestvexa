@@ -22,6 +22,8 @@ interface KitProduct {
   readonly category: 'books' | 'tools';
 }
 
+const initialDue = '2026-03-04';
+
 // The @nestvexa/ui primitives through the React wrappers: same markup as the
 // HBS helpers, behavior from @nestvexa/ui/browser (focus trap, roving tabs,
 // menu keys, toasts, date formatting, client filtering and selection).
@@ -32,7 +34,9 @@ export default function KitIndex({
 }) {
   const toasts = useRef<ToastHandle>(null);
   const [log, setLog] = useState<readonly string[]>([]);
-  const [due, setDue] = useState('2026-03-04');
+  // The wrappers are uncontrolled: defaultValue is read once, so it stays a
+  // constant and the change callback only mirrors the value.
+  const [due, setDue] = useState(initialDue);
   const record = (entry: string) => setLog((entries) => [...entries, entry]);
   return (
     <>
@@ -76,7 +80,7 @@ export default function KitIndex({
         name="due"
         label="Due date"
         locale="en-US"
-        defaultValue={due}
+        defaultValue={initialDue}
         onChange={setDue}
       />
       <p data-testid="kit-due">{due}</p>
