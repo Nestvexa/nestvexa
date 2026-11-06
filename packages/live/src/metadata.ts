@@ -22,6 +22,7 @@ import { lifecycleHookNames } from './lifecycle.js';
 import { isSynthesizer } from './synthesizers.js';
 import type { StateSynthesizer } from './synthesizers.js';
 import { collectStateContext } from './state-context.js';
+import { parseWritablePaths } from './writable-paths.js';
 import type { StateContextDefinition } from './state-context.js';
 
 export const INTERNAL_SYNC_ACTION = '$sync';
@@ -50,7 +51,13 @@ export interface ComponentOptions {
 /** How a parent may initialize or update a child state field. */
 export type PropMode = 'mount' | 'reactive' | 'modelable';
 export interface StateOptions {
-  readonly writable?: boolean;
+  /**
+   * `true` lets the client replace the whole field. An array of nested paths
+   * relative to the field (`['city', 'geo.lat']`) lets the client change only
+   * those leaves of an object field: any other difference, added or removed
+   * key, or changed leaf JSON kind is rejected before component code runs.
+   */
+  readonly writable?: boolean | readonly string[];
   /** Pure validation before any component hook/action runs. False rejects without consuming state. */
   readonly validate?: (value: JsonValue) => boolean | Promise<boolean>;
   /**
@@ -307,11 +314,23 @@ export function LiveComponent(options: ComponentOptions): ClassDecorator {
 export function State(options: StateOptions = {}): PropertyDecorator {
   if (options.validate !== undefined && typeof options.validate !== 'function')
     throw new Error('State validate must be a function');
-  if (options.validate !== undefined && options.writable !== true)
+  const paths =
+    options.writable === undefined || typeof options.writable === 'boolean'
+      ? undefined
+      : parseWritablePaths(options.writable);
+  if (
+    options.validate !== undefined &&
+    options.writable !== true &&
+    paths === undefined
+  )
     throw new Error('State validation requires writable:true');
   if (options.synthesizer !== undefined && options.serializer !== undefined)
     throw new Error('State accepts synthesizer or serializer, not both');
   const synthesizer = options.synthesizer ?? options.serializer;
+  if (paths && synthesizer)
+    throw new Error(
+      'State writable paths cannot be combined with a synthesizer',
+    );
   if (synthesizer !== undefined && !isSynthesizer(synthesizer))
     throw new Error(
       'State synthesizer must provide name, dehydrate and hydrate',
@@ -338,7 +357,7 @@ export function State(options: StateOptions = {}): PropertyDecorator {
     states.set(
       name,
       Object.freeze({
-        writable: options.writable === true,
+        writable: paths ?? options.writable === true,
         ...(options.validate === undefined
           ? {}
           : { validate: options.validate }),
@@ -351,7 +370,10 @@ export function State(options: StateOptions = {}): PropertyDecorator {
 }
 /** Public, read-only description of one declared `@State` field. */
 export interface LiveStateDescription {
+  /** True when the client may change the field or some of its nested paths. */
   readonly writable: boolean;
+  /** Nested writable allowlist, when the field is path-restricted. */
+  readonly writablePaths?: readonly string[];
   /** True when the field holds a typed value converted by a synthesizer. */
   readonly synthesized: boolean;
 }
@@ -382,8 +404,10 @@ export function describeLiveState(
   );
   const entry = states?.get(field);
   if (!entry) return undefined;
+  const paths = Array.isArray(entry.writable) ? entry.writable : undefined;
   return Object.freeze({
-    writable: entry.writable === true,
+    writable: entry.writable === true || paths !== undefined,
+    ...(paths ? { writablePaths: paths } : {}),
     synthesized: entry.synthesizer !== undefined,
   });
 }

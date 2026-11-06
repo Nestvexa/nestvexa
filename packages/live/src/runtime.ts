@@ -46,6 +46,7 @@ import {
 } from './state-context.js';
 import type { UrlStateEffect } from './state-context.js';
 import { closeTextStreams } from './text-stream.js';
+import { checkWritablePaths } from './writable-paths.js';
 import type { TextStreamAuthorization } from './text-stream.js';
 
 export const LIVE_OPTIONS = Symbol('nv:live-options');
@@ -1442,6 +1443,13 @@ export class LiveRuntime implements OnApplicationShutdown {
           (value === null) !== (previous === null))
       )
         fail(422, 'STATE_TYPE');
+      // A nested allowlist accepts the whole object only when every difference
+      // from the stored value lies on an allowed leaf of the same JSON kind.
+      if (Array.isArray(state.writable) && previous !== undefined) {
+        const verdict = checkWritablePaths(previous, value, state.writable);
+        if (verdict === 'locked') fail(422, 'STATE_LOCKED');
+        if (verdict === 'type') fail(422, 'STATE_TYPE');
+      }
       if (state.synthesizer)
         try {
           state.synthesizer.hydrate(value);
