@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="One Nestvexa application on Express and Fastify."
+    />
+    <title>{{title}}</title>
+    <link rel="stylesheet" href="/assets/site.css" />
+    {{nvScripts}}
+  </head>
+  <body>
+    <header>
+      <nav aria-label="Main">
+        <a href="/">Home</a>
+        <a href="/about">About</a>
+        <a href="/api/health">Health (JSON)</a>
+      </nav>
+    </header>
+    <main>{{body}}</main>
+    <footer>
+      <p>
+        Served by the <strong id="platform">{{platform}}</strong> platform
+        adapter.
+      </p>
+    </footer>
+  </body>
+</html>

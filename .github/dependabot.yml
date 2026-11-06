@@ -1,0 +1,58 @@
+# Automated dependency update proposals. Every update arrives as a pull request
+# that runs the full CI matrix and needs CODEOWNERS review; nothing here enables
+# auto-merge, and runtime-critical packages (NestJS, template engines, busboy,
+# Inertia clients, frontend frameworks) must never be auto-merged.
+# Pinned exact versions stay exact (`versioning-strategy: increase`).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: UTC
+    open-pull-requests-limit: 10
+    versioning-strategy: increase
+    labels: [dependencies]
+    commit-message:
+      prefix: chore(deps)
+      prefix-development: chore(deps-dev)
+    groups:
+      # Tooling only; reviewed together but still merged by a human.
+      dev-tooling:
+        dependency-type: development
+        patterns:
+          - '@types/*'
+          - eslint
+          - '@eslint/*'
+          - typescript-eslint
+          - prettier
+          - vitest
+          - '@vitest/*'
+          - '@playwright/test'
+          - '@axe-core/playwright'
+          - esbuild
+          - tsx
+          - fast-check
+          - autocannon
+          - '@changesets/cli'
+      nestjs:
+        patterns:
+          - '@nestjs/*'
+    ignore:
+      # Majors of the supported platform need an ADR and a migration guide.
+      - dependency-name: '@nestjs/*'
+        update-types: [version-update:semver-major]
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: UTC
+    labels: [dependencies, ci]
+    commit-message:
+      prefix: ci

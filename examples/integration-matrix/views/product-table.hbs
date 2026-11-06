@@ -1,0 +1,140 @@
+<section aria-labelledby="products-heading">
+  <h2 id="products-heading">Catalog</h2>
+  <form method="get" action="/products" role="search" nv:submit="search">
+    <label for="product-search">Search products</label>
+    <input
+      id="product-search"
+      name="q"
+      value="{{query}}"
+      maxlength="40"
+      nv:model.live.debounce.250ms="query"
+    />
+    <button type="submit">Search</button>
+  </form>
+  <p id="product-summary" aria-live="polite">
+    Showing {{pagination.from}}–{{pagination.to}} of {{pagination.total}}
+    products, page {{pagination.page}} of {{pagination.pages}}
+  </p>
+  <table aria-describedby="product-summary">
+    <caption>
+      Products (sorted by
+      <span id="product-sort">{{sort}}</span
+      >)
+    </caption>
+    <thead>
+      <tr>
+        <th scope="col" aria-sort="{{sortByName}}">Name</th>
+        <th scope="col">Category</th>
+        <th scope="col" aria-sort="{{sortByPrice}}">Price</th>
+        <th scope="col">Image</th>
+      </tr>
+    </thead>
+    <tbody id="product-rows">
+      {{#each rows}}
+      <tr data-nv-key="{{id}}">
+        <th scope="row" class="product-name">{{name}}</th>
+        <td>{{category}}</td>
+        <td>{{price}}</td>
+        <td>
+          {{#if hasImage}}<a href="/products/{{id}}/image"
+            >View image of {{name}}</a
+          >{{else}}—{{/if}}
+        </td>
+      </tr>
+      {{else}}
+      <tr>
+        <td colspan="4" id="product-empty">No products match this search.</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+  <button type="button" nv:click="sortBy">Toggle sort (name / price)</button>
+  <nav aria-label="Product pages">
+    <ul id="product-pages">
+      {{#each pageLinks}} {{#if gap}}
+      <li><span aria-hidden="true">…</span></li>
+      {{else if current}}
+      <li>
+        <a href="{{href}}" aria-current="page" nv:navigate>Page {{label}}</a>
+      </li>
+      {{else}}
+      <li><a href="{{href}}" nv:navigate>Page {{label}}</a></li>
+      {{/if}} {{/each}}
+    </ul>
+  </nav>
+  <form id="product-create" nv:submit="create" novalidate>
+    <h2>Add a product</h2>
+    <label for="product-name">Name</label>
+    {{#if errors.name}}
+    <input
+      id="product-name"
+      name="draftName"
+      value="{{draftName}}"
+      maxlength="80"
+      aria-invalid="true"
+      aria-describedby="product-name-error"
+      nv:model="draftName"
+    />
+    <p id="product-name-error" role="alert">{{errors.name}}</p>
+    {{else}}
+    <input
+      id="product-name"
+      name="draftName"
+      value="{{draftName}}"
+      maxlength="80"
+      nv:model="draftName"
+    />
+    {{/if}}
+    <label for="product-price">Price (USD)</label>
+    {{#if errors.price}}
+    <input
+      id="product-price"
+      name="draftPrice"
+      value="{{draftPrice}}"
+      inputmode="decimal"
+      maxlength="12"
+      aria-invalid="true"
+      aria-describedby="product-price-error"
+      nv:model="draftPrice"
+    />
+    <p id="product-price-error" role="alert">{{errors.price}}</p>
+    {{else}}
+    <input
+      id="product-price"
+      name="draftPrice"
+      value="{{draftPrice}}"
+      inputmode="decimal"
+      maxlength="12"
+      nv:model="draftPrice"
+    />
+    {{/if}}
+    <label for="product-image">Image (PNG or JPEG, up to 512 KB)</label>
+    <input
+      id="product-image"
+      type="file"
+      accept=".png,.jpg,.jpeg"
+      aria-describedby="product-image-status"
+      nv:upload="image"
+    />
+    <progress
+      id="product-image-progress"
+      aria-label="Image upload progress"
+      value="0"
+      max="1"
+      nv:upload.progress="image"
+    ></progress>
+    <p
+      id="product-image-status"
+      role="status"
+      aria-live="polite"
+      nv:upload.status="image"
+    ></p>
+    {{#if errors.image}}
+    <p id="product-image-error" role="alert">{{errors.image}}</p>
+    {{/if}}
+    <button type="submit" nv:loading.attr="disabled" nv:target="create">
+      Add product
+    </button>
+  </form>
+  <p id="product-message" role="status" aria-live="polite">{{message}}</p>
+</section>

@@ -1,0 +1,38 @@
+<h1>{{title}}</h1>
+<p id="home-lead">{{description}}</p>
+<h2>Escaping is on by default</h2>
+<p>
+  Untrusted text renders as text:
+  <code id="home-untrusted">{{untrusted}}</code>
+</p>
+<h2>Featured products</h2>
+<ul id="featured">
+  {{#each featured}}
+  <li>
+    <strong>{{name}}</strong> —
+    <span class="featured-price">{{price priceCents}}</span>
+    {{#if tags.length}} ({{#each tags}}{{this}}{{#unless @last}},
+    {{/unless}}{{/each}}) {{else}} (no tags) {{/if}}
+  </li>
+  {{/each}}
+</ul>
+<h2>Routes on this server</h2>
+<ul>
+  <li>
+    <a href="/counter">Live counter</a> — state, actions, validation, Alpine
+  </li>
+  <li>
+    <a href="/products">Live products</a> — search, sort, pagination, form,
+    upload
+  </li>
+  <li>
+    <a href="/admin/react">React admin</a>, <a href="/admin/vue">Vue admin</a>,
+    <a href="/admin/svelte">Svelte admin</a> — Inertia with SSR
+  </li>
+  <li>
+    <a href="/hybrid">Hybrid dashboard</a> — framework islands, a Live widget
+    and a server action
+  </li>
+  <li><a href="/realtime">Realtime</a> — authorized SSE updates</li>
+  <li><a href="/api/health">Health API</a> — native Nest controller</li>
+</ul>

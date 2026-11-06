@@ -108,14 +108,18 @@ or the umbrella `browser.realtime` option.
 ## Delivery semantics and limits
 
 At-most-once per connected subscriber. The memory broker replays the last 100
-events per channel after reconnect; unknown cursors replay nothing and clients
-refresh. Redis pub/sub is fire-and-forget. The default `MemoryJobQueue` keeps
-jobs in memory only; presence and replay windows are per replica. The unit tests
-use an in-process RESP test double; `pnpm test:services`
+events per channel (`replaySize`) after reconnect, for at most 10,000 channels
+(`replayChannels`; the least recently published channel's history is evicted
+first, so per-user channel names cannot grow memory without bound); unknown or
+evicted cursors replay nothing and clients refresh. Redis pub/sub is
+fire-and-forget. The default `MemoryJobQueue` keeps jobs in memory only;
+presence and replay windows are per replica. The unit tests use an in-process
+RESP test double; `pnpm test:services`
 ([guide](../../docs/guides/production-services.md)) runs the broker against real
 Redis (two OS processes, Redis restart) and the two-replica browser acceptance
 suite of [`examples/distributed-live`](../../examples/distributed-live/README.md).
-Load testing is not yet done.
+The in-process hub churn check in `pnpm load` covers single-replica memory;
+distributed load testing is not yet done.
 
 ## Testing
 

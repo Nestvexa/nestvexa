@@ -12,7 +12,17 @@ import { SafeHtml, ViewError } from './index.js';
 const forbiddenKeys = new Set(['__proto__', 'prototype', 'constructor']);
 const maxViewIdLength = 240;
 
-/** Rejects absolute paths, traversal, alternate separators, drive/stream syntax and NUL bytes. */
+/**
+ * Controls, unpaired surrogates and noncharacters never name a template. They
+ * are refused before any filesystem call: on Windows, Node 22/24 (libuv) abort
+ * the whole process with a failed assertion for any path containing U+10FFFF.
+ */
+const unsafeViewCharacter = /[\p{Cc}\p{Cs}\p{Noncharacter_Code_Point}]/u;
+
+/**
+ * Rejects absolute paths, traversal, alternate separators, drive/stream syntax,
+ * NUL and other control bytes, unpaired surrogates and noncharacters.
+ */
 export function normalizeViewId(view: string, extension: string): string {
   if (
     typeof view !== 'string' ||
@@ -20,7 +30,7 @@ export function normalizeViewId(view: string, extension: string): string {
     view.length > maxViewIdLength ||
     view.includes('\\') ||
     view.includes(':') ||
-    view.includes('\0') ||
+    unsafeViewCharacter.test(view) ||
     path.posix.isAbsolute(view) ||
     view.split('/').some((part) => !part || part === '.' || part === '..')
   )

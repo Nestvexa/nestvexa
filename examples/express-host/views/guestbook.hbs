@@ -1,0 +1,33 @@
+<section aria-label="Guestbook">
+  <form nv:submit="sign" novalidate>
+    <label for="guestbook-draft">Message</label>
+    {{#if error}}
+    <input
+      id="guestbook-draft"
+      nv:model="draft"
+      value="{{draft}}"
+      maxlength="200"
+      aria-invalid="true"
+      aria-describedby="guestbook-error"
+    />
+    <p id="guestbook-error" class="error" role="alert">{{error}}</p>
+    {{else}}
+    <input
+      id="guestbook-draft"
+      nv:model="draft"
+      value="{{draft}}"
+      maxlength="200"
+    />
+    {{/if}}
+    <button type="submit" nv:loading.attr="disabled" nv:target="sign">
+      Sign
+    </button>
+  </form>
+  <ul id="guestbook-entries" aria-label="Guestbook entries">
+    {{#each entries}}
+    <li data-nv-key="entry-{{id}}">{{text}}</li>
+    {{else}}
+    <li id="guestbook-empty">No messages yet.</li>
+    {{/each}}
+  </ul>
+</section>

@@ -46,6 +46,16 @@ export async function startFakeS3(options: {
   readonly secretAccessKey: string;
   /** Extra headers on every response (for browser CORS tests). */
   readonly cors?: string;
+  /** Listening port; 0 (the default) picks a free port. */
+  readonly port?: number;
+  /** Listening address; defaults to 127.0.0.1. */
+  readonly host?: string;
+  /**
+   * Test-only, unauthenticated `GET /__fake/objects` listing of stored keys,
+   * sizes and SHA-256 digests, so browser tests running against a separate
+   * process can assert what landed in the bucket. Off by default.
+   */
+  readonly inspection?: boolean;
 }): Promise<FakeS3> {
   const objects = new Map<string, { body: Buffer; contentType: string }>();
   const requests: { method: string; path: string; status: number }[] = [];
@@ -196,6 +206,27 @@ export async function startFakeS3(options: {
           return;
         }
       }
+      if (
+        options.inspection &&
+        request.method === 'GET' &&
+        url.pathname === '/__fake/objects'
+      ) {
+        record(200);
+        response.writeHead(200, {
+          'content-type': 'application/json',
+          'cache-control': 'no-store',
+        });
+        return response.end(
+          JSON.stringify(
+            [...objects].map(([key, object]) => ({
+              key,
+              size: object.body.byteLength,
+              sha256: sha(object.body),
+              contentType: object.contentType,
+            })),
+          ),
+        );
+      }
       const prefix = `/${options.bucket}/`;
       if (!url.pathname.startsWith(prefix)) {
         record(404);
@@ -271,12 +302,15 @@ export async function startFakeS3(options: {
       response.end(object.body);
     });
   });
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(options.port ?? 0, options.host ?? '127.0.0.1', resolve);
+  });
   const address = server.address();
   if (!address || typeof address === 'string')
     throw new Error('Fake S3 did not bind');
   return {
-    url: `http://127.0.0.1:${address.port}`,
+    url: `http://${options.host ?? '127.0.0.1'}:${address.port}`,
     objects,
     requests,
     get now() {

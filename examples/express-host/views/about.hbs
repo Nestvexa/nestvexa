@@ -1,0 +1,14 @@
+<h1>{{title}}</h1>
+<p>
+  This page is a plain <code>@Render</code> route. Nestvexa adds Handlebars and
+  Live endpoints without replacing Nest routing, guards, pipes, interceptors or
+  exception filters.
+</p>
+<ul>
+  <li>
+    <code>GET /api/notes/:id</code>: API-key guard, <code>ParseIntPipe</code>,
+    envelope interceptor, error filter.
+  </li>
+  <li><code>POST /api/notes</code>: a body validation pipe.</li>
+  <li><code>GET /api/health</code>: names the active platform.</li>
+</ul>

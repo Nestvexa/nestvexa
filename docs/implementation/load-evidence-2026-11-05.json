@@ -1,0 +1,304 @@
+{
+  "timestamp": "2026-11-05T20:24:59.475Z",
+  "node": "v24.13.0",
+  "platform": "win32-x64",
+  "cpus": "11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz",
+  "cpuCount": 8,
+  "totalMemoryBytes": 16856080384,
+  "config": {
+    "base": 3320,
+    "duration": 15,
+    "soakMinutes": 3,
+    "connections": 10,
+    "liveSessions": 400,
+    "liveOfferedRate": 320,
+    "latencyGate": "advisory"
+  },
+  "thresholds": {
+    "starter-hbs GET /": {
+      "minRequestsPerSecond": 150,
+      "maxP99Ms": 250
+    },
+    "live-counter mount GET /": {
+      "minRequestsPerSecond": 30,
+      "maxP99Ms": 500
+    },
+    "live-counter action POST increment": {
+      "minRequestsPerSecond": 288,
+      "maxP99Ms": 300
+    },
+    "serverHeapGrowthBytes": 25165824,
+    "realtimeHeapGrowthBytes": 8388608
+  },
+  "scenarios": [
+    {
+      "name": "starter-hbs GET /",
+      "durationSeconds": 15.16,
+      "connections": 10,
+      "requestsTotal": 347,
+      "requestsPerSecond": 23,
+      "latencyMs": {
+        "p50": 468,
+        "p90": 847,
+        "p99": 1216,
+        "max": 1329
+      },
+      "throughputBytesPerSecond": 21475,
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 0,
+      "threshold": {
+        "minRequestsPerSecond": 150,
+        "maxP99Ms": 250
+      },
+      "passed": true,
+      "performanceWithinBudget": false
+    },
+    {
+      "name": "live-counter mount GET /",
+      "durationSeconds": 15.13,
+      "connections": 10,
+      "requestsTotal": 300,
+      "requestsPerSecond": 20,
+      "latencyMs": {
+        "p50": 443,
+        "p90": 829,
+        "p99": 1165,
+        "max": 1513
+      },
+      "throughputBytesPerSecond": 230317,
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 0,
+      "note": "300 fresh sessions; default MemoryLiveStore capacity is 1000 per TTL",
+      "threshold": {
+        "minRequestsPerSecond": 30,
+        "maxP99Ms": 500
+      },
+      "passed": true,
+      "performanceWithinBudget": false
+    },
+    {
+      "name": "live-counter action POST increment",
+      "durationSeconds": 15.14,
+      "connections": 10,
+      "requestsTotal": 229,
+      "requestsPerSecond": 15,
+      "latencyMs": {
+        "p50": 335,
+        "p90": 788,
+        "p99": 1201,
+        "max": 1685
+      },
+      "throughputBytesPerSecond": 169259,
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 0,
+      "offeredRequestsPerSecond": 320,
+      "sessions": 400,
+      "threshold": {
+        "minRequestsPerSecond": 288,
+        "maxP99Ms": 300
+      },
+      "passed": true,
+      "performanceWithinBudget": false,
+      "soakRequests": 4394,
+      "statuses": {
+        "201": 4673
+      }
+    }
+  ],
+  "memory": [
+    {
+      "name": "starter-hbs heap across throughput run",
+      "samples": [
+        {
+          "at": 1793910360638,
+          "heapUsed": 21759032,
+          "rss": 104751104,
+          "external": 3964756,
+          "arrayBuffers": 46770
+        },
+        {
+          "at": 1793910375866,
+          "heapUsed": 22097408,
+          "rss": 93831168,
+          "external": 3965127,
+          "arrayBuffers": 47101
+        }
+      ],
+      "heapGrowthBytes": 338376,
+      "heapSlopeBytesPerMinute": 1333239,
+      "rssGrowthBytes": -10919936,
+      "maxHeapGrowthBytes": 25165824,
+      "passed": true
+    },
+    {
+      "name": "live-counter heap across 3 min action soak",
+      "samples": [
+        {
+          "at": 1793910429842,
+          "heapUsed": 25611048,
+          "rss": 236154880,
+          "external": 4014351,
+          "arrayBuffers": 99784
+        },
+        {
+          "at": 1793910455112,
+          "heapUsed": 25504136,
+          "rss": 237191168,
+          "external": 3994665,
+          "arrayBuffers": 81463
+        },
+        {
+          "at": 1793910465320,
+          "heapUsed": 25376928,
+          "rss": 237465600,
+          "external": 4025644,
+          "arrayBuffers": 112442
+        },
+        {
+          "at": 1793910475459,
+          "heapUsed": 25517704,
+          "rss": 237076480,
+          "external": 3991952,
+          "arrayBuffers": 78750
+        },
+        {
+          "at": 1793910485627,
+          "heapUsed": 25537184,
+          "rss": 237555712,
+          "external": 3980935,
+          "arrayBuffers": 67733
+        },
+        {
+          "at": 1793910495759,
+          "heapUsed": 25505696,
+          "rss": 237481984,
+          "external": 3981099,
+          "arrayBuffers": 67897
+        },
+        {
+          "at": 1793910505946,
+          "heapUsed": 25424864,
+          "rss": 240603136,
+          "external": 4002935,
+          "arrayBuffers": 89733
+        },
+        {
+          "at": 1793910516236,
+          "heapUsed": 25496824,
+          "rss": 240513024,
+          "external": 4027883,
+          "arrayBuffers": 114681
+        },
+        {
+          "at": 1793910526436,
+          "heapUsed": 25453784,
+          "rss": 240754688,
+          "external": 4016665,
+          "arrayBuffers": 103463
+        },
+        {
+          "at": 1793910536556,
+          "heapUsed": 25611216,
+          "rss": 241164288,
+          "external": 3982972,
+          "arrayBuffers": 69770
+        },
+        {
+          "at": 1793910546795,
+          "heapUsed": 25707032,
+          "rss": 241786880,
+          "external": 3994210,
+          "arrayBuffers": 81008
+        },
+        {
+          "at": 1793910557009,
+          "heapUsed": 25551968,
+          "rss": 241041408,
+          "external": 4006813,
+          "arrayBuffers": 93611
+        },
+        {
+          "at": 1793910567490,
+          "heapUsed": 25548352,
+          "rss": 241332224,
+          "external": 4016474,
+          "arrayBuffers": 103272
+        },
+        {
+          "at": 1793910577808,
+          "heapUsed": 25517000,
+          "rss": 242622464,
+          "external": 3991728,
+          "arrayBuffers": 78526
+        },
+        {
+          "at": 1793910587966,
+          "heapUsed": 25647880,
+          "rss": 242118656,
+          "external": 3981972,
+          "arrayBuffers": 68770
+        },
+        {
+          "at": 1793910598226,
+          "heapUsed": 25749360,
+          "rss": 243007488,
+          "external": 3993775,
+          "arrayBuffers": 80573
+        },
+        {
+          "at": 1793910609416,
+          "heapUsed": 25664448,
+          "rss": 242233344,
+          "external": 3991798,
+          "arrayBuffers": 78596
+        },
+        {
+          "at": 1793910619533,
+          "heapUsed": 25624536,
+          "rss": 241549312,
+          "external": 4006413,
+          "arrayBuffers": 93211
+        },
+        {
+          "at": 1793910624729,
+          "heapUsed": 25720424,
+          "rss": 240992256,
+          "external": 4019286,
+          "arrayBuffers": 106084
+        },
+        {
+          "at": 1793910625798,
+          "heapUsed": 25528144,
+          "rss": 241430528,
+          "external": 3981127,
+          "arrayBuffers": 67925
+        }
+      ],
+      "heapGrowthBytes": -82904,
+      "heapSlopeBytesPerMinute": 54917,
+      "rssGrowthBytes": 5275648,
+      "maxHeapGrowthBytes": 25165824,
+      "passed": true
+    }
+  ],
+  "realtimeHub": {
+    "connectCycles": 20000,
+    "delivered": 24750,
+    "openConnectionsAfter": 0,
+    "brokerSubscriptionsAfter": 0,
+    "replayChannelsAfter": 2251,
+    "heapGrowthBytes": 629512,
+    "maxHeapGrowthBytes": 8388608,
+    "passed": true
+  },
+  "failures": [],
+  "advisories": [
+    "starter-hbs GET /: 23 req/s < 150; p99 1216 ms > 250 ms",
+    "live-counter mount GET /: 20 req/s < 30; p99 1165 ms > 500 ms",
+    "live-counter action POST increment: 15 req/s < 288; p99 1201 ms > 300 ms"
+  ],
+  "passed": true
+}

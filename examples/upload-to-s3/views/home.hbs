@@ -1,0 +1,16 @@
+<h1>{{title}}</h1>
+<p>
+  Files go from your browser straight to the bucket
+  <code id="bucket-name">{{bucket}}</code> through a short-lived presigned URL.
+  The server never sees the bytes until it verifies the stored object.
+</p>
+{{#if notice}}
+<p id="page-notice" role="status">{{notice}}</p>
+{{/if}}
+<noscript>
+  <p>
+    JavaScript is off. Use the
+    <a href="/classic">upload form without JavaScript</a>.
+  </p>
+</noscript>
+{{widget}}

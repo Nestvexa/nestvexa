@@ -1,2 +1,58 @@
+# Review ownership. Later rules win. Only the repository owner is a known
+# maintainer today; per-path rules exist so future maintainers can be added to
+# one area (see GOVERNANCE.md) without touching the security-sensitive paths.
+# Never list people or teams who have not agreed to own a path.
+
 # Default reviewers for every change.
-* @eslam-reda-div
+*                               @eslam-reda-div
+
+# Core, umbrella and CLI
+/packages/core/                 @eslam-reda-div
+/packages/nestvexa/             @eslam-reda-div
+/packages/cli/                  @eslam-reda-div
+
+# MVC and template engines
+/packages/views/                @eslam-reda-div
+/packages/engine-hbs/           @eslam-reda-div
+/packages/engine-ejs/           @eslam-reda-div
+/packages/engine-pug/           @eslam-reda-div
+/packages/engine-nunjucks/      @eslam-reda-div
+
+# Live, browser runtime and directives
+/packages/live/                 @eslam-reda-div
+/packages/client/               @eslam-reda-div
+/packages/alpine/               @eslam-reda-div
+/packages/islands/              @eslam-reda-div
+
+# Frontend adapters and Inertia
+/packages/inertia/              @eslam-reda-div
+/packages/react/                @eslam-reda-div
+/packages/vue/                  @eslam-reda-div
+/packages/svelte/               @eslam-reda-div
+/packages/vite/                 @eslam-reda-div
+
+# Server actions, forms, uploads
+/packages/actions/              @eslam-reda-div
+/packages/forms/                @eslam-reda-div
+/packages/uploads/              @eslam-reda-div
+
+# Optional extensions
+/packages/realtime/             @eslam-reda-div
+/packages/cache/                @eslam-reda-div
+/packages/flags/                @eslam-reda-div
+/packages/i18n/                 @eslam-reda-div
+/packages/offline/              @eslam-reda-div
+/packages/observability/        @eslam-reda-div
+/packages/ui/                   @eslam-reda-div
+/packages/ai/                   @eslam-reda-div
+
+# Security-sensitive: always require the owner, even after delegation.
+/SECURITY.md                    @eslam-reda-div
+/docs/security/                 @eslam-reda-div
+/scripts/release-*.mjs          @eslam-reda-div
+/scripts/pack.mjs               @eslam-reda-div
+/scripts/sbom.mjs               @eslam-reda-div
+/.github/                       @eslam-reda-div
+/.changeset/config.json         @eslam-reda-div
+/pnpm-lock.yaml                 @eslam-reda-div
+/pnpm-workspace.yaml            @eslam-reda-div

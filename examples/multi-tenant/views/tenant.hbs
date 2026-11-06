@@ -1,0 +1,13 @@
+<h1>{{tenant.name}}</h1>
+<p id="tenant-tagline">{{tenant.tagline}}</p>
+{{#if member}}
+<p><a href="/t/{{tenant.slug}}/projects">Open projects</a></p>
+{{else}}
+<p id="tenant-guest-note">
+  Projects are visible to workspace members only. {{#unless signedIn}}<a
+    href="/login"
+    >Sign in</a
+  >
+  to continue.{{/unless}}
+</p>
+{{/if}}

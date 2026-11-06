@@ -1,23 +1,162 @@
-name: Owner release readiness review
+# Owner-controlled release. Runs only on manual dispatch for an existing tag:
+# full matrix -> release candidate verification (pack, SBOM, audit, load,
+# release-check) -> protected `npm-release` environment approval -> npm
+# trusted publishing (OIDC) with provenance. No long-lived npm token is used.
+#
+# One-time owner setup (docs/release/release-process.md):
+# - npmjs.com: add this repository + workflow file `release.yml` +
+#   environment `npm-release` as a trusted publisher for every package.
+# - GitHub: create environment `npm-release` with required reviewers and a
+#   deployment branch/tag rule restricted to `v*` tags.
+# - Commit the independent review evidence to
+#   docs/release/evidence/security-review.json (format in evidence-formats.md).
+name: Release
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to build and publish (vX.Y.Z)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Verify everything and run npm publish --dry-run only'
+        required: true
+        type: boolean
+        default: true
 permissions:
   contents: read
+concurrency:
+  group: release
+  cancel-in-progress: false
 jobs:
-  review:
+  matrix:
+    name: matrix (${{ matrix.os }}, node ${{ matrix.node }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [22, 24]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm exec playwright install --with-deps chromium firefox webkit
+      - run: pnpm test
+      - run: pnpm test:coverage
+      - run: pnpm size:check
+      - run: pnpm test:e2e
+      - run: pnpm test:pack
+      - run: pnpm docs:build
+      - name: Record matrix entry (only reached when every check passed)
+        env:
+          RELEASE_MATRIX_CHECKS: format,typecheck,lint,test,coverage,size,e2e,pack,docs
+        run: node scripts/release-matrix.mjs entry artifacts/matrix/${{ matrix.os }}-node${{ matrix.node }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: matrix-${{ matrix.os }}-node${{ matrix.node }}
+          path: artifacts/matrix/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evidence-${{ matrix.os }}-node${{ matrix.node }}
+          path: artifacts/reports/
+
+  verify:
+    name: release candidate
+    needs: matrix
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          persist-credentials: false
+      - name: Tag must name the checked-out commit and package version
+        # Inputs reach the shell only through env, never by expression expansion.
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "$TAG^{commit}")"
+          node -e "const v=require('./packages/nestvexa/package.json').version; if ('v'+v !== process.env.TAG) { console.error('package version '+v+' != tag '+process.env.TAG); process.exit(1) }"
       - uses: pnpm/action-setup@v4
         with:
           version: 10.26.1
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium firefox webkit
-      - run: pnpm test:all
+      - run: pnpm build
+      - run: pnpm test
+      - run: pnpm test:e2e
+      - run: pnpm test:pack
+      - run: pnpm audit --audit-level high
+      - name: Load and memory gates (enforced on a dedicated runner)
+        env:
+          LOAD_LATENCY_GATE: enforce
+          LOAD_SOAK_MINUTES: '5'
+        run: pnpm load
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: matrix-*
+          path: artifacts/matrix
+      - run: node scripts/release-matrix.mjs merge artifacts/matrix
+      - name: Owner-supplied independent security review evidence
+        run: cp docs/release/evidence/security-review.json artifacts/reports/security-review.json
+      - run: pnpm release:check
       - uses: actions/upload-artifact@v4
         with:
-          name: owner-review-tarballs
-          path: artifacts/packages/
+          name: release-candidate
+          path: |
+            artifacts/packages/
+            artifacts/sbom/
+            artifacts/reports/
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: publish to npm
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: npm-release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm >= 11.5.1.
+      - run: npm install --global npm@11.21.2
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-candidate
+          path: artifacts
+      - name: Publish verified tarballs with provenance
+        env:
+          TAG: ${{ inputs.tag }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ "$DRY_RUN" = 'true' ]; then
+            node scripts/release-publish.mjs --tag "$TAG" --dry-run
+          else
+            node scripts/release-publish.mjs --tag "$TAG"
+          fi
