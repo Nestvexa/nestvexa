@@ -22,6 +22,7 @@ Commits (oldest first):
 - `e333c69` test(examples): tolerate WebKit's select UA-shadow CSP report in the kit spec
 - `d2d2133` test(inertia): inertiaValidate with forms adapters and malformed schema results
 - `297c7db` test(ui): ignore React console.timeStamp labels in Firefox and give axe more time
+- `62861d3` test(ui): type-safe timeStamp console filter (final Chromium + Firefox run on this commit: 52/52)
 - this report
 
 ## FORM-012 (portable form primitives in framework adapters)
