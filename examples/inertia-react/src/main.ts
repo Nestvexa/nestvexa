@@ -46,6 +46,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DocumentsController, documentUploads } from './documents.js';
 import { FeaturesController } from './features.js';
+import { KitController } from './kit.js';
 import type { AppPages, Upload, User } from './page-types.js';
 
 declare module 'express-session' {
@@ -292,7 +293,12 @@ class PagesController {
           }),
     }),
   ],
-  controllers: [PagesController, FeaturesController, DocumentsController],
+  controllers: [
+    PagesController,
+    FeaturesController,
+    DocumentsController,
+    KitController,
+  ],
   providers: [{ provide: APP_GUARD, useClass: XsrfGuard }],
 })
 class AppModule {}

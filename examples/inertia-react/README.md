@@ -26,6 +26,12 @@ token as JSON, Precognition validates title and token with the same forms
 schema, and upload, field and form-level (`_form`) failures appear as `useForm`
 errors. Tested by `tests/browser/inertia-forms-uploads.ts`.
 
+`/kit` renders the shared `@nestvexa/ui` primitives (dialog, tabs, menu,
+toasts, date picker, data table with search, filter and selection) through the
+React wrappers `@nestvexa/ui/react` (`src/kit.ts`,
+`client/pages/Kit/Index.tsx`), tested with keyboard and axe checks by
+`tests/browser/inertia-react-ui-kit.spec.ts`.
+
 ```sh
 pnpm --filter @nestvexa/example-inertia-react build
 pnpm --filter @nestvexa/example-inertia-react start:ssr   # SSR on 127.0.0.1:13716

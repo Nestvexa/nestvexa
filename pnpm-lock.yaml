@@ -544,6 +544,9 @@ importers:
       '@nestvexa/react':
         specifier: workspace:*
         version: link:../../packages/react
+      '@nestvexa/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@nestvexa/uploads':
         specifier: workspace:*
         version: link:../../packages/uploads
