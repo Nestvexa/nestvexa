@@ -58,6 +58,11 @@ export {
   type LiveCapability,
 } from './protocol.js';
 export {
+  checkWritablePaths,
+  parseWritablePaths,
+  WRITABLE_PATH_LIMITS,
+} from './writable-paths.js';
+export {
   LIVE_REQUEST_SCHEMA,
   LIVE_RESPONSE_SCHEMA,
   LIVE_ERROR_SCHEMA,

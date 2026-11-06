@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import {
+  BadRequestException,
   Controller,
   Get,
   Header,
@@ -14,6 +15,7 @@ import { HbsEngine, NestvexaModule, configureNestvexa } from 'nestvexa';
 import { NestvexaAssetsModule, NestvexaAssetsService } from 'nestvexa/assets';
 import {
   Action,
+  ActionInput,
   LiveComponent,
   LiveModule,
   LiveRuntime,
@@ -75,6 +77,49 @@ class DirectiveLab {
   })
   email = '';
   @State() saved = '';
+  /** Only city and zip are client-writable; `verified` is server-owned. */
+  @State({
+    writable: ['city', 'zip'],
+    validate: (value) =>
+      !!value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      typeof value['city'] === 'string' &&
+      value['city'].length <= 40,
+  })
+  address = { city: 'Cairo', zip: '11511', verified: false };
+  /** A checkbox group: the server validates count and allowlist. */
+  @State({
+    writable: true,
+    validate: (value) =>
+      Array.isArray(value) &&
+      value.length <= 3 &&
+      value.every(
+        (topic) =>
+          typeof topic === 'string' && ['news', 'tips', 'beta'].includes(topic),
+      ),
+  })
+  topics: string[] = ['news'];
+  @State() balance = 0;
+  @State() order = ['alpha', 'beta', 'gamma'];
+  @Action() saveProfile(): void {
+    this.message = `Profile ${this.address.city} ${this.topics.join('+')}`;
+  }
+  /** Idempotent: an identical browser retry replays the committed result. */
+  @Action({ idempotent: true }) deposit(): void {
+    this.balance += 10;
+  }
+  @Action() reorder(@ActionInput() input: unknown): void {
+    const ids: unknown =
+      input && typeof input === 'object' ? Reflect.get(input, 'ids') : null;
+    if (
+      !Array.isArray(ids) ||
+      ids.length !== this.order.length ||
+      [...ids].sort().join() !== [...this.order].sort().join()
+    )
+      throw new BadRequestException('Unknown order');
+    this.order = ids.map(String);
+  }
   @Action() increment(): void {
     this.count++;
   }
@@ -182,6 +227,9 @@ class RendererLifecycle {
           'remove',
           'toggle',
           'crash',
+          'saveProfile',
+          'deposit',
+          'reorder',
         ].includes(action),
     }),
   ],

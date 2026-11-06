@@ -41,6 +41,17 @@ async function readJson(
   signal: AbortSignal,
   setReader: (reader: ReadableStreamDefaultReader<Uint8Array> | null) => void,
 ): Promise<unknown> {
+  // A 426 reply or another advertised protocol major means this page was
+  // built for a different server version: reloading is the only safe recovery.
+  const protocol = response.headers.get('x-nestvexa-protocol');
+  if (
+    response.status === 426 ||
+    (protocol !== null && protocol !== 'nestvexa-live/1')
+  )
+    throw new LiveClientError(
+      'PROTOCOL',
+      'Incompatible Live protocol; reload the page',
+    );
   if (!response.ok) throw new LiveHttpError(response.status);
   if (
     response.headers

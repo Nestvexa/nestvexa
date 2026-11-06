@@ -54,3 +54,21 @@ observed compressed HTTP transfer size or the complete startup cost.
 
 This additive alpha API changes no Live wire fields. Server spans, OpenTelemetry,
 sampling, a devtools panel and distributed measurements belong to later phases.
+
+## Development instrumentation
+
+`createLiveClient({ development: true })` is a development feature gate. It enables
+`client.inspect()` and mirrors every reported client error to `console.warn` as
+`[nestvexa] <code> <message>` (messages never contain state, tokens or server bodies).
+Without the option `inspect()` throws `DIRECTIVE`; the automatic umbrella boot never
+enables it, so keep it out of production entries.
+
+`inspect()` returns frozen summaries, one per registered component: `id`, `name`,
+`revision`, `pending` (queued or running requests per action, `$sync` for model
+synchronization), `dirty` (field and nested-path **names** with drafts, never values),
+`invalid` (count), `failure` (the error code that suspended it, or `null`) and
+`idempotent` (server-declared retryable actions). Snapshot references, CSRF tokens,
+endpoints, state values and payloads are never included; a test asserts a typed draft,
+the CSRF token, the snapshot reference and the endpoint are absent from the JSON. For
+request progress in production UIs use the `nestvexa:request` event described in
+[client transport](client-transport.md).

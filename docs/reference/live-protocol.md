@@ -46,6 +46,10 @@ configured origin, `x-nestvexa-csrf` equal to the identity CSRF token.
 - `revision`: the revision the client rendered; any other value is `409 STALE_REVISION`.
 - `updates`: top-level writable `@State` fields only. Without a synthesizer a value must
   keep its JSON kind; with one, the synthesizer decides (see [synthesizers](#typed-state)).
+  For a field declared `@State({ writable: ['city', 'geo.lat'] })` the value is the whole
+  object, accepted only when every difference from the stored value lies on an
+  allowlisted leaf of the same JSON kind (`422 STATE_LOCKED` / `STATE_TYPE` otherwise; see
+  [nested models](../guides/nested-models.md)).
 - `input`: the `@ActionInput` value; absent or `null` for actions without input and `$sync`.
 
 Unknown fields, `__proto__`/`constructor`/`prototype` keys, accessors, sparse arrays,
@@ -153,6 +157,15 @@ else).
   clients keep working against older servers. Malformed headers fail admission with
   `400 INVALID_CAPABILITIES` before guards or component code run. A negotiated
   capability never changes the default response of a client that did not ask for it.
+- **Advertisement.** Successful action and `$sync` replies carry
+  `x-nestvexa-protocol: nestvexa-live/1` and `x-nestvexa-capabilities` (comma-separated
+  `LIVE_CAPABILITIES`). The browser client reports another advertised major, or a `426`,
+  as error code `PROTOCOL` and suspends the component; reloading is the recovery.
+- **Idempotent marker.** The component wrapper lists `@Action({ idempotent: true })` ids
+  in `data-nv-idempotent` (JSON array). The browser resends only those actions, byte for
+  byte with the same `requestId`, after a dropped connection, timeout, `409`, `429`,
+  `502`, `503` or `504` (two resends, full jitter); see
+  [client transport](../guides/client-transport.md).
 - **Evolution rules.** Additive response fields, new error codes and new capability
   tokens are minor changes. Removing or renaming a field, changing a status, or making
   an optional request field required is a new protocol major, shipped with a migration
@@ -172,8 +185,8 @@ revision. Non-idempotent duplicates are rejected with `409 STALE_REVISION`, so a
 or order action is never executed twice by a replayed request. Replays are kept for five
 minutes, at most 1,000 per runtime (oldest evicted; an evicted retry fails safely with
 `409`). Replays and identity locks are single-process; a multi-replica deployment needs
-sticky sessions or a shared store (DATA-004/005). The browser runtime does not retry
-automatically; the option serves programmatic clients and network-level retries.
+sticky sessions or a shared store (DATA-004/005). The browser runtime resends only actions listed in `data-nv-idempotent`, with the
+same `requestId`; programmatic clients can use the same contract.
 
 ## Deadlines, cancellation and shutdown
 

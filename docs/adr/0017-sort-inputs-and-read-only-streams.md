@@ -87,3 +87,23 @@ version until another version passes those contracts.
 - [Real sorting](../../tests/browser/sort.spec.ts) and
   [streaming](../../tests/browser/stream.spec.ts) browser acceptance; the
   [implementation status](../implementation/STATUS.md) identifies executed runs.
+
+## Amendment (2026-11-06): HTML stream fragments and sort browser rows
+
+`nv:stream` stays **text-only**; HTML fragment streaming is deliberately not
+implemented. A streamed fragment would be applied before the action commits, outside the
+revision check that guards every morph, and partial HTML cannot pass the closed fragment
+and directive validation that runs on a complete response (an unterminated element or
+attribute changes meaning with the next chunk). Applying HTML per chunk would also break
+the single authoritative renderer rule (spec 8.2) for the target subtree and the Trusted
+Types sink discipline. Progressive HTML is served by ordinary actions (one validated
+morph), `nv:stream` text into a text-only target, or `nv:poll`/realtime refreshes. The
+spec's "safe text/HTML semantics" is met by escaping: chunks are inserted as text and can
+never create elements.
+
+Sort keyboard moves (Alt+Arrow/Home/End, ignored unmodified/Shift/Control arrows, edges),
+native pointer drag (upper/lower half), blocking while pending with `nv:loading` and
+inertness inside `nv:ignore` now run as combination rows in Chromium, Firefox and WebKit
+([matrix](../../tests/client-directive-combinations.test.ts)); keyboard and pointer moves
+are applied by a real server in [the directive lab](../../tests/browser/directive-lab.spec.ts).
+Touch, grid and cross-list movement remain unsupported.

@@ -407,6 +407,8 @@ describe.each(['express', 'fastify'] as const)(
       expect(boot.headers['content-type']).toContain('text/javascript');
       expect(boot.headers['x-content-type-options']).toBe('nosniff');
       expect(boot.body).toContain('startLiveAlpine');
+      expect(boot.body).toContain('adoptLiveAlpine(host, createLiveClient(');
+      expect(boot.body).toContain('const host = hostAlpine();');
       expect(boot.body).toContain('"summary":{"endpoint":"/host/v1/report"}');
       expect(boot.body).not.toContain('/changed-after-registration');
       expect(boot.body).not.toContain(csrf);

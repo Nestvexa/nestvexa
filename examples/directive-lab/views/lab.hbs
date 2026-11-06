@@ -77,6 +77,71 @@
   />
   <p>Server quantity: <span id="server-quantity">{{quantity}}</span></p>
 
+  <h3>Nested paths, checkbox groups, retries and sorting</h3>
+  <form id="profile" nv:submit="saveProfile">
+    <label for="city">City</label>
+    <input id="city" nv:model="address.city" value="{{address.city}}" />
+    <label for="zip">Postal code</label>
+    <input id="zip" nv:model="address.zip" value="{{address.zip}}" />
+    <span id="address-dirty" nv:dirty="address" hidden>Unsaved address</span>
+    <fieldset>
+      <legend>Topics</legend>
+      <label
+        ><input
+          id="topic-news"
+          type="checkbox"
+          value="news"
+          nv:model="topics"
+        />
+        News</label
+      >
+      <label
+        ><input
+          id="topic-tips"
+          type="checkbox"
+          value="tips"
+          nv:model="topics"
+        />
+        Tips</label
+      >
+      <label
+        ><input
+          id="topic-beta"
+          type="checkbox"
+          value="beta"
+          nv:model="topics"
+        />
+        Beta</label
+      >
+    </fieldset>
+    <button id="save-profile" type="submit">Save profile</button>
+  </form>
+  <p>
+    Server city:
+    <span id="server-city">{{address.city}}</span>
+    · Verified:
+    <span id="verified">{{address.verified}}</span>
+  </p>
+  <p>
+    Balance:
+    <output id="balance">{{balance}}</output>
+    <button id="deposit" type="button" nv:click="deposit">Deposit 10</button>
+  </p>
+  <ol id="order" nv:sort="reorder" aria-label="Release order">
+    {{#each order}}
+    <li id="order-{{this}}" nv:sort.item="{{this}}">
+      <button
+        id="move-{{this}}"
+        type="button"
+        nv:sort.handle
+        aria-label="Move {{this}}"
+      >
+        {{this}}
+      </button>
+    </li>
+    {{/each}}
+  </ol>
+
   <h3>Confirmation, visibility and recovery</h3>
   <button
     id="remove"

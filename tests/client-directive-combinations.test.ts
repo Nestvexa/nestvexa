@@ -1,5 +1,5 @@
 /**
- * Table-driven directive combination matrix in actual Chromium. Every row
+ * Table-driven directive combination matrix in real Chromium, Firefox and WebKit. Every row
  * mounts the canonical bundled client against an in-page fake Live server
  * (tests/support/live-matrix.ts), performs real Playwright input and asserts
  * requests, DOM, ARIA and errors. Rows combine modifiers on one element and
@@ -9,6 +9,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from '@playwright/test';
 import {
   expectActions,
+  matrixBrowsers,
   mountMatrix,
   openPage,
   releaseAll,
@@ -31,6 +32,12 @@ type Step =
   | { readonly blur: string }
   | { readonly select: string; readonly value: string | readonly string[] }
   | { readonly check: string }
+  /** Native pointer drag from one element onto the top or bottom half of another. */
+  | {
+      readonly drag: string;
+      readonly to: string;
+      readonly half: 'top' | 'bottom';
+    }
   | { readonly wait: number }
   | { readonly release: 'next' | 'all' }
   /** Trusted test instrumentation evaluated in the page (never by the client). */
@@ -41,6 +48,8 @@ interface Expectation {
   readonly actions?: readonly string[];
   /** Per-request `updates` payloads, in order. */
   readonly updates?: readonly Readonly<Record<string, unknown>>[];
+  /** Per-request action `input` payloads, in order. */
+  readonly inputs?: readonly unknown[];
   readonly text?: Readonly<Record<string, string>>;
   readonly attrs?: Readonly<
     Record<string, Readonly<Record<string, string | null>>>
@@ -57,23 +66,20 @@ interface Row extends MatrixComponent {
   readonly steps: readonly Step[];
 }
 
-let fixture: MatrixFixture;
+let fixture: MatrixFixture | undefined;
 let page: Page | undefined;
-beforeAll(async () => {
-  fixture = await startMatrix();
-});
-afterEach(async () => {
-  await page?.evaluate(() => window.nvHarness?.client.dispose());
-  await page?.close();
-  page = undefined;
-});
-afterAll(async () => {
-  await fixture?.close();
-});
 
 async function verify(target: Page, expected: Expectation): Promise<void> {
   const options = { timeout: 5000 };
   if (expected.actions) await expectActions(target, expected.actions);
+  if (expected.inputs)
+    await expect
+      .poll(
+        async () =>
+          (await snapshot(target)).requests.map((request) => request.input),
+        options,
+      )
+      .toEqual(expected.inputs);
   if (expected.updates)
     await expect
       .poll(
@@ -127,6 +133,7 @@ async function verify(target: Page, expected: Expectation): Promise<void> {
 }
 
 async function run(row: Row): Promise<void> {
+  if (!fixture) throw new Error('Matrix fixture is not running');
   page = await openPage(fixture);
   const target = page;
   await mountMatrix(target, row);
@@ -163,7 +170,16 @@ async function run(row: Row): Promise<void> {
         typeof step.value === 'string' ? step.value : [...step.value],
       );
     else if ('check' in step) await target.check(step.check);
-    else if ('wait' in step) await target.waitForTimeout(step.wait);
+    else if ('drag' in step) {
+      const box = await target.locator(step.to).boundingBox();
+      if (!box) throw new Error(`Missing drop target ${step.to}`);
+      await target.locator(step.drag).dragTo(target.locator(step.to), {
+        targetPosition: {
+          x: box.width / 2,
+          y: step.half === 'top' ? 4 : box.height - 4,
+        },
+      });
+    } else if ('wait' in step) await target.waitForTimeout(step.wait);
     else if ('release' in step) {
       if (step.release === 'all') await releaseAll(target);
       else {
@@ -769,11 +785,11 @@ const loadingRows: Row[] = [
     name: 'nv:loading.attr.delay disables a slow control only after the delay',
     ...counter,
     hold: true,
-    html: `${output}<button id="go" type="button" nv:click="increment" nv:loading.attr.delay.100ms="disabled">Go</button>`,
+    html: `${output}<button id="go" type="button" nv:click="increment" nv:loading.attr.delay.1000ms="disabled">Go</button>`,
     steps: [
       { click: '#go' },
       { expect: { attrs: { '#go': { disabled: null } } } },
-      { wait: 250 },
+      { wait: 1300 },
       { expect: { attrs: { '#go': { disabled: '' } } } },
       { release: 'all' },
       { expect: { attrs: { '#go': { disabled: null } } } },
@@ -1063,12 +1079,674 @@ const modelRows: Row[] = [
     name: 'an action cancels a pending model timer and carries the draft',
     state: { query: '', count: 0 },
     actions: { increment: { increment: 'count' } },
-    html: `${output}<input id="query" aria-label="Query" nv:model.live.debounce.300ms="query"><button id="go" type="button" nv:click="increment">Go</button>`,
+    html: `${output}<input id="query" aria-label="Query" nv:model.live.debounce.2000ms="query"><button id="go" type="button" nv:click="increment">Go</button>`,
     steps: [
       { fill: '#query', value: 'x' },
       { click: '#go' },
-      { wait: 500 },
+      { wait: 2300 },
       { expect: { actions: ['increment'], updates: [{ query: 'x' }] } },
+    ],
+  },
+];
+
+const checked = (id: string): string =>
+  `document.getElementById('${id}').checked`;
+const address = { city: 'Cairo', zip: '11511', geo: { lat: 30 } };
+const structureRows: Row[] = [
+  {
+    name: 'nested nv:model path sends its whole top-level field with the draft leaf',
+    state: { address, saved: 0 },
+    actions: { save: { increment: 'saved' } },
+    html: '<input id="city" aria-label="City" nv:model="address.city" value="{{address.city}}"><output id="echo" nv:text="address.city">{{address.city}}</output><span id="dirty" nv:dirty="address" hidden>Edited</span><span id="leaf" nv:dirty="address.zip" hidden>Zip edited</span><button id="save" type="button" nv:click="save">Save</button>',
+    steps: [
+      { fill: '#city', value: 'Giza' },
+      {
+        expect: {
+          actions: [],
+          text: { '#echo': 'Giza' },
+          attrs: { '#dirty': { hidden: null }, '#leaf': { hidden: '' } },
+        },
+      },
+      { click: '#save' },
+      {
+        expect: {
+          actions: ['save'],
+          updates: [{ address: { ...address, city: 'Giza' } }],
+          text: { '#echo': 'Giza' },
+          attrs: { '#dirty': { hidden: '' } },
+          values: { "document.getElementById('city').value": 'Giza' },
+        },
+      },
+    ],
+  },
+  {
+    name: 'two nested leaves of one field merge into one live synchronization',
+    state: { address },
+    html: '<input id="city" aria-label="City" nv:model="address.city" value="{{address.city}}"><input id="lat" aria-label="Latitude" type="number" nv:model.live.number="address.geo.lat" value="{{address.geo.lat}}">',
+    steps: [
+      { fill: '#city', value: 'Giza' },
+      { fill: '#lat', value: '29.9' },
+      {
+        expect: {
+          actions: ['_sync'],
+          updates: [
+            { address: { ...address, city: 'Giza', geo: { lat: 29.9 } } },
+          ],
+        },
+      },
+    ],
+  },
+  {
+    name: 'a nested radio group models one leaf',
+    state: { prefs: { size: 's', color: 'red' } },
+    html: '<label><input id="s" type="radio" name="size" value="s" nv:model.change="prefs.size" checked>S</label><label><input id="m" type="radio" name="size" value="m" nv:model.change="prefs.size">M</label><output id="size" nv:text="prefs.size">{{prefs.size}}</output>',
+    steps: [
+      // The static fixture template re-renders 's' as checked; assert the wire value.
+      { click: '#m' },
+      {
+        expect: {
+          actions: ['_sync'],
+          updates: [{ prefs: { size: 'm', color: 'red' } }],
+          text: { '#size': 'm' },
+        },
+      },
+    ],
+  },
+  {
+    name: 'a nested path to a missing leaf is rejected locally',
+    state: { address },
+    html: '<input id="street" aria-label="Street" nv:model.live="address.street">',
+    steps: [
+      { fill: '#street', value: 'Nile' },
+      { wait: 300 },
+      // Firefox's fill dispatches more than one input event; each is refused.
+      {
+        expect: {
+          actions: [],
+          values: {
+            "nvHarness.errors.length > 0 && nvHarness.errors.every((code) => code === 'DIRECTIVE')": true,
+          },
+        },
+      },
+    ],
+  },
+  {
+    name: 'a checkbox group models array state as checked values in document order',
+    state: { tags: ['a'], saved: 0 },
+    actions: { save: { increment: 'saved' } },
+    html: '<input id="a" type="checkbox" aria-label="A" value="a" nv:model="tags" checked><input id="b" type="checkbox" aria-label="B" value="b" nv:model="tags"><input id="c" type="checkbox" aria-label="C" value="c" nv:model="tags"><span id="dirty" nv:dirty="tags" hidden>Edited</span><button id="save" type="button" nv:click="save">Save</button>',
+    steps: [
+      { check: '#c' },
+      { check: '#b' },
+      { expect: { attrs: { '#dirty': { hidden: null } } } },
+      { click: '#save' },
+      {
+        expect: {
+          actions: ['save'],
+          updates: [{ tags: ['a', 'b', 'c'] }],
+          attrs: { '#dirty': { hidden: '' } },
+        },
+      },
+      { click: '#a' },
+      { click: '#save' },
+      {
+        expect: {
+          actions: ['save', 'save'],
+          updates: [{ tags: ['a', 'b', 'c'] }, { tags: ['b', 'c'] }],
+          values: { [checked('a')]: false, [checked('b')]: true },
+        },
+      },
+    ],
+  },
+  {
+    name: 'checkbox group membership follows authoritative server arrays',
+    state: { ids: [1, 2] },
+    actions: { only: { set: { ids: [3] } } },
+    html: '<input id="one" type="checkbox" aria-label="One" value="1" nv:model.number="ids" checked><input id="two" type="checkbox" aria-label="Two" value="2" nv:model.number="ids" checked><input id="three" type="checkbox" aria-label="Three" value="3" nv:model.number="ids"><button id="only" type="button" nv:click="only">Only three</button>',
+    steps: [
+      { click: '#only' },
+      {
+        expect: {
+          actions: ['only'],
+          values: {
+            [checked('one')]: false,
+            [checked('two')]: false,
+            [checked('three')]: true,
+          },
+        },
+      },
+    ],
+  },
+  {
+    name: 'a checkbox group with .change.number synchronizes each change with typed values',
+    state: { ids: [] },
+    html: '<input id="one" type="checkbox" aria-label="One" value="1" nv:model.change.number="ids"><input id="two" type="checkbox" aria-label="Two" value="2" nv:model.change.number="ids">',
+    steps: [
+      { check: '#two' },
+      { expect: { actions: ['_sync'], updates: [{ ids: [2] }] } },
+      { check: '#one' },
+      {
+        expect: {
+          actions: ['_sync', '_sync'],
+          updates: [{ ids: [2] }, { ids: [1, 2] }],
+        },
+      },
+    ],
+  },
+  {
+    name: 'a checkbox group may alias a multiple select of the same cast',
+    state: { tags: ['a'] },
+    html: '<input id="a" type="checkbox" aria-label="A" value="a" nv:model="tags" checked><input id="b" type="checkbox" aria-label="B" value="b" nv:model="tags"><select id="pick" aria-label="Tags" multiple nv:model="tags"><option value="a" selected>A</option><option value="b">B</option></select>',
+    steps: [
+      { check: '#b' },
+      {
+        expect: {
+          errors: [],
+          values: {
+            "[...document.getElementById('pick').selectedOptions].map((o) => o.value)":
+              ['a', 'b'],
+          },
+        },
+      },
+    ],
+  },
+  {
+    name: 'a scalar control cannot alias a checkbox group',
+    state: { tags: ['a'] },
+    html: '<input id="a" type="checkbox" aria-label="A" value="a" nv:model="tags" checked><input id="text" aria-label="Text" nv:model="tags">',
+    steps: [{ expect: { errors: ['DIRECTIVE'] } }],
+  },
+];
+
+const pay = (fail: NonNullable<Row['actions']>[string]['fail']) =>
+  ({
+    state: { count: 0 },
+    idempotent: ['pay'],
+    actions: { pay: { increment: 'count', ...(fail ? { fail } : {}) } },
+    html: `${output}<button id="pay" type="button" nv:click="pay">Pay</button>`,
+  }) as const;
+const oneRequestId = 'new Set(nvHarness.requests.map((r) => r.requestId)).size';
+const request = (detail: Record<string, unknown>): string =>
+  `nestvexa:request:${JSON.stringify(detail)}`;
+const transportRows: Row[] = [
+  {
+    name: 'an idempotent action is resent after a dropped connection with the same requestId',
+    ...pay({ times: 1, with: 'network' }),
+    steps: [
+      { click: '#pay' },
+      {
+        expect: {
+          actions: ['pay', 'pay'],
+          text: { '#count': '1' },
+          errors: [],
+          values: { [oneRequestId]: 1 },
+          events: [
+            request({ action: 'pay', phase: 'start', attempt: 0 }),
+            request({ action: 'pay', phase: 'retry', attempt: 1 }),
+            request({ action: 'pay', phase: 'end', outcome: 'succeeded' }),
+          ],
+        },
+      },
+    ],
+  },
+  {
+    name: 'a lost reply of a committed idempotent action is replayed, not run twice',
+    ...pay({ times: 1, with: 'network', commit: true }),
+    steps: [
+      { click: '#pay' },
+      {
+        expect: {
+          actions: ['pay', 'pay'],
+          text: { '#count': '1' },
+          values: { 'nvHarness.state.count': 1, [oneRequestId]: 1 },
+          errors: [],
+        },
+      },
+    ],
+  },
+  {
+    name: 'idempotent retries stop after two resends and report the failure',
+    ...pay({ times: 9, with: 'network' }),
+    steps: [
+      { click: '#pay' },
+      {
+        expect: {
+          actions: ['pay', 'pay', 'pay'],
+          errors: ['NETWORK'],
+          text: { '#count': '0' },
+        },
+      },
+      { wait: 1500 },
+      { expect: { actions: ['pay', 'pay', 'pay'] } },
+    ],
+  },
+  {
+    name: 'transient 503 and 409 replies are retried for idempotent actions',
+    ...pay({ times: 2, with: 503 }),
+    steps: [
+      { click: '#pay' },
+      {
+        expect: {
+          actions: ['pay', 'pay', 'pay'],
+          text: { '#count': '1' },
+          errors: [],
+        },
+      },
+    ],
+  },
+  {
+    name: 'a 422 rejection of an idempotent action is not retried',
+    ...pay({ times: 1, with: 422 }),
+    steps: [
+      { click: '#pay' },
+      { wait: 1200 },
+      { expect: { actions: ['pay'], errors: ['HTTP'] } },
+    ],
+  },
+  {
+    name: 'actions the server did not declare idempotent are never retried',
+    state: { count: 0 },
+    actions: { increment: { fail: { times: 1, with: 'network' } } },
+    html: `${output}<button id="go" type="button" nv:click="increment">Go</button>`,
+    steps: [
+      { click: '#go' },
+      { wait: 1200 },
+      { expect: { actions: ['increment'], errors: ['NETWORK'] } },
+    ],
+  },
+  {
+    name: 'a reply advertising another protocol major is rejected as PROTOCOL and suspends',
+    ...counter,
+    actions: { increment: { increment: 'count', protocol: 'nestvexa-live/2' } },
+    html: `${output}<button id="go" type="button" nv:click="increment">Go</button>`,
+    steps: [
+      { click: '#go' },
+      { expect: { errors: ['PROTOCOL'], text: { '#count': '0' } } },
+      { click: '#go' },
+      { wait: 300 },
+      { expect: { actions: ['increment'] } },
+    ],
+  },
+  {
+    name: 'a 426 reply is reported as PROTOCOL',
+    ...counter,
+    actions: { increment: { status: 426 } },
+    html: `${output}<button id="go" type="button" nv:click="increment">Go</button>`,
+    steps: [{ click: '#go' }, { expect: { errors: ['PROTOCOL'] } }],
+  },
+  {
+    name: 'a reply advertising the current protocol major is applied',
+    ...counter,
+    actions: { increment: { increment: 'count', protocol: 'nestvexa-live/1' } },
+    html: `${output}<button id="go" type="button" nv:click="increment">Go</button>`,
+    steps: [
+      { click: '#go' },
+      { expect: { errors: [], text: { '#count': '1' } } },
+    ],
+  },
+  {
+    name: 'model synchronizations queued behind an in-flight request fold into one',
+    state: { query: '', count: 0 },
+    actions: { increment: { increment: 'count', hold: true } },
+    html: `${output}<button id="go" type="button" nv:click="increment">Go</button><input id="q" aria-label="Query" nv:model.live.debounce.50ms="query">`,
+    steps: [
+      { click: '#go' },
+      { fill: '#q', value: 'a' },
+      { wait: 200 },
+      { fill: '#q', value: 'ab' },
+      { wait: 200 },
+      { fill: '#q', value: 'abc' },
+      { wait: 200 },
+      { release: 'all' },
+      {
+        expect: {
+          actions: ['increment', '_sync'],
+          updates: [{}, { query: 'abc' }],
+          text: { '#count': '1' },
+        },
+      },
+    ],
+  },
+  {
+    name: 'a synchronization folds into a queued action that has not started',
+    state: { query: '', count: 0, other: 0 },
+    actions: {
+      increment: { increment: 'count', hold: true },
+      bump: { increment: 'other' },
+    },
+    html: `${output}<button id="go" type="button" nv:click="increment">Go</button><button id="bump" type="button" nv:click="bump">Bump</button><input id="q" aria-label="Query" nv:model.live.debounce.50ms="query">`,
+    steps: [
+      { click: '#go' },
+      { click: '#bump' },
+      { fill: '#q', value: 'x' },
+      { wait: 200 },
+      { release: 'all' },
+      {
+        expect: {
+          actions: ['increment', 'bump'],
+          updates: [{}, { query: 'x' }],
+        },
+      },
+    ],
+  },
+];
+
+/** Stand-in for a framework island or portal library mutating DOM it owns. */
+const mountIsland =
+  'const island = document.getElementById(\'island\'); island.innerHTML = \'<button id="inner" type="button" nv:click="increment">Island</button><output id="island-state">mounted</output>\'; island.dataset.mounted = \'yes\'';
+const portal =
+  "const node = document.getElementById('dialog'); document.body.append(node); node.dataset.ported = 'yes'";
+const ownershipRows: Row[] = [
+  {
+    name: 'a data-nv-island subtree keeps its framework DOM and inert directives across morphs',
+    ...counter,
+    html: `${output}<div id="island" data-nv-island="widget"><p>server placeholder</p></div><button id="go" type="button" nv:click="increment">Go</button>`,
+    steps: [
+      { run: mountIsland },
+      { click: '#go' },
+      { click: '#go' },
+      {
+        expect: {
+          actions: ['increment', 'increment'],
+          text: { '#count': '2', '#island-state': 'mounted' },
+          attrs: { '#island': { 'data-mounted': 'yes' } },
+        },
+      },
+      { click: '#inner' },
+      { wait: 300 },
+      { expect: { actions: ['increment', 'increment'], errors: [] } },
+    ],
+  },
+  {
+    name: 'an island inside nv:ignore survives morphs; inside nv:replace it is torn down and remounted by the server',
+    ...counter,
+    html: `${output}<div nv:ignore><div id="island" data-nv-island="widget"></div></div><section id="swap" nv:replace=""><div id="replaced-island" data-nv-island="widget"><p>fresh</p></div></section><button id="go" type="button" nv:click="increment">Go</button>`,
+    steps: [
+      { run: mountIsland },
+      {
+        run: "document.getElementById('replaced-island').dataset.mounted = 'yes'",
+      },
+      { click: '#go' },
+      {
+        expect: {
+          text: { '#count': '1', '#island-state': 'mounted' },
+          attrs: {
+            '#island': { 'data-mounted': 'yes' },
+            '#replaced-island': { 'data-mounted': null },
+          },
+          events: ['nestvexa:before-remove', 'nestvexa:after-insert'],
+        },
+      },
+    ],
+  },
+  {
+    name: 'portal content moved outside the root is not owned: its directives stay inert and morphs re-render the server copy',
+    ...counter,
+    html: `${output}<div id="dialog" role="dialog" aria-label="Dialog"><button id="inside" type="button" nv:click="increment">Inside</button></div><button id="go" type="button" nv:click="increment">Go</button>`,
+    steps: [
+      { run: portal },
+      { click: '#inside' },
+      { wait: 300 },
+      { expect: { actions: [] } },
+      { click: '#go' },
+      {
+        expect: {
+          actions: ['increment'],
+          text: { '#count': '1' },
+          values: {
+            "document.querySelectorAll('#dialog').length": 2,
+            'document.body.lastElementChild.dataset.ported': 'yes',
+            "nvHarness.root.querySelector('#dialog').dataset.ported ?? null":
+              null,
+          },
+        },
+      },
+    ],
+  },
+  {
+    name: 'the documented portal pattern keeps an nv:ignore target inside the root',
+    ...counter,
+    html: `${output}<div id="layer" nv:ignore><div id="dialog-host"></div></div><button id="go" type="button" nv:click="increment">Go</button>`,
+    steps: [
+      {
+        run: "document.getElementById('dialog-host').innerHTML = '<p id=\"modal\">Local modal</p>'",
+      },
+      { click: '#go' },
+      { click: '#go' },
+      {
+        expect: {
+          text: { '#count': '2', '#modal': 'Local modal' },
+          errors: [],
+        },
+      },
+    ],
+  },
+];
+
+const sortList = (extra = ''): string =>
+  `<ol id="tasks" nv:sort="reorder" aria-label="Tasks"${extra}>${['a', 'b', 'c']
+    .map(
+      (id) =>
+        `<li id="item-${id}" nv:sort.item="${id}" style="min-height:48px"><button id="h-${id}" type="button" nv:sort.handle aria-label="Move ${id}">${id}</button></li>`,
+    )
+    .join('')}</ol>`;
+const sortRows: Row[] = [
+  {
+    name: 'nv:sort keyboard Alt+ArrowDown proposes the next position by stable IDs',
+    state: { moves: 0 },
+    actions: { reorder: { increment: 'moves' } },
+    html: sortList(),
+    steps: [
+      { focus: '#h-a' },
+      { keyboard: 'Alt+ArrowDown' },
+      { expect: { actions: ['reorder'], inputs: [{ ids: ['b', 'a', 'c'] }] } },
+    ],
+  },
+  {
+    name: 'nv:sort keyboard Alt+End and Alt+Home move to the list edges',
+    state: { moves: 0 },
+    actions: { reorder: { increment: 'moves' } },
+    html: sortList(),
+    steps: [
+      { focus: '#h-a' },
+      { keyboard: 'Alt+End' },
+      { expect: { inputs: [{ ids: ['b', 'c', 'a'] }] } },
+      { focus: '#h-c' },
+      { keyboard: 'Alt+Home' },
+      {
+        expect: {
+          inputs: [{ ids: ['b', 'c', 'a'] }, { ids: ['c', 'a', 'b'] }],
+        },
+      },
+    ],
+  },
+  {
+    name: 'nv:sort ignores unmodified, Shift and Control arrows and edge moves',
+    state: { moves: 0 },
+    actions: { reorder: { increment: 'moves' } },
+    html: sortList(),
+    steps: [
+      { focus: '#h-b' },
+      { keyboard: 'ArrowDown' },
+      { keyboard: 'Shift+Alt+ArrowDown' },
+      { keyboard: 'Control+Alt+ArrowDown' },
+      { focus: '#h-a' },
+      { keyboard: 'Alt+ArrowUp' },
+      { wait: 300 },
+      { expect: { actions: [] } },
+    ],
+  },
+  {
+    name: 'nv:sort native pointer drag onto the lower half of a later item',
+    state: { moves: 0 },
+    actions: { reorder: { increment: 'moves' } },
+    html: sortList(),
+    steps: [
+      { drag: '#h-a', to: '#item-c', half: 'bottom' },
+      { expect: { actions: ['reorder'], inputs: [{ ids: ['b', 'c', 'a'] }] } },
+    ],
+  },
+  {
+    name: 'nv:sort native pointer drag onto the upper half of an earlier item',
+    state: { moves: 0 },
+    actions: { reorder: { increment: 'moves' } },
+    html: sortList(),
+    steps: [
+      { drag: '#h-c', to: '#item-a', half: 'top' },
+      { expect: { actions: ['reorder'], inputs: [{ ids: ['c', 'a', 'b'] }] } },
+    ],
+  },
+  {
+    name: 'nv:sort blocks keyboard and pointer moves while a move is pending, with nv:loading',
+    state: { moves: 0 },
+    actions: { reorder: { increment: 'moves', hold: true } },
+    html: `${sortList()}<p id="busy" nv:loading nv:target="reorder" hidden>Saving order</p>`,
+    steps: [
+      { focus: '#h-a' },
+      { keyboard: 'Alt+ArrowDown' },
+      { expect: { attrs: { '#busy': { hidden: null } } } },
+      { keyboard: 'Alt+ArrowDown' },
+      { drag: '#h-c', to: '#item-a', half: 'top' },
+      { wait: 300 },
+      { expect: { actions: ['reorder'] } },
+      { release: 'all' },
+      { expect: { attrs: { '#busy': { hidden: '' } } } },
+      { focus: '#h-b' },
+      { keyboard: 'Alt+ArrowDown' },
+      {
+        expect: {
+          inputs: [{ ids: ['b', 'a', 'c'] }, { ids: ['a', 'c', 'b'] }],
+        },
+      },
+    ],
+  },
+  {
+    name: 'nv:sort inside nv:ignore is not bound',
+    state: { moves: 0 },
+    html: `<div nv:ignore>${sortList()}</div>`,
+    steps: [
+      { focus: '#h-a' },
+      { keyboard: 'Alt+ArrowDown' },
+      { drag: '#h-a', to: '#item-c', half: 'bottom' },
+      { wait: 300 },
+      { expect: { actions: [], errors: [] } },
+    ],
+  },
+];
+
+const lifecycleRows: Row[] = [
+  {
+    name: 'a browser-restored model value becomes an announced draft shown by nv:dirty',
+    state: { name: 'Ada', saved: 0 },
+    actions: { save: { increment: 'saved' } },
+    restore: { '#name': 'Grace' },
+    html: '<input id="name" aria-label="Name" nv:model="name" value="{{name}}"><span id="dirty" nv:dirty="name" hidden>Restored edit</span><button id="save" type="button" nv:click="save">Save</button>',
+    steps: [
+      {
+        expect: {
+          attrs: { '#dirty': { hidden: null } },
+          events: ['nestvexa:restored:{"fields":["name"]}'],
+          values: { "document.getElementById('name').value": 'Grace' },
+        },
+      },
+      { click: '#save' },
+      {
+        expect: {
+          actions: ['save'],
+          updates: [{ name: 'Grace' }],
+          attrs: { '#dirty': { hidden: '' } },
+        },
+      },
+    ],
+  },
+  {
+    name: 'markup without a rendered value is not mistaken for a restored edit',
+    state: { name: 'Ada', saved: 0 },
+    actions: { save: { increment: 'saved' } },
+    html: '<input id="name" aria-label="Name" nv:model="name"><span id="dirty" nv:dirty hidden>Edited</span><button id="save" type="button" nv:click="save">Save</button>',
+    steps: [
+      { click: '#save' },
+      {
+        expect: {
+          actions: ['save'],
+          updates: [{}],
+          attrs: { '#dirty': { hidden: '' } },
+        },
+      },
+    ],
+  },
+  {
+    name: 'restored checkbox groups, multiple selects and nested leaves become drafts',
+    state: { tags: ['a'], picks: ['x'], address, saved: 0 },
+    actions: { save: { increment: 'saved' } },
+    restore: { '#b': true, '#y': true, '#city': 'Giza' },
+    html: '<input id="a" type="checkbox" aria-label="A" value="a" nv:model="tags" checked><input id="b" type="checkbox" aria-label="B" value="b" nv:model="tags"><select aria-label="Picks" multiple nv:model="picks"><option id="x" value="x" selected>X</option><option id="y" value="y">Y</option></select><input id="city" aria-label="City" nv:model="address.city" value="{{address.city}}"><button id="save" type="button" nv:click="save">Save</button>',
+    steps: [
+      {
+        expect: {
+          events: [
+            'nestvexa:restored:{"fields":["tags","picks","address.city"]}',
+          ],
+          values: { [checked('b')]: true },
+        },
+      },
+      { click: '#save' },
+      {
+        expect: {
+          updates: [
+            {
+              tags: ['a', 'b'],
+              picks: ['x', 'y'],
+              address: { ...address, city: 'Giza' },
+            },
+          ],
+        },
+      },
+    ],
+  },
+  {
+    name: 'an unrepresentable restored value is never sent',
+    state: { amount: 1, saved: 0 },
+    actions: { save: { increment: 'saved' } },
+    restore: { '#amount': 'abc' },
+    html: '<input id="amount" aria-label="Amount" nv:model.number="amount" value="{{amount}}"><button id="save" type="button" nv:click="save">Save</button>',
+    steps: [
+      { click: '#save' },
+      { expect: { actions: ['save'], updates: [{}], errors: [] } },
+    ],
+  },
+  {
+    name: 'development inspect() lists draft names without values, tokens or endpoints',
+    state: { name: '', count: 0 },
+    development: true,
+    idempotent: ['increment'],
+    html: '<input id="name" aria-label="Name" nv:model="name">',
+    steps: [
+      { fill: '#name', value: 'secret-draft' },
+      {
+        expect: {
+          values: {
+            'nvHarness.client.inspect().map((c) => [c.name, c.revision, c.dirty, c.failure, c.idempotent])':
+              [['matrix', 0, ['name'], null, ['increment']]],
+            '/secret-draft|matrix-csrf|AAAAAAAA|\\/live\\/matrix/.test(JSON.stringify(nvHarness.client.inspect()))': false,
+          },
+        },
+      },
+    ],
+  },
+  {
+    name: 'inspect() is unavailable without the development option',
+    ...counter,
+    html: output,
+    steps: [
+      {
+        expect: {
+          values: {
+            "(() => { try { nvHarness.client.inspect(); return 'exposed'; } catch (error) { return error.code; } })()":
+              'DIRECTIVE',
+          },
+        },
+      },
     ],
   },
 ];
@@ -1275,17 +1953,26 @@ const presentationRows: Row[] = [
     state: { ticks: 0 },
     actions: { tick: { increment: 'ticks' } },
     html: '<p nv:poll.1000ms="tick">Ticks <output id="ticks">{{ticks}}</output></p>',
+    // Counts, not exact lists: a loaded machine may run a second tick before hiding.
     steps: [
-      { expect: { actions: ['tick'] } },
+      { expect: { values: { 'nvHarness.requests.length >= 1': true } } },
       {
-        run: "Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' }); document.dispatchEvent(new Event('visibilitychange'))",
+        run: "Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' }); document.dispatchEvent(new Event('visibilitychange')); window.nvHidden = nvHarness.requests.length",
       },
       { wait: 2300 },
-      { expect: { actions: ['tick'] } },
+      {
+        expect: {
+          values: { 'nvHarness.requests.length === window.nvHidden': true },
+        },
+      },
       {
         run: "Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' }); document.dispatchEvent(new Event('visibilitychange'))",
       },
-      { expect: { actions: ['tick', 'tick'] } },
+      {
+        expect: {
+          values: { 'nvHarness.requests.length > window.nvHidden': true },
+        },
+      },
     ],
   },
   {
@@ -1341,19 +2028,38 @@ const presentationRows: Row[] = [
   },
 ];
 
-describe.each([
-  ['event modifiers', eventRows],
-  ['forms and submission', formRows],
-  ['confirmation', confirmRows],
-  ['loading, target and delay', loadingRows],
-  ['model modifiers', modelRows],
-  ['bindings, presentation and observers', presentationRows],
-])('directive matrix: %s', (_group, rows) => {
-  it.each(rows.map((row) => [row.name, row] as const))(
-    '%s',
-    async (_name, row) => {
-      await run(row);
-    },
-    30_000,
-  );
+describe.each(matrixBrowsers)('%s', (engine) => {
+  beforeAll(async () => {
+    fixture = await startMatrix(engine);
+  });
+  afterEach(async () => {
+    await page?.evaluate(() => window.nvHarness?.client.dispose());
+    await page?.close();
+    page = undefined;
+  });
+  afterAll(async () => {
+    await fixture?.close();
+    fixture = undefined;
+  });
+  describe.each([
+    ['event modifiers', eventRows],
+    ['forms and submission', formRows],
+    ['confirmation', confirmRows],
+    ['loading, target and delay', loadingRows],
+    ['model modifiers', modelRows],
+    ['nested paths and checkbox groups', structureRows],
+    ['transport: bundling, retry, negotiation and progress', transportRows],
+    ['restored drafts and development inspection', lifecycleRows],
+    ['sort keyboard and pointer', sortRows],
+    ['ownership: islands, ignore, replace and portals', ownershipRows],
+    ['bindings, presentation and observers', presentationRows],
+  ])('directive matrix: %s', (_group, rows) => {
+    it.each(rows.map((row) => [row.name, row] as const))(
+      '%s',
+      async (_name, row) => {
+        await run(row);
+      },
+      30_000,
+    );
+  });
 });

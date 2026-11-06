@@ -1,5 +1,10 @@
 import { LiveClientError } from './grammar.js';
-import { getModelDirective, readModelValue, sameModelValue } from './models.js';
+import {
+  getModelDirective,
+  isCheckbox,
+  readModelValue,
+  sameModelValue,
+} from './models.js';
 import type { ModelDirective, ModelValue } from './models.js';
 
 export interface ResetControl {
@@ -27,10 +32,21 @@ export function resetSignature(element: Element): string {
       .map(({ name, value }) => [name, value]),
   ]);
 }
-export function resetValue(controls: readonly ResetControl[]): ModelValue {
+/** `group`: the field is array state, so its checkboxes reset as one value group. */
+export function resetValue(
+  controls: readonly ResetControl[],
+  group = false,
+): ModelValue {
   let value: ModelValue | undefined;
+  const boxes = controls
+    .map((control) => control.element)
+    .filter((element) => group && isCheckbox(element));
   for (const control of controls) {
-    const candidate = readModelValue(control.element, control.directive);
+    const candidate = readModelValue(
+      control.element,
+      control.directive,
+      boxes.includes(control.element) ? boxes : undefined,
+    );
     if (candidate === undefined) continue;
     if (value !== undefined && !sameModelValue(candidate, value))
       invalid(
@@ -48,6 +64,7 @@ export function resetValue(controls: readonly ResetControl[]): ModelValue {
 export function planFormReset<Owner>(
   form: HTMLFormElement,
   owner: (element: Element) => Owner | undefined,
+  group: (owner: Owner, field: string) => boolean = () => false,
 ): readonly ResetField<Owner>[] {
   const native = [...form.elements].filter((element) =>
     ['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName),
@@ -130,6 +147,7 @@ export function planFormReset<Owner>(
           if (!clone) return invalid('Missing native reset prediction');
           return { ...control, element: clone };
         }),
+        group(scope, field),
       );
       result.push({ owner: scope, field, controls });
     }

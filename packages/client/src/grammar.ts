@@ -8,7 +8,8 @@ export class LiveClientError extends Error {
       | 'HTML'
       | 'NETWORK'
       | 'TIMEOUT'
-      | 'ABORTED',
+      | 'ABORTED'
+      | 'PROTOCOL',
     message: string,
   ) {
     super(message);
@@ -22,6 +23,23 @@ export function parseIdentifier(value: string): string {
       'DIRECTIVE',
       'Expected a registered identifier, without expressions or paths',
     );
+  return value;
+}
+/** A field or a dotted path of at most 8 identifier segments (`address.city`); no indices or expressions. */
+export function parsePath(value: string): string {
+  const parts = value.split('.');
+  if (parts.length > 8) parseIdentifier('.');
+  for (const part of parts) parseIdentifier(part);
+  return value;
+}
+/** Resolve own data along a path of plain objects; anything else is undefined. */
+export function readPath(values: unknown, path: string): unknown {
+  let value = values;
+  for (const key of path.split('.'))
+    value =
+      value && typeof value === 'object' && !Array.isArray(value)
+        ? Object.getOwnPropertyDescriptor(value, key)?.value
+        : undefined;
   return value;
 }
 

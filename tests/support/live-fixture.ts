@@ -93,6 +93,7 @@ export async function application(
 
 export interface Reply {
   readonly status: number;
+  readonly headers: Readonly<Record<string, string | string[] | undefined>>;
   readonly body: string;
   json(): Record<string, unknown>;
 }
@@ -133,6 +134,7 @@ export async function send(
           const raw = Buffer.concat(chunks).toString('utf8');
           done({
             status: incoming.statusCode ?? 0,
+            headers: incoming.headers,
             body: raw,
             json() {
               const value: unknown = JSON.parse(raw);

@@ -608,3 +608,153 @@ describe('default Live/Alpine application startup', () => {
     );
   });
 });
+
+describe('adopting a host-owned Alpine (default distribution with page Alpine)', () => {
+  async function adopt(): Promise<string> {
+    return page.evaluate(() => {
+      const { adapter, alpine } = window.nvStartupFixture;
+      const session = window.nvStartupSession;
+      try {
+        adapter.adoptLiveAlpine(alpine, session.client, {
+          configure() {
+            session.counters.configure++;
+            session.order.push('configure');
+            alpine.data('localCounter', () => ({
+              clicks: 0,
+              incrementLocal(this: { clicks: number }) {
+                this.clicks++;
+              },
+            }));
+          },
+        });
+        return '';
+      } catch (error) {
+        return error instanceof Error ? error.message : '';
+      }
+    });
+  }
+  it('registers $live and mounts Live without starting Alpine; the host starts it', async () => {
+    await prepare();
+    expect(await adopt()).toBe('');
+    expect(await page.evaluate(() => window.nvStartupSession.order)).toEqual([
+      'configure',
+      'mount',
+    ]);
+    // The page keeps its lifecycle and starts Alpine itself.
+    await page.evaluate(() => window.nvStartupFixture.alpine.start());
+    await page.waitForFunction(
+      () => document.querySelector('#alpine-server')?.textContent === '0',
+    );
+    await page.locator('#server').click();
+    await page.waitForFunction(
+      () => document.querySelector('#alpine-server')?.textContent === '1',
+    );
+    expect(await page.evaluate(() => window.nvStartupSession.counters)).toEqual(
+      { mount: 1, dispose: 0, start: 1, configure: 1 },
+    );
+    await page.evaluate(() =>
+      window.dispatchEvent(
+        new PageTransitionEvent('pagehide', { persisted: false }),
+      ),
+    );
+    expect(
+      await page.evaluate(() => window.nvStartupSession.counters.dispose),
+    ).toBe(1);
+  });
+  it('reads window.Alpine only as a data property, never through an accessor', async () => {
+    await prepare();
+    const result = await page.evaluate(() => {
+      const { adapter, alpine } = window.nvStartupFixture;
+      let reads = 0;
+      Object.defineProperty(window, 'Alpine', {
+        configurable: true,
+        get() {
+          reads++;
+          return alpine;
+        },
+      });
+      const viaAccessor = adapter.hostAlpine() === undefined;
+      Object.defineProperty(window, 'Alpine', {
+        configurable: true,
+        writable: true,
+        value: alpine,
+      });
+      const viaData = adapter.hostAlpine() === alpine;
+      Reflect.deleteProperty(window, 'Alpine');
+      return {
+        viaAccessor,
+        viaData,
+        reads,
+        none: adapter.hostAlpine() === undefined,
+      };
+    });
+    expect(result).toEqual({
+      viaAccessor: true,
+      viaData: true,
+      reads: 0,
+      none: true,
+    });
+  });
+  it('rejects an incompatible host Alpine version before mounting and fails closed', async () => {
+    await prepare();
+    const result = await page.evaluate(() => {
+      const { adapter, alpine } = window.nvStartupFixture;
+      const session = window.nvStartupSession;
+      const old = {
+        version: '3.13.0',
+        magic: alpine.magic.bind(alpine),
+        reactive: alpine.reactive.bind(alpine),
+      };
+      let first = '';
+      let retry = '';
+      try {
+        adapter.adoptLiveAlpine(old, session.client);
+      } catch (error) {
+        first = error instanceof Error ? error.message : '';
+      }
+      try {
+        adapter.adoptLiveAlpine(alpine, session.client);
+      } catch (error) {
+        retry = error instanceof Error ? error.message : '';
+      }
+      return { first, retry, counters: session.counters };
+    });
+    expect(result.first).toContain('3.17.x');
+    expect(result.retry).toContain('failed');
+    expect(result.counters).toEqual({
+      mount: 0,
+      dispose: 1,
+      start: 0,
+      configure: 0,
+    });
+  });
+  it('coalesces adoption after the default start with the same Alpine', async () => {
+    await prepare();
+    await boot();
+    const coalesced = await page.evaluate(() => {
+      const { copy, alpine } = window.nvStartupFixture;
+      return (
+        copy.adoptLiveAlpine(alpine, window.nvStartupSession.client) ===
+        window.nvStartupSession.application
+      );
+    });
+    expect(coalesced).toBe(true);
+  });
+  it('refuses to start an Alpine whose lifecycle the host owns', async () => {
+    await prepare();
+    expect(await adopt()).toBe('');
+    const refused = await page.evaluate(() => {
+      const { copy, alpine } = window.nvStartupFixture;
+      try {
+        copy.startLiveAlpine(alpine, window.nvStartupSession.client);
+        return '';
+      } catch (error) {
+        return error instanceof Error ? error.message : '';
+      }
+    });
+    expect(refused).toContain('host owns this Alpine lifecycle');
+    expect(
+      await page.evaluate(() => window.nvStartupSession.counters.start),
+    ).toBe(0);
+  });
+});

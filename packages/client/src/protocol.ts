@@ -1,4 +1,4 @@
-import { LiveClientError, parseIdentifier } from './grammar.js';
+import { LiveClientError, parseIdentifier, parsePath } from './grammar.js';
 import { parseBindingDirective } from './bindings.js';
 import type { BindingDirective } from './bindings.js';
 import { parseConfirmation, parseEventDirective } from './events.js';
@@ -84,8 +84,9 @@ export function parseDirective(name: string, value: string): LiveDirective {
       ...(timing === undefined ? {} : { timing }),
     };
   }
-  if (kind === 'click' || kind === 'submit' || kind === 'model')
+  if (kind === 'click' || kind === 'submit')
     return { kind, value: parseIdentifier(value) };
+  if (kind === 'model') return { kind, value: parsePath(value) };
   if (/^nv:(?:click|submit|keydown)(?:\.|$)/.test(name))
     return parseEventDirective(name, value);
   if (name.startsWith('nv:model.'))

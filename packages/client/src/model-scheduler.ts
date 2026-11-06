@@ -1,4 +1,4 @@
-import { LiveClientError, parseIdentifier } from './grammar.js';
+import { LiveClientError, parsePath } from './grammar.js';
 
 export interface ModelTiming {
   readonly debounceMs?: number;
@@ -134,7 +134,7 @@ export function createModelScheduler(
   return {
     schedule(element, field, timing = {}): void {
       if (disposed) return;
-      parseIdentifier(field);
+      parsePath(field);
       validateTiming(timing);
       const attribute = modelAttribute(element);
       if (attribute === undefined || attribute.value !== field)
