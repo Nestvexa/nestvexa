@@ -1,5 +1,4 @@
 import { Inject, Injectable, RequestMethod } from '@nestjs/common';
-import type { OnModuleInit } from '@nestjs/common';
 import {
   METHOD_METADATA,
   PATH_METADATA,
@@ -93,19 +92,19 @@ function hostRoutes(discovery: DiscoveryService): Route[] {
 
 /**
  * Startup check: no host controller route may shadow or be shadowed by a
- * generated Live route. Runs during `app.init()`, before traffic is accepted.
- * Cross-registration Live collisions are checked by the application registry.
+ * generated Live route. It runs while Nest instantiates providers (module
+ * compilation), after scanning and before any HTTP route is registered, so
+ * neither platform router sees an ambiguous route. Versioned host routes are
+ * skipped. Cross-registration Live collisions are checked by the registry.
  */
 @Injectable()
-export class LiveRouteConflictCheck implements OnModuleInit {
+export class LiveRouteConflictCheck {
   constructor(
-    @Inject(DiscoveryService) private readonly discovery: DiscoveryService,
-    @Inject(LIVE_OPTIONS) private readonly options: RuntimeOptions,
-  ) {}
-
-  onModuleInit(): void {
-    const endpoint = this.options.endpoint ?? '/_nestvexa/live';
-    const live: Route[] = this.options.definitions.flatMap((component) => [
+    @Inject(DiscoveryService) discovery: DiscoveryService,
+    @Inject(LIVE_OPTIONS) options: RuntimeOptions,
+  ) {
+    const endpoint = options.endpoint ?? '/_nestvexa/live';
+    const live: Route[] = options.definitions.flatMap((component) => [
       ...[...component.actions.keys(), INTERNAL_SYNC_PATH].map((action) => ({
         method: RequestMethod.POST,
         path: join(endpoint, component.name, action),
@@ -117,7 +116,7 @@ export class LiveRouteConflictCheck implements OnModuleInit {
         owner: component.name,
       },
     ]);
-    for (const host of hostRoutes(this.discovery))
+    for (const host of hostRoutes(discovery))
       for (const route of live)
         if (
           (host.method === route.method || host.method === RequestMethod.ALL) &&
