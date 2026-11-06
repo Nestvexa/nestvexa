@@ -401,6 +401,57 @@ describe('error recovery UI', () => {
       .toMatchObject({ count: '1', offline: true });
   });
 
+  it('does not send while the browser is offline and resubmits after reconnect without a reload', async () => {
+    const target = await open();
+    await mountMatrix(target, {
+      state: { count: 0 },
+      actions: { increment: { increment: 'count' } },
+      html,
+    });
+    await target.context().setOffline(true);
+    try {
+      await target.click('#go');
+      await expect
+        .poll(async () => (await snapshot(target)).errors)
+        .toEqual(['NETWORK']);
+      // Nothing reached the (fake) server, so nothing is uncertain.
+      expect(await expectActionsNow(target)).toEqual([]);
+      expect(await read(target)).toMatchObject({ count: '0', offline: false });
+    } finally {
+      await target.context().setOffline(false);
+    }
+    await target.click('#go');
+    await expectActions(target, ['increment']);
+    await expect
+      .poll(() => read(target))
+      .toMatchObject({ count: '1', offline: true, busy: 'false' });
+  });
+
+  it('keeps the component usable after a refresh ($sync) loses its connection', async () => {
+    const target = await open();
+    await mountMatrix(target, {
+      state: { count: 0, name: '' },
+      actions: {
+        increment: { increment: 'count' },
+        _sync: { network: true },
+      },
+      html: `${html}<input id="name" aria-label="Name" nv:model.live="name">`,
+    });
+    await target.fill('#name', 'Ada');
+    await expect
+      .poll(async () => (await snapshot(target)).errors)
+      .toEqual(['NETWORK']);
+    // The unacknowledged field stays dirty and travels with the next action.
+    await target.click('#go');
+    await expectActions(target, ['_sync', 'increment']);
+    expect((await snapshot(target)).requests[1]?.updates).toEqual({
+      name: 'Ada',
+    });
+    await expect
+      .poll(() => read(target))
+      .toMatchObject({ count: '1', offline: true });
+  });
+
   it.each([
     ['a request deadline', { never: true }, 'TIMEOUT', false],
     ['a malformed envelope', { malformed: true }, 'RESPONSE', true],

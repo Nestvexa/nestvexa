@@ -102,6 +102,7 @@ the package can emit is listed with the status it is emitted with.
 | `IDEMPOTENCY_CONFLICT`     | 422    | fix-request | A request ID was reused with a different payload.                        |
 | `STATE_SCHEMA_CHANGED`     | 409    | reload      | Stored state no longer matches the component class.                      |
 | `REACTIVE_PROP_MUTATED`    | 409    | reload      | A child action changed a parent-owned @Reactive field.                   |
+| `ASSET_VERSION_MISMATCH`   | 409    | reload      | `x-nestvexa-asset-version` is missing or differs from `assetVersion`.    |
 | `INVALID_SNAPSHOT`         | 410    | reload      | State reference unknown, expired, revoked or not owned.                  |
 | `PAYLOAD_TOO_LARGE`        | 413    | fix-request | Envelope or rendered HTML exceeds the documented limits.                 |
 | `CONTENT_TYPE`             | 415    | fix-request | Requests must be application/json (UTF-8).                               |
@@ -157,6 +158,32 @@ else).
   tokens are minor changes. Removing or renaming a field, changing a status, or making
   an optional request field required is a new protocol major, shipped with a migration
   note and a reload path. Existing codes keep their status within a major.
+
+## Asset version
+
+With `assetVersion` configured (for example a client manifest hash), every component
+root carries `data-nv-asset-version` and the browser sends it back in
+`x-nestvexa-asset-version`. Admission compares it after the origin and CSRF checks, so
+only same-origin pages of the identity learn about a mismatch. A missing or different
+value fails with `409 ASSET_VERSION_MISMATCH` and the response header
+`x-nestvexa-reload: asset-version`; nothing runs. The bundled client dispatches a
+cancelable window `nestvexa:reload` event (`detail.reason: 'asset-version'`) and, unless
+a listener calls `preventDefault()`, reloads the page.
+
+## Server-pushed domain events
+
+`LiveEvents.publish(channel, name, payload)` (exported by `LiveModule`) sends
+`{ "nvEvent": name, "payload": payload }` on a realtime channel through the host's
+structural `events` publisher, or `realtime` when it has `publish` (for example
+`RealtimeService`). Live never imports a broker. Only browsers holding a subscription
+token for that channel (issued per `@RealtimeChannels` to identities the realtime policy
+authorizes) receive it. The client delivers it to each subscribed component that lists
+the event in `data-nv-listeners`, by calling that component's `@OnEvent(name)` action
+with the payload as input; the request passes admission, host authorization, guards and
+pipes like any action. Subscribed components without a listener refresh through
+`$sync`. Names follow the event grammar, channels the realtime grammar, payloads are
+JSON of at most 16 KiB. The payload is public and returns as untrusted input: send
+identifiers and re-read authoritative data in the listener.
 
 ## Action options
 

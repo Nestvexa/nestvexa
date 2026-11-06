@@ -70,6 +70,12 @@ export {
 } from './errors.js';
 export { liveAbortSignal } from './cancellation.js';
 export {
+  LiveEvents,
+  liveDomainEvent,
+  LIVE_DOMAIN_EVENT_FIELD,
+  type LiveDomainEventMessage,
+} from './domain-events.js';
+export {
   isLiveActionCoordination,
   type LiveActionCoordination,
 } from './action-policy.js';

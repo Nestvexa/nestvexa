@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Header,
+  HttpException,
   Inject,
   Injectable,
   Module,
@@ -21,7 +22,8 @@ import type {
   Provider,
   Type,
 } from '@nestjs/common';
-import { DiscoveryModule, ModuleRef } from '@nestjs/core';
+import { DiscoveryModule, HttpAdapterHost, ModuleRef } from '@nestjs/core';
+import { LiveEvents } from './domain-events.js';
 import { GUARDS_METADATA, ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 import {
   definition,
@@ -42,7 +44,10 @@ const ROUTE = Symbol('nv:route');
 const DOWNLOAD_ACTION = '$download';
 @Injectable()
 class LiveAdmissionGuard implements CanActivate {
-  constructor(@Inject(LiveRuntime) private readonly runtime: LiveRuntime) {}
+  constructor(
+    @Inject(LiveRuntime) private readonly runtime: LiveRuntime,
+    @Inject(HttpAdapterHost) private readonly adapter: HttpAdapterHost,
+  ) {}
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const route:
       { component: ComponentDefinition; action: string } | undefined =
@@ -50,11 +55,26 @@ class LiveAdmissionGuard implements CanActivate {
     if (!route) throw new Error('Missing live route contract');
     // Component class guards still run; the token check happens in the handler.
     if (route.action === DOWNLOAD_ACTION) return true;
-    await this.runtime.admit(
-      context.switchToHttp().getRequest<object>(),
-      route.component,
-      route.action,
-    );
+    try {
+      await this.runtime.admit(
+        context.switchToHttp().getRequest<object>(),
+        route.component,
+        route.action,
+      );
+    } catch (error) {
+      // The browser reads this header (bodies are never parsed on errors).
+      if (
+        error instanceof HttpException &&
+        Reflect.get(Object(error.getResponse()), 'code') ===
+          'ASSET_VERSION_MISMATCH'
+      )
+        this.adapter.httpAdapter.setHeader(
+          context.switchToHttp().getResponse<object>(),
+          'x-nestvexa-reload',
+          'asset-version',
+        );
+      throw error;
+    }
     return true;
   }
 }
@@ -146,6 +166,23 @@ function validateHost(options: LiveRuntimeFactoryOptions): void {
     throw new Error(
       'Live realtime option requires a sign(identity, channels) method',
     );
+  if (
+    options.events !== undefined &&
+    (typeof options.events !== 'object' ||
+      options.events === null ||
+      typeof options.events.publish !== 'function')
+  )
+    throw new Error(
+      'Live events option requires a publish(channel, data) method',
+    );
+  if (
+    options.assetVersion !== undefined &&
+    (typeof options.assetVersion !== 'string' ||
+      !/^[A-Za-z0-9._:+-]{1,128}$/.test(options.assetVersion))
+  )
+    throw new Error(
+      'Live assetVersion must be 1–128 letters, digits, ".", "_", ":", "+" or "-"',
+    );
 }
 
 function factoryOptions(
@@ -165,6 +202,8 @@ function factoryOptions(
     'maxRequestsPerMinute',
     'realtime',
     'instrumentation',
+    'events',
+    'assetVersion',
   ]);
   for (const key of Reflect.ownKeys(options)) {
     if (typeof key !== 'string' || !allowed.has(key))
@@ -214,6 +253,10 @@ function factoryOptions(
     ...(snapshot.instrumentation === undefined
       ? {}
       : { instrumentation: snapshot.instrumentation }),
+    ...(snapshot.events === undefined ? {} : { events: snapshot.events }),
+    ...(snapshot.assetVersion === undefined
+      ? {}
+      : { assetVersion: snapshot.assetVersion }),
   });
 }
 
@@ -244,6 +287,7 @@ function providers(
   return [
     options,
     LiveRuntime,
+    LiveEvents,
     LiveAdmissionGuard,
     LiveRouteConflictCheck,
     ...definitions.map((component) => ({
@@ -442,7 +486,7 @@ export class LiveModule {
           definitions,
         }),
       }),
-      exports: [LiveRuntime],
+      exports: [LiveRuntime, LiveEvents],
     };
   }
 
@@ -480,7 +524,7 @@ export class LiveModule {
         }),
         LiveAsyncConfigurationGuard,
       ],
-      exports: [LiveRuntime],
+      exports: [LiveRuntime, LiveEvents],
     };
   }
 }

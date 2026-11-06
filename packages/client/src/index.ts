@@ -1128,7 +1128,14 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     let morphAt: number | undefined;
     let applied = false;
     let failed = false;
+    /** The browser reported no connectivity, so nothing reached the server. */
+    let unsent = false;
+    const assetVersion = state.root.getAttribute('data-nv-asset-version');
     try {
+      if (window.navigator.onLine === false) {
+        unsent = true;
+        throw new LiveClientError('NETWORK', 'Offline: request not sent');
+      }
       const payload = await requestLive(
         transport,
         `${state.endpoint}/${action}`,
@@ -1142,6 +1149,9 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
             ...(allowRenderless
               ? { 'x-nestvexa-capabilities': 'renderless-v1' }
               : {}),
+            ...(assetVersion === null
+              ? {}
+              : { 'x-nestvexa-asset-version': assetVersion }),
           },
           body,
         },
@@ -1317,6 +1327,28 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         for (const [element] of state.invalid)
           if (!element.isConnected || owner(element) !== state.root)
             state.invalid.delete(element);
+        // A refreshed child root replaced the focused subtree: follow the
+        // same keyed child and element id into the replacement.
+        if (
+          focused &&
+          !focused.isConnected &&
+          focused.id &&
+          !focusMoved(doc, focused)
+        ) {
+          const key = owner(focused)?.getAttribute('data-nv-key');
+          const child = key
+            ? [...state.root.querySelectorAll('[data-nv-key]')].find(
+                (element) => element.getAttribute('data-nv-key') === key,
+              )
+            : undefined;
+          const next = child
+            ? [...child.querySelectorAll('[id]')].find(
+                (element) => element.id === focused.id,
+              )
+            : undefined;
+          if (next instanceof window.HTMLElement && availableForFocus(next))
+            next.focus({ preventScroll: true });
+        }
         // Lifecycle hooks may deliberately choose a different focus target. Preserve it.
         if (focused && !focusMoved(doc, focused)) {
           const retained =
@@ -1416,9 +1448,23 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         (error.code === 'NETWORK' || error.code === 'TIMEOUT');
       const previous = failureFor(state);
       if (previous) throw previous;
+      if (error instanceof LiveHttpError && error.reload)
+        if (
+          window.dispatchEvent(
+            new window.CustomEvent('nestvexa:reload', {
+              cancelable: true,
+              detail: { reason: 'asset-version' },
+            }),
+          )
+        )
+          window.location.reload();
+      // Without a response, an unsent request or a `$sync` (no action method
+      // runs; a committed one is caught by the next revision check) stays
+      // usable. An action that may have reached the server suspends.
       const recoverable =
-        error instanceof LiveHttpError &&
-        [400, 401, 403, 404, 405, 413, 415, 422, 429].includes(error.status);
+        (networkFailure && (unsent || action === '_sync')) ||
+        (error instanceof LiveHttpError &&
+          [400, 401, 403, 404, 405, 413, 415, 422, 429].includes(error.status));
       if (!recoverable)
         suspend(
           state,
@@ -1845,6 +1891,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   function deliverEvents(
     events: readonly LiveEvent[],
     source: Component | undefined,
+    /** Deliver only to these subscribed components (server-pushed events). */
+    only?: ReadonlySet<Component>,
   ): void {
     for (const event of events) {
       window.dispatchEvent(
@@ -1859,6 +1907,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       let delivered = 0;
       for (const target of [...components.values()]) {
         if (!usable(target) || failureFor(target)) continue;
+        if (only && !only.has(target)) continue;
         if (event.self === true && target !== source) continue;
         if (event.to !== undefined && target.name !== event.to) continue;
         for (const action of target.listeners.get(event.name) ?? []) {
@@ -2194,9 +2243,33 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
                 detail: Object.freeze({ ...message }),
               }),
             );
+            // `{ nvEvent, payload }` is a server-pushed domain event: subscribed
+            // listeners run their @OnEvent actions (authorized server-side);
+            // other subscribers refresh.
+            const data = message.data;
+            const name: unknown =
+              data && typeof data === 'object'
+                ? Reflect.get(data, 'nvEvent')
+                : undefined;
+            let event: LiveEvent | undefined;
+            try {
+              if (name !== undefined)
+                event = {
+                  name: parseEventName(name),
+                  payload: Reflect.get(Object(data), 'payload') ?? null,
+                };
+            } catch (error) {
+              report(error, null);
+            }
+            const listening = new Set<Component>();
             for (const state of components.values())
-              if (realtimeChannels(state).includes(message.channel))
-                invalidate(state);
+              if (realtimeChannels(state).includes(message.channel)) {
+                if (event && state.listeners.has(event.name))
+                  listening.add(state);
+                else invalidate(state);
+              }
+            if (event && listening.size)
+              deliverEvents([event], undefined, listening);
           },
           onExpired: () => {
             // Renew tokens through ordinary authorized refreshes, at most every 30 s.

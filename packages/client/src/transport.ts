@@ -3,7 +3,11 @@ import { LiveClientError } from './grammar.js';
 const maximumResponseBytes = 2_097_152;
 /** An HTTP rejection with no response body or server exception included in its message. */
 export class LiveHttpError extends LiveClientError {
-  constructor(readonly status: number) {
+  constructor(
+    readonly status: number,
+    /** The server asked for a full page reload (asset version mismatch). */
+    readonly reload = false,
+  ) {
     super('HTTP', `Live request failed (${status})`);
     this.name = 'LiveHttpError';
   }
@@ -41,7 +45,11 @@ async function readJson(
   signal: AbortSignal,
   setReader: (reader: ReadableStreamDefaultReader<Uint8Array> | null) => void,
 ): Promise<unknown> {
-  if (!response.ok) throw new LiveHttpError(response.status);
+  if (!response.ok)
+    throw new LiveHttpError(
+      response.status,
+      response.headers.get('x-nestvexa-reload') === 'asset-version',
+    );
   if (
     response.headers
       .get('content-type')
