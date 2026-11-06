@@ -9,6 +9,7 @@ import type { JsonValue } from '../packages/actions/src/shared/protocol.js';
 import { parseFormBody } from '../packages/forms/src/body.js';
 import { FormInputError } from '../packages/forms/src/errors.js';
 import { hardenInput } from '../packages/forms/src/harden.js';
+import { redact } from '../packages/observability/src/instrumentation.js';
 
 /**
  * Property-based checks for request-body admission: universal server action
@@ -334,6 +335,54 @@ describe('form hardening properties', () => {
         expect(hardened).toEqual(value);
         expect(Object.getPrototypeOf(hardened)).toBe(Object.prototype);
       }),
+      runs,
+    );
+  });
+});
+
+describe('log redaction properties', () => {
+  const sensitiveKey = fc.constantFrom(
+    'password',
+    'csrfToken',
+    'snapshot',
+    'Authorization',
+    'session_id',
+    'apiKey',
+    'binding',
+  );
+  function findLeak(value: unknown, depth: number): boolean {
+    if (value === null || typeof value !== 'object' || depth > 8) return false;
+    for (const [key, item] of Object.entries(value)) {
+      if (
+        /pass(word)?|secret|token|cookie|authorization|session|csrf|snapshot|binding|api[-_]?key|credential/i.test(
+          key,
+        ) &&
+        item !== '[redacted]'
+      )
+        return true;
+      if (findLeak(item, depth + 1)) return true;
+    }
+    return false;
+  }
+  it('redacts sensitive keys at any depth and keeps an own __proto__ field as data', () => {
+    fc.assert(
+      fc.property(
+        json,
+        sensitiveKey,
+        fc.string({ maxLength: 20 }),
+        fc.array(fc.nat(3), { maxLength: 4 }),
+        (value, key, secret, path) => {
+          let text = `{${JSON.stringify(key)}:${JSON.stringify(secret)},"__proto__":{"inner":${JSON.stringify(value)}}}`;
+          for (const index of path) text = `[${'0,'.repeat(index)}${text}]`;
+          const output = redact(JSON.parse(text) as unknown);
+          expect(findLeak(output, 0)).toBe(false);
+          let cursor: unknown = output;
+          for (const index of [...path].reverse())
+            cursor = (cursor as unknown[])[index];
+          expect(Object.getPrototypeOf(cursor)).toBe(Object.prototype);
+          expect(Object.hasOwn(cursor as object, '__proto__')).toBe(true);
+        },
+      ),
       runs,
     );
   });

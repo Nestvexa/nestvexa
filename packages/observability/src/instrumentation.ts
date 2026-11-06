@@ -161,7 +161,14 @@ export function redact(value: unknown, depth = 0): unknown {
     return value.slice(0, 100).map((item) => redact(item, depth + 1));
   const output: Record<string, unknown> = {};
   for (const [key, item] of Object.entries(value).slice(0, 100))
-    output[key] = sensitive.test(key) ? '[redacted]' : redact(item, depth + 1);
+    // defineProperty: an own `__proto__` key (for example from JSON.parse of a
+    // request body) must stay a logged field, not replace the copy's prototype.
+    Object.defineProperty(output, key, {
+      value: sensitive.test(key) ? '[redacted]' : redact(item, depth + 1),
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
   return output;
 }
 export interface StructuredLogger {
