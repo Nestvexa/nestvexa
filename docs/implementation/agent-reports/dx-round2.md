@@ -54,3 +54,21 @@ full build and the suites listed under "Post-merge verification" were rerun.
 - ADR 0034 number is provisional; if you renumber it, update its links.
 - `examples/realtime-dashboard` fails `pnpm build` on main `52212e8` (JobRunner types); it is not caused by this branch.
 - Expected conflicts: root `package.json` script lines, `playwright.config.ts`, `pnpm-lock.yaml`, `packages/nestvexa/src/index.ts` (exports), `packages/observability/src/index.ts`, `packages/live/src/runtime.ts`, `packages/realtime/src/hub.ts`, `packages/vite/src/static.ts`, `packages/inertia/src/service.ts`.
+
+## Post-merge verification (this branch, after both merges)
+
+- `pnpm build`: all packages build; the only failure is the pre-existing
+  `examples/realtime-dashboard` type error from main.
+- `pnpm exec vitest run tests/cli-example.test.ts tests/umbrella-view-engines.test.ts tests/cli-generators.test.ts tests/cli.test.ts tests/cli-fastify.test.ts`:
+  37 passed.
+- `pnpm exec vitest run tests/mail.test.ts tests/mail-security.test.ts tests/observability-spans.test.ts tests/devtools-inspector.test.ts tests/observability.test.ts tests/observability-tracing.test.ts tests/dev-errors.test.ts`:
+  67 passed.
+- `pnpm exec playwright test -c playwright.local.config.ts cli-generated.spec.ts`
+  (Chromium, Firefox, WebKit; port 3126): 21 passed.
+- `pnpm lint` (eslint + boundaries, 30 packages), `pnpm exec tsc -p tsconfig.tests.json --noEmit`,
+  `pnpm docs:build` (221 documents): pass.
+- The policy template (`make:policy`) now passes the repository's lint rules (template
+  version 2), so the generated example is linted with the rest of `examples/`.
+- The subagent worktrees `agent-a96d0be4-dx-observability` and `agent-a96d0be4-dx-mail`
+  are locked (`git worktree unlock` before removing them); their branches are fully
+  merged here.
