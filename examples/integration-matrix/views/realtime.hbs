@@ -1,0 +1,18 @@
+<h1>{{title}}</h1>
+<p>
+  Updates arrive over Server-Sent Events. Each event only tells subscribed
+  components to refresh through their own authorized request.
+</p>
+<form method="post" action="/realtime/role">
+  <input type="hidden" name="_csrf" value="{{csrf}}" />
+  {{#if operator}}
+  <p id="realtime-role">Signed in as an operator (demonstration).</p>
+  <input type="hidden" name="role" value="guest" />
+  <button type="submit">Sign out to guest</button>
+  {{else}}
+  <p id="realtime-role">Browsing as a guest.</p>
+  <input type="hidden" name="role" value="operator" />
+  <button type="submit">Sign in as operator (demo)</button>
+  {{/if}}
+</form>
+{{widget}}
