@@ -8,10 +8,12 @@ import {
   Module,
   Render,
   Req,
+  Res,
   UnauthorizedException,
 } from '@nestjs/common';
-import { NestFactory, REQUEST } from '@nestjs/core';
-import type { IncomingMessage, ServerResponse } from 'node:http';
+import { HttpAdapterHost, NestFactory, REQUEST } from '@nestjs/core';
+import { FastifyAdapter } from '@nestjs/platform-fastify';
+import type { IncomingMessage } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import {
@@ -31,15 +33,20 @@ import {
   attachRealtimeWebSocket,
 } from '@nestvexa/realtime';
 import { RedisLiveStore, RespConnection } from '@nestvexa/realtime-redis';
-import { RedisRealtimeBroker } from '@nestvexa/realtime-redis/realtime';
+import {
+  RedisPresenceStore,
+  RedisRealtimeBroker,
+} from '@nestvexa/realtime-redis/realtime';
 import { guestFromCookie, issueGuest, presenceId } from './identity.js';
 import type { Guest } from './identity.js';
 
 /*
  * One replica of a horizontally scaled Nestvexa app. Without REDIS_PORT it runs
  * standalone (memory broker and Live store). With REDIS_PORT every replica
- * shares Live state (RedisLiveStore) and realtime events (RedisRealtimeBroker);
- * they must also share REALTIME_SECRET, IDENTITY_SECRET and PUBLIC_ORIGIN.
+ * shares Live state (RedisLiveStore), realtime events (RedisRealtimeBroker) and
+ * presence (RedisPresenceStore); they must also share REALTIME_SECRET,
+ * IDENTITY_SECRET and PUBLIC_ORIGIN. HTTP_ADAPTER selects Express (default) or
+ * Fastify: replicas on different adapters can serve the same app.
  */
 const env = process.env;
 const port = Number(env['PORT'] ?? 3220);
@@ -49,6 +56,9 @@ const transport = (env['REALTIME_TRANSPORT'] ?? 'auto') as
   'auto' | 'sse' | 'websocket' | 'polling';
 if (!['auto', 'sse', 'websocket', 'polling'].includes(transport))
   throw new Error('REALTIME_TRANSPORT must be auto, sse, websocket or polling');
+const adapter = env['HTTP_ADAPTER'] ?? 'express';
+if (adapter !== 'express' && adapter !== 'fastify')
+  throw new Error('HTTP_ADAPTER must be express or fastify');
 const redisPort = env['REDIS_PORT'] ? Number(env['REDIS_PORT']) : undefined;
 const redis =
   redisPort === undefined
@@ -134,6 +144,9 @@ export class ReplicaBoard {
   @Computed() get renderedBy(): string {
     return replica;
   }
+  @Computed() get httpAdapter(): string {
+    return adapter;
+  }
   async dehydrate(): Promise<void> {
     this.total = await this.shared.read();
     const identity = { binding: guestOf(this.request).binding };
@@ -154,21 +167,47 @@ export class ReplicaBoard {
 const csp = `default-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`;
 @Controller()
 class Pages {
-  constructor(@Inject(LiveRuntime) private readonly live: LiveRuntime) {}
+  constructor(
+    @Inject(LiveRuntime) private readonly live: LiveRuntime,
+    @Inject(RealtimeService) private readonly realtime: RealtimeService,
+    @Inject(HttpAdapterHost) private readonly host: HttpAdapterHost,
+  ) {}
   @Get()
   @Header('Cache-Control', 'no-store')
   @Header('Content-Security-Policy', csp)
   @Render('home')
-  async home(@Req() request: GuestRequest) {
+  async home(
+    @Req() request: GuestRequest,
+    @Res({ passthrough: true }) response: object,
+  ) {
+    // Issue the signed guest cookie on first visit; never trust an unsigned
+    // one. The platform adapter sets the header on Express and Fastify alike.
+    const header = request.headers.cookie;
+    const existing = guestFromCookie(identitySecret, header);
+    if (existing) request.nvGuest = existing;
+    else {
+      const issued = issueGuest(identitySecret);
+      request.nvGuest = issued.guest;
+      this.host.httpAdapter.setHeader(response, 'Set-Cookie', issued.cookie);
+    }
     return {
       title: 'Distributed Live board',
       replica,
       widget: await this.live.mount(ReplicaBoard, request),
     };
   }
+  /** Readiness plus local connection counts (for leak checks in tests). */
   @Get('api/health')
+  @Header('Cache-Control', 'no-store')
   health() {
-    return { status: 'ok', replica, distributed: redis !== undefined };
+    return {
+      status: 'ok',
+      replica,
+      adapter,
+      distributed: redis !== undefined,
+      connections: this.realtime.hub.size,
+      transports: this.realtime.transports,
+    };
   }
 }
 
@@ -181,6 +220,18 @@ const root = fileURLToPath(new URL('../views', import.meta.url));
       broker: redis
         ? new RedisRealtimeBroker({ ...redis, prefix: `${prefix}rt:` })
         : new MemoryRealtimeBroker(),
+      // Presence across replicas; a crashed replica's viewers lapse by TTL.
+      ...(redis
+        ? {
+            presence: {
+              store: new RedisPresenceStore({
+                ...redis,
+                prefix: `${prefix}presence:`,
+              }),
+              ttlMs: Number(env['PRESENCE_TTL_MS'] ?? 30_000),
+            },
+          }
+        : {}),
       resolveIdentity: (request) => ({ binding: guestOf(request).binding }),
       resolveUpgradeIdentity: (request) => ({
         binding: guestOf(request).binding,
@@ -225,23 +276,16 @@ const root = fileURLToPath(new URL('../views', import.meta.url));
 })
 class AppModule {}
 
-const app = await NestFactory.create(AppModule, { logger: ['error', 'warn'] });
-// Issue the signed guest cookie on first visit; never trust an unsigned one.
-app.use((request: GuestRequest, response: ServerResponse, next: () => void) => {
-  const header = request.headers.cookie;
-  const existing = guestFromCookie(identitySecret, header);
-  if (existing) request.nvGuest = existing;
-  else if (request.method === 'GET' && request.url === '/') {
-    const issued = issueGuest(identitySecret);
-    request.nvGuest = issued.guest;
-    response.setHeader('Set-Cookie', issued.cookie);
-  }
-  next();
-});
+const app =
+  adapter === 'fastify'
+    ? await NestFactory.create(AppModule, new FastifyAdapter(), {
+        logger: ['error', 'warn'],
+      })
+    : await NestFactory.create(AppModule, { logger: ['error', 'warn'] });
 await configureNestvexa(app);
 await attachRealtimeWebSocket(app);
 app.enableShutdownHooks();
 await app.listen(port, '127.0.0.1');
 console.log(
-  `Distributed Live replica ${replica} (${redis ? 'Redis' : 'standalone'}): ${await app.getUrl()}`,
+  `Distributed Live replica ${replica} on ${adapter} (${redis ? 'Redis' : 'standalone'}): ${await app.getUrl()}`,
 );
