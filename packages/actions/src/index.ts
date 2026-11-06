@@ -40,17 +40,27 @@ export type {
   FixedWindowRateLimitOptions,
 } from './limits.js';
 export type {
+  ActionCallLog,
   ActionCsrfOptions,
   ActionErrorEvent,
   ActionIdempotencyOptions,
   ActionLimits,
+  ActionSpan,
+  ActionSpanAttributes,
   ActionsErrorEnvelopeMode,
   ActionsHostOptions,
+  ActionsInstrumentation,
+  ActionsLogger,
 } from './options.js';
+export { AcceptedJob, acceptJob } from './jobs.js';
 export type {
-  ActionInstrumentation,
-  ActionSpanAttributes,
-} from './instrumentation.js';
+  ActionJobContext,
+  ActionJobHandler,
+  ActionJobOwner,
+  ActionJobQueue,
+  ActionJobRecord,
+  ActionJobsOptions,
+} from './jobs.js';
 export { ActionsModule } from './module.js';
 export type {
   ActionsModuleAsyncOptions,
@@ -64,6 +74,7 @@ export {
   DEFAULT_ACTIONS_PREFIX,
   DEFAULT_CSRF_HEADER,
   IDEMPOTENCY_HEADER,
+  JOBS_SEGMENT,
   REPLAYED_HEADER,
   REQUEST_ID_HEADER,
   actionKey,
@@ -76,6 +87,9 @@ export type {
   ActionErrorCode,
   ActionFailureEnvelope,
   ActionIssue,
+  ActionJobSnapshot,
+  ActionJobStatus,
+  ActionJobTicket,
   ActionNotification,
   ActionNotificationLevel,
   ActionRedirect,

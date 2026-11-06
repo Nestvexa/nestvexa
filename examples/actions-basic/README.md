@@ -11,7 +11,10 @@ A small Nest + HBS shop page whose browser script calls a **generated, typed**
   session regeneration, and a strict CSP.
 - [`browser/main.ts`](browser/main.ts): page script using the generated client
   from `browser/generated/` (created by `scripts/codegen.mjs`, git-ignored) and
-  bundled by esbuild into `dist/public/app.js`.
+  bundled by esbuild into `dist/public/app.js`. The product buttons are bound
+  with the generated Live/HBS helper (`createActionBindings(actions).bindCartAddItem`,
+  codegen target `live`), which reflects the call in `data-nv-action-state` and
+  `aria-busy`.
 
 ```sh
 pnpm build

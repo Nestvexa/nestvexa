@@ -2,11 +2,18 @@
 import { existsSync } from 'node:fs';
 import { formatDiagnostic, generateActionClient } from './codegen/index.js';
 
-const usage = `Usage: nestvexa-actions-codegen --out <dir> [--project tsconfig.json] [--name actions-client] [--client-module @nestvexa/actions/client] [--check]
+const usage = `Usage: nestvexa-actions-codegen --out <dir> [--project tsconfig.json] [--name actions-client] [--client-module @nestvexa/actions/client] [--targets react,vue,svelte,live] [--check]
 
 Reads @ActionGroup classes with the TypeScript compiler API and writes
-<dir>/<name>.js and <dir>/<name>.d.ts. --check fails instead of writing when the
-generated files are out of date.`;
+<dir>/<name>.js and <dir>/<name>.d.ts, plus <dir>/<name>.<target>.js/.d.ts for
+each --targets entry (React hooks, Vue composables, Svelte stores, Live/HBS
+element helpers). --check fails instead of writing when the generated files
+are out of date.`;
+
+const TARGET_NAMES = ['react', 'vue', 'svelte', 'live'] as const;
+function isTarget(value: string): value is (typeof TARGET_NAMES)[number] {
+  return (TARGET_NAMES as readonly string[]).includes(value);
+}
 
 function parse(argv: readonly string[]): Map<string, string | true> {
   const values = new Map<string, string | true>();
@@ -19,7 +26,7 @@ function parse(argv: readonly string[]): Map<string, string | true> {
       values.set(name, true);
       continue;
     }
-    if (!['out', 'project', 'name', 'client-module'].includes(name))
+    if (!['out', 'project', 'name', 'client-module', 'targets'].includes(name))
       throw new Error(`Unknown option --${name}`);
     const value = argv[index + 1];
     if (value === undefined || value.startsWith('--'))
@@ -64,11 +71,21 @@ async function main(): Promise<number> {
   const name = text('name');
   const clientModule = text('client-module');
   const check = values.get('check') === true;
+  const targets = (text('targets') ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  const unknown = targets.find((entry) => !isTarget(entry));
+  if (unknown !== undefined) {
+    console.error(`Unknown target ${unknown}; use ${TARGET_NAMES.join(',')}`);
+    return 2;
+  }
   const result = await generateActionClient({
     project,
     outDir: out,
     ...(name === undefined ? {} : { fileName: name }),
     ...(clientModule === undefined ? {} : { clientModule }),
+    targets: targets.filter(isTarget),
     check,
   });
   for (const diagnostic of result.diagnostics)

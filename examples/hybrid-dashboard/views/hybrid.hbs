@@ -1,6 +1,7 @@
 <h1>{{title}}</h1>
 <p>
-  One HBS page: a Live component owning a React island, plus independent Vue and
-  Svelte islands.
+  One HBS page: a Live component owning a React island, plus server-rendered
+  React, Vue and Svelte islands that hydrate and call typed server actions.
 </p>
-{{notifications}} {{feed}} {{widget}} {{broken}}
+<nav><a href="/hybrid/about" nv:navigate>About this dashboard</a></nav>
+{{notifications}} {{kpi}} {{feed}} {{widget}} {{broken}}

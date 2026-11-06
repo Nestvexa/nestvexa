@@ -1,4 +1,5 @@
 import type {
+  ActionJobTicket,
   ActionNotification,
   ActionRedirect,
   JsonValue,
@@ -9,6 +10,8 @@ export interface StoredActionOutcome {
   readonly data: JsonValue;
   readonly redirect?: ActionRedirect;
   readonly notifications?: readonly ActionNotification[];
+  /** Job ticket of an accepted `job: true` action; a replay returns the same job. */
+  readonly job?: ActionJobTicket;
 }
 
 export type IdempotencyBeginResult =

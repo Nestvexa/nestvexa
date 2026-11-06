@@ -45,6 +45,8 @@ export interface ActionSuccessEnvelope<T = JsonValue> {
   readonly data: T;
   readonly redirect?: ActionRedirect;
   readonly notifications?: readonly ActionNotification[];
+  /** Present (with HTTP 202 and null data) when a `job: true` action accepted work. */
+  readonly job?: ActionJobTicket;
 }
 export interface ActionErrorBody {
   readonly code: ActionErrorCode;
@@ -169,6 +171,50 @@ export function actionKey(id: string, version: number | null): string {
     next.toUpperCase(),
   );
   return version === null ? camel : `${camel}V${version}`;
+}
+
+/** Reserved route segment for job status and cancellation (`<prefix>/_jobs/status`). */
+export const JOBS_SEGMENT = '_jobs';
+export const JOB_ID_PATTERN = /^[A-Za-z0-9_-]{8,128}$/;
+export const JOB_NAME_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
+export const ACTION_JOB_STATUSES = [
+  'queued',
+  'running',
+  'succeeded',
+  'failed',
+  'cancelled',
+] as const;
+export type ActionJobStatus = (typeof ACTION_JOB_STATUSES)[number];
+
+export function isActionJobStatus(value: unknown): value is ActionJobStatus {
+  return (
+    typeof value === 'string' &&
+    (ACTION_JOB_STATUSES as readonly string[]).includes(value)
+  );
+}
+
+/** Returned with HTTP 202 by `job: true` actions; poll it or follow `stream`. */
+export interface ActionJobTicket {
+  readonly id: string;
+  readonly status: ActionJobStatus;
+  /** 0-100. */
+  readonly progress: number;
+  /** Suggested delay before the next status poll, in milliseconds. */
+  readonly pollAfterMs: number;
+  /** Realtime channel carrying job snapshots, when the host configured one. */
+  readonly stream?: { readonly channel: string };
+}
+
+/** Public job state returned by `<prefix>/_jobs/status`. */
+export interface ActionJobSnapshot<T = JsonValue> {
+  readonly id: string;
+  readonly status: ActionJobStatus;
+  /** 0-100. */
+  readonly progress: number;
+  /** JSON result once `succeeded`, otherwise null. */
+  readonly result: T | null;
+  /** Generic, non-sensitive failure message once `failed`, otherwise null. */
+  readonly error: string | null;
 }
 
 export function actionPath(

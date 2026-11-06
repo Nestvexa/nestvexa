@@ -267,9 +267,18 @@ importers:
       '@nestjs/platform-express':
         specifier: 12.2.0
         version: 12.2.0(@nestjs/common@12.2.0(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@12.2.0)
+      '@nestvexa/actions':
+        specifier: workspace:*
+        version: link:../../packages/actions
       '@nestvexa/islands':
         specifier: workspace:*
         version: link:../../packages/islands
+      '@nestvexa/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
+      '@nestvexa/realtime':
+        specifier: workspace:*
+        version: link:../../packages/realtime
       express-session:
         specifier: 1.19.0
         version: 1.19.0

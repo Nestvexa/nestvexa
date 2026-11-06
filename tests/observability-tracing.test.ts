@@ -414,27 +414,23 @@ describe('structural spans in optional packages', () => {
       ),
     ).toBe(404);
     expect(
-      memory.records.map((record) => [
-        record.name,
-        record.outcome,
-        record.attributes,
-      ]),
+      memory.records.map((record) => [record.name, record.outcome]),
     ).toEqual([
-      [
-        'nestvexa.action',
-        'ok',
-        { 'nestvexa.action_group': 'cart', 'nestvexa.action': 'add-item' },
-      ],
-      [
-        'nestvexa.action',
-        'error',
-        {
-          'nestvexa.action_group': 'cart',
-          'nestvexa.action': 'add-item',
-          'nestvexa.error_code': 'NOT_FOUND',
-        },
-      ],
+      ['nestvexa.action', 'ok'],
+      ['nestvexa.action', 'error'],
     ]);
+    expect(memory.records[0]?.attributes).toMatchObject({
+      'nestvexa.action.group': 'cart',
+      'nestvexa.action.id': 'add-item',
+      'nestvexa.action.code': 'OK',
+      'http.status_code': 200,
+    });
+    expect(memory.records[1]?.attributes).toMatchObject({
+      'nestvexa.action.group': 'cart',
+      'nestvexa.action.id': 'add-item',
+      'nestvexa.action.code': 'NOT_FOUND',
+      'http.status_code': 404,
+    });
     expect(memory.records[0]?.traceId).toBe(traceId);
     const serialized = JSON.stringify(memory.records);
     for (const secret of ['do-not-trace', 'alice-subject', csrf, 'mug'])

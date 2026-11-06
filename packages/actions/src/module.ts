@@ -6,6 +6,7 @@ import {
   Module,
   Post,
   Req,
+  Res,
   Scope,
 } from '@nestjs/common';
 import type {
@@ -33,7 +34,7 @@ import {
 } from './enhancers.js';
 import { actionGroupDefinition } from './metadata.js';
 import type { ActionDefinition, ActionGroupDefinition } from './metadata.js';
-import { normalizeHostOptions } from './options.js';
+import { HOST_KEYS, normalizeHostOptions } from './options.js';
 import type {
   ActionsErrorEnvelopeMode,
   ActionsHostOptions,
@@ -41,7 +42,7 @@ import type {
 } from './options.js';
 import { ActionsInfrastructureModule } from './registration.js';
 import { ACTIONS_OPTIONS, ActionsRuntime } from './runtime.js';
-import { DEFAULT_ACTIONS_PREFIX } from './shared/protocol.js';
+import { DEFAULT_ACTIONS_PREFIX, JOBS_SEGMENT } from './shared/protocol.js';
 
 /** Static route identity: Nest needs it before any async factory resolves. */
 export interface ActionsStaticOptions {
@@ -195,7 +196,8 @@ function routeHandler(
   );
   Req()(controller.prototype, name, requestIndex);
   Post(action.path)(controller.prototype, name, descriptor);
-  HttpCode(200)(controller.prototype, name, descriptor);
+  // Job actions answer 202 Accepted with a job ticket (also on replay).
+  HttpCode(action.job ? 202 : 200)(controller.prototype, name, descriptor);
   Header('Cache-Control', 'no-store')(controller.prototype, name, descriptor);
   Reflect.defineMetadata(
     ACTION_ROUTE,
@@ -257,6 +259,48 @@ function generatedController(
   return GeneratedActionsController;
 }
 
+/**
+ * Job status and cancellation routes, registered only when a group declares
+ * a `job: true` action. Admission, authorization (group `_jobs`) and owner
+ * binding happen in `ActionsRuntime.job`.
+ */
+function jobsController(
+  prefix: string,
+  errorEnvelope: ActionsErrorEnvelopeMode,
+): Type<object> {
+  @Controller(`${prefix}/${JOBS_SEGMENT}`)
+  class ActionJobsController {
+    constructor(
+      @Inject(ActionsRuntime) private readonly runtime: ActionsRuntime,
+    ) {}
+    @Post('status')
+    @HttpCode(200)
+    @Header('Cache-Control', 'no-store')
+    status(
+      @Req() request: object,
+      @Res({ passthrough: true }) response: object,
+    ) {
+      return this.runtime.job(request, response, 'status');
+    }
+    @Post('cancel')
+    @HttpCode(200)
+    @Header('Cache-Control', 'no-store')
+    cancel(
+      @Req() request: object,
+      @Res({ passthrough: true }) response: object,
+    ) {
+      return this.runtime.job(request, response, 'cancel');
+    }
+  }
+  if (errorEnvelope === 'actions')
+    Reflect.defineMetadata(
+      EXCEPTION_FILTERS_METADATA,
+      [ActionsExceptionFilter],
+      ActionJobsController,
+    );
+  return ActionJobsController;
+}
+
 /** Keeps the async host policy singleton even if a factory dependency is scoped. */
 @Injectable()
 class ActionsAsyncConfigurationGuard implements OnModuleInit {
@@ -285,9 +329,14 @@ function moduleDefinition(
   return {
     module: ActionsModule,
     imports: [ActionsInfrastructureModule, ...(imports ?? [])],
-    controllers: groups.map((group) =>
-      generatedController(group, prefix, errorEnvelope),
-    ),
+    controllers: [
+      ...groups.map((group) =>
+        generatedController(group, prefix, errorEnvelope),
+      ),
+      ...(groups.some((group) => group.actions.some((action) => action.job))
+        ? [jobsController(prefix, errorEnvelope)]
+        : []),
+    ],
     providers: [
       optionsProvider,
       ActionsRuntime,
@@ -323,18 +372,7 @@ export class ActionsModule {
   static register(options: ActionsModuleOptions): DynamicModule {
     if (typeof options !== 'object' || options === null)
       throw new Error('ActionsModule.register requires options');
-    const hostKeys = new Set([
-      'origin',
-      'resolveIdentity',
-      'authorize',
-      'csrf',
-      'rateLimit',
-      'limits',
-      'idempotency',
-      'exposeErrorDetails',
-      'onError',
-      'instrumentation',
-    ]);
+    const hostKeys = HOST_KEYS;
     snapshot(
       options,
       new Set([...STATIC_KEYS, ...hostKeys]),

@@ -11,7 +11,8 @@ import type {
   ActionIdempotencyStore,
   StoredActionOutcome,
 } from './idempotency.js';
-import { traced } from './instrumentation.js';
+import { AcceptedJob } from './jobs.js';
+import type { ActionJobOwner, ActionJobRecord } from './jobs.js';
 import { KeyedMutex, createFixedWindowRateLimit } from './limits.js';
 import type { ActionRateLimit } from './limits.js';
 import type {
@@ -19,7 +20,12 @@ import type {
   ActionDescriptor,
   ActionGroupDefinition,
 } from './metadata.js';
-import type { NormalizedActionsOptions } from './options.js';
+import type {
+  ActionCallLog,
+  ActionSpan,
+  ActionSpanAttributes,
+  NormalizedActionsOptions,
+} from './options.js';
 import { ActionsApplicationRegistry } from './registration.js';
 import { ActionResult } from './results.js';
 import { runSchema } from './schema.js';
@@ -35,19 +41,40 @@ import {
   DEFAULT_ERROR_MESSAGES,
   IDEMPOTENCY_HEADER,
   IDEMPOTENCY_KEY_PATTERN,
+  JOBS_SEGMENT,
+  JOB_ID_PATTERN,
   MAX_MESSAGE_LENGTH,
   REPLAYED_HEADER,
   REQUEST_ID_HEADER,
   codeForStatus,
+  isActionJobStatus,
 } from './shared/protocol.js';
 import type {
   ActionErrorBody,
   ActionErrorCode,
   ActionFailureEnvelope,
   ActionIssue,
+  ActionJobSnapshot,
+  ActionJobTicket,
   ActionSuccessEnvelope,
   JsonValue,
 } from './shared/protocol.js';
+
+/** Per-request tracing/logging state; ended exactly once with the final status. */
+interface Observation {
+  readonly descriptor: ActionDescriptor;
+  readonly requestId: string;
+  readonly started: number;
+  readonly span: ActionSpan | undefined;
+  /** True when the response 'finish'/'close' events report the final status. */
+  readonly streamed: boolean;
+  code?: ActionErrorCode;
+  reason?: string;
+  replayed: boolean;
+  jobId?: string;
+  ended: boolean;
+}
+const observations = new WeakMap<object, Observation>();
 
 export const ACTIONS_OPTIONS = Symbol('nestvexa:actions-options');
 
@@ -104,8 +131,10 @@ function plainObject(value: unknown): value is Record<string, unknown> {
 }
 interface ClosableResponse {
   readonly writableEnded: boolean;
-  on(event: 'close', listener: () => void): unknown;
-  off(event: 'close', listener: () => void): unknown;
+  readonly writableFinished?: boolean;
+  readonly statusCode?: number;
+  on(event: 'close' | 'finish', listener: () => void): unknown;
+  off(event: 'close' | 'finish', listener: () => void): unknown;
 }
 function rawResponse(response: unknown): ClosableResponse | undefined {
   const candidate: unknown =
@@ -230,6 +259,70 @@ export class ActionsRuntime
     group: ActionGroupDefinition,
     action: ActionDefinition,
   ): Promise<void> {
+    const descriptor = this.descriptor(action);
+    this.#observe(request, response, descriptor);
+    const { requestId, identity, input } = await this.#gate(
+      request,
+      response,
+      descriptor,
+    );
+    if (
+      action.inputIndex === undefined &&
+      input !== undefined &&
+      input !== null
+    )
+      reject('VALIDATION', 'UNEXPECTED_INPUT');
+    const key = header(request, IDEMPOTENCY_HEADER);
+    if (action.idempotent) {
+      if (key === undefined || !IDEMPOTENCY_KEY_PATTERN.test(key))
+        reject('VALIDATION', 'IDEMPOTENCY_KEY');
+    } else if (key !== undefined)
+      reject('VALIDATION', 'IDEMPOTENCY_UNSUPPORTED');
+    await this.#authorize(identity, descriptor, request);
+    if (this.#closed) reject('INTERNAL', 'SHUTDOWN', 503);
+    const controller = new AbortController();
+    admit(request, {
+      group,
+      action,
+      controller,
+      input,
+      context: Object.freeze({
+        requestId,
+        identity,
+        action: descriptor,
+        signal: controller.signal,
+        idempotencyKey: action.idempotent ? key : undefined,
+      }),
+    });
+  }
+
+  /** Host authorization: only a literal `true` admits (truthy values do not). */
+  async #authorize(
+    identity: ActionIdentity,
+    descriptor: ActionDescriptor,
+    request: object,
+  ): Promise<void> {
+    const allowed: unknown = await this.options.authorize(
+      identity,
+      descriptor,
+      request,
+    );
+    if (allowed !== true) reject('FORBIDDEN', 'POLICY');
+  }
+
+  /**
+   * Checks shared by action routes and job routes: origin, media type,
+   * size, identity, CSRF, rate limit and `{ input }` body shape.
+   */
+  async #gate(
+    request: object,
+    response: unknown,
+    descriptor: ActionDescriptor,
+  ): Promise<{
+    readonly requestId: string;
+    readonly identity: ActionIdentity;
+    readonly input: unknown;
+  }> {
     const requestId = requestIdFor(request);
     this.setHeader(response, REQUEST_ID_HEADER, requestId);
     this.setHeader(response, 'cache-control', 'no-store');
@@ -262,7 +355,6 @@ export class ActionsRuntime
       )
         reject('FORBIDDEN', 'CSRF');
     }
-    const descriptor = this.descriptor(action);
     if (
       this.#rateLimit &&
       !(await this.#rateLimit({ identity, action: descriptor, request }))
@@ -290,36 +382,7 @@ export class ActionsRuntime
       this.options.maxBodyBytes
     )
       reject('PAYLOAD_TOO_LARGE', 'BODY_SIZE');
-    const input: unknown = body['input'];
-    if (
-      action.inputIndex === undefined &&
-      input !== undefined &&
-      input !== null
-    )
-      reject('VALIDATION', 'UNEXPECTED_INPUT');
-    const key = header(request, IDEMPOTENCY_HEADER);
-    if (action.idempotent) {
-      if (key === undefined || !IDEMPOTENCY_KEY_PATTERN.test(key))
-        reject('VALIDATION', 'IDEMPOTENCY_KEY');
-    } else if (key !== undefined)
-      reject('VALIDATION', 'IDEMPOTENCY_UNSUPPORTED');
-    if (!(await this.options.authorize(identity, descriptor, request)))
-      reject('FORBIDDEN', 'POLICY');
-    if (this.#closed) reject('INTERNAL', 'SHUTDOWN', 503);
-    const controller = new AbortController();
-    admit(request, {
-      group,
-      action,
-      controller,
-      input,
-      context: Object.freeze({
-        requestId,
-        identity,
-        action: descriptor,
-        signal: controller.signal,
-        idempotencyKey: action.idempotent ? key : undefined,
-      }),
-    });
+    return { requestId, identity, input: body['input'] };
   }
 
   /** Called inside the Nest handler, after guards, interceptors and pipes. */
@@ -366,6 +429,13 @@ export class ActionsRuntime
   }
 
   #outcome(result: unknown, label: string): StoredActionOutcome {
+    if (result instanceof AcceptedJob)
+      throw new ActionError('INTERNAL', undefined, {
+        reason: 'JOB_NOT_DECLARED',
+        cause: new Error(
+          `Action ${label} returned acceptJob(...) but is not declared with { job: true }`,
+        ),
+      });
     const effects = result instanceof ActionResult ? result : undefined;
     const safe = toJsonSafe(effects ? effects.data : result, {
       maxDepth: 64,
@@ -397,6 +467,293 @@ export class ActionsRuntime
     });
   }
 
+  /** Queue owner derived from the verified identity only (tenant + subject). */
+  #owner(identity: ActionIdentity): ActionJobOwner {
+    const custom = this.options.jobOwner;
+    if (custom) {
+      const owner: unknown = custom(
+        Object.freeze({
+          subject: identity.subject,
+          ...(identity.tenant === undefined ? {} : { tenant: identity.tenant }),
+        }),
+      );
+      const binding: unknown =
+        typeof owner === 'object' && owner !== null
+          ? Reflect.get(owner, 'binding')
+          : undefined;
+      if (typeof binding !== 'string' || binding.length === 0)
+        throw new Error('jobs.owner must return { binding: non-empty string }');
+      return Object.freeze({ binding });
+    }
+    return Object.freeze({
+      binding: createHash('sha256')
+        .update(
+          ['nestvexa-actions', identity.tenant ?? '', identity.subject].join(
+            '\u0000',
+          ),
+          'utf8',
+        )
+        .digest('base64url'),
+    });
+  }
+
+  #snapshot(record: ActionJobRecord): ActionJobSnapshot {
+    if (
+      typeof record !== 'object' ||
+      record === null ||
+      typeof record.id !== 'string' ||
+      !JOB_ID_PATTERN.test(record.id) ||
+      !isActionJobStatus(record.status)
+    )
+      throw new ActionError('INTERNAL', undefined, {
+        reason: 'JOB_RECORD',
+        cause: new Error('The job queue returned an invalid job record'),
+      });
+    const progress =
+      typeof record.progress === 'number' && Number.isFinite(record.progress)
+        ? Math.max(0, Math.min(100, Math.round(record.progress)))
+        : 0;
+    let result: JsonValue | null = null;
+    if (record.status === 'succeeded') {
+      const safe = toJsonSafe(record.result ?? null, {
+        maxDepth: 64,
+        maxNodes: 100_000,
+      });
+      result = safe.ok ? safe.value : null;
+    }
+    return Object.freeze({
+      id: record.id,
+      status: record.status,
+      progress,
+      result,
+      error:
+        record.status === 'failed'
+          ? typeof record.error === 'string' && record.error.length > 0
+            ? record.error.slice(0, MAX_MESSAGE_LENGTH)
+            : DEFAULT_ERROR_MESSAGES.INTERNAL
+          : null,
+    });
+  }
+
+  /** Enqueues an accepted job for the caller and builds its 202 ticket. */
+  async #accept(
+    result: unknown,
+    context: { readonly identity: ActionIdentity },
+    label: string,
+  ): Promise<StoredActionOutcome> {
+    if (!(result instanceof AcceptedJob))
+      throw new ActionError('INTERNAL', undefined, {
+        reason: 'JOB_REQUIRED',
+        cause: new Error(
+          `Job action ${label} must return acceptJob(name, handler)`,
+        ),
+      });
+    const queue = this.options.jobQueue;
+    if (!queue)
+      throw new ActionError('INTERNAL', undefined, {
+        status: 503,
+        reason: 'JOBS_UNAVAILABLE',
+        cause: new Error(
+          `Job action ${label} requires the ActionsModule jobs.queue host option`,
+        ),
+      });
+    const accepted: AcceptedJob<unknown> = result;
+    const maxOutputBytes = this.options.maxOutputBytes;
+    // The job result is held to the same JSON-safety and size rules as data.
+    const handler = async (job: Parameters<typeof accepted.handler>[0]) => {
+      const value = await accepted.handler(job);
+      const safe = toJsonSafe(value, { maxDepth: 64, maxNodes: 100_000 });
+      if (!safe.ok)
+        throw new Error(
+          `Job ${accepted.name} returned a value that is not JSON-safe at ${safe.path}`,
+        );
+      if (
+        Buffer.byteLength(JSON.stringify(safe.value), 'utf8') > maxOutputBytes
+      )
+        throw new Error(`Job ${accepted.name} result exceeds maxOutputBytes`);
+      return safe.value;
+    };
+    const record = await queue.enqueue(
+      this.#owner(context.identity),
+      accepted.name,
+      handler,
+      accepted.maxAttempts === undefined
+        ? undefined
+        : { maxAttempts: accepted.maxAttempts },
+    );
+    const snapshot = this.#snapshot(record);
+    const channel = this.options.jobChannel?.(snapshot.id);
+    if (channel !== undefined && (typeof channel !== 'string' || !channel))
+      throw new Error('jobs.channel must return a non-empty string');
+    const job: ActionJobTicket = Object.freeze({
+      id: snapshot.id,
+      status: snapshot.status,
+      progress: snapshot.progress,
+      pollAfterMs: this.options.jobPollAfterMs,
+      ...(channel === undefined ? {} : { stream: Object.freeze({ channel }) }),
+    });
+    return Object.freeze({ data: null, job });
+  }
+
+  /**
+   * `<prefix>/_jobs/status` and `/_jobs/cancel`: the same admission as
+   * actions (origin, CSRF, identity, rate limit, body shape), host
+   * `authorize` with group `_jobs`, then owner-bound queue access. Another
+   * owner's job id is indistinguishable from an unknown one (404).
+   */
+  async job(
+    request: object,
+    response: unknown,
+    operation: 'status' | 'cancel',
+  ): Promise<ActionSuccessEnvelope> {
+    const descriptor: ActionDescriptor = Object.freeze({
+      group: JOBS_SEGMENT,
+      action: operation,
+      version: null,
+      idempotent: false,
+    });
+    this.#observe(request, response, descriptor);
+    const { requestId, identity, input } = await this.#gate(
+      request,
+      response,
+      descriptor,
+    );
+    await this.#authorize(identity, descriptor, request);
+    const queue = this.options.jobQueue;
+    if (!queue) reject('NOT_FOUND', 'JOBS_UNAVAILABLE');
+    if (
+      !plainObject(input) ||
+      Object.keys(input).some((key) => key !== 'id') ||
+      typeof input['id'] !== 'string' ||
+      !JOB_ID_PATTERN.test(input['id'])
+    )
+      throw ActionError.validation(
+        undefined,
+        [{ path: ['id'], message: 'A job id is required' }],
+        'JOB_ID',
+      );
+    const id = input['id'];
+    const observation = observations.get(request);
+    if (observation) observation.jobId = id;
+    const owner = this.#owner(identity);
+    if (operation === 'cancel') {
+      const cancel = queue.cancel;
+      if (typeof cancel !== 'function')
+        reject('CONFLICT', 'JOB_NOT_CANCELLABLE');
+      const cancelled =
+        (await Reflect.apply(cancel, queue, [owner, id])) === true;
+      const record = await queue.get(owner, id);
+      if (!record) reject('NOT_FOUND', 'JOB_NOT_FOUND');
+      const job = this.#snapshot(record) as unknown as JsonValue;
+      return this.#completed(request, { data: { cancelled, job } }, requestId);
+    }
+    const record = await queue.get(owner, id);
+    if (!record) reject('NOT_FOUND', 'JOB_NOT_FOUND');
+    return this.#completed(
+      request,
+      { data: this.#snapshot(record) as unknown as JsonValue },
+      requestId,
+    );
+  }
+
+  #observe(
+    request: object,
+    response: unknown,
+    descriptor: ActionDescriptor,
+  ): void {
+    const { instrumentation, logger } = this.options;
+    if ((!instrumentation && !logger) || observations.has(request)) return;
+    const requestId = requestIdFor(request);
+    const attributes: ActionSpanAttributes = {
+      'nestvexa.action.group': descriptor.group,
+      'nestvexa.action.id': descriptor.action,
+      ...(descriptor.version === null
+        ? {}
+        : { 'nestvexa.action.version': descriptor.version }),
+      'nestvexa.request_id': requestId,
+    };
+    let span: ActionSpan | undefined;
+    try {
+      span = instrumentation?.start('nestvexa.action', attributes);
+    } catch {
+      // Telemetry must never fail the call.
+      span = undefined;
+    }
+    const raw = rawResponse(response);
+    const observation: Observation = {
+      descriptor,
+      requestId,
+      started: performance.now(),
+      span,
+      streamed: raw !== undefined,
+      replayed: false,
+      ended: false,
+    };
+    observations.set(request, observation);
+    if (!raw) return;
+    const done = () => {
+      raw.off('finish', done);
+      raw.off('close', done);
+      // A response closed before it finished means the client went away.
+      this.#finish(
+        observation,
+        raw.writableFinished === false ? 499 : (raw.statusCode ?? 200),
+      );
+    };
+    raw.on('finish', done);
+    raw.on('close', done);
+  }
+
+  #finish(observation: Observation, status: number): void {
+    if (observation.ended) return;
+    observation.ended = true;
+    const failed = status >= 400;
+    const code: ActionCallLog['code'] = failed
+      ? (observation.code ??
+        (status === 499 ? 'TIMEOUT' : codeForStatus(status)))
+      : status === 202
+        ? 'ACCEPTED'
+        : 'OK';
+    const reason =
+      observation.reason ?? (status === 499 ? 'CLIENT_CLOSED' : undefined);
+    const durationMs =
+      Math.round((performance.now() - observation.started) * 1000) / 1000;
+    try {
+      observation.span?.end(failed ? 'error' : 'ok', {
+        'http.status_code': status,
+        'nestvexa.action.code': code,
+        'nestvexa.action.replayed': observation.replayed,
+        ...(reason === undefined ? {} : { 'nestvexa.action.reason': reason }),
+        ...(observation.jobId === undefined
+          ? {}
+          : { 'nestvexa.job.id': observation.jobId }),
+      });
+    } catch {
+      // Telemetry must never fail the call.
+    }
+    const logger = this.options.logger;
+    if (!logger) return;
+    const record: ActionCallLog = {
+      requestId: observation.requestId,
+      group: observation.descriptor.group,
+      action: observation.descriptor.action,
+      version: observation.descriptor.version,
+      status,
+      code,
+      ...(reason === undefined ? {} : { reason }),
+      durationMs,
+      replayed: observation.replayed,
+      ...(observation.jobId === undefined ? {} : { jobId: observation.jobId }),
+    };
+    try {
+      if (status >= 500) logger.error('nestvexa.action', { ...record });
+      else if (failed) logger.warn('nestvexa.action', { ...record });
+      else logger.info('nestvexa.action', { ...record });
+    } catch {
+      // Logging must never fail the call.
+    }
+  }
+
   #idempotencyKey(
     identity: ActionIdentity,
     descriptor: ActionDescriptor,
@@ -423,25 +780,6 @@ export class ActionsRuntime
    * the application's interceptors, pipes and handler.
    */
   async run(
-    request: object,
-    response: unknown,
-    invoke: () => Promise<unknown>,
-  ): Promise<ActionSuccessEnvelope> {
-    const hook = this.options.instrumentation;
-    const admitted = hook ? admissionFor(request) : undefined;
-    if (!hook || !admitted) return this.#run(request, response, invoke);
-    return traced(
-      hook,
-      'nestvexa.action',
-      {
-        'nestvexa.action_group': admitted.group.id,
-        'nestvexa.action': admitted.action.id,
-      },
-      () => this.#run(request, response, invoke),
-    );
-  }
-
-  async #run(
     request: object,
     response: unknown,
     invoke: () => Promise<unknown>,
@@ -492,7 +830,12 @@ export class ActionsRuntime
         );
         if (begun.status === 'replay') {
           this.setHeader(response, REPLAYED_HEADER, 'true');
-          return this.#success(begun.outcome, context.requestId);
+          const observation = observations.get(request);
+          if (observation) {
+            observation.replayed = true;
+            if (begun.outcome.job) observation.jobId = begun.outcome.job.id;
+          }
+          return this.#completed(request, begun.outcome, context.requestId);
         }
         if (begun.status === 'in-progress')
           reject('CONFLICT', 'IDEMPOTENCY_IN_PROGRESS');
@@ -520,7 +863,10 @@ export class ActionsRuntime
       // response: a timed-out call keeps them until the handler settles.
       const settled = (async () => {
         try {
-          const outcome = this.#outcome(await invoke(), label);
+          const value = await invoke();
+          const outcome = action.job
+            ? await this.#accept(value, context, label)
+            : this.#outcome(value, label);
           if (ownedKey !== undefined)
             await this.#store.complete(ownedKey, outcome);
           return outcome;
@@ -532,7 +878,8 @@ export class ActionsRuntime
         }
       })();
       settled.catch(() => undefined);
-      return this.#success(
+      return this.#completed(
+        request,
         await Promise.race([settled, aborted]),
         context.requestId,
       );
@@ -543,6 +890,21 @@ export class ActionsRuntime
       release?.();
       if (pendingKey !== undefined) await this.#store.abandon(pendingKey);
     }
+  }
+
+  /** Success envelope; ends the observation when no response stream reports it. */
+  #completed(
+    request: object,
+    outcome: StoredActionOutcome,
+    requestId: string,
+  ): ActionSuccessEnvelope {
+    const observation = observations.get(request);
+    if (observation) {
+      if (outcome.job) observation.jobId = outcome.job.id;
+      if (!observation.streamed)
+        this.#finish(observation, outcome.job ? 202 : 200);
+    }
+    return this.#success(outcome, requestId);
   }
 
   #success(
@@ -558,6 +920,7 @@ export class ActionsRuntime
       ...(outcome.notifications
         ? { notifications: outcome.notifications }
         : {}),
+      ...(outcome.job ? { job: outcome.job } : {}),
     };
   }
 
@@ -639,6 +1002,13 @@ export class ActionsRuntime
   }
 
   report(request: object, exception: unknown, described: DescribedError): void {
+    const observation = observations.get(request);
+    if (observation) {
+      observation.code = described.body.code;
+      if (described.body.reason !== undefined)
+        observation.reason = described.body.reason;
+      if (!observation.streamed) this.#finish(observation, described.status);
+    }
     const admission = admissionFor(request);
     const event = Object.freeze({
       requestId: requestIdFor(request),
