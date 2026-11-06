@@ -1423,6 +1423,98 @@ const transportRows: Row[] = [
   },
 ];
 
+/** Stand-in for a framework island or portal library mutating DOM it owns. */
+const mountIsland =
+  'const island = document.getElementById(\'island\'); island.innerHTML = \'<button id="inner" type="button" nv:click="increment">Island</button><output id="island-state">mounted</output>\'; island.dataset.mounted = \'yes\'';
+const portal =
+  "const node = document.getElementById('dialog'); document.body.append(node); node.dataset.ported = 'yes'";
+const ownershipRows: Row[] = [
+  {
+    name: 'a data-nv-island subtree keeps its framework DOM and inert directives across morphs',
+    ...counter,
+    html: `${output}<div id="island" data-nv-island="widget"><p>server placeholder</p></div><button id="go" type="button" nv:click="increment">Go</button>`,
+    steps: [
+      { run: mountIsland },
+      { click: '#go' },
+      { click: '#go' },
+      {
+        expect: {
+          actions: ['increment', 'increment'],
+          text: { '#count': '2', '#island-state': 'mounted' },
+          attrs: { '#island': { 'data-mounted': 'yes' } },
+        },
+      },
+      { click: '#inner' },
+      { wait: 300 },
+      { expect: { actions: ['increment', 'increment'], errors: [] } },
+    ],
+  },
+  {
+    name: 'an island inside nv:ignore survives morphs; inside nv:replace it is torn down and remounted by the server',
+    ...counter,
+    html: `${output}<div nv:ignore><div id="island" data-nv-island="widget"></div></div><section id="swap" nv:replace=""><div id="replaced-island" data-nv-island="widget"><p>fresh</p></div></section><button id="go" type="button" nv:click="increment">Go</button>`,
+    steps: [
+      { run: mountIsland },
+      {
+        run: "document.getElementById('replaced-island').dataset.mounted = 'yes'",
+      },
+      { click: '#go' },
+      {
+        expect: {
+          text: { '#count': '1', '#island-state': 'mounted' },
+          attrs: {
+            '#island': { 'data-mounted': 'yes' },
+            '#replaced-island': { 'data-mounted': null },
+          },
+          events: ['nestvexa:before-remove', 'nestvexa:after-insert'],
+        },
+      },
+    ],
+  },
+  {
+    name: 'portal content moved outside the root is not owned: its directives stay inert and morphs re-render the server copy',
+    ...counter,
+    html: `${output}<div id="dialog" role="dialog" aria-label="Dialog"><button id="inside" type="button" nv:click="increment">Inside</button></div><button id="go" type="button" nv:click="increment">Go</button>`,
+    steps: [
+      { run: portal },
+      { click: '#inside' },
+      { wait: 300 },
+      { expect: { actions: [] } },
+      { click: '#go' },
+      {
+        expect: {
+          actions: ['increment'],
+          text: { '#count': '1' },
+          values: {
+            "document.querySelectorAll('#dialog').length": 2,
+            'document.body.lastElementChild.dataset.ported': 'yes',
+            "nvHarness.root.querySelector('#dialog').dataset.ported ?? null":
+              null,
+          },
+        },
+      },
+    ],
+  },
+  {
+    name: 'the documented portal pattern keeps an nv:ignore target inside the root',
+    ...counter,
+    html: `${output}<div id="layer" nv:ignore><div id="dialog-host"></div></div><button id="go" type="button" nv:click="increment">Go</button>`,
+    steps: [
+      {
+        run: "document.getElementById('dialog-host').innerHTML = '<p id=\"modal\">Local modal</p>'",
+      },
+      { click: '#go' },
+      { click: '#go' },
+      {
+        expect: {
+          text: { '#count': '2', '#modal': 'Local modal' },
+          errors: [],
+        },
+      },
+    ],
+  },
+];
+
 const sortList = (extra = ''): string =>
   `<ol id="tasks" nv:sort="reorder" aria-label="Tasks"${extra}>${['a', 'b', 'c']
     .map(
@@ -1951,6 +2043,7 @@ describe.each(matrixBrowsers)('%s', (engine) => {
     ['transport: bundling, retry, negotiation and progress', transportRows],
     ['restored drafts and development inspection', lifecycleRows],
     ['sort keyboard and pointer', sortRows],
+    ['ownership: islands, ignore, replace and portals', ownershipRows],
     ['bindings, presentation and observers', presentationRows],
   ])('directive matrix: %s', (_group, rows) => {
     it.each(rows.map((row) => [row.name, row] as const))(
