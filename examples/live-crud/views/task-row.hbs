@@ -1,0 +1,41 @@
+<article class="task" aria-labelledby="task-title-{{taskId}}">
+  <h2 id="task-title-{{taskId}}" class="{{#if done}}done-yes{{/if}}">
+    {{title}}
+  </h2>
+  <p>
+    <span id="task-assignee-{{taskId}}"
+      >{{#if assignee}}{{assignee}}{{else}}Unassigned{{/if}}</span
+    >
+    · priority <span id="task-priority-{{taskId}}">{{priority}}</span> · due
+    <span id="task-due-{{taskId}}"
+      >{{#if due}}{{due}}{{else}}no date{{/if}}</span
+    >
+    · done:
+    <output id="task-done-{{taskId}}" nv:text="done">{{done}}</output>
+  </p>
+  <button
+    type="button"
+    nv:click="toggleDone"
+    nv:optimistic.toggle="done"
+    aria-label="Toggle done for {{title}}"
+  >
+    Toggle done
+  </button>
+  <button
+    type="button"
+    id="task-edit-{{taskId}}"
+    nv:click="edit"
+    data-opens-editor
+    aria-label="Edit {{title}}"
+  >
+    Edit
+  </button>
+  <button
+    type="button"
+    nv:click="remove"
+    nv:confirm="Delete “{{title}}”?"
+    aria-label="Delete {{title}}"
+  >
+    Delete
+  </button>
+</article>

@@ -1,0 +1,99 @@
+<div class="backdrop">
+  <div
+    class="dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="task-editor-heading"
+    data-task-editor
+    nv:keydown.escape="cancel"
+  >
+    <h2 id="task-editor-heading">
+      {{#if creating}}New task{{else}}Edit task{{/if}}
+    </h2>
+    {{#if summary.hasErrors}}
+    <div id="task-error-summary" class="summary" role="alert">
+      <p>{{summary.title}}</p>
+      <ul>
+        {{#each summary.items}}
+        <li>
+          {{#if href}}<a href="{{href}}">{{label}}: {{message}}</a
+          >{{else}}{{message}}{{/if}}
+        </li>
+        {{/each}}
+      </ul>
+    </div>
+    {{/if}}
+    <form nv:submit="save" novalidate>
+      <label for="{{fields.title.id}}">Title</label>
+      <input
+        id="{{fields.title.id}}"
+        nv:model="title"
+        value="{{title}}"
+        maxlength="200"
+        aria-invalid="{{fields.title.ariaInvalid}}"
+        aria-describedby="{{fields.title.describedBy}}"
+      />
+      {{#if fields.title.invalid}}
+      <p id="{{fields.title.errorId}}" class="error">
+        {{fields.title.message}}
+      </p>
+      {{/if}}
+
+      <label for="{{fields.assignee.id}}">Assignee</label>
+      <input
+        id="{{fields.assignee.id}}"
+        nv:model="assignee"
+        value="{{assignee}}"
+        maxlength="200"
+        aria-invalid="{{fields.assignee.ariaInvalid}}"
+        aria-describedby="{{fields.assignee.describedBy}}"
+      />
+      {{#if fields.assignee.invalid}}
+      <p id="{{fields.assignee.errorId}}" class="error">
+        {{fields.assignee.message}}
+      </p>
+      {{/if}}
+
+      <label for="{{fields.priority.id}}">Priority</label>
+      <select
+        id="{{fields.priority.id}}"
+        nv:model="priority"
+        aria-invalid="{{fields.priority.ariaInvalid}}"
+        aria-describedby="{{fields.priority.describedBy}}"
+      >
+        {{#each priorityOptions}} {{#if selected}}
+        <option value="{{value}}" selected>{{value}}</option>
+        {{else}}
+        <option value="{{value}}">{{value}}</option>
+        {{/if}} {{/each}}
+      </select>
+      {{#if fields.priority.invalid}}
+      <p id="{{fields.priority.errorId}}" class="error">
+        {{fields.priority.message}}
+      </p>
+      {{/if}}
+
+      <label for="{{fields.due.id}}">Due date (YYYY-MM-DD, optional)</label>
+      <input
+        id="{{fields.due.id}}"
+        nv:model="due"
+        value="{{due}}"
+        maxlength="20"
+        inputmode="numeric"
+        placeholder="2026-12-31"
+        aria-invalid="{{fields.due.ariaInvalid}}"
+        aria-describedby="{{fields.due.describedBy}}"
+      />
+      {{#if fields.due.invalid}}
+      <p id="{{fields.due.errorId}}" class="error">{{fields.due.message}}</p>
+      {{/if}}
+
+      <p>
+        <button type="submit" nv:loading.attr="disabled" nv:target="save">
+          {{#if creating}}Create task{{else}}Save changes{{/if}}
+        </button>
+        <button type="button" nv:click="cancel">Cancel</button>
+      </p>
+    </form>
+  </div>
+</div>
