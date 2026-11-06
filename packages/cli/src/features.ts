@@ -326,12 +326,19 @@ export function ensureIslands(
   const layout = plan.read('views/layout.hbs');
   const tag = '<script type="module" src="/islands/islands.js"></script>';
   if (layout !== undefined && !layout.includes('/islands/islands.js')) {
-    if (layout.includes('</body>'))
+    if (layout.includes('</body>')) {
+      // Keep the indentation of a line holding only </body>.
+      const indented = layout.replace(
+        /^([ \t]*)<\/body>/m,
+        (_line, indent: string) => `${indent}  ${tag}\n${indent}</body>`,
+      );
       plan.update(
         'views/layout.hbs',
-        layout.replace('</body>', `    ${tag}\n  </body>`),
+        indented !== layout
+          ? indented
+          : layout.replace('</body>', `${tag}</body>`),
       );
-    else notes.push(`Add ${tag} to your layout.`);
+    } else notes.push(`Add ${tag} to your layout.`);
   } else if (layout === undefined)
     notes.push(`Add ${tag} to your document layout.`);
 }

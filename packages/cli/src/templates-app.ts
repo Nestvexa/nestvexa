@@ -199,14 +199,19 @@ export const inertiaFrameworks: Record<string, InertiaFramework> = {
 };
 
 const root = process.cwd();
-const production = process.env['NODE_ENV'] === 'production';
+/**
+ * Built assets (manifests, SSR bundles) in production, or in development with
+ * NESTVEXA_ASSETS=build (end-to-end tests without Vite dev servers).
+ */
+const built =
+  process.env['NODE_ENV'] === 'production' || process.env['NESTVEXA_ASSETS'] === 'build';
 
 function inertiaApp(key: string, framework: InertiaFramework): InertiaAppOptions {
   // Production reads dist/<key>/client/.vite/manifest.json at startup and fails
   // fast when the build is missing; development points at the Vite dev server.
   const assets = new ViteAssets({
-    mode: production ? 'production' : 'development',
-    ...(production ? {} : { devOrigin: \`http://localhost:\${framework.devPort}\` }),
+    mode: built ? 'production' : 'development',
+    ...(built ? {} : { devOrigin: \`http://localhost:\${framework.devPort}\` }),
     apps: {
       [key]: {
         entries: [framework.entry],
@@ -218,7 +223,7 @@ function inertiaApp(key: string, framework: InertiaFramework): InertiaAppOptions
   return {
     version: assets.version(key),
     rootView: viteInertiaRootView(assets, { app: key }),
-    ...(production && framework.ssr ? { ssr: ssrOptions(key) } : {}),
+    ...(built && framework.ssr ? { ssr: ssrOptions(key) } : {}),
   };
 }
 
@@ -249,9 +254,9 @@ export function inertiaOptions(): InertiaModuleOptions {
   };
 }
 
-/** Serves each root's built assets in production; Vite dev servers serve them in development. */
+/** Serves each root's built assets; Vite dev servers serve them in development. */
 export function configureInertia(app: INestApplication): void {
-  if (!production) return;
+  if (!built) return;
   for (const key of Object.keys(inertiaFrameworks))
     app.use(viteStaticMiddleware({ root: join(root, \`dist/\${key}/client\`), prefix: \`/build/\${key}/\` }));
 }

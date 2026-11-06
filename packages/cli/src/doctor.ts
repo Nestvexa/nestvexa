@@ -144,8 +144,11 @@ function sourceTexts(project: ProjectInfo): Map<string, string> {
   walk(join(project.root, project.sourceRoot));
   return out;
 }
-/** Keys of `export const inertiaFrameworks = { ... }` in the generated config. */
-function inertiaRoots(text: string): string[] {
+/**
+ * Keys of `export const inertiaFrameworks = { ... }` in the generated config
+ * and whether each root declares an SSR entry.
+ */
+function inertiaRoots(text: string): { key: string; ssr: boolean }[] {
   const source = ts.createSourceFile(
     'inertia.config.ts',
     text,
@@ -164,7 +167,12 @@ function inertiaRoots(text: string): string[] {
         return declaration.initializer.properties.flatMap((property) =>
           property.name &&
           (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name))
-            ? [property.name.text]
+            ? [
+                {
+                  key: property.name.text,
+                  ssr: /\bssr\s*:/.test(property.getText(source)),
+                },
+              ]
             : [],
         );
   }
@@ -489,10 +497,14 @@ export function doctor(context: CommandContext): CommandResult {
     path.endsWith('inertia.config.ts'),
   );
   const roots = inertiaConfig ? inertiaRoots(inertiaConfig[1]) : [];
-  const missing = roots.filter(
-    (key) =>
-      !existsSync(join(root, 'dist', key, 'client', '.vite', 'manifest.json')),
-  );
+  const missing = roots.flatMap(({ key, ssr }) => [
+    ...(existsSync(join(root, 'dist', key, 'client', '.vite', 'manifest.json'))
+      ? []
+      : [key]),
+    ...(ssr && !existsSync(join(root, 'dist', key, 'ssr', 'ssr.mjs'))
+      ? [`${key} (SSR bundle)`]
+      : []),
+  ]);
   const islands = existsSync(join(root, 'vite.islands.config.ts'));
   if (
     islands &&
@@ -504,8 +516,8 @@ export function doctor(context: CommandContext): CommandResult {
       'assets',
       missing.length ? (production ? 'fail' : 'warn') : 'pass',
       missing.length
-        ? `No Vite manifest for: ${missing.join(', ')}`
-        : `Vite manifests present for ${[...roots, ...(islands ? ['islands'] : [])].join(', ')}`,
+        ? `Missing Vite builds: ${missing.join(', ')}`
+        : `Vite builds present for ${[...roots.map(({ key }) => key), ...(islands ? ['islands'] : [])].join(', ')}`,
       `Run \`${project.packageManager === 'npm' ? 'npm run' : `${project.packageManager} run`} build:client\` before starting in production.`,
     );
 

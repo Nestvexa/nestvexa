@@ -240,7 +240,10 @@ export interface BootedApp {
   logs(): string;
   stop(): void;
 }
-/** Start `dist/src/main.js` on `port` and wait until `/` answers. */
+/**
+ * Start `dist/src/main.js` on `port` and wait (up to five minutes: cold module
+ * loading is slow on loaded Windows hosts) until `/` answers.
+ */
 export async function boot(
   root: string,
   port: number,
@@ -263,7 +266,7 @@ export async function boot(
   let ready = false;
   for (
     let attempt = 0;
-    attempt < 1200 && !ready && child.exitCode === null;
+    attempt < 3000 && !ready && child.exitCode === null;
     attempt++
   ) {
     await new Promise((done) => setTimeout(done, 100));
