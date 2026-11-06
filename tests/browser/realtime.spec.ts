@@ -35,6 +35,50 @@ test('an event published by one session refreshes another session through SSE', 
   await second.close();
 });
 
+test('a server-pushed domain event runs the @OnEvent action in another session', async ({
+  browser,
+}) => {
+  const first = await browser.newContext();
+  const second = await browser.newContext();
+  const alice = await first.newPage();
+  const bob = await second.newPage();
+  const errors: string[] = [];
+  for (const page of [alice, bob])
+    page.on('pageerror', (error) => errors.push(error.message));
+  const subscribed = bob.waitForResponse((response) =>
+    response.url().includes('/_nestvexa/realtime/sse?'),
+  );
+  await alice.goto(url);
+  await bob.goto(url);
+  expect((await subscribed).status()).toBe(200);
+  const name = `Ada ${Date.now()}`;
+  await alice.locator('#realtime-draft').fill(name);
+  // Bob's browser delivers the event to his component's listener action
+  // through his own authorized Live route, not a generic refresh.
+  const delivered = bob.waitForRequest((request) =>
+    request.url().endsWith('/_nestvexa/live/realtime-board/announcementPosted'),
+  );
+  // Delivery is at-most-once: an event published before Bob's stream finished
+  // subscribing on the server is not replayed, so announce again until it lands.
+  await expect(async () => {
+    await alice.getByRole('button', { name: 'Announce to everyone' }).click();
+    await expect(bob.locator('#realtime-announcements li').first()).toHaveText(
+      `Announcement from ${name}`,
+      { timeout: 5_000 },
+    );
+  }).toPass({ timeout: 40_000 });
+  const request = await delivered;
+  expect(request.postDataJSON()).toMatchObject({
+    input: { id: expect.any(Number) },
+  });
+  await expect(alice.locator('#realtime-announcements li').first()).toHaveText(
+    `Announcement from ${name}`,
+  );
+  expect(errors).toEqual([]);
+  await first.close();
+  await second.close();
+});
+
 // Job snapshots arrive over realtime; allow for slow CI browsers.
 const job = { timeout: 15_000 };
 

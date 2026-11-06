@@ -121,6 +121,55 @@ with `client.dispatch(name, payload)` or Alpine's `$live.dispatch(name, payload)
 `dispatchLiveEvent` is only valid while an action executes; mount-time events are
 not supported.
 
+### Server-pushed events
+
+Server code can publish the same kind of event to every browser subscribed to a
+realtime channel with `LiveEvents` (see the
+[protocol reference](../reference/live-protocol.md#server-pushed-domain-events)):
+
+```ts
+@Action() async announce(): Promise<void> {
+  const id = this.announcements.add(text);
+  await this.events.publish('activity:public', 'announcement.posted', { id });
+}
+
+@Action()
+@OnEvent('announcement.posted')
+announcementPosted(@ActionInput(new AnnouncementReference()) input: { id: number }): void {
+  const text = this.announcements.get(input.id); // re-read authoritative data
+}
+```
+
+A component receives the event only when its `@RealtimeChannels` include the channel
+and the host realtime policy issued it a token for that channel; the listener action is
+then authorized like any other. Example: `/realtime` in
+[starter-live](../../examples/starter-live/src/realtime-board.ts).
+
+## Scope and inheritance rules
+
+- **Scope.** Each child has its own snapshot, revision, request queue, hooks and
+  authorization. A child action never changes parent state or the parent revision, and
+  its response replaces only the child root's content. A parent render touches a child
+  only through stubs (kept), refreshes (changed `@Reactive`/`@Modelable` value) or
+  removal.
+- **Keys.** The `alias:key` slot is the child's identity across parent renders: the same
+  key keeps the same component ID and snapshot; a changed key mounts a new child and
+  revokes the old snapshot after the parent commits.
+- **Props.** `@Prop` values apply at mount only; later parent values are ignored, so
+  child changes survive. `@Reactive` values are parent-owned: during the child's hooks
+  and actions the field is a read-only view, and assigning a different value or mutating
+  nested data fails with `409 REACTIVE_PROP_MUTATED` at that statement, before any later
+  code (and its side effects) runs. Assigning the same value is allowed.
+- **Authorization is not inherited.** Every child `$mount` and action is authorized by
+  the host policy with the child's own component name; a parent grant never covers a
+  child.
+- **Class inheritance.** Decorated `@State` and `@Action` members of a base class apply
+  to a registered subclass (other member decorators use the same prototype metadata);
+  overriding a decorated action or computed member without its decorator fails at
+  startup.
+
+Tests: [scope rules and the reactive guard](../../tests/live-nesting-scope.test.ts).
+
 ## Lazy components
 
 `@LiveComponent({ lazy: true })` (or `lazy: 'visible'`) runs `boot`, state

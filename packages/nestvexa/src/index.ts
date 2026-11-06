@@ -1,10 +1,22 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
-import { CoreModule, NestvexaConfigService } from '@nestvexa/core';
-import type { NestvexaAsyncOptions, NestvexaOptions } from '@nestvexa/core';
+import {
+  CoreModule,
+  DiagnosticsRegistry,
+  NestvexaConfigService,
+  SecurityPolicyRegistry,
+  exactOriginPolicy,
+} from '@nestvexa/core';
+import type {
+  CoreModuleRegistration,
+  NestvexaAsyncOptions,
+  NestvexaOptions,
+} from '@nestvexa/core';
+import { timingSafeEqual } from 'node:crypto';
 import { HbsEngine } from '@nestvexa/engine-hbs';
 import { LiveModule } from '@nestvexa/live';
 import type {
+  LiveIdentity,
   LiveModuleAsyncOptions,
   LiveRuntimeFactoryOptions,
 } from '@nestvexa/live';
@@ -53,6 +65,58 @@ function dataObject(
       throw new Error(`Invalid ${label}`);
   }
 }
+/**
+ * Record the Live policies in the kernel `SecurityPolicyRegistry` (owner
+ * `live`) so diagnostics and other features see what Live enforces. Live
+ * itself keeps enforcing them; these entries delegate to the same callbacks.
+ */
+function registerLivePolicies(
+  security: SecurityPolicyRegistry,
+  policies: NestvexaLivePolicies,
+): void {
+  if (security.has('origin', 'live')) return;
+  security.register('origin', 'live', exactOriginPolicy(policies.origin));
+  security.register('action-authorization', 'live', {
+    authorize: async (subject, resource, action) => {
+      if (
+        typeof subject !== 'object' ||
+        subject === null ||
+        typeof Reflect.get(subject, 'binding') !== 'string' ||
+        typeof Reflect.get(subject, 'csrfToken') !== 'string'
+      )
+        return false;
+      return (
+        (await policies.authorize(
+          subject as LiveIdentity,
+          resource,
+          action,
+        )) === true
+      );
+    },
+  });
+  security.register('csrf', 'live', {
+    verify: async (request) => {
+      const identity = await policies.resolveIdentity(request);
+      const headers: unknown = Reflect.get(request, 'headers');
+      const header: unknown =
+        typeof headers === 'object' && headers !== null
+          ? Reflect.get(headers, 'x-nestvexa-csrf')
+          : undefined;
+      const expected = Buffer.from(identity.csrfToken);
+      const actual = Buffer.from(typeof header === 'string' ? header : '');
+      return (
+        expected.length >= 32 &&
+        expected.length === actual.length &&
+        timingSafeEqual(expected, actual)
+      );
+    },
+  });
+  security.register('snapshot', 'live', {
+    storage: 'server',
+    ttlMs: 900_000,
+    bindsIdentity: true,
+  });
+}
 function integrated<Dependencies extends unknown[]>(
   core: DynamicModule,
   live?: NestvexaLiveOptions<Dependencies>,
@@ -86,14 +150,32 @@ function integrated<Dependencies extends unknown[]>(
   // The same exported module object is imported by MVC and Live: no global DI escape.
   const renderer = NestvexaRendererModule.configure(core, browser);
   const registration = LiveModule.registerAsync<
-    [HbsEngine, NestvexaConfigService, ...Dependencies]
+    [
+      HbsEngine,
+      NestvexaConfigService,
+      DiagnosticsRegistry,
+      SecurityPolicyRegistry,
+      ...Dependencies,
+    ]
   >({
     components: live.components,
     ...(live.endpoint === undefined ? {} : { endpoint: live.endpoint }),
     ...(live.basePath === undefined ? {} : { basePath: live.basePath }),
     imports: [renderer, ...(live.imports ?? [])],
-    inject: [HbsEngine, NestvexaConfigService, ...(live.inject ?? [])],
-    useFactory: async (engine, config, ...dependencies) => {
+    inject: [
+      HbsEngine,
+      NestvexaConfigService,
+      DiagnosticsRegistry,
+      SecurityPolicyRegistry,
+      ...(live.inject ?? []),
+    ],
+    useFactory: async (
+      engine,
+      config,
+      diagnostics,
+      security,
+      ...dependencies
+    ) => {
       if (!config.value.live.enabled)
         throw new Error(
           'Explicit Live registration requires live.enabled: true',
@@ -121,10 +203,19 @@ function integrated<Dependencies extends unknown[]>(
           'maxRequestsPerMinute',
           'realtime',
           'instrumentation',
+          'events',
+          'assetVersion',
         ],
         'umbrella Live policies',
       );
-      return { ...policies, renderer: engine };
+      registerLivePolicies(security, policies);
+      return {
+        ...policies,
+        // Live spans land in the kernel diagnostics unless the host traces itself.
+        instrumentation:
+          policies.instrumentation ?? diagnostics.instrumentation(),
+        renderer: engine,
+      };
     },
   });
   return {
@@ -140,8 +231,10 @@ export class NestvexaModule {
   static forRoot<Dependencies extends unknown[]>(
     options: NestvexaOptions = {},
     live?: NestvexaLiveOptions<Dependencies>,
+    /** Kernel services: request context, diagnostics, extensions, error logging. */
+    kernel?: CoreModuleRegistration,
   ): DynamicModule {
-    return integrated(CoreModule.forRoot(options), live);
+    return integrated(CoreModule.forRoot(options, kernel), live);
   }
   static forRootAsync<
     Dependencies extends unknown[],

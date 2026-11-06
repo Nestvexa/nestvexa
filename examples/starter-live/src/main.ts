@@ -396,6 +396,8 @@ document.addEventListener('click', async (event) => {
                 'startFailingReport',
                 'retryReport',
                 'cancelReport',
+                'announce',
+                'announcementPosted',
               ].includes(action)) ||
             (component === 'project-board' &&
               [

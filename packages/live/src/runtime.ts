@@ -25,7 +25,12 @@ import {
   endOperation,
   withinDeadline,
 } from './cancellation.js';
-import { ActionLocks, ActionReplayCache } from './action-policy.js';
+import {
+  isLiveActionCoordination,
+  memoryActionPolicy,
+  sharedActionPolicy,
+} from './action-policy.js';
+import type { ActionPolicy } from './action-policy.js';
 import { MemoryLiveStore } from './store.js';
 import type {
   ChildReference,
@@ -102,7 +107,24 @@ export interface LiveHostOptions {
       identity: LiveIdentity,
       channels: readonly string[],
     ): string | undefined | Promise<string | undefined>;
+    /** When present (for example `RealtimeService`), also used for `LiveEvents`. */
+    publish?(channel: string, data: JsonValue): unknown;
   };
+  /**
+   * Publisher for server-pushed `@OnEvent` domain events (`LiveEvents`).
+   * Structural, so Live never imports a broker: `RealtimeService` from
+   * @nestvexa/realtime fits. Defaults to `realtime` when it has `publish`.
+   */
+  readonly events?: {
+    publish(channel: string, data: JsonValue): unknown;
+  };
+  /**
+   * Current client asset version (for example a manifest hash). Rendered on
+   * every component root and required back in `x-nestvexa-asset-version`;
+   * a different or missing value fails with `409 ASSET_VERSION_MISMATCH` and
+   * `x-nestvexa-reload: asset-version`, and the browser reloads the page.
+   */
+  readonly assetVersion?: string;
 }
 export interface RuntimeOptions extends LiveHostOptions {
   readonly definitions: readonly ComponentDefinition[];
@@ -143,6 +165,9 @@ interface Rendered {
 const maxChildDepth = 8;
 /** Upper bound on waiting for in-flight Live requests during shutdown. */
 const shutdownDrainMs = 10_000;
+/** Shared identity-lock lease without an action deadline (the maximum deadline). */
+const maxLeaseMs = 300_000;
+const leaseMarginMs = 1_000;
 /** Rebuild a stored JSON value into the component field type. */
 function hydrated(
   component: ComponentDefinition,
@@ -256,6 +281,91 @@ function mapped(error: unknown): never {
     );
   throw error;
 }
+/** The `@Title` value: plain text, 1–200 characters without control characters. */
+function documentTitle(
+  instance: object,
+  component: ComponentDefinition,
+): string | undefined {
+  if (component.title === undefined) return undefined;
+  const member: unknown = Reflect.get(instance, component.title);
+  const value: unknown =
+    typeof member === 'function' ? Reflect.apply(member, instance, []) : member;
+  if (
+    typeof value !== 'string' ||
+    value.length < 1 ||
+    value.length > 200 ||
+    [...value].some((character) => {
+      const code = character.charCodeAt(0);
+      return code < 32 || code === 127;
+    })
+  )
+    throw new Error('@Title must return 1–200 characters of plain text');
+  return value;
+}
+/** A read-only view of a parent-owned JSON value: any write fails with 409. */
+function readOnlyView(value: unknown): unknown {
+  if (value === null || typeof value !== 'object') return value;
+  const views = new WeakMap<object, object>();
+  const reject = (): never => fail(409, 'REACTIVE_PROP_MUTATED');
+  const view = (target: object): object => {
+    const known = views.get(target);
+    if (known) return known;
+    const proxy = new Proxy(target, {
+      get(object, key, receiver) {
+        const result: unknown = Reflect.get(object, key, receiver);
+        return result !== null && typeof result === 'object'
+          ? view(result)
+          : result;
+      },
+      set: reject,
+      defineProperty: reject,
+      deleteProperty: reject,
+      setPrototypeOf: reject,
+    });
+    views.set(target, proxy);
+    return proxy;
+  };
+  return view(value);
+}
+/**
+ * During hooks and the action, `@Reactive` fields are accessors over read-only
+ * views: assigning a different value or mutating nested data throws
+ * `409 REACTIVE_PROP_MUTATED` at the write, so code after it (and its side
+ * effects) never runs. Returns a function restoring plain data fields.
+ */
+function guardReactiveProps(
+  instance: object,
+  component: ComponentDefinition,
+): () => void {
+  const restore: (() => void)[] = [];
+  for (const [field, mode] of component.props) {
+    if (mode !== 'reactive') continue;
+    const descriptor = Object.getOwnPropertyDescriptor(instance, field);
+    if (!descriptor || !('value' in descriptor)) continue;
+    const original: unknown = descriptor.value;
+    const guarded = readOnlyView(original);
+    Object.defineProperty(instance, field, {
+      get: () => guarded,
+      set: (next: unknown) => {
+        if (canonical(next) !== canonical(original))
+          fail(409, 'REACTIVE_PROP_MUTATED');
+      },
+      enumerable: true,
+      configurable: true,
+    });
+    restore.push(() =>
+      Object.defineProperty(instance, field, {
+        value: original,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      }),
+    );
+  }
+  return () => {
+    for (const step of restore) step();
+  };
+}
 function escapeAttribute(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -284,8 +394,8 @@ export class LiveRuntime implements OnApplicationShutdown {
   readonly #controllers = new Set<AbortController>();
   /** Mount/action requests still running; drained (bounded) during shutdown. */
   readonly #inflight = new Set<Promise<unknown>>();
-  readonly #replays = new ActionReplayCache();
-  readonly #locks = new ActionLocks();
+  /** Idempotent replay and identity locks: shared when the store coordinates replicas. */
+  readonly #actions: ActionPolicy;
   constructor(
     @Inject(LIVE_OPTIONS) private readonly options: RuntimeOptions,
     @Inject(ModuleRef) private readonly moduleRef: ModuleRef,
@@ -293,6 +403,9 @@ export class LiveRuntime implements OnApplicationShutdown {
     private readonly registry: LiveApplicationRegistry,
   ) {
     this.store = options.store ?? new MemoryLiveStore();
+    this.#actions = isLiveActionCoordination(this.store)
+      ? sharedActionPolicy(this.store)
+      : memoryActionPolicy();
     this.registry.register(
       this,
       options.definitions,
@@ -348,6 +461,12 @@ export class LiveRuntime implements OnApplicationShutdown {
     const identity = await this.identity(request);
     if (!equal(header(request, 'x-nestvexa-csrf') ?? '', identity.csrfToken))
       fail(403, 'CSRF_REJECTED');
+    // After CSRF so only same-origin pages of this identity are told to reload.
+    if (
+      this.options.assetVersion !== undefined &&
+      header(request, 'x-nestvexa-asset-version') !== this.options.assetVersion
+    )
+      fail(409, 'ASSET_VERSION_MISMATCH');
     this.limit(identity);
     let payload: LiveRequest;
     let capabilities: ReadonlySet<LiveCapability>;
@@ -824,6 +943,11 @@ export class LiveRuntime implements OnApplicationShutdown {
       `data-nv-revision="${snapshot.revision}"`,
       `data-nv-endpoint="${escapeAttribute(endpoint)}"`,
       `data-nv-csrf="${escapeAttribute(identity.csrfToken)}"`,
+      ...(this.options.assetVersion === undefined
+        ? []
+        : [
+            `data-nv-asset-version="${escapeAttribute(this.options.assetVersion)}"`,
+          ]),
       ...(extra.key === undefined
         ? []
         : [`data-nv-key="nv-child:${escapeAttribute(extra.key)}"`]),
@@ -1182,7 +1306,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     if (!admitted) fail(403, 'ADMISSION_REQUIRED');
     const { identity, payload, component, action, capabilities } = admitted;
     let completed: object | undefined;
-    let release: (() => void) | undefined;
+    let release: (() => Promise<void>) | undefined;
     try {
       const synchronization = action === INTERNAL_SYNC_ACTION;
       const selected = component.actions.get(action);
@@ -1198,7 +1322,7 @@ export class LiveRuntime implements OnApplicationShutdown {
       // An identical retry of a committed idempotent action replays its result
       // before the (now stale) revision check; nothing executes again.
       const replayed = selected?.idempotent
-        ? this.#replays.lookup(
+        ? await this.#actions.lookup(
             identity.binding,
             component.name,
             action,
@@ -1207,7 +1331,16 @@ export class LiveRuntime implements OnApplicationShutdown {
         : undefined;
       if (replayed) return replayed;
       if (selected?.concurrency === 'identity')
-        release = this.#locks.acquire(identity.binding, component.name, action);
+        release = await this.#actions.acquire(
+          identity.binding,
+          component.name,
+          action,
+          // A shared lease outlives the action deadline slightly; without a
+          // deadline it is bounded by the longest supported one.
+          component.timeoutMs === undefined
+            ? maxLeaseMs
+            : component.timeoutMs + leaseMarginMs,
+        );
       const updates = await this.validatedUpdates(component, identity, payload);
       let url: readonly UrlStateEffect[] = [];
       let persist: (() => void) | undefined;
@@ -1215,6 +1348,7 @@ export class LiveRuntime implements OnApplicationShutdown {
       let redirect: string | undefined;
       let download: LiveDownload | undefined;
       let realtime: string | undefined;
+      let title: string | undefined;
       let flash: readonly string[] = [];
       const context: RenderContext = {
         request,
@@ -1268,24 +1402,30 @@ export class LiveRuntime implements OnApplicationShutdown {
                   });
                   await this.hook(instance, 'afterUpdate', [update]);
                 }
-                if (!synchronization && selected) {
-                  await this.hook(instance, 'beforeAction');
-                  const method: unknown = Reflect.get(
-                    instance,
-                    selected.method,
-                  );
-                  if (typeof method !== 'function')
-                    throw new Error('Registered action is not callable');
-                  await withinDeadline(instance, 'ACTION_TIMEOUT', () =>
-                    Reflect.apply(
-                      method,
+                // Parent-owned values fail at the write, before later effects.
+                const restoreReactive = guardReactiveProps(instance, component);
+                try {
+                  if (!synchronization && selected) {
+                    await this.hook(instance, 'beforeAction');
+                    const method: unknown = Reflect.get(
                       instance,
-                      selected.input ? [input] : [],
-                    ),
-                  );
-                  await this.hook(instance, 'afterAction');
+                      selected.method,
+                    );
+                    if (typeof method !== 'function')
+                      throw new Error('Registered action is not callable');
+                    await withinDeadline(instance, 'ACTION_TIMEOUT', () =>
+                      Reflect.apply(
+                        method,
+                        instance,
+                        selected.input ? [input] : [],
+                      ),
+                    );
+                    await this.hook(instance, 'afterAction');
+                  }
+                  await this.hook(instance, 'dehydrate');
+                } finally {
+                  restoreReactive();
                 }
-                await this.hook(instance, 'dehydrate');
                 for (const [field, mode] of component.props)
                   if (
                     mode === 'reactive' &&
@@ -1305,6 +1445,7 @@ export class LiveRuntime implements OnApplicationShutdown {
                     });
                 url = captured.url;
                 realtime = captured.realtime;
+                if (!renderless) title = documentTitle(instance, component);
                 persist = () =>
                   persistStateContext(
                     captured.state,
@@ -1366,9 +1507,10 @@ export class LiveRuntime implements OnApplicationShutdown {
         ...(redirect === undefined ? {} : { redirect }),
         ...(attachment === undefined ? {} : { download: attachment }),
         ...(realtime === undefined ? {} : { realtime }),
+        ...(title === undefined ? {} : { title }),
       };
       if (selected?.idempotent)
-        this.#replays.remember(
+        await this.#actions.remember(
           identity.binding,
           component.name,
           action,
@@ -1380,7 +1522,7 @@ export class LiveRuntime implements OnApplicationShutdown {
       if (completed) await this.observeError(completed, error);
       mapped(error);
     } finally {
-      release?.();
+      await release?.();
       this.#admissions.delete(request);
     }
   }
@@ -1517,7 +1659,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     this.registry.release(this);
     this.#rate.clear();
     this.#downloads.clear();
-    this.#replays.clear();
+    this.#actions.clear();
     // Memory stores discard state; shared stores close connections only.
     await this.store.close();
   }

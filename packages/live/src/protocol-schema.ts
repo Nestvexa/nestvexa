@@ -91,6 +91,13 @@ export const LIVE_RESPONSE_SCHEMA: Schema = deepFreeze({
       },
     },
     realtime: { type: 'string', maxLength: 8192 },
+    title: {
+      type: 'string',
+      minLength: 1,
+      maxLength: 200,
+      description:
+        '@Title value after a rendered action; the client sets document.title for top-level components.',
+    },
   },
 });
 
@@ -106,5 +113,11 @@ export const LIVE_ERROR_SCHEMA: Schema = deepFreeze({
   properties: {
     statusCode: { type: 'integer', minimum: 400, maximum: 599 },
     code: { type: 'string', pattern: '^[A-Z][A-Z_]{1,63}$' },
+    correlationId: {
+      type: 'string',
+      pattern: '^[A-Za-z0-9._:-]{8,128}$',
+      description:
+        'Added by NestvexaExceptionFilter (@nestvexa/core); equals the x-request-id response header.',
+    },
   },
 });

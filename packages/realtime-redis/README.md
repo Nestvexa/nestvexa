@@ -77,6 +77,12 @@ Same contract as `MemoryLiveStore` (see `LiveStateStore` in `@nestvexa/live`):
 - A Redis outage surfaces as an error (HTTP 500), never as missing state.
 - `close()` (called on Nest shutdown) closes connections; shared state stays for
   the other replicas.
+- The store also implements `LiveActionCoordination`, so `@Action({ idempotent })`
+  replays and `@Action({ concurrency: 'identity' })` locks work across replicas:
+  replay records (`<prefix>r:<digest>`) are AES-256-GCM ciphertext sealed by Live
+  with a key the store never sees; identity locks are `SET NX PX` leases
+  (`<prefix>a:<digest>`) released by compare-and-delete and expiring after the
+  action deadline plus one second (300 s without a deadline).
 
 Cost: about seven round trips per Live action (read, lease, re-read, watched
 commit). Clocks of all replicas must be NTP-synchronized.
@@ -93,6 +99,7 @@ refresh. Replay windows are per replica.
 
 ```sh
 pnpm exec vitest run tests/live-store-contract.test.ts   # RESP test double
+pnpm exec vitest run tests/live-shared-action-policy.test.ts
 NESTVEXA_REDIS_PORT=6379 pnpm test:services                # real Redis
 ```
 
