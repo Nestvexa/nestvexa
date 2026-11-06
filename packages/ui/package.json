@@ -1,7 +1,7 @@
 {
   "name": "@nestvexa/ui",
   "version": "0.1.0-alpha.0",
-  "description": "Optional unstyled accessible HBS/Live UI primitives with a keyboard browser module and optional theme",
+  "description": "Optional unstyled accessible UI primitives: HBS/Live helpers, React, Vue and Svelte wrappers on one markup contract, a keyboard browser module and an optional theme",
   "license": "MIT",
   "author": "Nestvexa contributors",
   "repository": {
@@ -30,10 +30,31 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./markup": {
+      "types": "./dist/markup.d.ts",
+      "import": "./dist/markup.js",
+      "default": "./dist/markup.js"
+    },
     "./browser": {
       "types": "./dist/browser/index.d.ts",
       "import": "./dist/browser/index.js",
       "default": "./dist/browser/index.js"
+    },
+    "./react": {
+      "types": "./dist/adapters/react.d.ts",
+      "import": "./dist/adapters/react.js",
+      "default": "./dist/adapters/react.js"
+    },
+    "./vue": {
+      "types": "./dist/adapters/vue.d.ts",
+      "import": "./dist/adapters/vue.js",
+      "default": "./dist/adapters/vue.js"
+    },
+    "./svelte": {
+      "types": "./svelte/index.d.ts",
+      "svelte": "./svelte/index.js",
+      "import": "./svelte/index.js",
+      "default": "./svelte/index.js"
     },
     "./theme.css": "./theme/theme.css",
     "./tokens.css": "./theme/tokens.css"
@@ -41,15 +62,39 @@
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
+    "svelte",
     "theme",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && tsc -p tsconfig.adapters.json",
     "lint": "eslint src"
   },
   "dependencies": {
     "@nestvexa/views": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "svelte": "^5.0.0",
+    "vue": "^3.5.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "svelte": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "svelte": "5.57.3",
+    "vue": "3.5.44"
   }
 }
