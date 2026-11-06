@@ -61,7 +61,7 @@ export function viewerOf(request: unknown): {
 export function authorizeChannel(
   identity: RealtimeIdentity,
   channel: string,
-): boolean {
+): boolean | Promise<boolean> {
   if (channel === metricsChannel || channel === presenceChannel) return true;
   if (channel === incidentsChannel)
     return identity.binding.endsWith(':role:operator');
@@ -79,6 +79,17 @@ export const reportJobs = new JobRunner({
   notify: (channel, snapshot) => {
     void publisher?.publish(channel, { status: snapshot.status });
   },
+}).register('report', async (context) => {
+  for (let step = 1; step <= 4; step++) {
+    await delay(200, undefined, { signal: context.signal });
+    context.progress(step * 25);
+  }
+  // The order count captured when the report was requested (public JSON input).
+  const orders: unknown =
+    context.input !== null && typeof context.input === 'object'
+      ? Reflect.get(context.input, 'orders')
+      : 0;
+  return { orders: typeof orders === 'number' ? orders : 0 };
 });
 const REPORT_JOBS = Symbol('report-jobs');
 
@@ -253,11 +264,16 @@ export class Dashboard {
     if (viewerOf(this.request).role !== 'operator') return [];
     return this.incidents.list().map((item) => ({ ...item }));
   }
-  @Computed() get job(): { status: string; progress: number } {
+  /** Owner-only job view, refreshed before every render. */
+  @State() job = { status: '', progress: 0 };
+  async dehydrate(): Promise<void> {
     const job = this.jobId
-      ? this.jobs.get({ binding: viewerOf(this.request).binding }, this.jobId)
+      ? await this.jobs.get(
+          { binding: viewerOf(this.request).binding },
+          this.jobId,
+        )
       : undefined;
-    return { status: job?.status ?? '', progress: job?.progress ?? 0 };
+    this.job = { status: job?.status ?? '', progress: job?.progress ?? 0 };
   }
 
   /**
@@ -291,18 +307,19 @@ export class Dashboard {
     this.notice = 'Incident raised.';
     await this.realtime.publish(incidentsChannel);
   }
-  @Action() startReport(): void {
+  @Action() async startReport(): Promise<void> {
     const identity = { binding: viewerOf(this.request).binding };
-    this.jobId = this.jobs.enqueue(identity, 'report', async (context) => {
-      for (let step = 1; step <= 4; step++) {
-        await delay(200, undefined, { signal: context.signal });
-        context.progress(step * 25);
-      }
-      return { orders: this.metrics.orders };
-    }).id;
+    this.jobId = (
+      await this.jobs.enqueue(identity, 'report', {
+        input: { orders: this.metrics.orders },
+      })
+    ).id;
   }
-  @Action() cancelReport(): void {
+  @Action() async cancelReport(): Promise<void> {
     if (this.jobId)
-      this.jobs.cancel({ binding: viewerOf(this.request).binding }, this.jobId);
+      await this.jobs.cancel(
+        { binding: viewerOf(this.request).binding },
+        this.jobId,
+      );
   }
 }
