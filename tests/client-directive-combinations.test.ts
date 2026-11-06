@@ -831,6 +831,16 @@ const loadingRows: Row[] = [
     ],
   },
   {
+    name: 'mixed delayed and immediate loading declarations on one element are rejected at registration',
+    ...counter,
+    html: `${output}<button id="go" type="button" nv:click="increment">Go</button><span id="status" nv:loading.delay="" nv:loading.class="busy">Saving</span>`,
+    steps: [
+      { click: '#go' },
+      { wait: 150 },
+      { expect: { actions: [], errors: ['DIRECTIVE'] } },
+    ],
+  },
+  {
     name: 'nv:loading restores a server-disabled control rather than enabling it',
     ...counter,
     hold: true,

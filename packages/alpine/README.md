@@ -46,7 +46,19 @@ Alpine owns that local subtree; Live morphing leaves it intact. `$live.get(name)
 
 The adapter caches a facade per element and registers cleanup with Alpine. Removal unsubscribes the listener and invalidates stale references. Nested component update events do not refresh the wrong owner. Reparenting to another Live component is rejected; remount a fresh Alpine element instead.
 
-`$live.state`, entanglement, dispatch/on subscriptions, arbitrary mixed DOM ownership, teleport handling and the full Live directive set are not implemented here. No expression evaluator is added by Nestvexa. Templates are trusted application code.
+`$live.dispatch(name, payload)` delivers a browser event to `@OnEvent` listeners through the client. `$live.on(name, callback)` observes `nestvexa:event` deliveries with that name: the callback receives a private copy of the public payload and the source component name (or `null`), the call returns an unsubscribe function, each element holds at most 32 subscriptions and Alpine cleanup removes all of them. Names use the Live event grammar; an invalid name, a non-function callback or a detached element throws.
+
+```html
+<div
+  nv:ignore=""
+  x-data="{ last: null }"
+  x-init="$live.on('saved', (payload) => (last = payload))"
+>
+  <span x-text="last?.title"></span>
+</div>
+```
+
+`$live.state` and `$live.entangle` are intentionally not provided. A whole-state proxy would blur which fields are public, writable and server-validated, and two-way entanglement would let Alpine reactivity write drafts outside the client's model scheduler and invalid-input rules. Read with `$live.get` (reactive), stage with `$live.set` and commit with `$live.call`, or use an owned `nv:model` control. Arbitrary mixed DOM ownership, teleport handling and the full Live directive set are not implemented here. No expression evaluator is added by Nestvexa. Templates are trusted application code.
 
 ## Public API and verification
 

@@ -132,6 +132,17 @@ your own dialog queue. Follow the [WAI alert-dialog pattern](https://www.w3.org/
 The automatic umbrella boot uses the native default; it does not silently install
 an application dialog callback.
 
+## Combinations
+
+The [directive matrix](directive-matrix.md) proves these combinations in Chromium:
+approved/denied `nv:click`, a denied `nv:submit` that still prevents native
+submission, a link whose navigation stays prevented even when approved, keyboard
+`nv:keydown.enter` approval, and `nv:confirm` with `nv:optimistic` plus a targeted
+loading effect on one control. With `.once`, the single invocation is consumed by
+the attempt: a denied dialog does not leave a second chance, matching the rule that
+`.once` never retries an action that may have run. Use a plain binding when a
+denied confirmation must allow another try.
+
 ## Evidence and compatibility
 
 [Controlled Chromium tests](../../tests/client-confirmation.test.ts) exercise

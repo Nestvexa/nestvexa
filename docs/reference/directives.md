@@ -1,11 +1,14 @@
 # Live directives: current implementation
 
-This alpha implements the following configuration grammar. Names identify registered actions or top-level public state. Expressions, dotted paths, executable JavaScript and unrecognized modifiers are rejected explicitly. The complete directive matrix in the master plan remains unmet.
+This alpha implements the following configuration grammar. Names identify registered actions or top-level public state. Expressions, dotted paths, executable JavaScript and unrecognized modifiers are rejected explicitly. The [directive combination matrix](directive-matrix.md) lists every supported modifier combination, the table-driven tests that prove it and the documented gaps.
 
 Additional implemented references: [poll](nv-poll.md), [intersect](nv-intersect.md),
 [offline](nv-offline.md), [current](nv-current.md), [transition](nv-transition.md),
 visible/idle [initialization](nv-init.md), [sort](nv-sort.md), [stream](nv-stream.md),
-[navigate](nv-navigate.md) and [optimistic](nv-optimistic.md). CSS transitions cover
+[navigate](nv-navigate.md), [optimistic](nv-optimistic.md), [event modifiers and
+window/document scopes](nv-events.md) and [loading/target/delay](nv-loading.md).
+Strict CSP and Trusted Types operation is described in the [CSP guide](../guides/csp.md).
+CSS transitions cover
 retained visibility changes and host-awaited phases; synchronous morph removals tear
 down immediately. Public URL-state effects update query keys only; historical visits
 reload through the host route rather than replaying an old action snapshot. Nested
@@ -38,7 +41,7 @@ Attribute bindings allow `title`, `aria-label`, `aria-expanded`, `aria-disabled`
 
 Directive actions and model synchronization share the [bounded request lifecycle](../guides/request-lifecycle.md). `createLiveClient({ requestTimeoutMs })` accepts an integer from 1 through 300,000, defaulting to 30,000ms. The dispatch-to-body deadline excludes queue wait; the streaming response limit is 2,097,152 bytes with JSON MIME and strict UTF-8 validation. No timeout or retry modifier is added to directive strings.
 
-An uncertain transport/protocol/render failure suspends subsequent requests for the component and nested owned roots. Scheduled directive work is canceled, queued calls reject the stored cause, loading baselines restore and `aria-busy` becomes false. Local draft/state access remains available and `nv:submit` still prevents native submission; clicking again does not silently retry. Explicit correction remains possible after the documented HTTP rejection allowlist. A host must reload or reconcile authoritative state before disposal/remounting to resume uncertain work. Aborting or removing a component does not undo server effects, and cancellation resolving a client promise does not acknowledge business success.
+An uncertain transport/protocol/render failure suspends subsequent requests for the component and nested owned roots. Scheduled directive work is canceled, queued calls reject the stored cause, loading baselines restore and `aria-busy` becomes false. Presentation directives (`nv:offline`, `nv:current`, transitions) stay registered on the still-rendered component, so the offline hint reflects connectivity rather than appearing merely because a 500 or protocol error suspended transport. Local draft/state access remains available and `nv:submit` still prevents native submission; clicking again does not silently retry. Explicit correction remains possible after the documented HTTP rejection allowlist. A host must reload or reconcile authoritative state before disposal/remounting to resume uncertain work. Aborting or removing a component does not undo server effects, and cancellation resolving a client promise does not acknowledge business success.
 
 ## Whole subtree and wrapper-only ignore
 
@@ -50,7 +53,7 @@ Ordinary↔self transitions replace the element and clean up removed descendants
 
 ## Loading and targets
 
-Loading counts include queued and executing requests, so an effect stays active until its matching requests settle. Counts are isolated by Live component and action; the internal synchronization request is named `$sync` for targeting. There is no loading delay or duration modifier.
+Loading counts include queued and executing requests, so an effect stays active until its matching requests settle. Counts are isolated by Live component and action; the internal synchronization request is named `$sync` for targeting. A trailing `.delay` (200ms) or `.delay.<1–10000>ms` modifier activates an element's effects only after matching work has been pending that long; see [nv:loading](nv-loading.md).
 
 | Declaration                         | Behavior while matching work is pending                                                     |
 | ----------------------------------- | ------------------------------------------------------------------------------------------- |
@@ -134,7 +137,7 @@ The event slice accepts modifiers on `nv:click`, `nv:submit` and `nv:keydown`. M
 | `.debounce.300ms`                                                 | Resets a trailing timer for each accepted event; invokes after the interval without a newer event                                        |
 | `.throttle.500ms`                                                 | Invokes immediately, then suppresses events within the interval; no trailing invocation                                                  |
 
-Bare `.debounce` and `.throttle` use 250ms. Explicit durations are whole milliseconds from 1 through 60,000, immediately following the scheduler modifier. Duplicate modifiers, multiple key filters, mixed debounce/throttle, unknown names, `.window` and `.document` fail explicitly. Models have their own grammar described below.
+Bare `.debounce` and `.throttle` use 250ms. Explicit durations are whole milliseconds from 1 through 60,000, immediately following the scheduler modifier. `.window` and `.document` attach an `nv:click`/`nv:keydown` binding to the owning window or document while the declaring element stays owned; only trusted events are accepted (see [scopes](nv-events.md)). Duplicate modifiers, multiple key filters, mixed debounce/throttle, unknown names, both scopes together, a scope on `nv:submit` and a scope combined with `.self` or `.stop` fail explicitly. Models have their own grammar described below.
 
 Event type, disabled controls, `.self`, key and required system-key filters run before modifier prevention or propagation changes. Owned Live forms are the exception: their native submission is always prevented, including when `.once`, throttling or duplicate-submit handling suppresses the action. This keeps an enhanced form from unexpectedly navigating away. `.once` is consumed when invocation is attempted, including a failed attempt; debounced `.once` events may reschedule until the timer fires. This prevents automatic retries of an action that may already have produced an effect.
 
