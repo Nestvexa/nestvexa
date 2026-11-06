@@ -58,14 +58,19 @@ test('a server-pushed domain event runs the @OnEvent action in another session',
   const delivered = bob.waitForRequest((request) =>
     request.url().endsWith('/_nestvexa/live/realtime-board/announcementPosted'),
   );
-  await alice.getByRole('button', { name: 'Announce to everyone' }).click();
+  // Delivery is at-most-once: an event published before Bob's stream finished
+  // subscribing on the server is not replayed, so announce again until it lands.
+  await expect(async () => {
+    await alice.getByRole('button', { name: 'Announce to everyone' }).click();
+    await expect(bob.locator('#realtime-announcements li').first()).toHaveText(
+      `Announcement from ${name}`,
+      { timeout: 5_000 },
+    );
+  }).toPass({ timeout: 40_000 });
   const request = await delivered;
   expect(request.postDataJSON()).toMatchObject({
     input: { id: expect.any(Number) },
   });
-  await expect(bob.locator('#realtime-announcements li').first()).toHaveText(
-    `Announcement from ${name}`,
-  );
   await expect(alice.locator('#realtime-announcements li').first()).toHaveText(
     `Announcement from ${name}`,
   );

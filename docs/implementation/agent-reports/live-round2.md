@@ -240,7 +240,22 @@ state). Remaining: no exporter (OpenTelemetry stays in `@nestvexa/observability`
 
 ## Verification
 
-See the final hand-off message for the exact commands and results of the last run.
+Windows 11, Node 24, on the final code (after merging `main`):
+
+| Command                                                                                                                                                                                    | Result                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `pnpm exec vitest run` new suites: live-shared-action-policy, live-nesting-scope, live-asset-version, live-domain-events                                                                   | 4 files, 30 tests passed                                                               |
+| `pnpm exec vitest run tests/core-kernel.test.ts` / `tests/live-optional-decorators.test.ts`                                                                                                | 15 / 8 passed                                                                          |
+| `pnpm exec vitest run tests/client-runtime-resilience.test.ts tests/client-nested-forms.test.ts` (real Chromium)                                                                           | 28 passed                                                                              |
+| Regression: live, live-security, live-pipeline, live-action-options, live-nesting, live-renderless, live-store-contract, live-model, realtime-live                                         | 9 files, 199 passed                                                                    |
+| Regression: umbrella-live, canonical-api, live-protocol-contract, core, core-config, architecture-runtime                                                                                  | all passed (a first run under heavy machine load timed out; rerun individually passed) |
+| Regression: client, client-events-protocol, client-renderless-protocol, client-transport-lifecycle, client-realtime                                                                        | 5 files, 155 passed                                                                    |
+| Playwright (uncommitted local config, starter-live on :3420) `tests/browser/realtime.spec.ts`                                                                                              | 7/7 Chromium, 7/7 Firefox, 7/7 WebKit                                                  |
+| `pnpm lint` (eslint + boundaries), `pnpm exec tsc -p tsconfig.tests.json --noEmit`, `pnpm docs:build`, `pnpm size:check` (45 850 / 49 152 gzip bytes), Prettier check on all changed files | clean                                                                                  |
+
+Not run: `tests/browser/live.spec.ts` and `tests/browser/nesting.spec.ts` hard-code
+ports 3101/3102 (root suite servers) and were not run on this engineer's ports;
+`pnpm test:services` (real Redis) was not run.
 
 ## Merge notes
 
