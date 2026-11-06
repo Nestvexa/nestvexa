@@ -21,7 +21,10 @@ const base: MailMessage = {
   subject: 'Hello',
   text: 'Body',
 };
-function code(message: Partial<MailMessage>, limits = {}): string | undefined {
+function code(
+  message: { readonly [K in keyof MailMessage]?: MailMessage[K] | undefined },
+  limits = {},
+): string | undefined {
   try {
     normalizeMailMessage({ ...base, ...message } as MailMessage, {}, limits);
     return undefined;

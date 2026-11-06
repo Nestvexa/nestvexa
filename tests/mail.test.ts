@@ -142,6 +142,13 @@ describe('MailTemplates', () => {
       { locale: 'ar', helpers },
     );
     expect(arabic.subject).toBe('تم دفع الفاتورة');
+    // A model-supplied i18n view (lang/dir for the layout) selects the locale too.
+    const viewed = await templates.render(
+      'invoice/paid',
+      { amount: 1, i18n: i18n.view('ar') },
+      { helpers },
+    );
+    expect(viewed.subject).toBe('تم دفع الفاتورة');
     expect(arabic.text).toBe(
       `المبلغ: ${new Intl.NumberFormat('ar').format(1234.5)}`,
     );

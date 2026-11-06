@@ -40,6 +40,7 @@
 /packages/realtime/             @eslam-reda-div
 /packages/cache/                @eslam-reda-div
 /packages/flags/                @eslam-reda-div
+/packages/mail/                 @eslam-reda-div
 /packages/i18n/                 @eslam-reda-div
 /packages/offline/              @eslam-reda-div
 /packages/observability/        @eslam-reda-div
