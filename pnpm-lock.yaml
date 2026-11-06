@@ -243,8 +243,8 @@ importers:
         specifier: 3.10.0
         version: 3.10.0(svelte@5.57.3(@typescript-eslint/types@8.72.0))
       '@inertiajs/vue3':
-        specifier: 3.10.0
-        version: 3.10.0(vue@3.5.44(typescript@6.0.3))
+        specifier: 3.11.0
+        version: 3.11.0(vue@3.5.44(typescript@6.0.3))
       '@nestjs/common':
         specifier: 12.2.0
         version: 12.2.0(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -620,8 +620,8 @@ importers:
         specifier: 3.10.0
         version: 3.10.0(svelte@5.57.3(@typescript-eslint/types@8.72.0))
       '@inertiajs/vue3':
-        specifier: 3.10.0
-        version: 3.10.0(vue@3.5.44(typescript@6.0.3))
+        specifier: 3.11.0
+        version: 3.11.0(vue@3.5.44(typescript@6.0.3))
       '@nestjs/common':
         specifier: 12.2.0
         version: 12.2.0(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -824,8 +824,8 @@ importers:
   examples/inertia-vue:
     dependencies:
       '@inertiajs/vue3':
-        specifier: 3.10.0
-        version: 3.10.0(vue@3.5.44(typescript@6.0.3))
+        specifier: 3.11.0
+        version: 3.11.0(vue@3.5.44(typescript@6.0.3))
       '@nestjs/common':
         specifier: 12.2.0
         version: 12.2.0(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -885,8 +885,8 @@ importers:
         specifier: 3.10.0
         version: 3.10.0(svelte@5.57.3(@typescript-eslint/types@8.72.0))
       '@inertiajs/vue3':
-        specifier: 3.10.0
-        version: 3.10.0(vue@3.5.44(typescript@6.0.3))
+        specifier: 3.11.0
+        version: 3.11.0(vue@3.5.44(typescript@6.0.3))
       '@nestjs/common':
         specifier: 12.2.0
         version: 12.2.0(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -1708,8 +1708,8 @@ importers:
         specifier: 3.10.0
         version: 3.10.0
       '@inertiajs/vue3':
-        specifier: 3.10.0
-        version: 3.10.0(vue@3.5.44(typescript@6.0.3))
+        specifier: 3.11.0
+        version: 3.11.0(vue@3.5.44(typescript@6.0.3))
       vue:
         specifier: 3.5.44
         version: 3.5.44(typescript@6.0.3)
@@ -2090,6 +2090,14 @@ packages:
       axios:
         optional: true
 
+  '@inertiajs/core@3.11.0':
+    resolution: {integrity: sha512-YDqkKHsTiDUKofVzE3p6IduuU1u0ZwmheSpk2AZP6Eig3ZwhTlchDiLbUhFUCd138naqlhjRh2rTxIXeKrnmOQ==}
+    peerDependencies:
+      axios: ^1.15.2
+    peerDependenciesMeta:
+      axios:
+        optional: true
+
   '@inertiajs/react@3.10.0':
     resolution: {integrity: sha512-an/ziyJS+zs7hZY+i1tGO3hbiWXJq14jaPj5BnNr1Tr3RjdUr4s88RQ/b9TYFnTd1bnahxzc3X8N21axxrM5ew==}
     peerDependencies:
@@ -2108,10 +2116,14 @@ packages:
     peerDependencies:
       svelte: ^5.0.0
 
-  '@inertiajs/vue3@3.10.0':
-    resolution: {integrity: sha512-bSU0Gw/50bHAwrYbHtdw6rUetk+A6r5uOsL2DqKz1gRAf0hrc87+n/1RXOQqUPapK62n5BWkUrggOhIm5XmvCQ==}
+  '@inertiajs/vue3@3.11.0':
+    resolution: {integrity: sha512-O1NnujzskjOWOI4OlGmZfNbpkzzO/PvHGQyMv2de6ntwc2UZvFHUa0UoGOgqV3bjJINMdjJdaU+mOkNPATVERQ==}
     peerDependencies:
+      '@laravel/echo-vue': ^2.0.0
       vue: ^3.0.0
+    peerDependenciesMeta:
+      '@laravel/echo-vue':
+        optional: true
 
   '@isaacs/nonrecursive-glob-match@1.0.3':
     resolution: {integrity: sha512-SI7kyKHq4XXDRozw+r9GlRZkia1ZkFrpLW98r2IC2Bpr8YkFGE3fvjzmxCG0x78A++69HmDNrDvSMYBZmHGpKA==}
@@ -4529,6 +4541,12 @@ snapshots:
       es-toolkit: 1.53.1
       laravel-precognition: 2.1.1
 
+  '@inertiajs/core@3.11.0':
+    dependencies:
+      '@jridgewell/trace-mapping': 0.3.31
+      es-toolkit: 1.53.1
+      laravel-precognition: 2.1.1
+
   '@inertiajs/react@3.10.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
       '@inertiajs/core': 3.10.0
@@ -4551,9 +4569,9 @@ snapshots:
     transitivePeerDependencies:
       - axios
 
-  '@inertiajs/vue3@3.10.0(vue@3.5.44(typescript@6.0.3))':
+  '@inertiajs/vue3@3.11.0(vue@3.5.44(typescript@6.0.3))':
     dependencies:
-      '@inertiajs/core': 3.10.0
+      '@inertiajs/core': 3.11.0
       es-toolkit: 1.53.1
       laravel-precognition: 2.1.1
       vue: 3.5.44(typescript@6.0.3)
