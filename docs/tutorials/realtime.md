@@ -82,8 +82,12 @@ session; the acting browser already has its action response:
 
 ```ts
 // Other subscribed browsers refresh through their own authorized $sync route.
-await this.realtime.publish(publicChannel, null);
+await this.realtime.publish(publicChannel, null, {
+  identity: { binding: guestBinding(this.request) },
+});
 ```
+
+Passing the publisher's `identity` applies the per-identity publish rate limit.
 
 Name channels after the data they guard (`orders:<tenant>`, `user:<id>`), and make
 `authorizeChannel` check that the identity may read that tenant or user. Knowing a
@@ -92,16 +96,25 @@ periodically and before delivery.
 
 ## 5. Report job progress to its owner
 
-`JobRunner` runs in-process jobs bound to the identity that enqueued them and
-publishes progress on a per-job channel. `reportJobs.authorize(identity, channel)`
-in step 2 lets only the owner subscribe:
+`JobRunner` runs jobs bound to the identity that enqueued them over a `JobQueue`
+(in memory by default), with retries, leases and cancellation, and publishes
+progress on a per-job channel. Handlers are registered by name, and
+`reportJobs.authorize(identity, channel)` in step 2 lets only the owner
+subscribe:
 
 <!-- snippet: examples/starter-live/src/realtime-board.ts -->
 
 ```ts
-  @Action() startReport(): void {
+  async #start(fail: boolean): Promise<void> {
     const identity = { binding: guestBinding(this.request) };
-    this.jobId = this.jobs.enqueue(identity, 'report', async (context) => {
+    // Two attempts: a transient failure is retried automatically.
+    this.jobId = (
+      await this.jobs.enqueue(identity, 'report', {
+        input: { fail },
+        maxAttempts: 2,
+      })
+    ).id;
+  }
 ```
 
 The view renders `job.status` and a `<progress>` element inside a

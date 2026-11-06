@@ -210,7 +210,7 @@ SSE and long-polling are ordinary Nest controller routes and are tested on Expre
 and Fastify. `attachRealtimeWebSocket` handles `upgrade` events on Nest's HTTP
 server and is tested on both adapters as well; it is a `ws` upgrade handler rather
 than a `@WebSocketGateway`, so the same hub, tokens, origin check and policies
-apply to every transport ([ADR 0027](../adr/0027-distributed-state-and-redis.md)).
+apply to every transport ([ADR 0032](../adr/0032-distributed-state-and-redis.md)).
 
 ## Testing
 
@@ -222,7 +222,7 @@ pnpm exec playwright test tests/browser/realtime.spec.ts tests/browser/realtime-
 NESTVEXA_REDIS_PORT=6379 pnpm test:services   # real Redis, two replicas
 ```
 
-Example: [`/realtime`](../../examples/starter-live/src/realtime-board.ts) in the Live starter. Design records: [ADR 0009](../adr/0009-realtime-backpressure.md), [ADR 0027](../adr/0027-distributed-state-and-redis.md). Package reference: [@nestvexa/realtime](../../packages/realtime/README.md).
+Example: [`/realtime`](../../examples/starter-live/src/realtime-board.ts) in the Live starter. Design records: [ADR 0009](../adr/0009-realtime-backpressure.md), [ADR 0032](../adr/0032-distributed-state-and-redis.md). Package reference: [@nestvexa/realtime](../../packages/realtime/README.md).
 
 ## Caching with declared dependencies
 

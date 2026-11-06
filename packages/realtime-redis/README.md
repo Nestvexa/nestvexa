@@ -96,5 +96,5 @@ pnpm exec vitest run tests/live-store-contract.test.ts   # RESP test double
 NESTVEXA_REDIS_PORT=6379 pnpm test:services                # real Redis
 ```
 
-See [ADR 0027](../../docs/adr/0027-distributed-state-and-redis.md) and the
+See [ADR 0032](../../docs/adr/0032-distributed-state-and-redis.md) and the
 [production services guide](../../docs/guides/production-services.md). License: MIT.

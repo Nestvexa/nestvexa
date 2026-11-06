@@ -135,6 +135,7 @@ data-only grammar — no expressions are evaluated. See the
 | [@nestvexa/flags](packages/flags/README.md)                     | Server-enforced feature flags: guard, view and Live policy helpers (optional)            |
 | [@nestvexa/offline](packages/offline/README.md)                 | Identity-scoped drafts, read-only snapshots, safe reconnect (optional)                   |
 | [@nestvexa/realtime](packages/realtime/README.md)               | SSE/WebSocket/polling invalidation, Redis-protocol broker, jobs (optional)               |
+| [@nestvexa/realtime-redis](packages/realtime-redis/README.md)   | Redis Live state store and realtime broker for multiple replicas (optional)              |
 | [@nestvexa/cache](packages/cache/README.md)                     | Privacy-scoped cache with tags and single flight (optional)                              |
 | [@nestvexa/observability](packages/observability/README.md)     | Tracing spans, metrics, redacted logs, devtools (optional)                               |
 | [@nestvexa/cli](packages/cli/README.md)                         | `nestvexa` command line                                                                  |

@@ -1,4 +1,4 @@
-# ADR 0027: Pluggable Live state, Redis adapters and distributed realtime
+# ADR 0032: Pluggable Live state, Redis adapters and distributed realtime
 
 Date: 2026-11-05. Status: **accepted; implemented** (`@nestvexa/live` store
 interface, `@nestvexa/realtime-redis`, `JobQueue`), verified against an in-process

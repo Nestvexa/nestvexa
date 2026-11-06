@@ -35,6 +35,7 @@ prove it. Proposing a new one is described in [governance](../../GOVERNANCE.md#d
 | [0027](0027-documentation-site.md)                | Documentation site built from repository Markdown                           |
 | [0028](0028-workspace-and-build-tooling.md)       | Workspace and build tooling without a task orchestrator                     |
 | [0029](0029-peer-dependencies-and-singletons.md)  | Peer dependencies and runtime singletons                                    |
+| [0032](0032-distributed-state-and-redis.md)       | Pluggable Live state, Redis adapters and distributed realtime               |
 
 ## Writing an ADR
 

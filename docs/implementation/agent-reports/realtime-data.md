@@ -1,7 +1,7 @@
 # Agent report: distributed realtime and Live state (REAL, DATA)
 
 Branch `worktree-agent-a6238a8529f3c69c6`. Design record:
-[ADR 0027](../../adr/0027-distributed-state-and-redis.md). Real-service evidence:
+[ADR 0032](../../adr/0032-distributed-state-and-redis.md). Real-service evidence:
 `NESTVEXA_REDIS_PORT=6390 NESTVEXA_REDIS_CONTAINER=nv-agent-redis node scripts/services-check.mjs`
 against `redis:7-alpine` (Docker Desktop 29.1.3) on 2026-11-05 — see
 "Verification" at the end.
@@ -31,7 +31,7 @@ surfaces instead of silently remounting. Implementer helpers exported
   read the default store through `tests/support/memory-store.ts` (11 files, 301
   tests pass).
 - Docs: `packages/live/README.md` (State stores), `docs/guides/live-protocol.md`,
-  ADR 0027.
+  ADR 0032.
 - Gap: none known for the interface. The contract suite is a test file, not a
   published helper package.
 
@@ -58,7 +58,7 @@ missing state.
   (cross-instance continuation, replay and foreign binding rejection, busy across
   instances, revoke during a transaction aborts the commit, real `PX` TTL and
   lease expiry).
-- Docs: `packages/realtime-redis/README.md`, ADR 0027,
+- Docs: `packages/realtime-redis/README.md`, ADR 0032,
   `docs/guides/production-services.md`.
 - Gaps: Redis Cluster unsupported (commits span hash slots) — documented. The
   per-binding cap is approximate under races. About seven round trips per action;
@@ -84,7 +84,7 @@ attempts and error display, "Retry report", and cancel.
   (new: cancel → `cancelled` + retry button; failing → `failed`, attempts 2,
   generic message, no internal text, retry → `succeeded`).
 - Docs: `docs/guides/realtime.md` (Jobs, BullMQ adapter recipe), realtime README.
-- Gap: no shipped BullMQ (or Redis) durable queue adapter — rationale in ADR 0027
+- Gap: no shipped BullMQ (or Redis) durable queue adapter — rationale in ADR 0032
   (BullMQ owns its worker loop/locks, needs Lua-capable Redis the unit suite
   cannot exercise, thin mapping). **Breaking (alpha)**: `enqueue/get/cancel/authorize`
   are async and handlers are registered by name.
@@ -116,9 +116,9 @@ above. Gap: no BullMQ adapter (recipe only).
 
 - `@nestvexa/realtime-redis` now exists; `@nestvexa/realtime-redis/realtime`
   exports `RedisRealtimeBroker` (re-export of `RespRealtimeBroker`, kept in
-  `@nestvexa/realtime` for compatibility — deviation recorded in ADR 0027 §4).
+  `@nestvexa/realtime` for compatibility — deviation recorded in ADR 0032 §4).
 - WebSocket: the raw `ws` upgrade handler is kept; justification recorded in
-  ADR 0027 §5 (gateway would add peers and bypass hub checks); tested on Express
+  ADR 0032 §5 (gateway would add peers and bypass hub checks); tested on Express
   and Fastify (`tests/realtime.test.ts`, `tests/realtime-hub.test.ts`).
 - Gap: the broker implementation itself has not moved into the new package.
 
