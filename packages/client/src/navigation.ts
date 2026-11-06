@@ -1,4 +1,4 @@
-import { LiveClientError } from './grammar.js';
+import { LiveClientError, trustedHTML } from './grammar.js';
 
 /** `nv:navigate` or `nv:navigate.hover` (prefetch on hover/focus). */
 export interface NavigateDirective {
@@ -214,7 +214,7 @@ export function createNavigationController(
         return;
       }
       const incoming = new window.DOMParser().parseFromString(
-        loaded.html,
+        trustedHTML(window, loaded.html),
         'text/html',
       );
       if (mode !== 'pop') remember();

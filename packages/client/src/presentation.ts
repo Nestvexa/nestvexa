@@ -40,7 +40,11 @@ export function parsePresentationDirective(
   name: string,
   value: string,
 ): PresentationDirective {
-  if (name === 'nv:offline' || name.startsWith('nv:offline.'))
+  // Connectivity hints have no activation delay; `.delay` is loading-only.
+  if (
+    (name === 'nv:offline' || name.startsWith('nv:offline.')) &&
+    !name.includes('.delay')
+  )
     return {
       kind: 'offline',
       effect: parseLoadingDirective(

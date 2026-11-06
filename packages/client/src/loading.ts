@@ -4,7 +4,7 @@ import type { FocusController } from './focus.js';
 
 export type LoadingAttribute =
   'disabled' | 'readonly' | 'aria-disabled' | 'aria-busy';
-export type LoadingDirective =
+export type LoadingDirective = (
   | {
       readonly kind: 'loading';
       readonly mode: 'show';
@@ -21,7 +21,11 @@ export type LoadingDirective =
       readonly mode: 'attr';
       readonly remove: boolean;
       readonly attribute: LoadingAttribute;
-    };
+    }
+) & {
+  /** Activation delay; matching work that settles sooner never shows the effect. */
+  readonly delayMs?: number;
+};
 const attributes = new Set<string>([
   'disabled',
   'readonly',
@@ -51,13 +55,20 @@ export function parseLoadingDirective(
   name: string,
   value: string,
 ): LoadingDirective {
-  const match = /^nv:loading(?:\.(class|attr))?(\.remove)?$/.exec(name);
+  const match =
+    /^nv:loading(?:\.(class|attr))?(\.remove)?(\.delay(?:\.(\d{1,5})ms)?)?$/.exec(
+      name,
+    );
   if (!match) return invalid('Unsupported loading directive or modifier');
   const remove = match[2] !== undefined;
+  const delayMs = match[3] ? Number(match[4] ?? 200) : undefined;
+  if (delayMs !== undefined && (delayMs < 1 || delayMs > 10_000))
+    return invalid('Loading delay must be from 1 through 10000ms');
+  const delay = delayMs === undefined ? {} : { delayMs };
   if (match[1] === undefined) {
     if (value !== '')
       return invalid('Loading visibility directives require an empty value');
-    return { kind: 'loading', mode: 'show', remove };
+    return { kind: 'loading', mode: 'show', remove, ...delay };
   }
   if (match[1] === 'class') {
     const tokens = value.trim().split(/\s+/);
@@ -75,6 +86,7 @@ export function parseLoadingDirective(
       mode: 'class',
       remove,
       tokens: Object.freeze(tokens),
+      ...delay,
     };
   }
   if (!attributes.has(value))
@@ -85,6 +97,7 @@ export function parseLoadingDirective(
     mode: 'attr',
     remove,
     attribute: value as LoadingAttribute,
+    ...delay,
   };
 }
 
@@ -103,6 +116,7 @@ interface Plan {
   readonly element: Element;
   readonly directives: readonly LoadingDirective[];
   readonly targets: readonly string[] | undefined;
+  readonly delayMs: number | undefined;
   readonly signature: string;
 }
 function owns(root: Element, element: Element): boolean {
@@ -142,6 +156,9 @@ function plan(element: Element): Plan | undefined {
   );
   if (element.namespaceURI !== 'http://www.w3.org/1999/xhtml')
     invalid('Loading directives require HTML elements');
+  const delayMs = directives[0]?.delayMs;
+  if (directives.some((directive) => directive.delayMs !== delayMs))
+    invalid('Loading declarations on one element share one delay');
   const properties = new Set<string>();
   for (const directive of directives) {
     const owned =
@@ -199,6 +216,7 @@ function plan(element: Element): Plan | undefined {
     element,
     directives,
     targets: target === null ? undefined : parseLoadingTarget(target),
+    delayMs,
     signature: JSON.stringify([
       declarations.map((attribute) => [attribute.name, attribute.value]).sort(),
       target,
@@ -250,6 +268,9 @@ interface RecordEntry {
   readonly root: Element;
   readonly plan: Plan;
   readonly effects: readonly Effect[];
+  /** Pending delayed activation and whether the delay elapsed for current work. */
+  timer?: ReturnType<typeof globalThis.setTimeout> | undefined;
+  shown?: boolean;
 }
 function read(
   element: Element,
@@ -314,17 +335,34 @@ export interface LoadingController {
   dispose(): void;
 }
 
-/** Reversible presentation effects, independently counted by target action. No timers or transport side effects. */
+/** Reversible presentation effects, independently counted by target action. Only activation delays use timers; no transport side effects. */
 export function createLoadingController(
   sharedFocus?: FocusController,
 ): LoadingController {
   const focus = sharedFocus ?? createFocusController();
   const records = new Map<Element, RecordEntry>();
   function release(element: Element, record: RecordEntry): void {
+    globalThis.clearTimeout(record.timer);
     for (const effect of record.effects)
       if (read(element, effect) === effect.applied)
         write(element, effect, effect.baseline);
     records.delete(element);
+  }
+  function apply(
+    root: Element,
+    element: Element,
+    record: RecordEntry,
+    busy: boolean,
+  ): void {
+    for (const effect of record.effects) {
+      const current = read(element, effect);
+      // Preserve later host writes as the next baseline rather than blindly overwriting them on cleanup.
+      if (current !== effect.applied) effect.baseline = current;
+      const value = desired(effect, busy);
+      if (effect.key === 'hidden' && value !== null)
+        focus.beforeHiding(root, element);
+      write(element, effect, value);
+    }
   }
   function prune(): void {
     focus.prune();
@@ -376,15 +414,26 @@ export function createLoadingController(
           entry.targets === undefined
             ? [...pending.values()].some((count) => count > 0)
             : entry.targets.some((target) => (pending.get(target) ?? 0) > 0);
-        for (const effect of record.effects) {
-          const current = read(entry.element, effect);
-          // Preserve later host writes as the next baseline rather than blindly overwriting them on cleanup.
-          if (current !== effect.applied) effect.baseline = current;
-          const value = desired(effect, busy);
-          if (effect.key === 'hidden' && value !== null)
-            focus.beforeHiding(root, entry.element);
-          write(entry.element, effect, value);
+        if (!busy) {
+          globalThis.clearTimeout(record.timer);
+          record.timer = undefined;
+          record.shown = false;
+        } else if (entry.delayMs !== undefined && !record.shown) {
+          const delayed = record;
+          delayed.timer ??= globalThis.setTimeout(() => {
+            delayed.timer = undefined;
+            // A released or reconfigured element keeps its restored baseline.
+            if (records.get(entry.element) !== delayed) return;
+            delayed.shown = true;
+            apply(root, entry.element, delayed, true);
+          }, entry.delayMs);
         }
+        apply(
+          root,
+          entry.element,
+          record,
+          busy && (entry.delayMs === undefined || record.shown === true),
+        );
       }
     },
     restore(root): void {

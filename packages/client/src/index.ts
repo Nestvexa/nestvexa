@@ -89,6 +89,7 @@ import {
   parseLiveResponse,
 } from './protocol.js';
 import type { LiveEvent } from './protocol.js';
+import { trustedHTML } from './grammar.js';
 export {
   LiveClientError,
   parseDirective,
@@ -631,6 +632,22 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   const handledEvents = new WeakSet<Event>();
   const direct = createDirectEventListeners((event, element, attribute) => {
     try {
+      const value = element.getAttribute(attribute);
+      const scoped =
+        value === null ? undefined : parseEventDirective(attribute, value);
+      if (scoped?.scope) {
+        // Global bindings accept trusted input only, and only while the
+        // declaring element remains owned by a healthy registration.
+        const state = registeredScope(element);
+        if (
+          event.isTrusted &&
+          state &&
+          !failureFor(state) &&
+          !ignored(element, state.root)
+        )
+          dispatcher?.handle(event, element, scoped);
+        return;
+      }
       const binding = resolveEvent(event);
       if (binding?.element === element && binding.attribute === attribute)
         dispatchEvent(event, binding);
@@ -693,12 +710,17 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     if (componentOwners.get(state.root) === ownership)
       componentOwners.delete(state.root);
   }
-  function cancelSubtree(node: Element): void {
+  /**
+   * Cancel scheduled work for a subtree. A suspended (still rendered) component
+   * keeps its presentation state, so nv:offline keeps reflecting connectivity
+   * instead of reverting to markup that may announce a false outage.
+   */
+  function cancelSubtree(node: Element, suspended = false): void {
     initialization?.remove(node);
     background?.remove(node);
     sorting?.remove(node);
     streaming?.remove(node);
-    presentation?.remove(node);
+    if (!suspended) presentation?.remove(node);
     confirmations.cancel(node);
     focus.release(node);
     dispatcher?.cancel(node);
@@ -716,7 +738,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   }
   function suspend(state: Component, error: Error): void {
     if (state.failure || !state.active || !mounted) return;
-    cancelSubtree(state.root);
+    cancelSubtree(state.root, true);
     for (const child of components.values())
       if (child === state || state.root.contains(child.root)) {
         child.failure = error;
@@ -764,7 +786,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       if (ancestor && !usable(ancestor)) return false;
       if (ancestor?.failure && !state.failure) {
         state.failure = ancestor.failure;
-        cancelSubtree(state.root);
+        cancelSubtree(state.root, true);
         state.request?.abort();
         busy(state);
       }
@@ -1195,7 +1217,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         );
       } else {
         const template = doc.createElement('template');
-        template.innerHTML = result.html;
+        template.innerHTML = trustedHTML(window, result.html);
         validateFragment(template.content);
         const incoming = prepareMorph(state.root, template.content);
         const preview = state.root.cloneNode(false) as Element;
@@ -1583,12 +1605,12 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           item.name === `nv:${event.type}` ||
           item.name.startsWith(`nv:${event.type}.`),
       );
-      if (attribute)
-        return {
-          element,
-          attribute: attribute.name,
-          directive: parseEventDirective(attribute.name, attribute.value),
-        };
+      const directive = attribute
+        ? parseEventDirective(attribute.name, attribute.value)
+        : undefined;
+      // Window/document bindings run from their own listener only.
+      if (attribute && directive && !directive.scope)
+        return { element, attribute: attribute.name, directive };
       if (element === scope) break;
       element = element.parentElement;
     }
@@ -1615,11 +1637,12 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
             attribute.name,
             attribute.value,
           );
-          if (directive.stop)
+          if (directive.stop || directive.scope)
             bindings.push({
               element,
               attribute: attribute.name,
               event: directive.kind,
+              scope: directive.scope,
             });
         }
     direct.sync(bindings);

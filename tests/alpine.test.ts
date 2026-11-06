@@ -11,6 +11,7 @@ import type {
 class TestElement extends EventTarget {
   parentElement: TestElement | null = null;
   isConnected = true;
+  ownerDocument: { defaultView: EventTarget | null } | null = null;
   readonly attributes = new Set<string>();
   closest(selector: string): TestElement | null {
     if (selector !== '[data-nv-component]')
@@ -152,6 +153,61 @@ describe('Alpine Live adapter', () => {
     another.attributes.add('data-nv-component');
     f.local.parentElement = another;
     expect(() => magic.get('count')).toThrow('no longer attached');
+  });
+  it('$live.on delivers private payload copies and stops after unsubscribe or cleanup', () => {
+    const f = fixture();
+    const view = new EventTarget();
+    f.element.ownerDocument = { defaultView: view };
+    installLiveAlpine(f.alpine, f.client);
+    const magic = f.facade();
+    const received: [unknown, string | null][] = [];
+    const unsubscribe = magic.on('saved', (payload, source) => {
+      received.push([payload, source]);
+      if (payload && typeof payload === 'object')
+        Reflect.set(payload, 'id', 99);
+    });
+    const other: unknown[] = [];
+    magic.on('saved', (payload) => other.push(payload));
+    const detail = Object.freeze({
+      name: 'saved',
+      payload: { id: 1 },
+      source: 'todo',
+    });
+    view.dispatchEvent(new CustomEvent('nestvexa:event', { detail }));
+    view.dispatchEvent(
+      new CustomEvent('nestvexa:event', {
+        detail: { name: 'other', payload: 2, source: null },
+      }),
+    );
+    expect(received).toEqual([[{ id: 99 }, 'todo']]);
+    // Each subscriber gets its own copy; the shared detail is untouched.
+    expect(other).toEqual([{ id: 1 }]);
+    expect(detail.payload).toEqual({ id: 1 });
+    unsubscribe();
+    unsubscribe();
+    view.dispatchEvent(new CustomEvent('nestvexa:event', { detail }));
+    expect(received).toHaveLength(1);
+    expect(other).toHaveLength(2);
+    for (const cleanup of f.cleanups) cleanup();
+    view.dispatchEvent(new CustomEvent('nestvexa:event', { detail }));
+    expect(other).toHaveLength(2);
+    expect(() => magic.on('saved', () => undefined)).toThrow(
+      'no longer attached',
+    );
+  });
+  it('$live.on validates names, callbacks, windows and its subscription bound', () => {
+    const f = fixture();
+    installLiveAlpine(f.alpine, f.client);
+    const magic = f.facade();
+    expect(() => magic.on('saved', () => undefined)).toThrow('attached window');
+    f.element.ownerDocument = { defaultView: new EventTarget() };
+    for (const name of ['Saved', 'a b', '', 'x'.repeat(65), '__proto__'])
+      expect(() => magic.on(name, () => undefined)).toThrow('event name');
+    expect(() =>
+      magic.on('saved', 'alert(1)' as unknown as () => void),
+    ).toThrow('callback');
+    for (let index = 0; index < 32; index++) magic.on('saved', () => undefined);
+    expect(() => magic.on('saved', () => undefined)).toThrow('limit');
   });
   it('propagates failed calls without inventing retries', async () => {
     const f = fixture();
