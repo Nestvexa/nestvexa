@@ -174,8 +174,14 @@ Firefox, a trivial click took 48 s in WebKit, and Firefox logged
   - The prefetch test failed because WebKit took longer than the 10 s prefetch
     lifetime between hover and click, so the page was fetched again. That is
     the expected expiry behaviour on a starved host.
-- These need a confirming three-browser run on a normally loaded machine
-  before the ledger rows are closed.
+- After main was merged and load dropped, all three of those WebKit tests
+  passed on rerun (`alpine-bridge` loaded page, prefetch, and the
+  many-component leak test). The new `STALE_REVISION` resync browser test
+  passed in Chromium, Firefox and WebKit.
+- Every spec has passed in every browser at least once. No single
+  uninterrupted three-browser run of all four specs completed on this host,
+  so the coordinator should do one on a normally loaded machine before
+  closing the ledger rows.
 
 ## Merge notes
 
@@ -186,7 +192,16 @@ Firefox, a trivial click took 48 s in WebKit, and Firefox logged
   (client patch), `stale-revision-resync` (live minor, client patch).
 - `tests/live-stale-revision.test.ts` joins `test:integration` and
   `test:security` in the root `package.json`.
-- Main is merged in (`retries`/`forbidOnly` kept in `playwright.config.ts`).
-  The `STALE_REVISION` change touches `packages/live/src/live.module.ts` and
-  `runtime.ts` admission; expect small conflicts if another branch edits the
-  generated controller or `admitUntraced`.
+- Main is merged in twice (last at `e93af58`). Kept: `retries`/`forbidOnly`
+  and all of main's 40 webServer entries, plus the browser-lab one on 3860.
+  Conflicts resolved:
+  - Test-group lists in `package.json`: main's lists, plus
+    `live-stale-revision`.
+  - `packages/client/README.md`: main's new Status/Testing/Maintainers
+    sections, plus this branch's transport and navigation paragraphs.
+  - `packages/alpine/README.md`: main's structure. The BROW-014 status bullet
+    there ("state/entangle not provided, dispatch/on untested") is updated to
+    match this branch.
+    The `STALE_REVISION` change touches `packages/live/src/live.module.ts` and
+    `runtime.ts` admission; expect small conflicts if another branch edits the
+    generated controller or `admitUntraced`.
