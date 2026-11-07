@@ -13,31 +13,45 @@ import { connectUi, menuSelection, showToast } from '@nestvexa/ui/browser';
 import type { ToastOptions } from '@nestvexa/ui/browser';
 import {
   booleanAttributes,
+  chartMarkup,
+  checkboxFieldMarkup,
   dataTableMarkup,
   datePickerMarkup,
   dialogMarkup,
   dialogTriggerMarkup,
   isMarkupSlot,
   menuMarkup,
+  radioGroupFieldMarkup,
   selectAllMarkup,
+  selectFieldMarkup,
   selectRowMarkup,
   sortHeaderMarkup,
   tabPanelSlot,
   tableFilterMarkup,
   tableSearchMarkup,
   tabsMarkup,
+  textFieldMarkup,
+  textareaFieldMarkup,
   toastRegionMarkup,
   voidElements,
 } from '@nestvexa/ui/markup';
 import type {
+  ChartType,
   DateStyle,
+  FieldInputType,
+  FieldViewLike,
   MarkupElement,
   MarkupInput,
   MarkupNode,
 } from '@nestvexa/ui/markup';
 
-export { closeDialog, openDialog } from '@nestvexa/ui/browser';
-export type { ToastOptions } from '@nestvexa/ui/browser';
+export { chartData, closeDialog, openDialog } from '@nestvexa/ui/browser';
+export type { ChartData, ToastOptions } from '@nestvexa/ui/browser';
+export type {
+  ChartType,
+  FieldInputType,
+  FieldViewLike,
+} from '@nestvexa/ui/markup';
 
 type SlotRender = () => VNodeChild;
 type SlotMap = Readonly<Record<string, SlotRender | undefined>>;
@@ -535,6 +549,335 @@ export const SortHeader = defineComponent({
         ),
         {},
         root,
+      );
+  },
+});
+
+// Form fields ---------------------------------------------------------------
+/** Props shared by every field wrapper (see the React `FieldProps`). */
+const fieldProps = {
+  /** Control id; optional when `field` supplies it. */
+  id: optionalText,
+  name: text,
+  label: text,
+  hint: optionalText,
+  error: {
+    type: [String, Array] as PropType<string | readonly string[]>,
+    required: false,
+  },
+  /** A `@nestvexa/forms` field view instead of `id`/`error`. */
+  field: { type: Object as PropType<FieldViewLike>, required: false },
+  required: optionalFlag,
+  disabled: optionalFlag,
+  describedBy: optionalText,
+  className: optionalText,
+} as const;
+interface FieldPropValues {
+  readonly id?: string | undefined;
+  readonly name: string;
+  readonly label: string;
+  readonly hint?: string | undefined;
+  readonly error?: string | readonly string[] | undefined;
+  readonly field?: FieldViewLike | undefined;
+  readonly required?: boolean | undefined;
+  readonly disabled?: boolean | undefined;
+  readonly describedBy?: string | undefined;
+  readonly className?: string | undefined;
+}
+function fieldInput(props: FieldPropValues): Record<string, unknown> {
+  return {
+    id: props.id,
+    name: props.name,
+    label: props.label,
+    hint: props.hint,
+    error: props.error,
+    field: props.field,
+    required: props.required,
+    disabled: props.disabled,
+    describedBy: props.describedBy,
+    class: props.className,
+  };
+}
+/** Emit `change` from `input`/`change` events, once per new value. */
+function useFieldChange<T>(
+  root: Ref<Element | undefined>,
+  initial: T,
+  read: (target: EventTarget | null) => T | undefined,
+  emit: (value: T) => void,
+): void {
+  let reported = initial;
+  const changed = (event: Event) => {
+    const value = read(event.target);
+    if (value === undefined || Object.is(value, reported)) return;
+    reported = value;
+    emit(value);
+  };
+  useDomEvent(root, 'input', changed);
+  useDomEvent(root, 'change', changed);
+}
+const controlValue = (target: EventTarget | null): string | undefined =>
+  target instanceof HTMLInputElement ||
+  target instanceof HTMLTextAreaElement ||
+  target instanceof HTMLSelectElement
+    ? target.value
+    : undefined;
+const optionalCount = { type: Number, required: false } as const;
+
+/** Labelled text-like input. Emits `change` with the value on each edit. */
+export const TextField = defineComponent({
+  name: 'NvTextField',
+  props: {
+    ...fieldProps,
+    type: { type: String as PropType<FieldInputType>, required: false },
+    defaultValue: optionalText,
+    placeholder: optionalText,
+    autocomplete: optionalText,
+    minLength: optionalCount,
+    maxLength: optionalCount,
+    readOnly: optionalFlag,
+  },
+  emits: ['change'],
+  setup(props, { emit }) {
+    const root = ref<Element>();
+    const initial = props.defaultValue;
+    useFieldChange(root, initial ?? '', controlValue, (value) =>
+      emit('change', value),
+    );
+    return (): VNodeChild =>
+      render(
+        textFieldMarkup(
+          defined({
+            ...fieldInput(props),
+            type: props.type,
+            value: initial,
+            placeholder: props.placeholder,
+            autocomplete: props.autocomplete,
+            minLength: props.minLength,
+            maxLength: props.maxLength,
+            readOnly: props.readOnly,
+          }),
+        ),
+        {},
+        root,
+      );
+  },
+});
+
+/** Labelled textarea. Emits `change` with the value on each edit. */
+export const TextareaField = defineComponent({
+  name: 'NvTextareaField',
+  props: {
+    ...fieldProps,
+    defaultValue: optionalText,
+    rows: optionalCount,
+    placeholder: optionalText,
+    minLength: optionalCount,
+    maxLength: optionalCount,
+    readOnly: optionalFlag,
+  },
+  emits: ['change'],
+  setup(props, { emit }) {
+    const root = ref<Element>();
+    const initial = props.defaultValue;
+    useFieldChange(root, initial ?? '', controlValue, (value) =>
+      emit('change', value),
+    );
+    return (): VNodeChild =>
+      render(
+        textareaFieldMarkup(
+          defined({
+            ...fieldInput(props),
+            value: initial,
+            rows: props.rows,
+            placeholder: props.placeholder,
+            minLength: props.minLength,
+            maxLength: props.maxLength,
+            readOnly: props.readOnly,
+          }),
+        ),
+        {},
+        root,
+      );
+  },
+});
+
+export interface FieldOption {
+  readonly value: string;
+  readonly label: string;
+  readonly disabled?: boolean;
+}
+const optionList = {
+  type: Array as PropType<readonly FieldOption[]>,
+  required: true,
+} as const;
+const options = (list: readonly FieldOption[]) =>
+  list.map((option) =>
+    defined({
+      value: option.value,
+      label: option.label,
+      disabled: option.disabled,
+    }),
+  );
+
+/** Labelled native select. Emits `change` with the value. */
+export const SelectField = defineComponent({
+  name: 'NvSelectField',
+  props: {
+    ...fieldProps,
+    options: optionList,
+    defaultValue: optionalText,
+    placeholder: optionalText,
+    autocomplete: optionalText,
+  },
+  emits: ['change'],
+  setup(props, { emit }) {
+    const root = ref<Element>();
+    const initial = props.defaultValue;
+    useFieldChange(root, initial ?? '', controlValue, (value) =>
+      emit('change', value),
+    );
+    return (): VNodeChild =>
+      render(
+        selectFieldMarkup(
+          defined({
+            ...fieldInput(props),
+            options: options(props.options),
+            value: initial,
+            placeholder: props.placeholder,
+            autocomplete: props.autocomplete,
+          }),
+        ),
+        {},
+        root,
+      );
+  },
+});
+
+/** Single checkbox with its label. Emits `change` with the checked state. */
+export const CheckboxField = defineComponent({
+  name: 'NvCheckboxField',
+  props: {
+    ...fieldProps,
+    value: optionalText,
+    defaultChecked: optionalFlag,
+  },
+  emits: ['change'],
+  setup(props, { emit }) {
+    const root = ref<Element>();
+    const initial = props.defaultChecked ?? false;
+    useFieldChange(
+      root,
+      initial,
+      (target) =>
+        target instanceof HTMLInputElement && target.type === 'checkbox'
+          ? target.checked
+          : undefined,
+      (value) => emit('change', value),
+    );
+    return (): VNodeChild =>
+      render(
+        checkboxFieldMarkup(
+          defined({
+            ...fieldInput(props),
+            value: props.value,
+            checked: initial,
+          }),
+        ),
+        {},
+        root,
+      );
+  },
+});
+
+/** Radio group in a `<fieldset role="radiogroup">`. Emits `change` with the value. */
+export const RadioGroupField = defineComponent({
+  name: 'NvRadioGroupField',
+  props: {
+    ...fieldProps,
+    options: optionList,
+    defaultValue: optionalText,
+  },
+  emits: ['change'],
+  setup(props, { emit }) {
+    const root = ref<Element>();
+    const initial = props.defaultValue;
+    useFieldChange(
+      root,
+      initial ?? '',
+      (target) =>
+        target instanceof HTMLInputElement &&
+        target.type === 'radio' &&
+        target.checked
+          ? target.value
+          : undefined,
+      (value) => emit('change', value),
+    );
+    return (): VNodeChild =>
+      render(
+        radioGroupFieldMarkup(
+          defined({
+            ...fieldInput(props),
+            options: options(props.options),
+            value: initial,
+          }),
+        ),
+        {},
+        root,
+      );
+  },
+});
+
+// Chart ---------------------------------------------------------------------
+export interface ChartSeries {
+  readonly name: string;
+  readonly values: readonly number[];
+}
+/**
+ * Server-rendered SVG chart (or a `type="custom"` container whose default
+ * slot mounts a third-party chart) plus its data table.
+ */
+export const Chart = defineComponent({
+  name: 'NvChart',
+  props: {
+    id: text,
+    type: { type: String as PropType<ChartType>, required: false },
+    title: text,
+    description: optionalText,
+    categoryLabel: text,
+    labels: { type: Array as PropType<readonly string[]>, required: true },
+    series: {
+      type: Array as PropType<readonly ChartSeries[]>,
+      required: true,
+    },
+    min: { type: Number, required: false },
+    max: { type: Number, required: false },
+    locale: optionalText,
+    showTable: optionalFlag,
+    className: optionalText,
+  },
+  setup(props, { slots }) {
+    return (): VNodeChild =>
+      render(
+        chartMarkup(
+          defined({
+            id: props.id,
+            type: props.type,
+            title: props.title,
+            description: props.description,
+            categoryLabel: props.categoryLabel,
+            labels: [...props.labels],
+            series: props.series.map((entry) => ({
+              name: entry.name,
+              values: [...entry.values],
+            })),
+            min: props.min,
+            max: props.max,
+            locale: props.locale,
+            showTable: props.showTable,
+            class: props.className,
+          }),
+        ),
+        { chart: slot(slots, 'default') },
       );
   },
 });

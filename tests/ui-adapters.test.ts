@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { chromium, firefox, webkit } from '@playwright/test';
+import { chromium, expect as pw, firefox, webkit } from '@playwright/test';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { build } from 'esbuild';
 import type { Plugin } from 'esbuild';
@@ -25,15 +25,27 @@ import { HbsEngine } from '../packages/engine-hbs/dist/index.js';
 import { uiHelpers } from '../packages/ui/dist/index.js';
 import {
   UiError,
+  chartMarkup,
   datePickerMarkup,
   dialogMarkup,
   menuMarkup,
+  radioGroupFieldMarkup,
   renderMarkup,
+  selectFieldMarkup,
   tableFilterMarkup,
   tableSearchMarkup,
   tabsMarkup,
+  textFieldMarkup,
 } from '../packages/ui/dist/markup.js';
-import { categories, products } from './fixtures/ui-adapters/data.mjs';
+import {
+  categories,
+  countries,
+  months,
+  plans,
+  products,
+  sales,
+  visitors,
+} from './fixtures/ui-adapters/data.mjs';
 
 // The React, Vue and Svelte wrappers of @nestvexa/ui render the shared markup
 // contract and reuse the keyboard module. This suite proves (1) their SSR
@@ -67,7 +79,7 @@ const { compile } = uiRequire('svelte/compiler') as {
 };
 
 /** The same page as the framework fixtures, written with the HBS helpers. */
-const template = `<div id="kit"><h1>UI kit</h1>{{uiDialogTrigger "kit-dialog" label="Open dialog"}}<p id="dialog-log">Closed 0</p>{{#uiTabs id="kit-tabs" label="Sections"}}{{#uiTab id="overview" label="Overview"}}<p>Overview panel</p>{{/uiTab}}{{#uiTab id="details" label="Details"}}<p>Details panel</p>{{/uiTab}}{{#uiTab id="history" label="History"}}<p>History panel</p>{{/uiTab}}{{/uiTabs}}{{#uiMenu id="kit-menu" label="Actions"}}{{uiMenuItem "Edit" href="/kit/edit"}}{{uiMenuItem "Copy id" value="copy"}}{{uiMenuItem "Archive" value="archive"}}{{uiMenuItem "Delete" value="delete" disabled=true}}{{/uiMenu}}<p id="menu-log"></p><button type="button" id="notify" class="nv-button">Notify</button>{{uiToastRegion id="kit-toasts" label="Notifications" dismissLabel="Dismiss"}}{{uiDatePicker id="kit-due" name="due" label="Due date" locale="en-US" value="2026-03-04"}}<p id="date-log"></p><form id="bulk">{{uiTableSearch table="kit-table" label="Search products" client=true resultsLabel="{count} results"}}{{uiTableFilter table="kit-table" key="category" label="Category" allLabel="All categories" options=categories client=true resultsLabel="{count} results"}}{{#uiDataTable id="kit-table" caption="Products" selectionLabel="{count} selected"}}<thead><tr>{{uiSelectAll table="kit-table" label="Select all products"}}<th scope="col">Name</th><th scope="col">Category</th></tr></thead><tbody>{{#each products}}<tr data-category="{{category}}">{{uiSelectRow name="ids" value=id label=label}}<td>{{name}}</td><td>{{category}}</td></tr>{{/each}}</tbody>{{/uiDataTable}}</form>{{#uiDialog id="kit-dialog" title="Edit item" closeLabel="Close dialog"}}<label for="kit-name">Name</label><input id="kit-name">{{/uiDialog}}</div>`;
+const template = `<div id="kit"><h1>UI kit</h1>{{uiDialogTrigger "kit-dialog" label="Open dialog"}}<p id="dialog-log">Closed 0</p>{{#uiTabs id="kit-tabs" label="Sections"}}{{#uiTab id="overview" label="Overview"}}<p>Overview panel</p>{{/uiTab}}{{#uiTab id="details" label="Details"}}<p>Details panel</p>{{/uiTab}}{{#uiTab id="history" label="History"}}<p>History panel</p>{{/uiTab}}{{/uiTabs}}{{#uiMenu id="kit-menu" label="Actions"}}{{uiMenuItem "Edit" href="/kit/edit"}}{{uiMenuItem "Copy id" value="copy"}}{{uiMenuItem "Archive" value="archive"}}{{uiMenuItem "Delete" value="delete" disabled=true}}{{/uiMenu}}<p id="menu-log"></p><button type="button" id="notify" class="nv-button">Notify</button>{{uiToastRegion id="kit-toasts" label="Notifications" dismissLabel="Dismiss"}}{{uiDatePicker id="kit-due" name="due" label="Due date" locale="en-US" value="2026-03-04"}}<p id="date-log"></p><form id="bulk">{{uiTableSearch table="kit-table" label="Search products" client=true resultsLabel="{count} results"}}{{uiTableFilter table="kit-table" key="category" label="Category" allLabel="All categories" options=categories client=true resultsLabel="{count} results"}}{{#uiDataTable id="kit-table" caption="Products" selectionLabel="{count} selected"}}<thead><tr>{{uiSelectAll table="kit-table" label="Select all products"}}<th scope="col">Name</th><th scope="col">Category</th></tr></thead><tbody>{{#each products}}<tr data-category="{{category}}">{{uiSelectRow name="ids" value=id label=label}}<td>{{name}}</td><td>{{category}}</td></tr>{{/each}}</tbody>{{/uiDataTable}}</form>{{#uiDialog id="kit-dialog" title="Edit item" closeLabel="Close dialog"}}<label for="kit-name">Name</label><input id="kit-name">{{/uiDialog}}<form id="kit-profile">{{uiTextField id="kit-email" name="email" label="Email" type="email" hint="We never share it." error="Enter a valid email address." required=true autocomplete="email"}}{{uiTextField id="kit-nick" name="nickname" label="Nickname" value="Ada"}}{{uiTextareaField id="kit-bio" name="bio" label="Biography" rows=3 value="Hello"}}{{uiSelectField id="kit-country" name="country" label="Country" options=countries placeholder="Choose a country" required=true}}{{uiCheckboxField id="kit-terms" name="terms" label="I accept the terms" value="yes" error="You must accept the terms."}}{{uiRadioGroupField id="kit-plan" name="plan" label="Plan" options=plans hint="Change it later." value="basic"}}</form><p id="field-log"></p><div id="kit-charts">{{uiChart id="kit-sales" title="Monthly sales" description="Online sales peaked in March." categoryLabel="Month" labels=months series=sales locale="en-US"}}{{uiChart id="kit-trend" type="line" title="Visitors" categoryLabel="Month" labels=months series=visitors showTable=true}}{{uiChart id="kit-spark" type="sparkline" title="Weekly visitors" categoryLabel="Month" labels=months series=visitors}}{{#uiChart id="kit-ext" type="custom" title="Third-party visits" categoryLabel="Month" labels=months series=visitors}}<canvas id="kit-ext-chart" width="320" height="120"></canvas>{{/uiChart}}</div></div>`;
 
 type Framework = 'react' | 'vue' | 'svelte';
 const frameworks: readonly Framework[] = ['react', 'vue', 'svelte'];
@@ -162,6 +174,11 @@ beforeAll(async () => {
   await engine.initialize();
   hbsKit = await engine.render('kit', {
     categories,
+    countries,
+    plans,
+    months,
+    sales,
+    visitors,
     products: products.map((product) => ({
       ...product,
       label: `Select ${product.name}`,
@@ -325,6 +342,94 @@ describe('markup contract', () => {
           allLabel: 'All',
           options: categories,
           value: 'other',
+        }),
+    ];
+    for (const run of cases) expect(run).toThrow(UiError);
+  });
+  it('escapes field and chart text from framework props and rejects unsafe values', () => {
+    const attack = '"><script>alert(1)</script><x onclick="y';
+    const field = renderMarkup(
+      textFieldMarkup({
+        id: 'f',
+        name: 'f',
+        label: attack,
+        hint: attack,
+        error: [attack],
+        value: attack,
+      }),
+    );
+    const chart = renderMarkup(
+      chartMarkup({
+        id: 'c',
+        title: attack,
+        description: attack,
+        categoryLabel: attack,
+        labels: [attack],
+        series: [{ name: attack, values: [1] }],
+      }),
+    );
+    for (const html of [field, chart]) {
+      expect(html).not.toMatch(/<script|<x |\sonclick=/);
+      expect(html).toContain('&lt;script&gt;');
+    }
+    const cases: (() => unknown)[] = [
+      () => textFieldMarkup({ id: 'f" x="', name: 'f', label: 'F' }),
+      () => textFieldMarkup({ id: 'f', name: 'f onclick=', label: 'F' }),
+      () => textFieldMarkup({ id: 'f', name: '__proto__', label: 'F' }),
+      () => textFieldMarkup({ id: 'f', name: 'f', label: 'F', type: 'file' }),
+      () =>
+        textFieldMarkup({
+          id: 'f',
+          label: 'F',
+          model: 'a',
+          modelModifiers: 'x" onclick="y',
+        }),
+      () =>
+        selectFieldMarkup({
+          id: 's',
+          name: 's',
+          label: 'S',
+          options: countries,
+          value: 'other',
+        }),
+      () =>
+        radioGroupFieldMarkup({
+          id: 'r',
+          name: 'r',
+          label: 'R',
+          options: [
+            { value: 'a', label: 'A' },
+            { value: 'a', label: 'B' },
+          ],
+        }),
+      ...[Number.NaN, Number.POSITIVE_INFINITY, '1', null, 1e16].map(
+        (value) => () =>
+          chartMarkup({
+            id: 'c',
+            title: 'T',
+            categoryLabel: 'C',
+            labels: ['a'],
+            series: [{ name: 'S', values: [value] }],
+          }),
+      ),
+      () =>
+        chartMarkup({
+          id: 'c',
+          title: 'T',
+          categoryLabel: 'C',
+          labels: Array.from({ length: 201 }, (_, index) => `l${index}`),
+          series: [{ name: 'S', values: Array(201).fill(1) }],
+        }),
+      () =>
+        chartMarkup({
+          id: 'c',
+          title: 'T',
+          categoryLabel: 'C',
+          labels: ['a'],
+          series: Array.from({ length: 9 }, (_, index) => ({
+            name: `s${index}`,
+            values: [1],
+          })),
         }),
     ];
     for (const run of cases) expect(run).toThrow(UiError);
@@ -565,6 +670,96 @@ describe.each(selected)('UI kit wrappers in %s', (engine) => {
       expect(await page.locator('#kit-table-status').textContent()).toContain(
         '1 selected',
       );
+    });
+
+    it('wires form fields for assistive technology and reports edits to the framework', async () => {
+      const log = (text: string) =>
+        page.waitForFunction(
+          (expected) =>
+            document.getElementById('field-log')?.textContent === expected,
+          text,
+        );
+      const email = page.getByRole('textbox', { name: 'Email', exact: true });
+      await pw(email).toHaveAccessibleDescription(
+        'We never share it. Enter a valid email address.',
+      );
+      await pw(email).toHaveAttribute('aria-invalid', 'true');
+      await pw(email).toHaveAttribute('aria-required', 'true');
+      await pw(page.getByLabel('Nickname')).toHaveValue('Ada');
+      await pw(page.getByLabel('Biography')).toHaveValue('Hello');
+      await pw(page.locator('#kit-plan')).toBeChecked();
+      await pw(
+        page.getByRole('radiogroup', { name: 'Plan' }),
+      ).toHaveAccessibleDescription('Change it later.');
+      await page.locator('label[for="kit-email"]').click();
+      expect(await active()).toBe('kit-email');
+      await page.keyboard.type('ada@example.test');
+      await log('email:ada@example.test');
+      await page.locator('#kit-bio').fill('Hi there');
+      await log('bio:Hi there');
+      await page.locator('#kit-country').selectOption('fr');
+      await log('country:fr');
+      await page.locator('label[for="kit-terms"]').click();
+      await log('terms:true');
+      await page.locator('label[for="kit-plan-2"]').click();
+      await log('plan:pro');
+      const values = await page.evaluate(() =>
+        Object.fromEntries(
+          new FormData(
+            document.getElementById('kit-profile') as HTMLFormElement,
+          ),
+        ),
+      );
+      expect(values).toEqual({
+        email: 'ada@example.test',
+        nickname: 'Ada',
+        bio: 'Hi there',
+        country: 'fr',
+        terms: 'yes',
+        plan: 'pro',
+      });
+    });
+
+    it('renders charts as named SVG images with data tables, also after remounting', async () => {
+      const svgOnly = () =>
+        page.evaluate(() => {
+          const nodes = [...document.querySelectorAll('#kit-charts svg *')];
+          return (
+            nodes.length > 0 &&
+            nodes.every((node) => node instanceof SVGElement)
+          );
+        });
+      const check = async () => {
+        await pw(
+          page.getByRole('img', { name: 'Monthly sales' }),
+        ).toHaveAccessibleDescription('Online sales peaked in March.');
+        await pw(
+          page.getByRole('img', { name: 'Weekly visitors' }),
+        ).toHaveCount(1);
+        await pw(
+          page
+            .getByRole('table', { name: 'Monthly sales' })
+            .getByRole('row', { name: 'Mar 4,500 1,000' }),
+        ).toHaveCount(1);
+        await pw(page.locator('#kit-trend-data')).toBeVisible();
+        const ext = page.getByRole('img', { name: 'Third-party visits' });
+        await pw(ext.locator('canvas#kit-ext-chart')).toHaveCount(1);
+        expect(await svgOnly()).toBe(true);
+        const fill = await page.evaluate(
+          () =>
+            getComputedStyle(
+              document.querySelector('#kit-sales .nv-chart__bar') as Element,
+            ).fill,
+        );
+        expect(fill).toBe('rgb(29, 78, 216)');
+      };
+      await check();
+      // Client-created (not hydrated) SVG must be in the SVG namespace too.
+      await page.locator('#toggle').click();
+      await page.waitForSelector('#kit', { state: 'detached' });
+      await page.locator('#toggle').click();
+      await page.waitForSelector('#kit-charts svg');
+      await check();
     });
 
     it('releases behavior on unmount and works once after remounting', async () => {
