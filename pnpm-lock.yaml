@@ -240,8 +240,8 @@ importers:
         specifier: 3.10.0
         version: 3.10.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@inertiajs/svelte':
-        specifier: 3.10.0
-        version: 3.10.0(svelte@5.57.3(@typescript-eslint/types@8.72.0))
+        specifier: 3.11.0
+        version: 3.11.0(svelte@5.57.3(@typescript-eslint/types@8.72.0))
       '@inertiajs/vue3':
         specifier: 3.10.0
         version: 3.10.0(vue@3.5.44(typescript@6.0.3))
@@ -617,8 +617,8 @@ importers:
         specifier: 3.10.0
         version: 3.10.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@inertiajs/svelte':
-        specifier: 3.10.0
-        version: 3.10.0(svelte@5.57.3(@typescript-eslint/types@8.72.0))
+        specifier: 3.11.0
+        version: 3.11.0(svelte@5.57.3(@typescript-eslint/types@8.72.0))
       '@inertiajs/vue3':
         specifier: 3.10.0
         version: 3.10.0(vue@3.5.44(typescript@6.0.3))
@@ -775,8 +775,8 @@ importers:
   examples/inertia-svelte:
     dependencies:
       '@inertiajs/svelte':
-        specifier: 3.10.0
-        version: 3.10.0(svelte@5.57.3(@typescript-eslint/types@8.72.0))
+        specifier: 3.11.0
+        version: 3.11.0(svelte@5.57.3(@typescript-eslint/types@8.72.0))
       '@nestjs/common':
         specifier: 12.2.0
         version: 12.2.0(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -900,8 +900,8 @@ importers:
         specifier: 3.10.0
         version: 3.10.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@inertiajs/svelte':
-        specifier: 3.10.0
-        version: 3.10.0(svelte@5.57.3(@typescript-eslint/types@8.72.0))
+        specifier: 3.11.0
+        version: 3.11.0(svelte@5.57.3(@typescript-eslint/types@8.72.0))
       '@inertiajs/vue3':
         specifier: 3.10.0
         version: 3.10.0(vue@3.5.44(typescript@6.0.3))
@@ -1725,8 +1725,8 @@ importers:
         specifier: 3.10.0
         version: 3.10.0
       '@inertiajs/svelte':
-        specifier: 3.10.0
-        version: 3.10.0(svelte@5.57.3(@typescript-eslint/types@8.72.0))
+        specifier: 3.11.0
+        version: 3.11.0(svelte@5.57.3(@typescript-eslint/types@8.72.0))
       svelte:
         specifier: 5.57.3
         version: 5.57.3(@typescript-eslint/types@8.72.0)
@@ -2176,6 +2176,14 @@ packages:
       axios:
         optional: true
 
+  '@inertiajs/core@3.11.0':
+    resolution: {integrity: sha512-YDqkKHsTiDUKofVzE3p6IduuU1u0ZwmheSpk2AZP6Eig3ZwhTlchDiLbUhFUCd138naqlhjRh2rTxIXeKrnmOQ==}
+    peerDependencies:
+      axios: ^1.15.2
+    peerDependenciesMeta:
+      axios:
+        optional: true
+
   '@inertiajs/react@3.10.0':
     resolution: {integrity: sha512-an/ziyJS+zs7hZY+i1tGO3hbiWXJq14jaPj5BnNr1Tr3RjdUr4s88RQ/b9TYFnTd1bnahxzc3X8N21axxrM5ew==}
     peerDependencies:
@@ -2189,10 +2197,14 @@ packages:
       '@types/react-dom':
         optional: true
 
-  '@inertiajs/svelte@3.10.0':
-    resolution: {integrity: sha512-SPF7CU3KwBuylnxEjOMVMCC2KtnH00i0y1p6Jhua8K8Hwx6EJ1C65/F67SoiYp9ZyOdBr9SbnWBlb17GurMtIw==}
+  '@inertiajs/svelte@3.11.0':
+    resolution: {integrity: sha512-vBnBJDQew8rfOGeD3ONe0XD25QdYkVnsgMhiuF0i5DQ/SmzjYmVGIhBPDMdIVknUE5q/WvbCnI0EH42OnnImJg==}
     peerDependencies:
+      '@laravel/echo-svelte': ^2.0.0
       svelte: ^5.0.0
+    peerDependenciesMeta:
+      '@laravel/echo-svelte':
+        optional: true
 
   '@inertiajs/vue3@3.10.0':
     resolution: {integrity: sha512-bSU0Gw/50bHAwrYbHtdw6rUetk+A6r5uOsL2DqKz1gRAf0hrc87+n/1RXOQqUPapK62n5BWkUrggOhIm5XmvCQ==}
@@ -4615,6 +4627,12 @@ snapshots:
       es-toolkit: 1.53.1
       laravel-precognition: 2.1.1
 
+  '@inertiajs/core@3.11.0':
+    dependencies:
+      '@jridgewell/trace-mapping': 0.3.31
+      es-toolkit: 1.53.1
+      laravel-precognition: 2.1.1
+
   '@inertiajs/react@3.10.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
       '@inertiajs/core': 3.10.0
@@ -4628,9 +4646,9 @@ snapshots:
     transitivePeerDependencies:
       - axios
 
-  '@inertiajs/svelte@3.10.0(svelte@5.57.3(@typescript-eslint/types@8.72.0))':
+  '@inertiajs/svelte@3.11.0(svelte@5.57.3(@typescript-eslint/types@8.72.0))':
     dependencies:
-      '@inertiajs/core': 3.10.0
+      '@inertiajs/core': 3.11.0
       es-toolkit: 1.53.1
       laravel-precognition: 2.1.1
       svelte: 5.57.3(@typescript-eslint/types@8.72.0)
