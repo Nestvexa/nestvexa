@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { HbsEngine } from '../packages/engine-hbs/dist/index.js';
+import { errorSummary, fieldView } from '../packages/forms/dist/index.js';
 import { UiError, escapeHtml, uiHelpers } from '../packages/ui/dist/index.js';
 
 let root: string;
@@ -31,6 +32,16 @@ const templates: Record<string, string> = {
   progress:
     '{{uiProgress id="import" label="Import" value=value max=100 valueText=valueText}}',
   hidden: '{{uiVisuallyHidden text}}',
+  textField:
+    '{{uiTextField id=id name=name label=label type=type hint=hint error=error field=field required=required disabled=disabled readOnly=readOnly model=model modelModifiers=modifiers value=value placeholder=placeholder autocomplete=autocomplete minLength=minLength maxLength=maxLength describedBy=describedBy class=klass}}',
+  textareaField:
+    '{{uiTextareaField id="bio" name="bio" label="Biography" rows=rows value=value error=error maxLength=500}}',
+  selectField:
+    '{{uiSelectField id="country" name="country" label="Country" options=options value=value placeholder=placeholder required=true model=model modelModifiers="change" error=error}}',
+  checkboxField:
+    '{{uiCheckboxField id="terms" name="terms" label=label value="yes" checked=checked required=true error=error hint="Required to continue"}}',
+  radioField:
+    '{{uiRadioGroupField id="plan" name=name label="Plan" options=options value=value required=required error=error hint=hint model=model field=field}}',
 };
 
 beforeAll(async () => {
@@ -95,6 +106,12 @@ describe('uiHelpers registration', () => {
         'uiTableFilter',
         'uiSelectAll',
         'uiSelectRow',
+        'uiTextField',
+        'uiTextareaField',
+        'uiSelectField',
+        'uiCheckboxField',
+        'uiRadioGroupField',
+        'uiChart',
       ].sort(),
     );
     expect(Object.keys(uiHelpers({ prefix: 'kit' }))).toContain('kitDialog');
@@ -449,5 +466,238 @@ describe('disclosure, progress and visually hidden text', () => {
     expect(await render('hidden', { text: '<b>x</b>' })).toBe(
       '<span class="nv-visually-hidden">&lt;b&gt;x&lt;/b&gt;</span>',
     );
+  });
+});
+
+describe('form field wrappers', () => {
+  const email = { id: 'email', name: 'email', label: 'Email', type: 'email' };
+  const plans = [
+    { value: 'basic', label: 'Basic' },
+    { value: 'pro', label: 'Pro' },
+    { value: 'team', label: 'Team', disabled: true },
+  ];
+  it('wires label, hint, error, aria-invalid, aria-describedby and required', async () => {
+    expect(
+      await render('textField', {
+        ...email,
+        hint: 'We never share it.',
+        error: 'Enter a valid email address.',
+        required: true,
+        autocomplete: 'email',
+      }),
+    ).toBe(
+      '<div class="nv-field nv-field--input" data-invalid><label class="nv-field__label" for="email">Email<span class="nv-field__required" aria-hidden="true">*</span></label><p class="nv-field__hint" id="email-hint">We never share it.</p><input id="email" class="nv-field__control" type="email" autocomplete="email" name="email" required aria-required="true" aria-invalid="true" aria-describedby="email-hint email-error"><div class="nv-field__error" id="email-error" role="alert"><p class="nv-field__message">Enter a valid email address.</p></div></div>',
+    );
+    const valid = await render('textField', {
+      ...email,
+      hint: 'Hint',
+      describedBy: 'policy',
+      value: 'a@example.test',
+    });
+    expect(valid).toContain(
+      'value="a@example.test" name="email" aria-describedby="policy email-hint">',
+    );
+    expect(valid).not.toContain('aria-invalid');
+    expect(valid).not.toContain('role="alert"');
+    expect(valid).not.toContain('data-invalid');
+    const several = await render('textField', {
+      ...email,
+      error: ['Too short.', 'Must contain @.'],
+    });
+    expect(several).toContain(
+      '<p class="nv-field__message">Too short.</p><p class="nv-field__message">Must contain @.</p>',
+    );
+  });
+  it('renders the ids and messages of a @nestvexa/forms field view', async () => {
+    const errors = { email: ['Enter a valid email address.'] };
+    const view = fieldView(errors, 'email', { idPrefix: 'profile-' });
+    const html = await render('textField', {
+      name: 'email',
+      label: 'Email',
+      field: view,
+    });
+    expect(html).toContain('<input id="profile-email"');
+    expect(html).toContain(
+      'aria-invalid="true" aria-describedby="profile-email-error">',
+    );
+    expect(html).toContain(
+      `<div class="nv-field__error" id="${view.errorId}" role="alert"><p class="nv-field__message">Enter a valid email address.</p></div>`,
+    );
+    // The forms error summary links to the control rendered here.
+    const summary = errorSummary(errors, { idPrefix: 'profile-' });
+    expect(summary.items[0]?.href).toBe('#profile-email');
+    // JSON round trips (Live state) keep the same shape.
+    const json: unknown = JSON.parse(JSON.stringify(view));
+    expect(
+      await render('textField', { name: 'email', label: 'Email', field: json }),
+    ).toBe(html);
+    const clean = await render('textField', {
+      name: 'email',
+      label: 'Email',
+      field: fieldView({}, 'email', { idPrefix: 'profile-' }),
+    });
+    expect(clean).not.toContain('aria-invalid');
+    for (const model of [
+      { name: 'email', label: 'Email', field: view, error: 'x' },
+      { id: 'other', name: 'email', label: 'Email', field: view },
+      { name: 'email', label: 'Email', field: { ...view, extra: 1 } },
+      { name: 'email', label: 'Email', field: { ...view, errorId: 'a b' } },
+    ])
+      expect(await failure('textField', model)).toBeInstanceOf(UiError);
+  });
+  it('passes Live nv:model attributes through with closed modifiers', async () => {
+    const html = await render('textField', {
+      id: 'city',
+      label: 'City',
+      model: 'address.city',
+      modifiers: 'live.debounce.300ms',
+    });
+    expect(html).toContain('nv:model.live.debounce.300ms="address.city"');
+    expect(html).not.toContain('name=');
+    expect(
+      await render('textField', {
+        ...email,
+        model: 'email',
+        modifiers: 'blur',
+      }),
+    ).toContain('name="email" nv:model.blur="email"');
+    expect(await render('textField', { ...email, model: 'email' })).toContain(
+      ' nv:model="email"',
+    );
+    for (const model of [
+      { id: 'x', label: 'X' },
+      { ...email, model: 'a..b' },
+      { ...email, model: '__proto__' },
+      { ...email, model: 'a.constructor' },
+      { ...email, model: 'a b' },
+      { ...email, model: 'x', modifiers: 'blur onfocus' },
+      { ...email, model: 'x', modifiers: 'x" onfocus="alert(1)' },
+      { ...email, model: 'x', modifiers: 'click' },
+    ])
+      expect(await failure('textField', model)).toBeInstanceOf(UiError);
+  });
+  it('escapes labels, hints, errors and values (no markup or attribute injection)', async () => {
+    const html = await render('textField', {
+      ...email,
+      label: '<script>alert(1)</script>',
+      hint: '" onmouseover="alert(1)',
+      error: '<img src=x onerror=alert(1)>',
+      value: '"><script>alert(2)</script>',
+      placeholder: "' autofocus onfocus='alert(3)",
+    });
+    expect(html).not.toMatch(/<script|<img|\son[a-z]+=/i);
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(html).toContain('&quot; onmouseover&#61;&quot;alert(1)');
+    expect(html).toContain('&lt;img src&#61;x onerror&#61;alert(1)&gt;');
+    expect(html).toContain('value="&quot;&gt;&lt;script&gt;alert(2)');
+    for (const model of [
+      { ...email, id: 'x" onfocus="a' },
+      { ...email, id: '1email' },
+      { ...email, name: 'a b' },
+      { ...email, name: 'a[__proto__]' },
+      { ...email, name: 'constructor.x' },
+      { ...email, type: 'text" onfocus="a' },
+      { ...email, type: 'hidden' },
+      { ...email, klass: 'a"b' },
+      { ...email, autocomplete: 'email" onfocus="a' },
+      { ...email, describedBy: 'a b' },
+      { ...email, error: ['a', 'b', 'c', 'd', 'e', 'f'] },
+      { ...email, error: { message: 'x' } },
+      { ...email, error: [{ text: 'x' }] },
+      { ...email, minLength: 5, maxLength: 2 },
+      { ...email, maxLength: -1 },
+      { ...email, required: 'yes' },
+    ])
+      expect(await failure('textField', model)).toBeInstanceOf(UiError);
+    expect(
+      await render('textField', { ...email, name: 'items[0][email]' }),
+    ).toContain('name="items[0][email]"');
+  });
+  it('renders textareas with escaped initial text and bounded rows', async () => {
+    expect(
+      await render('textareaField', {
+        rows: 4,
+        value: '</textarea><script>x</script>',
+      }),
+    ).toBe(
+      '<div class="nv-field nv-field--textarea"><label class="nv-field__label" for="bio">Biography</label><textarea id="bio" class="nv-field__control" rows="4" maxlength="500" name="bio">&lt;/textarea&gt;&lt;script&gt;x&lt;/script&gt;</textarea></div>',
+    );
+    for (const rows of [0, 51, 2.5, '4'])
+      expect(await failure('textareaField', { rows })).toBeInstanceOf(UiError);
+  });
+  it('renders native selects with a placeholder, selection and validated options', async () => {
+    const options = [
+      { value: 'eg', label: 'Egypt' },
+      { value: 'fr', label: 'France <FR>' },
+    ];
+    const html = await render('selectField', {
+      options,
+      value: 'fr',
+      placeholder: 'Choose a country',
+      model: 'country',
+    });
+    expect(html).toContain(
+      '<select id="country" class="nv-field__control" name="country" required aria-required="true" nv:model.change="country"><option value="">Choose a country</option><option value="eg">Egypt</option><option value="fr" selected>France &lt;FR&gt;</option></select>',
+    );
+    expect(
+      await render('selectField', { options, placeholder: 'Choose' }),
+    ).toContain('<option value="" selected>Choose</option>');
+    for (const model of [
+      { options, value: 'de' },
+      { options: [...options, options[0]] },
+      { options: [{ value: 'x', label: 'X', onclick: 'y' }] },
+      { options: [] },
+      { options: 'eg' },
+    ])
+      expect(await failure('selectField', model)).toBeInstanceOf(UiError);
+  });
+  it('renders a checkbox followed by its label with hint and error', async () => {
+    expect(
+      await render('checkboxField', {
+        label: 'I accept the terms',
+        checked: true,
+        error: 'You must accept the terms.',
+      }),
+    ).toBe(
+      '<div class="nv-field nv-field--checkbox" data-invalid><input id="terms" class="nv-field__checkbox" type="checkbox" value="yes" checked name="terms" required aria-required="true" aria-invalid="true" aria-describedby="terms-hint terms-error"><label class="nv-field__label" for="terms">I accept the terms<span class="nv-field__required" aria-hidden="true">*</span></label><p class="nv-field__hint" id="terms-hint">Required to continue</p><div class="nv-field__error" id="terms-error" role="alert"><p class="nv-field__message">You must accept the terms.</p></div></div>',
+    );
+  });
+  it('renders radio groups as a radiogroup fieldset whose first radio carries the field id', async () => {
+    const html = await render('radioField', {
+      name: 'plan',
+      options: plans,
+      value: 'pro',
+      required: true,
+      hint: 'Change it later.',
+      error: 'Choose a plan.',
+    });
+    expect(html).toBe(
+      '<fieldset class="nv-field nv-field--radio" role="radiogroup" aria-required="true" aria-describedby="plan-hint plan-error" data-invalid><legend class="nv-field__legend">Plan<span class="nv-field__required" aria-hidden="true">*</span></legend><p class="nv-field__hint" id="plan-hint">Change it later.</p><div class="nv-field__options"><div class="nv-field__option"><input id="plan" class="nv-field__radio" type="radio" name="plan" value="basic" required aria-invalid="true"><label class="nv-field__option-label" for="plan">Basic</label></div><div class="nv-field__option"><input id="plan-2" class="nv-field__radio" type="radio" name="plan" value="pro" checked required aria-invalid="true"><label class="nv-field__option-label" for="plan-2">Pro</label></div><div class="nv-field__option"><input id="plan-3" class="nv-field__radio" type="radio" name="plan" value="team" required disabled aria-invalid="true"><label class="nv-field__option-label" for="plan-3">Team</label></div></div><div class="nv-field__error" id="plan-error" role="alert"><p class="nv-field__message">Choose a plan.</p></div></fieldset>',
+    );
+    const live = await render('radioField', {
+      options: plans,
+      model: 'plan',
+    });
+    expect(live.match(/ nv:model="plan"/g)).toHaveLength(3);
+    expect(live).not.toContain('name=');
+    expect(
+      await render('radioField', {
+        name: 'plan',
+        options: plans,
+        field: fieldView({ plan: ['Choose a plan.'] }, 'plan'),
+      }),
+    ).toContain('aria-describedby="plan-error"');
+    for (const model of [
+      { name: 'plan', options: plans, value: 'free' },
+      { name: 'plan', options: [] },
+      {
+        name: 'plan',
+        options: Array.from({ length: 101 }, (_, index) => ({
+          value: `v${index}`,
+          label: 'x',
+        })),
+      },
+    ])
+      expect(await failure('radioField', model)).toBeInstanceOf(UiError);
   });
 });

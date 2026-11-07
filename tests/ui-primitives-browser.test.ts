@@ -28,6 +28,8 @@ declare global {
     nvMenuEvents: unknown[];
     nvMirrorEvents: string[];
     nvViolations: string[];
+    nvChartData: unknown;
+    nvUi: { chartData(root: Element): unknown };
   }
 }
 
@@ -91,6 +93,21 @@ const fixture = `<!doctype html>
           </tbody>
         {{/uiDataTable}}
       </form>
+      <form id="profile" method="post" action="/profile" novalidate>
+        {{uiTextField id="email" name="email" label="Email" type="email" hint="We never share it." error="Enter a valid email address." required=true autocomplete="email"}}
+        {{uiTextField id="nickname" name="nickname" label="Nickname" value="Ada"}}
+        {{uiTextareaField id="bio" name="bio" label="Biography" rows=3 value="Hello"}}
+        {{uiSelectField id="country" name="country" label="Country" options=countries placeholder="Choose a country" required=true}}
+        {{uiCheckboxField id="terms" name="terms" label="I accept the terms" value="yes" required=true error="You must accept the terms."}}
+        {{uiRadioGroupField id="plan" name="plan" label="Plan" options=plans hint="Change it later." error="Choose a plan."}}
+        <button type="submit" class="nv-button">Save</button>
+      </form>
+      <div id="charts">
+        {{uiChart id="sales" title="Monthly sales" description="Online sales peaked in March." categoryLabel="Month" labels=months series=sales locale="en-US"}}
+        {{uiChart id="trend" type="line" title="Visitors" categoryLabel="Month" labels=months series=visitors showTable=true}}
+        <div>Weekly trend {{uiChart id="spark" type="sparkline" title="Weekly visitors" categoryLabel="Month" labels=months series=visitors}}</div>
+        {{#uiChart id="ext" type="custom" title="Third-party visits" categoryLabel="Month" labels=months series=visitors}}<canvas id="ext-chart" width="320" height="120"></canvas>{{/uiChart}}
+      </div>
       <section dir="rtl" lang="ar" aria-label="عربي">
         {{uiBreadcrumbs crumbsAr label="مسار التنقل"}}
         {{uiDatePicker id="due-ar" name="dueAr" label="تاريخ الاستحقاق" locale="ar-EG"}}
@@ -116,6 +133,22 @@ const model = {
     { label: 'Products', href: '/products' },
     { label: 'Atlas' },
   ],
+  countries: [
+    { value: 'eg', label: 'Egypt' },
+    { value: 'fr', label: 'France' },
+  ],
+  plans: [
+    { value: 'basic', label: 'Basic' },
+    { value: 'pro', label: 'Pro' },
+    { value: 'team', label: 'Team', disabled: true },
+    { value: 'enterprise', label: 'Enterprise' },
+  ],
+  months: ['Jan', 'Feb', 'Mar'],
+  sales: [
+    { name: 'Online', values: [1200, -300, 4500] },
+    { name: 'Retail', values: [800, 900, 1000] },
+  ],
+  visitors: [{ name: 'Visitors', values: [30, 10, 20] }],
   crumbsAr: [{ label: 'الرئيسية', href: '/' }, { label: 'المنتجات' }],
   categories: [
     { value: 'books', label: 'Books' },
@@ -177,6 +210,12 @@ beforeAll(async () => {
           "document.addEventListener('securitypolicyviolation', (e) => window.nvViolations.push(e.violatedDirective));",
           "document.addEventListener('nv-ui-menu-select', (e) => window.nvMenuEvents.push(e.detail));",
           "document.getElementById('ship-date-value').addEventListener('input', (e) => window.nvMirrorEvents.push(e.target.value));",
+          // A stand-in third-party chart: an external script draws the
+          // custom chart's canvas from the kit's data table (no inline code).
+          "const data = ui.chartData(document.getElementById('ext-chart'));",
+          'window.nvChartData = data; window.nvUi = ui;',
+          "const canvas = document.getElementById('ext-chart'); const context = canvas.getContext('2d');",
+          "context.fillStyle = '#1d4ed8'; data.series[0].values.forEach((value, index) => context.fillRect(10 + index * 100, 120 - value * 3, 80, value * 3));",
           'ui.initUi();',
           "document.documentElement.dataset.ready = '1';",
         ].join('\n'),
@@ -593,6 +632,160 @@ describe.each(selected)('UI primitives in %s', (engine) => {
       await pw(page.locator('[aria-current="page"]').first()).toHaveText(
         'Atlas',
       );
+    });
+  });
+
+  describe('form fields', () => {
+    it('exposes names, descriptions, invalid and required states to assistive technology', async () => {
+      const email = page.getByRole('textbox', { name: 'Email', exact: true });
+      // The visual asterisk is aria-hidden; `required` conveys the state.
+      await pw(email).toHaveAccessibleName('Email');
+      await pw(email).toHaveAccessibleDescription(
+        'We never share it. Enter a valid email address.',
+      );
+      await pw(email).toHaveAttribute('aria-invalid', 'true');
+      await pw(email).toHaveJSProperty('required', true);
+      await pw(email).toHaveAttribute('aria-required', 'true');
+      await pw(
+        page
+          .getByRole('alert')
+          .filter({ hasText: 'Enter a valid email address.' }),
+      ).toHaveCount(1);
+      const nickname = page.getByLabel('Nickname');
+      await pw(nickname).toHaveValue('Ada');
+      await pw(nickname).not.toHaveAttribute('aria-invalid', /.*/);
+      await pw(page.getByLabel('Biography')).toHaveValue('Hello');
+      await pw(
+        page.getByRole('combobox', { name: 'Country' }),
+      ).toHaveJSProperty('required', true);
+      const terms = page.getByRole('checkbox', { name: 'I accept the terms' });
+      await pw(terms).toHaveAccessibleDescription('You must accept the terms.');
+      const group = page.getByRole('radiogroup', { name: 'Plan' });
+      await pw(group).toHaveAccessibleDescription(
+        'Change it later. Choose a plan.',
+      );
+      await pw(group.getByRole('radio')).toHaveCount(4);
+    });
+    it('focuses controls through their labels and posts native form values', async () => {
+      await page.locator('label[for="email"]').click();
+      expect(await active()).toBe('email');
+      await page.keyboard.type('ada@example.test');
+      await page.locator('label[for="terms"]').click();
+      await pw(page.locator('#terms')).toBeChecked();
+      await page.locator('#country').selectOption('fr');
+      // Native radio keyboard behavior: arrows move and skip disabled options.
+      await page.locator('#plan').focus();
+      await page.keyboard.press('Space');
+      await page.keyboard.press('ArrowDown');
+      await pw(page.locator('#plan-2')).toBeChecked();
+      await page.keyboard.press('ArrowDown');
+      await pw(page.locator('#plan-4')).toBeChecked();
+      const values = await page.evaluate(() =>
+        Object.fromEntries(
+          new FormData(document.getElementById('profile') as HTMLFormElement),
+        ),
+      );
+      expect(values).toEqual({
+        email: 'ada@example.test',
+        nickname: 'Ada',
+        bio: 'Hello',
+        country: 'fr',
+        terms: 'yes',
+        plan: 'enterprise',
+      });
+    });
+  });
+
+  describe('charts', () => {
+    it('names and describes the SVG image and keeps a data table for every value', async () => {
+      const image = page.getByRole('img', { name: 'Monthly sales' });
+      await pw(image).toHaveAccessibleDescription(
+        'Online sales peaked in March.',
+      );
+      expect(
+        await page.evaluate(() =>
+          [...document.querySelectorAll('#sales svg *')].every(
+            (node) => node instanceof SVGElement,
+          ),
+        ),
+      ).toBe(true);
+      const table = page.getByRole('table', { name: 'Monthly sales' });
+      await pw(table.getByRole('row')).toHaveCount(4);
+      await pw(table.getByRole('row', { name: 'Mar 4,500 1,000' })).toHaveCount(
+        1,
+      );
+      // Visually hidden by default, shown with showTable.
+      const hidden = await page.locator('#sales .nv-chart__data').boundingBox();
+      expect(hidden?.width).toBeLessThanOrEqual(1);
+      await pw(page.locator('#trend-data')).toBeVisible();
+      await pw(
+        page.getByRole('img', { name: 'Weekly visitors' }),
+      ).toBeVisible();
+    });
+    it('colors series from theme custom properties in light and dark mode', async () => {
+      const fill = () =>
+        page.evaluate(
+          () =>
+            getComputedStyle(
+              document.querySelector('#sales .nv-chart__bar') as Element,
+            ).fill,
+        );
+      expect(await fill()).toBe('rgb(29, 78, 216)');
+      const stroke = await page.evaluate(
+        () =>
+          getComputedStyle(
+            document.querySelector('#trend .nv-chart__line') as Element,
+          ).stroke,
+      );
+      expect(stroke).toBe('rgb(29, 78, 216)');
+      await page.emulateMedia({ colorScheme: 'dark' });
+      expect(await fill()).toBe('rgb(143, 180, 255)');
+    });
+    it('feeds a third-party chart from the data table without inline script', async () => {
+      expect(await page.evaluate(() => window.nvChartData)).toEqual({
+        labels: ['Jan', 'Feb', 'Mar'],
+        series: [{ name: 'Visitors', values: [30, 10, 20] }],
+      });
+      const painted = await page.evaluate(() => {
+        const canvas = document.getElementById(
+          'ext-chart',
+        ) as HTMLCanvasElement;
+        return canvas.getContext('2d')?.getImageData(50, 110, 1, 1).data[3];
+      });
+      expect(painted).toBe(255);
+      await pw(
+        page.getByRole('img', { name: 'Third-party visits' }),
+      ).toBeVisible();
+      await pw(
+        page.getByRole('table', { name: 'Third-party visits' }),
+      ).toHaveCount(1);
+      // Malformed or foreign markup is reported as undefined, not guessed.
+      expect(
+        await page.evaluate(() => {
+          const ui = window.nvUi;
+          const cell = document.querySelector('#ext-data td');
+          cell?.setAttribute('data-value', 'NaN');
+          const broken = ui.chartData(
+            document.getElementById('ext') as Element,
+          );
+          cell?.setAttribute('data-value', '');
+          const empty = ui.chartData(document.getElementById('ext') as Element);
+          return [broken, empty, ui.chartData(document.body)].map(
+            (result) => result === undefined,
+          );
+        }),
+      ).toEqual([true, true, true]);
+    });
+    it('has no WCAG 2.1 A/AA violations for fields and charts in light and dark mode', async () => {
+      const scoped = () =>
+        new AxeBuilder({ page })
+          .include('#profile')
+          .include('#charts')
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+      expect((await scoped()).violations).toEqual([]);
+      await page.emulateMedia({ colorScheme: 'dark' });
+      expect((await scoped()).violations).toEqual([]);
     });
   });
 

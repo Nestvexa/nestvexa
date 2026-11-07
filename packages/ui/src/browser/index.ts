@@ -1538,3 +1538,53 @@ export function connectUi(
     if (current.owned) current.controller.dispose();
   };
 }
+
+/** Values of a chart's data table, as read by {@link chartData}. */
+export interface ChartData {
+  readonly labels: readonly string[];
+  readonly series: readonly {
+    readonly name: string;
+    readonly values: readonly number[];
+  }[];
+}
+/**
+ * Read the data table of a chart (`<figure data-nv-ui-chart>` rendered by
+ * the chart helper or wrappers) back into labels and numeric series, for
+ * example to feed a third-party chart mounted in a `type="custom"` chart's
+ * `{id}-canvas` container from an external script. `root` is the figure or
+ * an element inside it. Returns undefined when no well-formed table is found;
+ * values come from each cell's `data-value`, never from formatted text.
+ */
+export function chartData(root: Element): ChartData | undefined {
+  const figure = root.closest('[data-nv-ui-chart]');
+  const table = figure?.querySelector(
+    ':scope > .nv-chart__data > table.nv-chart__table',
+  );
+  const header = table?.querySelector(':scope > thead > tr');
+  if (!table || !header) return undefined;
+  const names = [...header.children]
+    .slice(1)
+    .map((cell) => cell.textContent ?? '');
+  const labels: string[] = [];
+  const values: number[][] = names.map(() => []);
+  for (const row of table.querySelectorAll(':scope > tbody > tr')) {
+    const [label, ...cells] = [...row.children];
+    if (!label || cells.length !== names.length) return undefined;
+    labels.push(label.textContent ?? '');
+    for (const [index, cell] of cells.entries()) {
+      const raw = cell.getAttribute('data-value');
+      const value =
+        raw === null || raw.trim() === '' ? Number.NaN : Number(raw);
+      if (!Number.isFinite(value)) return undefined;
+      values[index]?.push(value);
+    }
+  }
+  return Object.freeze({
+    labels: Object.freeze(labels),
+    series: Object.freeze(
+      names.map((name, index) =>
+        Object.freeze({ name, values: Object.freeze(values[index] ?? []) }),
+      ),
+    ),
+  });
+}

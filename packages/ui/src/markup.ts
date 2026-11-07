@@ -10,13 +10,12 @@
  */
 import {
   UiError,
-  attributes,
   classes,
-  escapeHtml,
   flag,
   id,
   joinIds,
   list,
+  localeTag,
   oneOf,
   optionalHref,
   optionalId,
@@ -24,89 +23,33 @@ import {
   record,
   text,
 } from './html.js';
+import { element, slot } from './tree.js';
+import type { MarkupElement, MarkupInput, MarkupNode } from './tree.js';
 
-/** `true` renders a bare (boolean) attribute. */
-export type MarkupAttributeValue = string | true;
-export interface MarkupElement {
-  readonly tag: string;
-  /** Attributes in output order. */
-  readonly attributes: Readonly<Record<string, MarkupAttributeValue>>;
-  readonly children: readonly MarkupNode[];
-}
-/** Placeholder for caller content: a block body, tab panel or table body. */
-export interface MarkupSlot {
-  readonly slot: string;
-}
-/** Strings are text and are always escaped by renderers. */
-export type MarkupNode = MarkupElement | MarkupSlot | string;
-/** Builder input: a plain object (template hash or framework props). */
-export type MarkupInput = Readonly<Record<string, unknown>>;
-
-/** Elements that never have children or a closing tag. */
-export const voidElements: ReadonlySet<string> = new Set([
-  'area',
-  'base',
-  'br',
-  'col',
-  'embed',
-  'hr',
-  'img',
-  'input',
-  'link',
-  'meta',
-  'source',
-  'track',
-  'wbr',
-]);
-/** Attributes whose presence (not value) carries the meaning. */
-export const booleanAttributes: ReadonlySet<string> = new Set([
-  'checked',
-  'disabled',
-  'hidden',
-  'multiple',
-  'open',
-  'readonly',
-  'required',
-  'selected',
-]);
-
-function element(
-  tag: string,
-  values: Readonly<Record<string, string | number | boolean | undefined>>,
-  children: readonly MarkupNode[] = [],
-): MarkupElement {
-  const output: Record<string, MarkupAttributeValue> = {};
-  for (const [name, value] of Object.entries(values)) {
-    if (value === undefined || value === false) continue;
-    output[name] = value === true ? true : String(value);
-  }
-  return Object.freeze({
-    tag,
-    attributes: Object.freeze(output),
-    children: Object.freeze([...children]),
-  });
-}
-const slot = (name: string): MarkupSlot => Object.freeze({ slot: name });
-
-export function isMarkupSlot(node: MarkupNode): node is MarkupSlot {
-  return typeof node === 'object' && 'slot' in node;
-}
-
-/**
- * Print a tree as HTML. Text is escaped; slot contents are inserted as given,
- * so they must already be trusted HTML (for example a rendered template block).
- */
-export function renderMarkup(
-  node: MarkupNode,
-  slots: Readonly<Record<string, string>> = {},
-): string {
-  if (typeof node === 'string') return escapeHtml(node);
-  if (isMarkupSlot(node))
-    return Object.hasOwn(slots, node.slot) ? (slots[node.slot] ?? '') : '';
-  const open = `<${node.tag}${attributes(node.attributes)}>`;
-  if (voidElements.has(node.tag)) return open;
-  return `${open}${node.children.map((child) => renderMarkup(child, slots)).join('')}</${node.tag}>`;
-}
+export {
+  booleanAttributes,
+  isMarkupSlot,
+  renderMarkup,
+  voidElements,
+} from './tree.js';
+export type {
+  MarkupAttributeValue,
+  MarkupElement,
+  MarkupInput,
+  MarkupNode,
+  MarkupSlot,
+} from './tree.js';
+export {
+  checkboxFieldMarkup,
+  fieldInputTypes,
+  radioGroupFieldMarkup,
+  selectFieldMarkup,
+  textFieldMarkup,
+  textareaFieldMarkup,
+} from './fields.js';
+export type { FieldInputType, FieldViewLike } from './fields.js';
+export { chartMarkup, chartTypes } from './chart.js';
+export type { ChartType } from './chart.js';
 
 // Dialog and drawer ---------------------------------------------------------
 /**
@@ -439,18 +382,6 @@ function isoDate(value: unknown, name: string): string | undefined {
     throw new UiError('ARGUMENT', `${name} must be a calendar date`);
   return match[0];
 }
-function locale(value: unknown): string | undefined {
-  if (value === undefined || value === null || value === '') return undefined;
-  if (typeof value !== 'string' || value.length > 35)
-    throw new UiError('ARGUMENT', 'locale must be a BCP 47 tag');
-  try {
-    const [canonical] = Intl.getCanonicalLocales(value);
-    if (canonical) return canonical;
-  } catch {
-    // Reported below without echoing the value.
-  }
-  throw new UiError('ARGUMENT', 'locale must be a BCP 47 tag');
-}
 const dateStyles = ['short', 'medium', 'long', 'full'] as const;
 export type DateStyle = (typeof dateStyles)[number];
 /** Format a date-only value in UTC so no time zone can shift the day. */
@@ -485,7 +416,7 @@ export function datePickerMarkup(input: MarkupInput): MarkupElement {
     throw new UiError('ARGUMENT', 'min must not exceed max');
   if (value && ((min && value < min) || (max && value > max)))
     throw new UiError('ARGUMENT', 'value must be between min and max');
-  const tag = locale(input['locale']);
+  const tag = localeTag(input['locale']);
   const style = oneOf(input['dateStyle'], 'dateStyle', dateStyles, 'long');
   const describedBy = optionalId(input['describedBy'], 'describedBy');
   const required = flag(input['required'], 'required');
