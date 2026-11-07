@@ -120,7 +120,8 @@ events per channel (`replaySize`) after reconnect, for at most 10,000 channels
 (`replayChannels`; the least recently published channel's history is evicted
 first, so per-user channel names cannot grow memory without bound); unknown or
 evicted cursors replay nothing and clients refresh. Redis pub/sub is
-fire-and-forget. The default `MemoryJobQueue` keeps jobs in memory only
+fire-and-forget; `RespRealtimeBroker.subscribe` resolves after Redis confirms
+the subscription. The default `MemoryJobQueue` keeps jobs in memory only
 (`RedisJobQueue` is durable); replay windows are per replica, and presence is
 per replica unless a `presence` store is configured. The unit tests use an
 in-process RESP test double; `pnpm test:services`

@@ -197,7 +197,10 @@ publish progress from the BullMQ `Worker` (`realtime.publish('job:' + job.id,
 At-most-once per connected subscriber; no path claims exactly-once delivery. The
 memory broker replays the last 100 events per channel after reconnect (SSE
 `Last-Event-ID`, poll and WebSocket cursors); unknown cursors replay nothing and
-clients refresh. Replay windows are per replica. Redis pub/sub is fire-and-forget:
+clients refresh. Replay windows are per replica. `RespRealtimeBroker.subscribe`
+resolves once Redis confirms the subscription, so a connection is reported
+`ready` only when events published from then on reach it. Redis pub/sub is
+fire-and-forget:
 a replica disconnected from Redis misses events and its browsers recover with an
 authorized refresh.
 

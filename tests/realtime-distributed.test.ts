@@ -3,6 +3,8 @@ import type { INestApplication } from '@nestjs/common';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
 import { Test } from '@nestjs/testing';
 import { request as httpRequest } from 'node:http';
+import { createServer } from 'node:net';
+import type { Socket } from 'node:net';
 import type { IncomingMessage } from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
@@ -429,4 +431,71 @@ it('detects at startup that an adapter cannot carry WebSockets', async () => {
   await expect(attachRealtimeWebSocket(app)).rejects.toThrow(
     /Node HTTP server/,
   );
+});
+
+describe('Redis broker subscription confirmation', () => {
+  it('resolves subscribe only after the server confirms SUBSCRIBE', async () => {
+    // A server that receives SUBSCRIBE but withholds the confirmation.
+    const sockets: Socket[] = [];
+    const server = createServer((socket) => {
+      sockets.push(socket);
+      socket.on('error', () => undefined);
+    });
+    await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+    cleanup.push(
+      () =>
+        new Promise<void>((done) => {
+          for (const socket of sockets) socket.destroy();
+          server.close(() => done());
+        }),
+    );
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('no port');
+    const broker = new RespRealtimeBroker({
+      port: address.port,
+      prefix: 'c:',
+    });
+    cleanup.push(() => broker.close());
+    let resolved = false;
+    const subscribing = broker
+      .subscribe('tenant-a:room', () => undefined)
+      .then((release) => {
+        resolved = true;
+        return release;
+      });
+    await until(() => sockets.length === 1);
+    await wait(200);
+    expect(resolved).toBe(false);
+    sockets[0]?.write(
+      '*3\r\n$9\r\nsubscribe\r\n$15\r\nc:tenant-a:room\r\n:1\r\n',
+    );
+    const release = await subscribing;
+    expect(resolved).toBe(true);
+    release();
+  });
+
+  it('delivers an event published right after subscribe resolves (no lost first event)', async () => {
+    const double = await respDouble();
+    cleanup.push(() => double.close());
+    const subscriber = new RespRealtimeBroker({
+      port: double.port,
+      prefix: 'f:',
+    });
+    const publisher = new RespRealtimeBroker({
+      port: double.port,
+      prefix: 'f:',
+    });
+    cleanup.push(() => subscriber.close());
+    cleanup.push(() => publisher.close());
+    const received: string[] = [];
+    for (let index = 0; index < 25; index++) {
+      const channel = `tenant-a:fresh-${index}`;
+      await subscriber.subscribe(channel, (event) =>
+        received.push(event.channel),
+      );
+      await publisher.publish(channel, { index });
+    }
+    await until(() => received.length === 25);
+    expect(new Set(received).size).toBe(25);
+  });
 });
