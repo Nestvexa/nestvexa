@@ -155,9 +155,20 @@ component: `children: { member: TeamMember }` on the parent and
 [nested components](../guides/nested-components.md) for props, `@Reactive`,
 `@Modelable`, events and lazy children.
 
-> **Known gap:** Islands have no server-side rendering (only a trusted fallback;
-> React hydrates when you supply `data-nv-ssr` markup yourself), no signed
-> server props, no `noscript` handling, no shared theme/context or typed action
-> client for islands, and no islands bundle budget. The `interaction` strategy and
-> some event-bridge limits are untested. Islands are bundled with esbuild in the
-> example, not through `@nestvexa/vite`.
+## Building islands with Vite
+
+The example above bundles islands with esbuild. To build them with Vite instead,
+add `islandsVitePlugin` from `@nestvexa/islands/build` to the Vite config. It
+writes `islands-manifest.json` and enforces the bundle budgets. Serve the
+output with `@nestvexa/vite`. The
+[islands-vite example](../../examples/islands-vite) shows the client, SSR and
+loader builds and a development mode with Vite's `ssrLoadModule`. Its
+[browser spec](../../tests/browser/islands-vite.spec.ts) runs the built and
+the development server.
+
+> **Known limits:** Vue does not repair or report attribute-only hydration
+> mismatches in production builds. Props schemas are a closed JSON-schema
+> subset with no `pattern`, `format` or `$ref`, so validate richer contracts
+> in your server action. The CLI islands template builds with Vite but does not
+> use `islandsVitePlugin` yet. See the
+> [islands package README](../../packages/islands/README.md#status-and-limits).

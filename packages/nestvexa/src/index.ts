@@ -4,19 +4,17 @@ import {
   CoreModule,
   DiagnosticsRegistry,
   NestvexaConfigService,
+  RequestContextFactory,
   SecurityPolicyRegistry,
-  exactOriginPolicy,
 } from '@nestvexa/core';
 import type {
   CoreModuleRegistration,
   NestvexaAsyncOptions,
   NestvexaOptions,
 } from '@nestvexa/core';
-import { timingSafeEqual } from 'node:crypto';
 import { HbsEngine } from '@nestvexa/engine-hbs';
 import { LiveModule } from '@nestvexa/live';
 import type {
-  LiveIdentity,
   LiveModuleAsyncOptions,
   LiveRuntimeFactoryOptions,
 } from '@nestvexa/live';
@@ -31,10 +29,20 @@ export { HbsEngine } from '@nestvexa/engine-hbs';
 export { configureNestvexa, registerViewEngine } from './mvc.module.js';
 export type { ViewEngineBridge } from './mvc.module.js';
 export { NestvexaBrowserService } from './browser.module.js';
+export {
+  NestvexaViewContextInterceptor,
+  VIEW_CONTEXT_KEY,
+} from './view-context.js';
 export type { NestvexaBrowserOptions } from './browser.module.js';
 
-/** Host policies are required; the umbrella owns the shared HBS renderer. */
-export type NestvexaLivePolicies = Omit<LiveRuntimeFactoryOptions, 'renderer'>;
+/**
+ * Host policies are required; the umbrella owns the shared HBS renderer and
+ * wires the kernel (policy registry, request context) into Live itself.
+ */
+export type NestvexaLivePolicies = Omit<
+  LiveRuntimeFactoryOptions,
+  'renderer' | 'policies' | 'policyOwner' | 'requestContext'
+>;
 /** Route structure is available synchronously, even when host policy configuration is async. */
 export interface NestvexaLiveOptions<
   Dependencies extends unknown[] = unknown[],
@@ -65,58 +73,6 @@ function dataObject(
     )
       throw new Error(`Invalid ${label}`);
   }
-}
-/**
- * Record the Live policies in the kernel `SecurityPolicyRegistry` (owner
- * `live`) so diagnostics and other features see what Live enforces. Live
- * itself keeps enforcing them; these entries delegate to the same callbacks.
- */
-function registerLivePolicies(
-  security: SecurityPolicyRegistry,
-  policies: NestvexaLivePolicies,
-): void {
-  if (security.has('origin', 'live')) return;
-  security.register('origin', 'live', exactOriginPolicy(policies.origin));
-  security.register('action-authorization', 'live', {
-    authorize: async (subject, resource, action) => {
-      if (
-        typeof subject !== 'object' ||
-        subject === null ||
-        typeof Reflect.get(subject, 'binding') !== 'string' ||
-        typeof Reflect.get(subject, 'csrfToken') !== 'string'
-      )
-        return false;
-      return (
-        (await policies.authorize(
-          subject as LiveIdentity,
-          resource,
-          action,
-        )) === true
-      );
-    },
-  });
-  security.register('csrf', 'live', {
-    verify: async (request) => {
-      const identity = await policies.resolveIdentity(request);
-      const headers: unknown = Reflect.get(request, 'headers');
-      const header: unknown =
-        typeof headers === 'object' && headers !== null
-          ? Reflect.get(headers, 'x-nestvexa-csrf')
-          : undefined;
-      const expected = Buffer.from(identity.csrfToken);
-      const actual = Buffer.from(typeof header === 'string' ? header : '');
-      return (
-        expected.length >= 32 &&
-        expected.length === actual.length &&
-        timingSafeEqual(expected, actual)
-      );
-    },
-  });
-  security.register('snapshot', 'live', {
-    storage: 'server',
-    ttlMs: 900_000,
-    bindsIdentity: true,
-  });
 }
 function integrated<Dependencies extends unknown[]>(
   core: DynamicModule,
@@ -156,6 +112,7 @@ function integrated<Dependencies extends unknown[]>(
       NestvexaConfigService,
       DiagnosticsRegistry,
       SecurityPolicyRegistry,
+      RequestContextFactory,
       ...Dependencies,
     ]
   >({
@@ -168,6 +125,7 @@ function integrated<Dependencies extends unknown[]>(
       NestvexaConfigService,
       DiagnosticsRegistry,
       SecurityPolicyRegistry,
+      RequestContextFactory,
       ...(live.inject ?? []),
     ],
     useFactory: async (
@@ -175,6 +133,7 @@ function integrated<Dependencies extends unknown[]>(
       config,
       diagnostics,
       security,
+      context,
       ...dependencies
     ) => {
       if (!config.value.live.enabled)
@@ -210,12 +169,15 @@ function integrated<Dependencies extends unknown[]>(
         ],
         'umbrella Live policies',
       );
-      registerLivePolicies(security, policies);
       return {
         ...policies,
         // Live spans land in the kernel diagnostics unless the host traces itself.
         instrumentation:
           policies.instrumentation ?? diagnostics.instrumentation(),
+        // Live registers its policies here (owner `live`) and enforces every
+        // origin, CSRF and authorization decision through this registry.
+        policies: security,
+        requestContext: context,
         renderer: engine,
       };
     },

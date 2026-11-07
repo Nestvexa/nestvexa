@@ -47,6 +47,7 @@ import {
 } from './route-conflicts.js';
 import type { LiveHostOptions } from './runtime.js';
 import { isLiveStateStore } from './store.js';
+import { isLivePolicyRegistry, validPolicyOwner } from './security-policies.js';
 import { LIVE_CAPABILITIES, LIVE_PROTOCOL } from './protocol.js';
 
 /**
@@ -82,17 +83,29 @@ class LiveAdmissionGuard implements CanActivate {
         route.action,
       );
     } catch (error) {
+      const code =
+        error instanceof HttpException
+          ? Reflect.get(Object(error.getResponse()), 'code')
+          : undefined;
+      const response = context.switchToHttp().getResponse<object>();
       // The browser reads this header (bodies are never parsed on errors).
-      if (
-        error instanceof HttpException &&
-        Reflect.get(Object(error.getResponse()), 'code') ===
-          'ASSET_VERSION_MISMATCH'
-      )
+      if (code === 'ASSET_VERSION_MISMATCH')
         this.adapter.httpAdapter.setHeader(
-          context.switchToHttp().getResponse<object>(),
+          response,
           'x-nestvexa-reload',
           'asset-version',
         );
+      if (code === 'RATE_LIMIT') {
+        const seconds = this.runtime.retryAfter(
+          context.switchToHttp().getRequest<object>(),
+        );
+        if (seconds !== undefined)
+          this.adapter.httpAdapter.setHeader(
+            response,
+            'Retry-After',
+            String(seconds),
+          );
+      }
       throw error;
     }
     return true;
@@ -230,6 +243,26 @@ function validateHost(options: LiveRuntimeFactoryOptions): void {
     throw new Error(
       'Live assetVersion must be 1–128 letters, digits, ".", "_", ":", "+" or "-"',
     );
+  if (options.policies !== undefined && !isLivePolicyRegistry(options.policies))
+    throw new Error(
+      'Live policies option requires has, register, originAllowed, verifyCsrf and authorize methods',
+    );
+  if (
+    options.policyOwner !== undefined &&
+    (options.policies === undefined || !validPolicyOwner(options.policyOwner))
+  )
+    throw new Error(
+      'Live policyOwner must be a lowercase name (a-z0-9._-) used with policies',
+    );
+  if (
+    options.requestContext !== undefined &&
+    (typeof options.requestContext !== 'object' ||
+      options.requestContext === null ||
+      typeof options.requestContext.correlationId !== 'function')
+  )
+    throw new Error(
+      'Live requestContext option requires a correlationId(request) method',
+    );
 }
 
 function factoryOptions(
@@ -252,6 +285,9 @@ function factoryOptions(
     'events',
     'assetVersion',
     'inspector',
+    'policies',
+    'policyOwner',
+    'requestContext',
   ]);
   for (const key of Reflect.ownKeys(options)) {
     if (typeof key !== 'string' || !allowed.has(key))
@@ -308,6 +344,13 @@ function factoryOptions(
     ...(snapshot.inspector === undefined
       ? {}
       : { inspector: snapshot.inspector }),
+    ...(snapshot.policies === undefined ? {} : { policies: snapshot.policies }),
+    ...(snapshot.policyOwner === undefined
+      ? {}
+      : { policyOwner: snapshot.policyOwner }),
+    ...(snapshot.requestContext === undefined
+      ? {}
+      : { requestContext: snapshot.requestContext }),
   });
 }
 

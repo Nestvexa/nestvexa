@@ -4,9 +4,9 @@ Alpine adapter for the Nestvexa Live client. `installLiveAlpine` registers `$liv
 
 ## Installation
 
-This package is unpublished. Install the local tarballs produced by `pnpm build && pnpm test:pack`. After owner-authorized publication, use `npm install @nestvexa/alpine @alpinejs/csp`, `pnpm add @nestvexa/alpine @alpinejs/csp`, or the corresponding `yarn add` command.
+This package is unpublished. Install the local tarballs produced by `pnpm build && pnpm test:pack`. After owner-authorized publication, use `npm install @nestvexa/alpine @alpinejs/csp`, `pnpm add @nestvexa/alpine @alpinejs/csp`, or `yarn add @nestvexa/alpine @alpinejs/csp`. The `nestvexa` umbrella package already depends on this adapter and `@alpinejs/csp` 3.17.5, and its default browser bootstrap uses it, so a default install needs no separate step.
 
-The adapter depends on `@nestvexa/client`. Provide exactly one host Alpine runtime. Stable Alpine 3.17.x is the current compatibility boundary; the browser fixture uses the CSP build3.17.5. `@alpinejs/csp` and `alpinejs` are optional peers because the host selects one runtime. The standard Alpine build requires a different CSP policy; use the CSP build when unsafe-eval is forbidden.
+The adapter depends on `@nestvexa/client`. Provide exactly one host Alpine runtime. Stable Alpine 3.17.x is the current compatibility boundary; the browser fixture uses the CSP build 3.17.5. `@alpinejs/csp` and `alpinejs` are optional peers because the host selects one runtime. The standard Alpine build requires a different CSP policy; use the CSP build when unsafe-eval is forbidden.
 
 ## Startup
 
@@ -33,7 +33,7 @@ One document owns one application, including across copies of the bootstrap pack
 
 ## Local DOM ownership
 
-This initial integration requires Alpine markup inside an `nv:ignore` subtree nested under a Live component:
+The integration requires Alpine markup inside an `nv:ignore` subtree nested under a Live component:
 
 ```html
 <div nv:ignore="" x-data="{ local: 0 }">
@@ -83,8 +83,30 @@ document.addEventListener('nestvexa:alpine:init', ({ detail: { Alpine } }) => {
 
 An Alpine write stages a local draft exactly like `$live.set`; nothing is committed until the next Live request (an action, `nv:model` sync or `$live.call`), and the server still validates writable state. Committed server values flow back into the Alpine property without echoing a new draft. Non-primitive Alpine values are reverted and throw. Entanglement stops with Alpine element cleanup. Use `nv:model` when you need the client's debounce, invalid-input and composition rules; entangle bypasses that scheduler deliberately, as `$live.set` does. Arbitrary mixed DOM ownership, teleport handling and the full Live directive set are not implemented here. No expression evaluator is added by Nestvexa. Templates are trusted application code.
 
-## Public API and verification
+## Public API
 
-Exports: `installLiveAlpine`, `startLiveAlpine`, `adoptLiveAlpine`, `hostAlpine`, `AlpineHost`, `AlpineMagicUtilities`, `AlpineInterceptorCallback`, `LiveClientBridge`, `LiveMagic`, `AlpineRuntime`, `ManagedLiveClient`, `StartLiveAlpineOptions`, and `LiveAlpineApplication`. Delegated startup defaults to the current document. There are no import-time startup side effects.
+Exports: `installLiveAlpine`, `startLiveAlpine`, `adoptLiveAlpine`, `hostAlpine`, and the types `AlpineHost`, `AlpineMagicUtilities`, `AlpineInterceptorCallback`, `LiveClientBridge`, `LiveMagic`, `AlpineRuntime`, `ManagedLiveClient`, `StartLiveAlpineOptions`, `AdoptLiveAlpineOptions` and `LiveAlpineApplication`. Delegated startup defaults to the current document. There are no import-time startup side effects. ESM; the `default` export condition lets bundlers and `require(esm)` resolve it, with no dual-module identity promise.
 
-At repository root run `pnpm exec vitest run tests/alpine.test.ts tests/alpine-start.test.ts` and `pnpm test:e2e`. `tests/browser/alpine-bridge.spec.ts` drives `$live.state`, `$live.dispatch`, `$live.on` and `$live.entangle` with the real CSP Alpine 3.17 build against the [browser-lab example](../../examples/browser-lab/README.md) in Chromium, Firefox and WebKit, on a loaded page and on pages reached with `nv:navigate`. The startup tests use Chromium with the actual CSP runtime/client and explicitly controlled transport fixtures. Browser examples exercise real server requests. See the [default starter](../../examples/starter-live/README.md), [Live counter](../../examples/live-counter/README.md), [client package](../client/README.md), [security policy](../../SECURITY.md), [status](../../docs/implementation/STATUS.md), and [changelog](../../CHANGELOG.md). Maintainer identity and official repository URLs await owner input. ESM only; no dual-module identity promise.
+See the [default starter](../../examples/starter-live/README.md), [Live counter](../../examples/live-counter/README.md), [client package](../client/README.md), [CSP guide](../../docs/guides/csp.md), [security policy](../../SECURITY.md) and [status](../../docs/implementation/STATUS.md).
+
+## Status and limits
+
+Status: **Partial**. `$live.call/get/set/state/dispatch/on/entangle`, explicit and delegated startup and host-Alpine adoption work and are tested with the real CSP Alpine runtime; `tests/browser/alpine-bridge.spec.ts` drives `$live.state`, `$live.dispatch`, `$live.on` and `$live.entangle` against the [browser-lab example](../../examples/browser-lab/README.md) in Chromium, Firefox and WebKit, on a loaded page and on pages reached with `nv:navigate`.
+
+- Only Alpine 3.17.x is accepted and tested; broader host-Alpine compatibility is not established (BROW-005).
+- `$live.entangle` binds primitive fields only and bypasses the `nv:model` debounce/invalid-input scheduler; hosts that call `installLiveAlpine` directly with `nv:navigate` must call `Alpine.destroyTree` on `nestvexa:navigate` themselves (BROW-014).
+- Alpine markup must sit in an `nv:ignore` subtree; arbitrary mixed DOM ownership, teleports and the full Live directive set are not handled.
+- An Alpine instance already started before adoption cannot be detected through public APIs; adopt or start before the host starts Alpine.
+- Cross-copy or pre-existing unrelated `$live` plugin detection is not guaranteed.
+
+## Testing
+
+```sh
+pnpm --filter @nestvexa/alpine test
+```
+
+Runs `tests/alpine.test.ts` (facade, cleanup, ownership, `$live.on`) and `tests/alpine-start.test.ts` (startup and adoption in Chromium with the actual CSP runtime/client and controlled transport fixtures); build first with `pnpm --filter @nestvexa/alpine... build` because the tests import `dist`. Browser examples that exercise real server requests (for example `tests/browser/live.spec.ts` and `tests/browser/alpine-bridge.spec.ts`) run through the root Playwright config.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

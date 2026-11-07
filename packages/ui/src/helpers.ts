@@ -1,14 +1,21 @@
 import type { SafeHtml, ViewHelper } from '@nestvexa/views';
 import { block, call, html } from './call.js';
 import {
+  chartMarkup,
+  checkboxFieldMarkup,
   dialogMarkup,
   dialogTriggerMarkup,
+  radioGroupFieldMarkup,
   renderMarkup,
+  selectFieldMarkup,
   sortHeaderMarkup,
   tabPanelSlot,
   tabsMarkup,
+  textFieldMarkup,
+  textareaFieldMarkup,
   toastRegionMarkup,
 } from './markup.js';
+import type { MarkupElement, MarkupInput } from './markup.js';
 import { primitiveHelpers } from './primitives.js';
 import {
   UiError,
@@ -325,6 +332,27 @@ function progress(...args: unknown[]): SafeHtml {
   );
 }
 
+/** Inline helper printing one contract builder from the template hash. */
+function inline(
+  name: string,
+  build: (input: MarkupInput) => MarkupElement,
+): (...args: unknown[]) => SafeHtml {
+  return (...args: unknown[]) =>
+    html(renderMarkup(build(call(args, name).hash)));
+}
+
+/**
+ * Chart (see `chartMarkup`). As a block with `type="custom"`, the body is
+ * the third-party chart's mount point (for example a `<canvas>`).
+ */
+function chart(this: unknown, ...args: unknown[]): SafeHtml {
+  const helper = call(args, 'chart');
+  const body = helper.fn ? helper.fn(this) : '';
+  if (body.trim() !== '' && helper.hash['type'] !== 'custom')
+    throw new UiError('ARGUMENT', 'Only a custom chart takes a block body');
+  return html(renderMarkup(chartMarkup(helper.hash), { chart: body }));
+}
+
 function visuallyHidden(...args: unknown[]): SafeHtml {
   const helper = call(args, 'visuallyHidden');
   return html(
@@ -358,6 +386,12 @@ export function uiHelpers(
     ['Progress', progress],
     ['VisuallyHidden', visuallyHidden],
     ['Drawer', drawer],
+    ['TextField', inline('textField', textFieldMarkup)],
+    ['TextareaField', inline('textareaField', textareaFieldMarkup)],
+    ['SelectField', inline('selectField', selectFieldMarkup)],
+    ['CheckboxField', inline('checkboxField', checkboxFieldMarkup)],
+    ['RadioGroupField', inline('radioGroupField', radioGroupFieldMarkup)],
+    ['Chart', chart],
     ...primitiveHelpers,
   ];
   const helpers: Record<string, ViewHelper> = {};

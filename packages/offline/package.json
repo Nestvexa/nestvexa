@@ -4,6 +4,12 @@
   "description": "Optional identity-scoped Live form drafts, read-only HTML snapshots and safe reconnect for Nestvexa",
   "license": "MIT",
   "author": "Nestvexa contributors",
+  "maintainers": [
+    {
+      "name": "Nestvexa",
+      "url": "https://github.com/Nestvexa"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Nestvexa/nestvexa.git",
@@ -42,6 +48,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.server.json",
+    "test": "vitest run --root ../.. tests/offline-",
     "lint": "eslint src"
   }
 }

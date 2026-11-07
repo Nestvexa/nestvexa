@@ -4,6 +4,12 @@
   "description": "Inertia.js v3 server adapter for NestJS controllers on Express and Fastify",
   "license": "MIT",
   "author": "Nestvexa contributors",
+  "maintainers": [
+    {
+      "name": "Nestvexa",
+      "url": "https://github.com/Nestvexa"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Nestvexa/nestvexa.git",
@@ -42,7 +48,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run ../../tests/inertia-protocol.test.ts ../../tests/inertia-http.test.ts ../../tests/inertia-security.test.ts ../../tests/inertia-precognition.test.ts ../../tests/inertia-golden.test.ts ../../tests/inertia-testing.test.ts",
+    "test": "vitest run --root ../.. tests/inertia- tests/property-inertia",
     "lint": "eslint src"
   },
   "dependencies": {

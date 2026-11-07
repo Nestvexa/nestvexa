@@ -1022,6 +1022,51 @@ for (const platform of ['express', 'fastify'] as const)
       await noLeaks();
     });
 
+    it('answers a truncated multipart form with a 4xx and no uncaught parser error', async () => {
+      // Two files, so one part can fail while another's write is still queued.
+      const form = multipart([
+        { name: '_csrf', value: csrfFor('noah') },
+        {
+          name: 'files',
+          filename: 'report.pdf',
+          type: 'application/pdf',
+          data: PDF,
+        },
+        { name: 'files', filename: 'logo.png', type: 'image/png', data: PNG },
+      ]);
+      const end = form.body.byteLength - 1;
+      const cuts = new Set<number>();
+      for (let cut = 1; cut < end; cut += 7) cuts.add(cut);
+      for (const marker of ['report.pdf', 'logo.png', '%%EOF'])
+        cuts.add(form.body.indexOf(marker) + marker.length);
+      cuts.add(end);
+      // A body cut only inside the trailing CRLF still carries the closing delimiter: complete.
+      const closing = `--${form.boundary}--`;
+      const complete =
+        form.body.lastIndexOf(closing) + Buffer.byteLength(closing);
+      for (const cut of cuts) {
+        const body = form.body.subarray(0, cut);
+        const reply = await send(base, 'POST', '/host/form', {
+          headers: {
+            'x-test-user': 'noah',
+            origin: ORIGIN,
+            'content-type': `multipart/form-data; boundary=${form.boundary}`,
+            'content-length': String(body.byteLength),
+          },
+          body,
+        });
+        if (cut >= complete) {
+          expect(reply.status, `cut at ${String(cut)}`).toBe(201);
+          continue;
+        }
+        expect(reply.status, `cut at ${String(cut)}`).toBeGreaterThanOrEqual(
+          400,
+        );
+        expect(reply.status, `cut at ${String(cut)}`).toBeLessThan(500);
+      }
+      await noLeaks();
+    });
+
     it('treats finalize as single use under concurrency and revalidates stored bytes', async () => {
       const reply = await upload('nina', 'images', 'race.png', PNG);
       const token = String(reply.json()['token']);

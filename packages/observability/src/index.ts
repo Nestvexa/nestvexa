@@ -22,7 +22,13 @@ export {
   devtoolsSnapshot,
   devtoolsStylesheet,
   renderDevtools,
+  type DevtoolsCapability,
+  type DevtoolsDiagnostic,
+  type DevtoolsKernelSnapshot,
+  type DevtoolsKernelSource,
+  type DevtoolsModuleAsyncOptions,
   type DevtoolsOptions,
+  type DevtoolsPolicyReport,
   type DevtoolsRenderer,
   type DevtoolsSnapshot,
 } from './devtools.js';

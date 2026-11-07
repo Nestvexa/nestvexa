@@ -11,6 +11,7 @@ import {
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import fc from 'fast-check';
+import { propertyRuns } from './support/property-runs.js';
 import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -37,7 +38,7 @@ import {
  * boundaries and truncated bodies. Invariants: no 5xx, files are accepted
  * only with valid client filenames, and temporary files never leak.
  */
-const runs = { numRuns: 60 };
+const runs = propertyRuns(60);
 const filename = fc.oneof(
   fc.constantFrom(
     'report.pdf',

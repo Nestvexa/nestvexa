@@ -98,6 +98,15 @@ and call `store.revoke(binding)` (with a store you construct and pass as the Liv
   expressions. Event payloads and optimistic projections are untrusted input;
   validate them with `@ActionInput` pipes.
 - Island props are plain bounded JSON, escaped into `data-nv-props`.
+- Never interpolate data inside an Alpine expression attribute
+  (`x-data="{ name: '{{name}}' }"`): the HTML parser undoes the escaping and the
+  value becomes Alpine code. Read Live state with `$live.get(...)` instead.
+  Escaped text and attribute values cannot create `x-*`, `@` or `nv:*`
+  attributes ([test](../../tests/browser/alpine-injection.spec.ts)).
+- Vue and Svelte escape text and attributes but **do not filter URL schemes**.
+  Pass any page prop bound to `href`/`src` through a scheme allowlist, as
+  `examples/inertia-vue/client/safe-href.ts` does; React blocks `javascript:`
+  URLs itself ([test](../../tests/browser/inertia-hostile-props.ts)).
 
 ## Uploads
 
@@ -135,6 +144,9 @@ for you. See [CSP and security headers](../deployment/csp-and-headers.md).
 
 ## Logging and incident response
 
+- Nestvexa sends no telemetry; every observability hook is opt-in. See the
+  [telemetry policy](telemetry.md). Nestvexa also sets no CORS headers; see the
+  [CORS posture](cors.md).
 - Log through `createLogger()` or `redact()` from `@nestvexa/observability`, which
   strip passwords, tokens, cookies, sessions, CSRF values, snapshots and
   bindings. Live spans never carry state, identities or HTML.

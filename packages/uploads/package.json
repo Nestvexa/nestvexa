@@ -4,6 +4,12 @@
   "description": "Opt-in NestJS upload pipeline: streaming limits, magic-byte validation, temporary tokens, chunked uploads, local/S3-compatible storage and safe downloads",
   "license": "MIT",
   "author": "Nestvexa contributors",
+  "maintainers": [
+    {
+      "name": "Nestvexa",
+      "url": "https://github.com/Nestvexa"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Nestvexa/nestvexa.git",
@@ -42,7 +48,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json",
-    "test": "vitest run ../../tests/uploads-validation.test.ts ../../tests/uploads-http.test.ts ../../tests/uploads-limits.test.ts ../../tests/uploads-s3.test.ts ../../tests/uploads-browser.test.ts",
+    "test": "vitest run --root ../.. tests/uploads- tests/property-uploads",
     "lint": "eslint src"
   },
   "dependencies": {

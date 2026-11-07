@@ -119,7 +119,7 @@ the package can emit is listed with the status it is emitted with.
 | `STATE_TYPE`               | 422    | fix-request | An update changed the JSON kind of a field or failed its synthesizer.    |
 | `STATE_INVALID`            | 422    | fix-request | A @State validate callback rejected the value.                           |
 | `UNSUPPORTED_PROTOCOL`     | 426    | reload      | The envelope names another protocol major.                               |
-| `RATE_LIMIT`               | 429    | retry-later | Per-identity request budget exhausted.                                   |
+| `RATE_LIMIT`               | 429    | retry-later | Per-identity budget exhausted; `Retry-After` gives seconds to wait.      |
 | `STREAM_CAPACITY`          | 429    | retry-later | Too many concurrent text streams.                                        |
 | `INVALID_STATE`            | 400    | server      | The store was asked to create state for an invalid component identifier. |
 | `INVALID_STORE_OPTIONS`    | 500    | server      | Store options, clock or generators are invalid.                          |

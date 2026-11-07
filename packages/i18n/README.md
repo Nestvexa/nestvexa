@@ -13,11 +13,14 @@ do not import it pay nothing for it.
 
 ## Installation
 
-After owner-authorized publication: `npm install @nestvexa/i18n`,
-`pnpm add @nestvexa/i18n` or `yarn add @nestvexa/i18n`. Before publication use the
-workspace or packed tarballs.
+The package is not published yet: use the workspace package or the local
+tarballs produced by `pnpm build && pnpm test:pack`. Future registry syntax after
+owner-authorized publication: `npm install @nestvexa/i18n`,
+`pnpm add @nestvexa/i18n` or `yarn add @nestvexa/i18n`.
 
-- Node `^22.13.0 || ^24.0.0` (full ICU is the Node default), ESM only.
+- Node `^22.13.0 || ^24.0.0` (full ICU is the Node default), ESM. Entry points:
+  `@nestvexa/i18n`, `@nestvexa/i18n/client` (browser translator) and
+  `@nestvexa/i18n/extract`, plus the `nestvexa-i18n-extract` bin.
 - Peers: `@nestjs/common` and `@nestjs/core` `^12`, `reflect-metadata ^0.2.2`,
   `rxjs ^7.8.2`.
 - Dependency: `@nestvexa/views` (for `SafeHtml`, `ViewHelper`, `ViewComposer`).
@@ -311,36 +314,48 @@ interceptor sets `Vary: Accept-Language, Cookie` and `Content-Language`). Live
 snapshots are locale-free when the locale is a `@Computed`. Fragment caches must
 include `locale` (and `timeZone` if it can vary) in their keys.
 
-## Testing
+## Compatibility and links
 
-```sh
-pnpm --filter @nestvexa/views build
-pnpm --filter @nestvexa/engine-hbs build
-pnpm --filter @nestvexa/i18n build
-pnpm exec vitest run tests/i18n-
-```
+Node 22/24, NestJS 12, Express and Fastify request shapes. Guide:
+[docs/guides/i18n.md](../../docs/guides/i18n.md). Example:
+[examples/admin-i18n](../../examples/admin-i18n/README.md). Localized mail bodies use these helpers
+through [`@nestvexa/mail`](../mail/README.md).
 
-Suites: [negotiation](../../tests/i18n-negotiation.test.ts),
-[messages and formatting](../../tests/i18n-messages.test.ts),
-[HBS and Nest](../../tests/i18n-hbs.test.ts),
-[security](../../tests/i18n-security.test.ts),
-[extraction](../../tests/i18n-extract.test.ts),
-[client hydration](../../tests/i18n-hydration.test.ts).
+## Status and limits
 
-## Production caveats and compatibility
+Status: **Shipped (alpha)**. Negotiation, catalogs, the ICU subset, formatting,
+direction, HBS helpers, the Nest module and interceptor, extraction and explicit
+client hydration are implemented and tested.
 
 - Browser hydration is explicit (`hydration()` + `@nestvexa/i18n/client`); no
-  catalog is published automatically. The client entry is not a separate
-  single-file bundle: serve it through your bundler (it has relative imports).
-- No email/notification template bridge is shipped yet; render mail bodies with
-  your view engine and send them with your Nest mail integration.
+  catalog is published automatically. It is tested with a server payload and a
+  DOM document; no island or Inertia example consumes it yet. The client entry
+  is not a separate single-file bundle: serve it through your bundler (it has
+  relative imports).
 - ICU subset only (see above). Output depends on the Node ICU/CLDR data version;
   pin Node in production and snapshot-test critical strings.
 - Catalogs load at startup; reload requires a new `I18n` instance (restart).
 - Extraction is regex-based over trusted sources; keys in comments are extracted
   and computed keys must be listed manually.
 
-Node 22/24, NestJS 12, Express and Fastify request shapes. Guide:
-[docs/guides/i18n.md](../../docs/guides/i18n.md). Example:
-[examples/admin-i18n](../../examples/admin-i18n). Changes:
-[CHANGELOG](../../CHANGELOG.md).
+## Testing
+
+```sh
+pnpm --filter @nestvexa/i18n test
+```
+
+Runs `tests/i18n-*.test.ts`
+([negotiation](../../tests/i18n-negotiation.test.ts),
+[messages and formatting](../../tests/i18n-messages.test.ts),
+[HBS and Nest](../../tests/i18n-hbs.test.ts),
+[security](../../tests/i18n-security.test.ts),
+[extraction](../../tests/i18n-extract.test.ts),
+[client hydration](../../tests/i18n-hydration.test.ts)) and the property tests
+in `tests/property-i18n.test.ts`; build first with
+`pnpm --filter @nestvexa/i18n... --filter @nestvexa/engine-hbs... build` because
+the tests import `dist`. `tests/browser/admin-i18n.spec.ts` (RTL/LTR switching in
+the example) runs through the root Playwright config.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

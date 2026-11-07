@@ -1,0 +1,115 @@
+<section aria-labelledby="tasks-heading">
+  <h1 id="tasks-heading" tabindex="-1">Tasks</h1>
+  <p id="task-counts">
+    {{counts.total}} tasks: {{counts.open}} open, {{counts.done}} done
+  </p>
+  <p id="task-notice" class="notice" role="status" aria-live="polite">
+    {{notice}}
+  </p>
+
+  <form
+    class="filters"
+    method="get"
+    action="/app/tasks"
+    role="search"
+    aria-label="Filter tasks"
+    nv:submit="applyFilters"
+  >
+    <div>
+      <label for="task-search">Search title or assignee</label>
+      <input
+        id="task-search"
+        name="q"
+        type="search"
+        value="{{query}}"
+        maxlength="40"
+        nv:model.live.debounce.250ms="query"
+      />
+    </div>
+    <div>
+      <label for="task-status">Status</label>
+      <select id="task-status" name="status" nv:model.change="status">
+        {{#each statusOptions}} {{#if selected}}
+        <option value="{{value}}" selected>{{label}}</option>
+        {{else}}
+        <option value="{{value}}">{{label}}</option>
+        {{/if}} {{/each}}
+      </select>
+    </div>
+    <div>
+      <label for="task-priority-filter">Priority</label>
+      <select
+        id="task-priority-filter"
+        name="priority"
+        nv:model.change="priority"
+      >
+        {{#each priorityOptions}} {{#if selected}}
+        <option value="{{value}}" selected>{{label}}</option>
+        {{else}}
+        <option value="{{value}}">{{label}}</option>
+        {{/if}} {{/each}}
+      </select>
+    </div>
+    <button type="submit">Apply</button>
+    <button type="button" nv:click="clearFilters">Clear filters</button>
+  </form>
+
+  <p role="group" aria-label="Sort tasks">
+    Sort by:
+    <button type="button" nv:click="sortTitle" aria-pressed="{{pressed.title}}">
+      Title
+    </button>
+    <button type="button" nv:click="sortDue" aria-pressed="{{pressed.due}}">
+      Due date
+    </button>
+    <button
+      type="button"
+      nv:click="sortPriority"
+      aria-pressed="{{pressed.priority}}"
+    >
+      Priority
+    </button>
+    <span id="task-sort">{{sort}} {{dir}}</span>
+  </p>
+
+  <p>
+    <button type="button" id="task-new" nv:click="newTask" data-opens-editor>
+      New task
+    </button>
+  </p>
+
+  <p id="task-summary">
+    Showing {{pagination.from}}–{{pagination.to}} of {{pagination.total}}
+    matching tasks, page {{pagination.page}} of {{pagination.pages}}
+  </p>
+  <ul id="task-list" aria-label="Tasks" aria-describedby="task-summary">
+    {{#each rows}}
+    <li data-nv-key="row-{{id}}">
+      {{nvChild "row" id taskId=id title=title assigneeName=assigneeName
+      priority=priority due=due attachmentName=attachmentName}}
+    </li>
+    {{else}}
+    <li id="task-empty">No tasks match these filters.</li>
+    {{/each}}
+  </ul>
+
+  <nav aria-label="Task pages">
+    <ul id="task-pages" class="pages">
+      {{#if pageLinks.previous}}
+      <li><a href="{{pageLinks.previous}}" nv:navigate>Previous page</a></li>
+      {{/if}} {{#each pageLinks.pages}} {{#if gap}}
+      <li><span aria-hidden="true">…</span></li>
+      {{else if current}}
+      <li>
+        <a href="{{href}}" aria-current="page" nv:navigate>Page {{label}}</a>
+      </li>
+      {{else}}
+      <li><a href="{{href}}" nv:navigate>Page {{label}}</a></li>
+      {{/if}} {{/each}} {{#if pageLinks.next}}
+      <li><a href="{{pageLinks.next}}" nv:navigate>Next page</a></li>
+      {{/if}}
+    </ul>
+  </nav>
+
+  {{#if editing}} {{nvChild "editor" editing taskId=editing}} {{/if}}
+</section>

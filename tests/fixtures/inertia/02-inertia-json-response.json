@@ -3,7 +3,7 @@
   "source": [
     "https://inertiajs.com/docs/v3/core-concepts/the-protocol#inertia-responses (Inertia docs v3, fetched 2026-11-01)"
   ],
-  "notes": "Upstream example uses encryptHistory: true; the golden route enables it per page.",
+  "notes": "Upstream example uses encryptHistory: true; the golden route enables it per page. Upstream sends Vary: X-Inertia; Nestvexa appends the content-selecting partial-reload headers (cache-poisoning hardening, SEC-030), so the upstream value is checked as a prefix and the full list in tests/cache-poisoning.test.ts.",
   "serverVersion": "6b16b94d7c51cbe5b1fa42aac98241d5",
   "request": {
     "method": "GET",
@@ -17,8 +17,13 @@
   },
   "response": {
     "status": 200,
-    "headers": { "x-inertia": "true", "vary": "X-Inertia" },
-    "headerPrefixes": { "content-type": "application/json" },
+    "headers": {
+      "x-inertia": "true"
+    },
+    "headerPrefixes": {
+      "content-type": "application/json",
+      "vary": "X-Inertia, X-Inertia-Version, X-Inertia-Partial-Component"
+    },
     "json": {
       "component": "Event",
       "props": {

@@ -214,6 +214,11 @@ export class RespRealtimeBroker implements RealtimeBroker {
   #publisher: Socket | undefined;
   #subscriber: Socket | undefined;
   #subscribed = new Set<string>();
+  /** Channels whose SUBSCRIBE Redis has not confirmed yet. */
+  readonly #confirming = new Map<
+    string,
+    { readonly promise: Promise<void>; readonly resolve: () => void }
+  >();
   #pending: {
     resolve: (reply: Reply) => void;
     reject: (error: Error) => void;
@@ -280,6 +285,10 @@ export class RespRealtimeBroker implements RealtimeBroker {
       socket.on('close', () => {
         if (subscriber) {
           if (this.#subscriber === socket) this.#subscriber = undefined;
+          // Never leave a subscribe call waiting on a closed socket; the
+          // resubscription restores the channel.
+          for (const pending of this.#confirming.values()) pending.resolve();
+          this.#confirming.clear();
           this.#scheduleResubscribe();
         } else {
           this.#publisher = undefined;
@@ -318,6 +327,17 @@ export class RespRealtimeBroker implements RealtimeBroker {
     this.#resubscribeTimer.unref();
   }
   #onMessage(reply: Reply): void {
+    if (
+      Array.isArray(reply) &&
+      reply[0] === 'subscribe' &&
+      typeof reply[1] === 'string' &&
+      reply[1].startsWith(this.#options.prefix)
+    ) {
+      const name = reply[1].slice(this.#options.prefix.length);
+      this.#confirming.get(name)?.resolve();
+      this.#confirming.delete(name);
+      return;
+    }
     if (!Array.isArray(reply) || reply[0] !== 'message') return;
     const [, raw, payload] = reply;
     if (typeof raw !== 'string' || typeof payload !== 'string') return;
@@ -370,9 +390,31 @@ export class RespRealtimeBroker implements RealtimeBroker {
     this.#subscriber ??= await this.#connect(true);
     if (!this.#subscribed.has(name)) {
       this.#subscribed.add(name);
+      let resolve: () => void = () => undefined;
+      const promise = new Promise<void>((done) => {
+        resolve = done;
+      });
+      this.#confirming.set(name, { promise, resolve });
       this.#subscriber.write(command('SUBSCRIBE', this.#options.prefix + name));
     }
-    return this.#local.subscribe(name, handler);
+    // Register first: a message may follow the confirmation in the same read.
+    const release = await this.#local.subscribe(name, handler);
+    // Resolve only once Redis confirmed the subscription, so callers (the
+    // hub's `ready` notice) never report a subscription that can still miss
+    // events. A server that never confirms within 5 s does not block forever.
+    const pending = this.#confirming.get(name);
+    if (pending) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        pending.promise,
+        new Promise<void>((done) => {
+          timer = setTimeout(done, 5000);
+          timer.unref();
+        }),
+      ]);
+      clearTimeout(timer);
+    }
+    return release;
   }
   replay(channel: string, afterId: string): readonly RealtimeEvent[] {
     return this.#local.replay(channel, afterId);

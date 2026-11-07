@@ -3,9 +3,12 @@ import { NestvexaError } from './errors.js';
 
 /** Contracts per policy kind (master plan 5.2 `SecurityPolicyRegistry`). */
 export interface SecurityPolicies {
-  /** Verifies the request's anti-CSRF proof. */
+  /**
+   * Verifies the request's anti-CSRF proof. `subject` is the identity the
+   * feature already resolved for this request, when it has one.
+   */
   readonly csrf: {
-    verify(request: object): boolean | Promise<boolean>;
+    verify(request: object, subject?: unknown): boolean | Promise<boolean>;
   };
   /** Decides whether a request `Origin` may perform unsafe requests. */
   readonly origin: {
@@ -152,10 +155,14 @@ export class SecurityPolicyRegistry {
         `${owner} is missing security policies: ${missing.join(', ')}`,
       );
   }
-  async verifyCsrf(owner: string, request: object): Promise<boolean> {
+  async verifyCsrf(
+    owner: string,
+    request: object,
+    subject?: unknown,
+  ): Promise<boolean> {
     if (!this.has('csrf', owner)) return false;
     try {
-      return (await this.get('csrf', owner).verify(request)) === true;
+      return (await this.get('csrf', owner).verify(request, subject)) === true;
     } catch {
       return false;
     }
@@ -232,9 +239,11 @@ export class SecurityPolicyRegistry {
         method(policy, 'verify');
         const verify = Reflect.get(policy, 'verify') as (
           request: object,
+          subject?: unknown,
         ) => boolean | Promise<boolean>;
         return Object.freeze({
-          verify: (request: object) => Reflect.apply(verify, policy, [request]),
+          verify: (request: object, subject?: unknown) =>
+            Reflect.apply(verify, policy, [request, subject]),
         });
       }
       case 'origin': {

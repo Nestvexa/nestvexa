@@ -143,8 +143,9 @@ Alpine CSP build as a hosted asset (`nestvexa/assets`); when you also enable Liv
 `{{nvScripts}}` starts Alpine and the Live client together. See the
 [client asset guide](../guides/client-assets.md) and [Live](live.md).
 
-> **Known gap:** The umbrella HBS configuration has no partial map, namespaced
-> views (`admin::page`), nested HBS layouts, URL-generation or permission helpers,
-> themes, or view-rendered error pages. Partials work when you construct
-> `HbsEngine` yourself with `partials`; production 404/500 pages need your own
-> Nest exception filter.
+> **Known gap:** The umbrella `views` configuration accepts only `engine`,
+> `root`, `cache` and `layout`. Partials, namespaced views (`admin::page`),
+> themes and extra helpers need an `HbsEngine` you construct yourself
+> ([engine README](../../packages/engine-hbs/README.md)). Route, meta, permission
+> and asset helpers and `ViewErrorPageFilter` for 404/5xx pages come from
+> `@nestvexa/views` ([views README](../../packages/views/README.md#namespaces-themes-helpers-and-error-pages)).

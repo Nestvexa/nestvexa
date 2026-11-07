@@ -4,6 +4,12 @@
   "description": "Vite manifest tags, immutable static serving, dev server and SSR bundle loading for NestJS hosts",
   "license": "MIT",
   "author": "Nestvexa contributors",
+  "maintainers": [
+    {
+      "name": "Nestvexa",
+      "url": "https://github.com/Nestvexa"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Nestvexa/nestvexa.git",
@@ -42,7 +48,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run ../../tests/vite-manifest.test.ts ../../tests/vite-static.test.ts ../../tests/vite-ssr.test.ts ../../tests/vite-dev.test.ts",
+    "test": "vitest run --root ../.. tests/vite-",
     "lint": "eslint src"
   },
   "dependencies": {

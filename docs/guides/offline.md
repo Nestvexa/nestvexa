@@ -1,8 +1,10 @@
-# Offline drafts, read-only snapshots and safe reconnect
+# Offline drafts, read-only snapshots, safe reconnect and the action queue
 
 `@nestvexa/offline` is an optional browser module for three progressive
-behaviours. It never queues or replays actions. The server stays
-authoritative, and every submit is an explicit user action.
+behaviours, plus an opt-in queue for operations the server declares
+idempotent (section 8 below). Drafts are never
+replayed. The server stays authoritative, and every submit is an explicit user
+action.
 
 | Behaviour          | What the user sees                                                    | What never happens                         |
 | ------------------ | --------------------------------------------------------------------- | ------------------------------------------ |
@@ -159,8 +161,9 @@ if (scope) {
    comes back `STALE_REVISION`, the component suspends rather than loop.
    Stale requests queued behind the first one share the same resync.
 
-There is no offline action queue. Purchases, payments and deletes are never
-replayed on reconnect.
+Drafts are never replayed. Only operations you allowlist for the
+offline action queue (section 8) are sent on reconnect;
+purchases, payments and deletes cannot be allowlisted.
 
 ### Full-page fallback for a suspended component
 
@@ -224,13 +227,137 @@ test('keeps the draft and never replays the submit', async ({
 ```
 
 The package's own suites run in real Chromium with a strict CSP:
-[drafts](../../tests/offline-drafts.test.ts) and
-[snapshots](../../tests/offline-snapshot.test.ts).
+[drafts](../../tests/offline-drafts.test.ts),
+[snapshots](../../tests/offline-snapshot.test.ts),
+[queue](../../tests/offline-queue.test.ts) and
+[queue security](../../tests/offline-queue-security.test.ts). The
+[offline/online replay test](../../tests/offline-queue-browsers.test.ts) runs
+in Chromium, Firefox and WebKit.
+
+## 8. Opt-in offline action queue
+
+Some operations are safe to send later: saving a note, toggling a preference,
+updating a profile field. Spec 16.2 allows queueing those, and only those, when
+the server declares them idempotent. Purchases, payments and deletes stay
+online-only.
+
+### Declare the allowlist and guard the route
+
+```ts
+import {
+  createOfflineReplayGuard,
+  draftScope,
+  offlineActionAllowlist,
+} from '@nestvexa/offline/server';
+
+export const offlineActions = offlineActionAllowlist([
+  // The handler must be idempotent and run through the guard below.
+  { id: 'notes.save', path: '/notes', label: 'Save note', idempotent: true },
+]);
+const replay = createOfflineReplayGuard({ allowlist: offlineActions });
+
+@Post('notes')
+async save(@Req() request: SessionRequest, @Res() response: Response) {
+  // Runs after your session, CSRF and authorization checks.
+  const result = await replay.run(
+    {
+      method: request.method,
+      path: request.path,
+      headers: request.headers,
+      scope: draftScope(draftSecret, `user:${request.user.id}`),
+      body: request.body,
+    },
+    async () => ({ status: 201, body: await this.notes.save(request.body) }),
+  );
+  response.set(result.headers).status(result.status).json(result.body);
+}
+```
+
+- `offlineActionAllowlist` throws at startup unless every entry says
+  `idempotent: true`, and refuses `DELETE`, safe methods and ids or paths that
+  name payments, purchases, checkout, refunds, transfers or deletion.
+- The guard executes each `Idempotency-Key` at most once per identity and
+  action, answers duplicates with the stored 2xx result
+  (`x-nestvexa-offline-replayed: 1`), refuses the same key with another body
+  (`422 OFFLINE_KEY_REUSED`), refuses a queued entry of another identity
+  (`403 OFFLINE_SCOPE_MISMATCH`) and refuses the offline headers on routes that
+  are not allowlisted (`403 OFFLINE_NOT_ALLOWED`). Failed executions release
+  the key so a retry runs again.
+- With several replicas, pass a shared `OfflineReplayStore` whose `begin` is
+  atomic (SET NX semantics).
+- For `@nestvexa/actions`, `offlineServerAction(manifest.notes.save)` builds
+  the definition and throws unless the action is
+  `@ServerAction({ idempotent: true })`; the actions runtime then provides the
+  deduplication.
+
+### Render the allowlist and the queue UI
+
+```hbs
+<head>
+  {{{offlineActionsMeta}}}
+  {{! offlineActions.metaTag(), already escaped }}
+  <meta name='nestvexa-csrf' content='{{csrfToken}}' />
+</head>
+<p
+  data-nv-queue-status
+  data-nv-queue-message-pending='{{t "queue.pending"}}'
+  data-nv-queue-message-pending-one='{{t "queue.pendingOne"}}'
+  data-nv-queue-message-sent='{{t "queue.sent"}}'
+></p>
+<ul data-nv-queue-list data-nv-queue-label-discard='{{t "queue.discard"}}'></ul>
+<form data-nv-queue='notes.save' action='/notes' method='post'>
+  <input type='hidden' name='_csrf' value='{{csrfToken}}' />
+  <label>Title <input name='title' /></label>
+  <button type='submit'>{{t 'notes.save'}}</button>
+</form>
+```
+
+```ts
+import { attachOfflineQueue, createOfflineQueue } from '/assets/offline.js';
+
+const queue = createOfflineQueue({ scope });
+attachOfflineQueue(document, { queue });
+```
+
+Submitting the form stores the entry (never the CSRF field) and sends it at
+once, or when the browser comes back online. The status region announces the
+pending count, a failure, expiry and success; the list shows each entry with
+its state, time and a Discard button (and Try again after a failure).
+
+### What the queue refuses
+
+| Situation                                                         | Result                                                         |
+| ----------------------------------------------------------------- | -------------------------------------------------------------- |
+| Action not in the allowlist, or listed without `idempotent: true` | `NOT_ALLOWLISTED`; a form submits natively (`refused` message) |
+| Form `action` differs from the allowlisted path                   | Submits natively                                               |
+| Filled password, file, payment, one-time-code or secret field     | Submits natively; nothing is stored                            |
+| `data-nv-sensitive` field with a value                            | Submits natively; nothing is stored                            |
+| CSRF or `data-nv-queue-never` field                               | Dropped; the current CSRF token is sent at replay time         |
+| More than `maxEntries` (20) or an entry over `maxBytes` (16 KiB)  | `QUEUE_FULL` / `TOO_LARGE`                                     |
+| Entry older than `ttlMs` (1 hour)                                 | Removed unsent, announced as expired                           |
+| Another identity's entries on this device, or logout              | Purged, never sent                                             |
+| Redirect, 4xx or 5xx other than transient                         | Entry `failed`; the queue halts until discard or Try again     |
+| Network error, timeout, 408/425/429/502/503/504                   | Retried with backoff and the same request ID                   |
+
+### Test it offline
+
+```ts
+await context.setOffline(true);
+await page.getByLabel('Title').fill('Groceries');
+await page.getByRole('button', { name: 'Save' }).click();
+await expect(page.getByRole('status')).toContainText('waiting to be sent');
+await context.setOffline(false);
+await expect(page.getByRole('status')).toHaveText(
+  'All saved changes were sent.',
+);
+```
 
 ## Limits
 
 - No service worker: a full page reload while offline is not supported.
 - Snapshots live in session storage (per tab) for at most 24 hours.
 - Conflict handling is "review and submit again"; there is no merge UI.
+- The action queue replays only while a page that created it is open (no
+  background sync), and the default replay store is per process.
 - Local storage is readable by any script on the origin. Keep a strict CSP and
   never mark secrets as draft fields.

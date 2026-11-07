@@ -130,7 +130,7 @@ data-only grammar — no expressions are evaluated. See the
 | [@nestvexa/svelte](packages/svelte/README.md)                   | Official `@inertiajs/svelte` (Svelte 5) boot and SSR helpers (optional)                         |
 | [@nestvexa/islands](packages/islands/README.md)                 | Allowlisted React/Vue/Svelte islands with explicit DOM ownership (optional)                     |
 | [@nestvexa/i18n](packages/i18n/README.md)                       | Locale negotiation, ICU-style catalogs, Intl formatting, RTL helpers (optional)                 |
-| [@nestvexa/ui](packages/ui/README.md)                           | Unstyled accessible HBS/Live primitives with keyboard module and theme (optional)               |
+| [@nestvexa/ui](packages/ui/README.md)                           | Accessible HBS/Live primitives, React/Vue/Svelte wrappers, keyboard module and theme (optional) |
 | [@nestvexa/ai](packages/ai/README.md)                           | Provider-neutral streaming chat with server-enforced tool approval (optional)                   |
 | [@nestvexa/flags](packages/flags/README.md)                     | Server-enforced feature flags: guard, view and Live policy helpers (optional)                   |
 | [@nestvexa/offline](packages/offline/README.md)                 | Identity-scoped drafts, read-only snapshots, safe reconnect (optional)                          |
@@ -172,6 +172,7 @@ pnpm --filter @nestvexa/example-express-host start    # http://127.0.0.1:3120 sa
 pnpm --filter @nestvexa/example-fastify-host start    # http://127.0.0.1:3121 same app on Fastify
 pnpm --filter @nestvexa/example-offline-progressive start # http://127.0.0.1:3122 offline/no-JS
 pnpm --filter @nestvexa/example-integration-matrix start  # http://127.0.0.1:3123 every renderer in one server
+pnpm --filter @nestvexa/example-showcase start          # http://127.0.0.1:3124 the coherent showcase app
 NESTVEXA_ASSETS=build PORT=3126 pnpm --filter @nestvexa/example-cli-generated start # CLI output only (see its README)
 ```
 
@@ -179,22 +180,23 @@ Every example has a README (what it shows, how to run it, security notes) and a
 Playwright spec under `tests/browser/` with an axe accessibility check. The
 names in the planned repository layout map to these directories:
 
-| Planned name                    | Example                                                                                                                                                                                                                         |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `starter-hbs`                   | [starter-hbs](examples/starter-hbs/README.md) (MVC) and [starter-live](examples/starter-live/README.md) (default Live setup)                                                                                                    |
-| `starter-ejs`                   | [starter-ejs](examples/starter-ejs/README.md)                                                                                                                                                                                   |
-| `live-counter`                  | [live-counter](examples/live-counter/README.md)                                                                                                                                                                                 |
-| `live-crud`                     | [live-crud](examples/live-crud/README.md); a smaller board is `/projects` in starter-live                                                                                                                                       |
-| `auth-forms`                    | [auth-forms](examples/auth-forms/README.md)                                                                                                                                                                                     |
-| `inertia-react/vue/svelte`      | [inertia-react](examples/inertia-react/README.md), [inertia-vue](examples/inertia-vue/README.md), [inertia-svelte](examples/inertia-svelte/README.md); all three in one host: [inertia-mixed](examples/inertia-mixed/README.md) |
-| `hybrid-dashboard`              | `examples/hybrid-dashboard` (`/hybrid`, Live + React/Vue/Svelte islands)                                                                                                                                                        |
-| `realtime-dashboard`            | [realtime-dashboard](examples/realtime-dashboard/README.md)                                                                                                                                                                     |
-| `upload-to-s3`                  | [upload-to-s3](examples/upload-to-s3/README.md); local-disk storage: [uploads](examples/uploads/README.md)                                                                                                                      |
-| `multi-tenant`                  | [multi-tenant](examples/multi-tenant/README.md)                                                                                                                                                                                 |
-| `express-host` / `fastify-host` | [express-host](examples/express-host/README.md) / [fastify-host](examples/fastify-host/README.md) (one shared `app.ts`)                                                                                                         |
-| `offline-progressive`           | [offline-progressive](examples/offline-progressive/README.md)                                                                                                                                                                   |
-| `integration-matrix`            | [integration-matrix](examples/integration-matrix/README.md)                                                                                                                                                                     |
-| `apps/playground`               | Not a separate app: [integration-matrix](examples/integration-matrix/README.md) is the one-server playground                                                                                                                    |
+| Planned name                      | Example                                                                                                                                                                                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `starter-hbs`                     | [starter-hbs](examples/starter-hbs/README.md) (MVC) and [starter-live](examples/starter-live/README.md) (default Live setup)                                                                                                    |
+| `starter-ejs`                     | [starter-ejs](examples/starter-ejs/README.md)                                                                                                                                                                                   |
+| `live-counter`                    | [live-counter](examples/live-counter/README.md)                                                                                                                                                                                 |
+| `live-crud`                       | [live-crud](examples/live-crud/README.md); a smaller board is `/projects` in starter-live                                                                                                                                       |
+| `auth-forms`                      | [auth-forms](examples/auth-forms/README.md)                                                                                                                                                                                     |
+| `inertia-react/vue/svelte`        | [inertia-react](examples/inertia-react/README.md), [inertia-vue](examples/inertia-vue/README.md), [inertia-svelte](examples/inertia-svelte/README.md); all three in one host: [inertia-mixed](examples/inertia-mixed/README.md) |
+| `hybrid-dashboard`                | `examples/hybrid-dashboard` (`/hybrid`, Live + React/Vue/Svelte islands)                                                                                                                                                        |
+| `realtime-dashboard`              | [realtime-dashboard](examples/realtime-dashboard/README.md)                                                                                                                                                                     |
+| `upload-to-s3`                    | [upload-to-s3](examples/upload-to-s3/README.md); local-disk storage: [uploads](examples/uploads/README.md)                                                                                                                      |
+| `multi-tenant`                    | [multi-tenant](examples/multi-tenant/README.md)                                                                                                                                                                                 |
+| `express-host` / `fastify-host`   | [express-host](examples/express-host/README.md) / [fastify-host](examples/fastify-host/README.md) (one shared `app.ts`)                                                                                                         |
+| `offline-progressive`             | [offline-progressive](examples/offline-progressive/README.md)                                                                                                                                                                   |
+| `integration-matrix`              | [integration-matrix](examples/integration-matrix/README.md)                                                                                                                                                                     |
+| `apps/playground`                 | Not a separate app: [integration-matrix](examples/integration-matrix/README.md) is the one-server playground                                                                                                                    |
+| Showcase application (section 27) | [showcase](examples/showcase/README.md): one product app with auth, roles, two workspaces, Live dashboard and board, wizard, uploads, Vue Inertia, a Vue island and mail                                                        |
 
 The Live starter contains `/board`, `/team` (nested components), `/projects` (CRUD
 board: search, sort, pagination, validation, events, optimistic UI, downloads),
@@ -230,22 +232,36 @@ pnpm size:check && pnpm docs:build && pnpm ledger:check
 pnpm checkpoint:check     # all of the above plus coverage, bench, audit and release:check
 ```
 
-`release:check` intentionally fails while mandatory acceptance work remains.
-Linux execution, real Redis/S3/ClamAV services and load tests have not been run.
+`release:check` intentionally fails while mandatory acceptance work remains. A
+Linux checkpoint (Ubuntu 24.04 in Docker) and the real-service suite
+(`pnpm test:services`: Redis 7, SeaweedFS S3, ClamAV, and a two-replica Redis browser
+run) have passed; see [STATUS.md](docs/implementation/STATUS.md). Load tests have not
+been run.
+
+Each package also has its own `test` script that runs that package's suites from the
+root Vitest config, for example `pnpm --filter @nestvexa/cache test`. Build the package
+and its dependencies first (`pnpm --filter @nestvexa/cache... build`), because the tests
+import `dist`.
 
 ## Known limitations
 
 - This is an alpha with no stability promise. There has been no independent security
   review, and no load, fuzz or mutation testing.
-- Live state lives in one process (`MemoryLiveStore`). Several replicas need sticky
-  sessions. No two-replica Redis browser run has been executed.
-- Not implemented yet:
-  - Inertia Precognition
-  - typed React/Vue/Svelte action hooks
-  - island SSR
-  - CLI scaffolding for React/Vue/Svelte pages
-- 15 packages cannot be loaded with `require()` from CommonJS yet; use `import()`
-  there ([details](docs/architecture/package-dependency-graph.md#output-format)).
+- Live state defaults to one process (`MemoryLiveStore`). For several replicas,
+  use `RedisLiveStore` from `@nestvexa/realtime-redis`. It supports a single Redis
+  primary only, with no Sentinel failover and no Redis Cluster. Cross-replica
+  idempotent replay is tested only against an in-process Redis test double.
+- Server-action idempotency, rate limits and serial locks are process-local, and
+  action results do not stream.
+- Coexistence with Nest GraphQL and microservice transports is untested.
+- Not implemented:
+  - Inertia `shareOnce` sugar and error-page helpers
+  - UI kit chart and form-field wrappers
+  - an offline action queue (deliberate, ADR 0026)
+  - Live `layout`/`isolated` options and `@Layout`/`@Transition`, by design
+    ([ADR 0035](docs/adr/0035-live-layout-isolation-and-transitions.md))
+- Packages are ESM. CommonJS hosts load them through Node 22.12+ `require(esm)`
+  ([details](docs/architecture/package-dependency-graph.md#output-format)).
 - As of 2026-11-05 the packages do not appear on the public npm registry. Install
   them from the `pnpm test:pack` tarballs.
 
@@ -255,5 +271,7 @@ The [feature matrix](docs/feature-matrix.md) and [roadmap](ROADMAP.md) list the 
 
 [Contributing](CONTRIBUTING.md) · [Governance](GOVERNANCE.md) · [Security](SECURITY.md) ·
 [Support](SUPPORT.md) · [Roadmap](ROADMAP.md) · [Changelog](CHANGELOG.md) ·
-[ADRs](docs/adr/) · [License (MIT)](LICENSE). Registry scope ownership, maintainer
-identity and official URLs are owner-supplied release prerequisites.
+[ADRs](docs/adr/) · [License (MIT)](LICENSE). Every package declares the GitHub
+organization `Nestvexa` as maintainer. Review ownership is in
+[CODEOWNERS](.github/CODEOWNERS). Registry scope ownership, individual maintainers and
+official URLs are owner-supplied release prerequisites.
