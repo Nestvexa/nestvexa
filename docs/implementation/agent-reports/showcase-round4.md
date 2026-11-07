@@ -216,7 +216,7 @@ screenshots were produced.
   realtime dashboards) timed out at 180 s while still creating browser
   contexts, in two runs; every assertion it reached passed. WebKit: not
   verified. The first three tests each hit the 180 s timeout while the host
-  was saturated (a plain curl to the server took over two minutes), and the
+  was saturated (CPU at 100%, simple shell commands taking minutes), and the
   run was stopped. The WebKit run, and the Firefox dashboard test, should be
   repeated on an idle host or in CI.
 - The Redis spec ran in Chromium only.
