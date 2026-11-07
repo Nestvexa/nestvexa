@@ -171,10 +171,23 @@ build`, including `vue-tsc` and `svelte-check --fail-on-warnings` and the
   the actions test were fixed and re-run after their first run: the bar's
   container has zero height, and `getByLabel('Note')` also matched the
   "Notes" list).
-- Playwright, Firefox and WebKit: not completed. The run timed out in
-  `config.webServer` (600 s) before any test ran, because the three example
-  servers could not start on the loaded host. The coordinator should run the
-  new suites in Firefox and WebKit (they use state-based waits only).
+- After the second merge of `main` (one browser and one worker at a time,
+  same 25 tests: tour, scroll and progress, typed actions, `validateFiles()`):
+  - Firefox: 25/25 passed.
+  - WebKit: 18/25 passed on the first run. On `--last-failed`, 6 of the 7
+    failures passed. The one left is "Inertia Vue client features tour ›
+    manual visits and non-GET links use the requested methods". It failed
+    both times in the same way: after an Inertia visit back to
+    `/features/tour`, the click on "Post with router.post" waits forever for
+    the button to become _stable_. The page snapshot is complete and correct.
+    All 7 first-run failures were of this kind (clicks stuck on the
+    stability check, and `scroll-region` positions never saved to history),
+    which means WebKit was not producing frames on the starved host. The
+    Svelte twin of the failing test and the same flow in Chromium and
+    Firefox pass. This test still needs a WebKit run on an unloaded host
+    before it can count as verified there.
+- `pnpm exec vitest run tests/inertia-precognition.test.ts` after the second
+  merge: 44/44 passed.
 - `pnpm test:pack` (PowerShell): the tarballs packed and the pnpm full
   consumer installed and compiled, but the smoke hit the old 300 s limit on
   this host. Run by hand in that consumer directory, `node dist/consumer.js`
