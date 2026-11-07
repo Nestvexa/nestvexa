@@ -1,0 +1,61 @@
+<section aria-labelledby="metrics-heading" class="card">
+  <h2 id="metrics-heading">Live metrics</h2>
+  <p id="metrics-notice" class="notice" role="status" aria-live="polite">
+    {{notice}}
+  </p>
+  <ul class="tiles" aria-label="Workspace metrics">
+    <li class="tile">
+      Deployments
+      <output id="metric-deployments">{{metrics.deployments}}</output>
+    </li>
+    <li class="tile">
+      Tasks created <output id="metric-created">{{metrics.created}}</output>
+    </li>
+    <li class="tile">
+      Tasks completed
+      <output id="metric-completed">{{metrics.completed}}</output>
+    </li>
+  </ul>
+  <p>
+    Latest:
+    <span id="metric-last"
+      >{{#if metrics.last}}{{metrics.last}}{{else}}nothing yet{{/if}}</span
+    >
+  </p>
+  <button
+    type="button"
+    id="log-deployment"
+    nv:click="logDeployment"
+    nv:loading.attr="disabled"
+    nv:target="logDeployment"
+  >
+    Log a deployment
+  </button>
+  <h3>Online on this instance</h3>
+  <p>
+    <output id="presence-count">{{onlineCount}}</output> teammates connected to
+    instance <span id="rendered-by">{{renderedBy}}</span>
+  </p>
+  <ul id="presence-list" aria-label="Online teammates">
+    {{#each online}}
+    <li>{{this}}</li>
+    {{/each}}
+  </ul>
+  <h3>Your notifications</h3>
+  <ul id="inbox" aria-label="Your notifications">
+    {{#each inbox}}
+    <li data-nv-key="inbox-{{id}}">{{text}}</li>
+    {{else}}
+    <li id="inbox-empty">No notifications.</li>
+    {{/each}}
+  </ul>
+  {{#if inbox.length}}
+  <button type="button" id="inbox-clear" nv:click="clearNotifications">
+    Clear notifications
+  </button>
+  {{/if}}
+  <p id="metrics-offline" nv:offline="" role="status" hidden>
+    You are offline. These numbers may be out of date until the connection
+    returns.
+  </p>
+</section>

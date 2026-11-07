@@ -240,6 +240,8 @@ describe(
     it('reports Fastify sessions in the doctor and keeps the Redis URL secret', () => {
       const saved = { ...process.env };
       try {
+        // Fake credential the doctor must redact.
+        // nestvexa-secret-scan: allow-next-line
         process.env['REDIS_URL'] = 'redis://user:hunter2-secret@redis:6379/0';
         const report = run(['doctor', '--json'], root);
         const checks = Object.fromEntries(

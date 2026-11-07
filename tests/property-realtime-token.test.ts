@@ -1,4 +1,5 @@
 import fc from 'fast-check';
+import { propertyRuns } from './support/property-runs.js';
 import { describe, expect, it } from 'vitest';
 import {
   RealtimeTokenError,
@@ -12,7 +13,7 @@ import { MemoryRealtimeBroker } from '../packages/realtime/src/broker.js';
  * single-character tampering, identity binding, expiry, rotation, and that
  * arbitrary attacker strings only ever produce RealtimeTokenError.
  */
-const runs = { numRuns: 300 };
+const runs = propertyRuns(300);
 const secret = (fill: string) => fill.repeat(32);
 const signer = createTokenSigner({ secrets: [secret('a')], ttlMs: 60_000 });
 const channel = fc.stringMatching(/^[a-z0-9][a-z0-9:._-]{0,40}$/);
@@ -199,7 +200,7 @@ describe('memory broker replay bounds', () => {
           }
         },
       ),
-      { numRuns: 200 },
+      propertyRuns(200),
     );
   });
 });

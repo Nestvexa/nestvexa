@@ -1,25 +1,33 @@
 <!-- Svelte fixture for tests/ui-adapters.test.ts. -->
 <script>
   import {
+    Chart,
+    CheckboxField,
     DataTable,
     DatePicker,
     Dialog,
     DialogTrigger,
     Menu,
+    RadioGroupField,
     SelectAll,
+    SelectField,
     SelectRow,
     TableFilter,
     TableSearch,
     Tabs,
+    TextField,
+    TextareaField,
     ToastRegion,
   } from '@nestvexa/ui/svelte';
-  import { categories, menuItems, products, tabs } from './data.mjs';
+  import { categories, countries, menuItems, months, plans, products, sales, tabs, visitors } from './data.mjs';
 
   let shown = $state(true);
   let toasts = $state();
   let closed = $state(0);
   let selected = $state([]);
   let date = $state('');
+  let log = $state('');
+  const report = (name) => (value) => (log = `${name}:${value}`);
 </script>
 
 <div id="shell">
@@ -63,6 +71,23 @@
       <Dialog id="kit-dialog" title="Edit item" closeLabel="Close dialog" onclose={() => (closed += 1)}>
         <label for="kit-name">Name</label><input id="kit-name" />
       </Dialog>
+      <form id="kit-profile">
+        <TextField id="kit-email" name="email" label="Email" type="email" hint="We never share it." error="Enter a valid email address." required={true} autocomplete="email" onchange={report('email')} />
+        <TextField id="kit-nick" name="nickname" label="Nickname" defaultValue="Ada" />
+        <TextareaField id="kit-bio" name="bio" label="Biography" rows={3} defaultValue="Hello" onchange={report('bio')} />
+        <SelectField id="kit-country" name="country" label="Country" options={countries} placeholder="Choose a country" required={true} onchange={report('country')} />
+        <CheckboxField id="kit-terms" name="terms" label="I accept the terms" value="yes" error="You must accept the terms." onchange={report('terms')} />
+        <RadioGroupField id="kit-plan" name="plan" label="Plan" options={plans} hint="Change it later." defaultValue="basic" onchange={report('plan')} />
+      </form>
+      <p id="field-log">{log}</p>
+      <div id="kit-charts">
+        <Chart id="kit-sales" title="Monthly sales" description="Online sales peaked in March." categoryLabel="Month" labels={months} series={sales} locale="en-US" />
+        <Chart id="kit-trend" type="line" title="Visitors" categoryLabel="Month" labels={months} series={visitors} showTable={true} />
+        <Chart id="kit-spark" type="sparkline" title="Weekly visitors" categoryLabel="Month" labels={months} series={visitors} />
+        <Chart id="kit-ext" type="custom" title="Third-party visits" categoryLabel="Month" labels={months} series={visitors}>
+          <canvas id="kit-ext-chart" width="320" height="120"></canvas>
+        </Chart>
+      </div>
     </div>
   {/if}
 </div>

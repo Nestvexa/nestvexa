@@ -1,0 +1,158 @@
+name: Nightly
+# Long-running suites that are too slow for every push: the full e2e suite in
+# all three browsers, property/fuzz suites with 10x runs (browser runtime fuzz
+# in Chromium, Firefox and WebKit), mutation testing, the load/memory soak,
+# the complete security suite and an upstream dependency audit.
+# See docs/testing/property-load-mutation.md.
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  e2e:
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+      - run: pnpm exec playwright test --project=${{ matrix.browser }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-e2e-${{ matrix.browser }}
+          path: |
+            playwright-report/
+            test-results/
+            artifacts/
+
+  property:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      NV_PROPERTY_RUNS_MULTIPLIER: '10'
+      NV_FUZZ_BROWSERS: chromium,firefox,webkit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium firefox webkit
+      - run: pnpm test:property
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-property
+          path: artifacts/
+
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium firefox webkit
+      - run: pnpm test:security
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-security
+          path: artifacts/
+
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      STRYKER_CONCURRENCY: '4'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      # Reported, not gating yet (thresholds.break is null in stryker.config.mjs).
+      - run: pnpm test:mutation
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-mutation
+          path: artifacts/reports/mutation/
+
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      LOAD_SOAK_MINUTES: '10'
+      # Correctness and memory gates are always enforced; latency budgets are
+      # recorded as advisories on shared hosted runners (release runs enforce).
+      LOAD_LATENCY_GATE: advisory
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm load
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-load
+          path: artifacts/reports/load.json
+
+  dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --audit-level high
+      # Informational: newer upstream releases (exit code 1 means "outdated").
+      - run: pnpm outdated --recursive || true

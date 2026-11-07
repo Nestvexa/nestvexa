@@ -41,6 +41,13 @@ export function cacheKey(parts: CacheKeyParts): string {
             throw new Error(
               'Private cache entries require an identity binding',
             );
+          // UTF-8 hashing replaces every unpaired surrogate with U+FFFD, so
+          // such bindings would share a key with each other and with a
+          // binding containing a literal U+FFFD.
+          if (/\p{Cs}/u.test(binding))
+            throw new Error(
+              'Cache identity bindings must be well-formed Unicode',
+            );
           if (tenant !== undefined && !namespacePattern.test(tenant))
             throw new Error('Invalid cache tenant');
           return (

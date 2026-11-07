@@ -1,5 +1,6 @@
 import { HttpException } from '@nestjs/common';
 import fc from 'fast-check';
+import { propertyRuns } from './support/property-runs.js';
 import { describe, expect, it } from 'vitest';
 import {
   cloneState,
@@ -24,7 +25,7 @@ import {
  * parser must either return a detached frozen copy or throw a protocol error.
  */
 const forbidden = new Set(['__proto__', 'prototype', 'constructor']);
-const runs = { numRuns: 300 };
+const runs = propertyRuns(300);
 
 const fieldName = fc.stringMatching(/^[A-Za-z_$][A-Za-z0-9_$]{0,20}$/);
 const token = fc
@@ -297,7 +298,7 @@ describe('Live structural budget properties', () => {
           expect(outcome(() => cloneState(candidate))).toBe(expected);
         },
       ),
-      { numRuns: 200 },
+      propertyRuns(200),
     );
   });
 
@@ -325,7 +326,7 @@ describe('Live structural budget properties', () => {
           count <= LIVE_LIMITS.maxNodes ? 'ok' : 'PAYLOAD_TOO_LARGE',
         );
       }),
-      { numRuns: 50 },
+      propertyRuns(50),
     );
   });
 

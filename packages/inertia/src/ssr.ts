@@ -76,6 +76,37 @@ function isStringArray(value: unknown): value is string[] {
 }
 
 /**
+ * Reads a response body as UTF-8 text, cancelling the stream as soon as it
+ * exceeds `maxBytes` so a faulty or hostile SSR endpoint cannot make the host
+ * buffer an unbounded body. Returns `undefined` when the limit is exceeded.
+ */
+async function readBounded(
+  response: Response,
+  maxBytes: number,
+): Promise<string | undefined> {
+  const declared = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    await response.body?.cancel().catch(() => undefined);
+    return undefined;
+  }
+  if (!response.body) return '';
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      return undefined;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+/**
  * Client for the documented Inertia SSR server wire contract: `POST /render`
  * with the page object, `{head, body}` on success, `500` with a classified
  * error body on failure, `GET /health` returning `{"status":"OK"}`.
@@ -90,16 +121,29 @@ export class HttpSsrGateway implements InertiaSsrRenderer {
     this.#base = new URL(options.url ?? 'http://127.0.0.1:13714');
     if (this.#base.protocol !== 'http:' && this.#base.protocol !== 'https:')
       throw new TypeError('SSR gateway URL must be http(s)');
+    if (
+      this.#base.username ||
+      this.#base.password ||
+      this.#base.search ||
+      this.#base.hash
+    )
+      throw new TypeError(
+        'SSR gateway URL must not contain credentials, a query or a fragment',
+      );
     this.#timeout = options.timeoutMs ?? 5000;
     this.#maxBytes = options.maxResponseBytes ?? 5 * 1024 * 1024;
   }
 
   async health(): Promise<boolean> {
     try {
+      // Like render(): never follow a redirect away from the configured server.
       const response = await fetch(new URL('health', this.#endpointBase()), {
         signal: AbortSignal.timeout(this.#timeout),
+        redirect: 'error',
       });
-      const body: unknown = await response.json();
+      const text = await readBounded(response, 4096);
+      if (text === undefined) return false;
+      const body: unknown = JSON.parse(text);
       return (
         response.ok &&
         typeof body === 'object' &&
@@ -134,8 +178,20 @@ export class HttpSsrGateway implements InertiaSsrRenderer {
         { cause: error },
       );
     }
-    const text = await response.text();
-    if (Buffer.byteLength(text) > this.#maxBytes)
+    let text: string | undefined;
+    try {
+      text = await readBounded(response, this.#maxBytes);
+    } catch (error) {
+      const timedOut =
+        error instanceof DOMException && error.name === 'TimeoutError';
+      throw new InertiaSsrError(
+        timedOut ? 'timeout' : 'connection',
+        timedOut ? 'SSR render timed out' : 'SSR response interrupted',
+        {},
+        { cause: error },
+      );
+    }
+    if (text === undefined)
       throw new InertiaSsrError('invalid-response', 'SSR response too large');
     let body: unknown;
     try {
