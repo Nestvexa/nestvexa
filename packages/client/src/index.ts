@@ -206,7 +206,7 @@ type Field = ModelValue;
 const componentOwners = new WeakMap<Element, symbol>();
 
 /**
- * Optional feature chunks (ADR 0035). Each is a separate content-addressed
+ * Optional feature chunks (ADR 0036). Each is a separate content-addressed
  * asset beside the entry, imported once on first use and shared by every
  * client on the page. The production build rewrites these specifiers to
  * `./live-<feature>.js`; a chunk imports its shared error class back from the

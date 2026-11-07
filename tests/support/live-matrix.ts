@@ -152,7 +152,7 @@ export async function startMatrix(
         );
       return;
     }
-    // The canonical entry and its on-demand feature chunks (ADR 0035), served
+    // The canonical entry and its on-demand feature chunks (ADR 0036), served
     // side by side as nestvexa/assets does.
     if (path === '/index.js' || /^\/live-[a-z]+\.js$/.test(path)) {
       void readFile(new URL(`.${path}`, bundle), 'utf8').then(

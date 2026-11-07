@@ -1,6 +1,6 @@
 # Live client chunks
 
-On-demand Live client feature chunks ([ADR 0035](../../docs/adr/0035-client-feature-chunks.md))
+On-demand Live client feature chunks ([ADR 0036](../../docs/adr/0036-client-feature-chunks.md))
 behind the canonical `boot.js`, under a nonce-only script policy
 (`script-src 'nonce-…'`, no `'self'`, no `'strict-dynamic'`) and an import map
 that pins every client module to its SHA-384 digest

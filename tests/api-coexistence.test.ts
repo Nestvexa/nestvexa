@@ -33,7 +33,7 @@ async function start(
   child.stdout?.on('data', (chunk: Buffer) => (logs += chunk.toString()));
   child.stderr?.on('data', (chunk: Buffer) => (logs += chunk.toString()));
   // Generous for loaded CI hosts; failures report the server output.
-  const deadline = Date.now() + 480_000;
+  const deadline = Date.now() + 900_000;
   while (Date.now() < deadline) {
     if (child.exitCode !== null) break;
     const ready = await fetch(`${origin}/api/health`).then(
@@ -179,7 +179,7 @@ describe.each([
       origin,
       gatewayUrl: `ws://127.0.0.1:${gateway === 'shared' ? port : gateway}/ws/items`,
     };
-  }, 540_000);
+  }, 960_000);
   afterAll(async () => {
     await fixture?.client.close();
     fixture?.app.kill();

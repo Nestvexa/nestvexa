@@ -2,7 +2,7 @@ import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { gzipSync } from 'node:zlib';
 import { join } from 'node:path';
 
-// ADR 0035 (amending ADR 0020): the entry every Live page loads has its own
+// ADR 0036 (amending ADR 0020): the entry every Live page loads has its own
 // hard gate; each on-demand feature chunk has one; and the worst case (a page
 // using every feature) stays bounded. All gzip level 9, maps excluded.
 const budgets = [

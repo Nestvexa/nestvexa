@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { exampleUrl } from './example-url.js';
 
-// BROW-004 (ADR 0035): optional Live features load as separate chunks served
+// BROW-004 (ADR 0036): optional Live features load as separate chunks served
 // by nestvexa/assets, only on pages whose markup or configuration uses them.
 
 const chunks = /\/_nestvexa\/assets\/[a-f0-9]{64}\/(live-[a-z]+\.js)$/;

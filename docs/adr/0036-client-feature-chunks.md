@@ -1,4 +1,4 @@
-# 0035 — On-demand Live client feature chunks
+# 0036 — On-demand Live client feature chunks
 
 Status: accepted 2026-11-07 for the current experimental implementation.
 Amends [ADR 0015](0015-production-client-bundle.md) (one canonical entry) and

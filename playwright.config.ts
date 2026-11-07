@@ -133,7 +133,7 @@ export default defineConfig({
       reuseExistingServer: false,
     },
     {
-      // On-demand Live client chunks under a nonce-only CSP (ADR 0035).
+      // On-demand Live client chunks under a nonce-only CSP (ADR 0036).
       command: 'pnpm --filter @nestvexa/example-client-chunks start',
       url: 'http://127.0.0.1:3880/api/health',
       env: { PORT: '3880' },

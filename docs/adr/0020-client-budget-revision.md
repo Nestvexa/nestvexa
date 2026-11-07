@@ -48,6 +48,6 @@ No public API changes.
 
 ## Amendment (2026-11-07)
 
-[ADR 0035](0035-client-feature-chunks.md) splits sort, stream, upload and
+[ADR 0036](0036-client-feature-chunks.md) splits sort, stream, upload and
 realtime into on-demand chunks and replaces the single 48 KiB gate with a 44 KiB
 core gate, per-chunk gates and a 60 KiB all-files gate.

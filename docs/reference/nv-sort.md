@@ -153,7 +153,7 @@ drag and empty-list drops, and touch/pen pointer gestures.
 [`tests/browser/client-chunks.spec.ts`](../../tests/browser/client-chunks.spec.ts)
 runs connected columns and a photo grid against a real Nest action in Chromium,
 Firefox and WebKit. The sort code loads as an on-demand chunk
-([ADR 0035](../adr/0035-client-feature-chunks.md)): a sortable component
+([ADR 0036](../adr/0036-client-feature-chunks.md)): a sortable component
 registers once `live-sort.js` has loaded.
 Its controlled acknowledgement fixture is not a substitute for the real Nest
 integration and cross-browser acceptance tests. Consult the current implementation

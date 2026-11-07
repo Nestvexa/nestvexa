@@ -9,7 +9,7 @@ const sources = await readdir(
   new URL('../packages/client/src/', import.meta.url),
 );
 /**
- * Optional features served as separate on-demand chunks (ADR 0035). The entry
+ * Optional features served as separate on-demand chunks (ADR 0036). The entry
  * imports each one dynamically by a fixed sibling name; the asset catalog
  * version, not the file name, makes the URL content-addressed.
  */

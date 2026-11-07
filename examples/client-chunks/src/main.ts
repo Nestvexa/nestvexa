@@ -26,7 +26,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import session from 'express-session';
 
-// On-demand Live client chunks (ADR 0035) behind the canonical boot.js, a
+// On-demand Live client chunks (ADR 0036) behind the canonical boot.js, a
 // nonce-only script policy (no 'self', no 'strict-dynamic') and an import map
 // pinning every client module to its SRI digest. `/` needs only the core
 // entry; `/board` uses nv:sort, so the browser fetches live-sort.js when the

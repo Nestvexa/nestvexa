@@ -11,7 +11,7 @@ export interface AssetOptions {
   readonly basePath: string;
 }
 /**
- * The canonical client entry and its on-demand feature chunks (ADR 0035), in
+ * The canonical client entry and its on-demand feature chunks (ADR 0036), in
  * package `files` order. The entry imports each chunk by this sibling name;
  * private implementation outputs are not public assets.
  */
