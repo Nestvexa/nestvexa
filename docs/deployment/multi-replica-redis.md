@@ -1,24 +1,33 @@
 # Multiple replicas and Redis
 
 You can run several Nestvexa processes behind one load balancer, but only if
-you know which state each process keeps for itself. The short version: **Live
-state and upload sessions are per process, so replicas need sticky
-sessions.** Redis, through `RespRealtimeBroker`, carries realtime
-invalidation events between replicas. It shares nothing else.
+you know which state each process keeps for itself. The short version: with
+`@nestvexa/realtime-redis`, **Live state and realtime events are shared through
+Redis**, so a Live component mounted on one replica continues on another.
+**Upload sessions stay per process**, so upload routes still need sticky
+sessions or a single upload node.
 
-> **Known gap:** No test has run two Nest replicas serving one browser through
-> Redis. `pnpm test:services` verified `RespRealtimeBroker` against Redis 7 on
-> 2026-11-02. An event published in one Node process reached a subscriber in a
-> second process, and delivery resumed after a Redis restart. Multi-replica
-> topologies, cross-replica tenant isolation and load behavior are unverified
-> (ledger rows REAL-008 and REAL-014). The recommendations below follow from
-> the code, not from an executed multi-replica deployment.
+`pnpm test:services` ran against Redis 7 on 2026-11-05
+([evidence](../implementation/services-evidence-2026-11-05.json)). It covers
+cross-process publish and resubscription after a Redis restart, `RedisLiveStore`
+continuation, replay and binding rejection, leases and TTLs, and a two-replica
+browser suite. In that suite a publish on replica B refreshes a browser on
+replica A over SSE (and back over WebSocket), Live state created on A continues
+on B, and identities stay isolated on both replicas. The
+[distributed example](../../examples/distributed-live/README.md) runs that
+topology.
+
+> **Known gap:** only a single Redis primary is supported. There is no Sentinel
+> discovery or tested failover, and Redis Cluster is not supported (DATA-004).
+> Cross-replica idempotent replay and identity locks are tested against the
+> in-process RESP test double only (LIVE-007). Load behavior is unverified, and
+> the two-replica suite runs on Express only (REAL-014).
 
 ## What lives where
 
 | State                                 | Implementation                               | Shareable across replicas?                                                                                                                 |
 | ------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Live component state and snapshots    | `MemoryLiveStore`                            | **No.** The Live runtime accepts only a `MemoryLiveStore` instance. There is no pluggable or Redis-backed store yet.                       |
+| Live component state and snapshots    | `LiveStore` (`MemoryLiveStore` by default)   | **Yes,** with `RedisLiveStore` from `@nestvexa/realtime-redis`. `MemoryLiveStore` stays inside one process.                                |
 | Live rate limiting                    | Per process, per binding (default 60/min)    | No. The effective limit is multiplied by the replica count.                                                                                |
 | Upload sessions and pending tokens    | `UploadsService` memory                      | **No.** Temporary chunks are on local disk. Finalized objects can live in shared storage (`S3Storage`).                                    |
 | Realtime events                       | `RealtimeBroker` interface                   | **Yes,** with `RespRealtimeBroker`. The default `MemoryRealtimeBroker` stays inside one process.                                           |
@@ -33,12 +42,41 @@ Nestvexa does not ship Redis implementations of `CacheStore`,
 `ActionIdempotencyStore`, `DraftStore` or `SubmissionLedger`. The interfaces
 are exported so that you can write them.
 
-## Sticky sessions are required for Live and uploads
+## Shared Live state
 
-Suppose a page was mounted on replica A and its next action reaches replica B.
-B has no entry for that snapshot token and answers `410` ("Live state is
-unavailable; reload the page"). Upload chunk and finalize requests behave the
-same way: the session or token is unknown (`404`). So:
+Pass a `RedisLiveStore` as the Live `store`. Every replica must use the same
+`prefix`, the same realtime `secrets` and `origin`, and an identity that resolves
+identically everywhere (a shared session store or a signed stateless cookie):
+
+```ts
+import { RedisLiveStore } from '@nestvexa/realtime-redis';
+
+NestvexaModule.forRoot(config, {
+  components,
+  useFactory: () => ({
+    ...livePolicies,
+    store: new RedisLiveStore({
+      host: process.env.REDIS_HOST ?? '127.0.0.1',
+      port: 6379,
+      prefix: 'myapp:live:',
+    }),
+  }),
+});
+```
+
+`livePolicies` holds your `resolveIdentity` and `authorize` callbacks. Options,
+encryption keys and the transaction lease are documented in the
+[package README](../../packages/realtime-redis/README.md). Each Live action takes
+about seven Redis round trips, and replica clocks must be NTP-synchronized. A
+`download` URL created by a replayed action is served only by the replica that
+created it.
+
+## Sticky sessions are still required for uploads (and for the memory store)
+
+With `MemoryLiveStore`, a page mounted on replica A whose next action reaches
+replica B gets `410` ("Live state is unavailable; reload the page"). Upload chunk
+and finalize requests behave the same way with any Live store: the session or
+token is unknown on another replica (`404`). So:
 
 - Route each browser session to one replica, for example with a cookie-based
   affinity at the load balancer. IP-hash affinity breaks when client addresses
@@ -49,9 +87,9 @@ same way: the session or token is unknown (`404`). So:
   for in-flight requests and the Live state TTL (15 minutes by default) if you
   can, then send `SIGTERM`.
 
-Affinity does not make a deployment highly available for Live state. It only
-makes it consistent. A distributed Live store is tracked as ledger rows
-DATA-004 and DATA-005.
+Affinity does not make a deployment highly available. It only makes it
+consistent. With `RedisLiveStore`, Live state survives the loss of a replica,
+but in-progress uploads do not.
 
 ## Realtime across replicas
 
@@ -102,13 +140,16 @@ periodically (`limits.revalidateMs`, default 30 s). Revalidation resolves the
 identity again and re-authorizes each channel. If your shared session store
 and channel policy reflect the logout or permission change, the connection
 closes within that interval. Until then, a revoked identity can keep a
-connection on another replica. Periodic revalidation has no dedicated test yet
-(ledger row REAL-005).
+connection on another replica. Periodic revalidation is covered by
+`tests/realtime-hub.test.ts` on one hub, not across replicas.
 
-> **Known gap:** Presence, per-component transport selection and runtime
-> transport fallback are not implemented. Publish-rate limiting is not
-> implemented either: only connection caps and per-connection queue limits
-> exist (ledger rows REAL-004, REAL-009 and REAL-011).
+Presence (`RealtimeService.presence`) and the subscribe and publish rate limits
+(`subscribesPerMinute`, `publishesPerMinute`) are enforced per replica.
+
+> **Known gap:** presence counts only members connected to the replica you ask,
+> with no cross-replica aggregation (REAL-009). The transport is chosen per app,
+> not per component, and `auto` falls back from SSE to polling but never tries
+> WebSocket (REAL-004).
 
 ## Cache invalidation across replicas
 
@@ -123,7 +164,9 @@ component refresh does not exist yet (ledger row REAL-010). See the
 
 ## Checklist
 
-- [ ] Sticky sessions keyed on the session cookie.
+- [ ] `RedisLiveStore` with a unique `prefix` for Live state, or sticky
+      sessions with `MemoryLiveStore`.
+- [ ] Sticky sessions keyed on the session cookie for upload routes.
 - [ ] Shared HTTP session store, chosen and operated by the host.
 - [ ] Identical `RealtimeModule` `secrets` and `origin` on every replica.
 - [ ] `RespRealtimeBroker` with a unique `prefix`, Redis on a private

@@ -115,8 +115,9 @@ client-rendered document, where the boundary shows the fallback.
 Status: **Partial**. Mount, hydration, page registry and SSR (in-process or the
 official server) work and are tested in Chromium, Firefox and WebKit.
 
-- No typed server-action or state utilities wrapping `@nestvexa/actions` yet
-  (SPA-003); pages use the official `useForm`/router directly.
+- This package ships no server-action utilities. Typed Svelte stores
+  (`createActionStores`) come from `@nestvexa/actions` codegen with
+  `--targets svelte`; Inertia forms use the official `useForm`/router (SPA-003).
 - No adapter-level error boundary (use `<svelte:boundary>`, see above) and no
   framework upload helper.
 - The `@nestvexa/ui/svelte` wrappers are tested but have no runnable example

@@ -110,8 +110,9 @@ Status: **Partial**. Boot, hydration, error boundary, page registry and SSR
 (in-process or the official server) work and are tested in Chromium, Firefox
 and WebKit.
 
-- No typed server-action or state composables wrapping `@nestvexa/actions` yet
-  (SPA-003); pages use the official `useForm`/router directly.
+- This package ships no server-action composables. Typed Vue composables
+  (`createActionComposables`) come from `@nestvexa/actions` codegen with
+  `--targets vue`; Inertia forms use the official `useForm`/router (SPA-003).
 - No framework upload composable: pages keep `@nestvexa/uploads/browser`
   progress in their own state.
 - The `@nestvexa/ui/vue` wrappers are tested but have no runnable example page

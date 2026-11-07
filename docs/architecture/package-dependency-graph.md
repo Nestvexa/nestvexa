@@ -1,6 +1,6 @@
 # Package dependency graph
 
-Refreshed **2026-11-05** for all 28 packages in `packages/`. The graph is the
+Refreshed **2026-11-07** for all 30 packages in `packages/`. The graph is the
 declared runtime graph from each `package.json`, not an import scan. `pnpm docs:build`
 fails when this page drifts from the manifests: every package must be a node, every
 workspace `dependencies` edge must be drawn solid (`-->`), every workspace
@@ -190,10 +190,9 @@ adds a `default` condition next to `import` so CommonJS Nest apps can load a pac
 through Node 22.12+ `require(esm)` without a dual-package identity hazard. The browser
 client ships one canonical bundle ([ADR 0015](../adr/0015-production-client-bundle.md)).
 
-> **Known gap:** on 2026-11-05 only 14 packages carry the `default` condition (`nestvexa`,
-> core, views, engine-hbs, live, client, alpine, inertia, islands, realtime, cache,
-> observability, cli, mail). The `exports` of actions, ai, engine-ejs, engine-pug,
-> engine-nunjucks, flags, forms, i18n, offline, react, vue, svelte, ui, uploads and vite
-> declare only `types`/`import`, so `require()` from a CommonJS host fails with
-> `ERR_PACKAGE_PATH_NOT_EXPORTED`; use `await import()` there until the manifests are
-> aligned (ARCH-016).
+All 30 packages carry the `default` condition on every `exports` entry, pointing at
+the same file as `import`. [tests/contracts.test.ts](../../tests/contracts.test.ts)
+fails when an entry lacks `types`, `import` or a matching `default` (ARCH-016).
+Two limits remain. The UI kit's `@nestvexa/ui/svelte` entry re-exports Svelte
+component sources, so only a Svelte-aware bundler can load it. CommonJS loading is
+exercised by the CLI end-to-end test, not per package.

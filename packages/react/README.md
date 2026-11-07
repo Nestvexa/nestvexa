@@ -122,8 +122,9 @@ Status: **Partial**. Boot, hydration, error boundary, page registry and
 in-process or official-server SSR work and are tested in Chromium, Firefox and
 WebKit.
 
-- No typed server-action or state hooks wrapping `@nestvexa/actions` yet
-  (SPA-003); pages use the official `useForm`/router directly.
+- This package ships no server-action hooks. Typed React hooks
+  (`createActionHooks`) come from `@nestvexa/actions` codegen with
+  `--targets react`; Inertia forms use the official `useForm`/router (SPA-003).
 - No framework upload hook: pages keep `@nestvexa/uploads/browser` progress in
   their own state.
 - React error boundaries do not run during SSR (see above); SSR failures are
