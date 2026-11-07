@@ -243,7 +243,95 @@ from `@nestvexa/i18n`.
   filtering, and put `uiSelectAll`/`uiSelectRow` in a `<form>` so a bulk
   action is a plain POST. See `examples/admin-i18n` (`/admin/kit`).
 
-## 9. React, Vue and Svelte pages
+## 9. Form fields and charts
+
+Field wrappers print a label, the control, a hint and the error messages with
+the ids wired for you (`{id}`, `{id}-hint`, `{id}-error`). Pass a
+`@nestvexa/forms` field view as `field` so the wrapper uses the forms
+package's ids and messages, and the `href` of each `errorSummary()` item
+(`#{id}`) lands on the control:
+
+```ts
+// In the controller, after a failed validation:
+const fields = formView(errors, ['email', 'country', 'plan', 'terms']);
+return { values, fields, summary: errorSummary(errors, { labels }) };
+```
+
+```hbs
+<form method='post' action='/profile' novalidate>
+  {{uiTextField
+    id='email'
+    name='email'
+    type='email'
+    label=(t 'profile:email')
+    hint=(t 'profile:emailHint')
+    field=fields.email
+    value=values.email
+    autocomplete='email'
+    required=true
+  }}
+  {{uiSelectField
+    id='country'
+    name='country'
+    label=(t 'profile:country')
+    options=countries
+    placeholder=(t 'profile:chooseCountry')
+    value=values.country
+    field=fields.country
+  }}
+  {{uiRadioGroupField
+    id='plan'
+    name='plan'
+    label=(t 'profile:plan')
+    options=plans
+    value=values.plan
+    field=fields.plan
+  }}
+  {{uiCheckboxField
+    id='terms'
+    name='terms'
+    value='yes'
+    label=(t 'profile:terms')
+    required=true
+    field=fields.terms
+  }}
+  <button class='nv-button'>{{t 'common:save'}}</button>
+</form>
+```
+
+With the default `idPrefix` the field view's `id` is the path (dots become
+`-`). You may omit `id` and let the wrapper take it from `field`; an `id`
+that differs from `field.id` is rejected. In a Live component, use
+`model='email'` instead of `name` (and `modelModifiers='blur'` or
+`'live.debounce.300ms'`); without `field`, pass `error=` a message or a list
+of up to five.
+
+Charts render SVG on the server with a data table that screen readers and
+no-CSS users can always reach:
+
+```hbs
+{{uiChart
+  id='revenue'
+  type='line'
+  title=(t 'reports:revenue')
+  description=(t 'reports:revenueSummary')
+  categoryLabel=(t 'reports:month')
+  labels=months
+  series=revenue
+  locale=lang
+}}
+```
+
+`series` is `[{ name, values }]` with one finite number per label; anything
+else (including `NaN` from a failed calculation) fails the render with
+`UiError` instead of drawing a wrong chart. Write the `description` as the
+takeaway ("Revenue doubled since January"), since it is what the image
+announces. For a library chart, use `type='custom'` with a `<canvas>` body
+and draw it from a script file with
+`chartData(document.getElementById('revenue'))` from `@nestvexa/ui/browser`;
+the kit itself ships no chart library and needs no inline script or style.
+
+## 10. React, Vue and Svelte pages
 
 Inertia roots and islands use the same primitives through
 `@nestvexa/ui/react`, `@nestvexa/ui/vue` and `@nestvexa/ui/svelte`. The
@@ -335,13 +423,17 @@ The wrappers are uncontrolled: the keyboard module owns open and selected
 state, `defaultValue`/`defaultChecked`/`messages` are read once, and changing
 props re-renders the attributes the component owns. Live-only options (`model`,
 `action`) are HBS features. The wrapped set is dialog/drawer, dialog trigger,
-tabs, menu, toast region, date picker and the data table pieces; the other
-primitives are HBS-only for now. A runnable page is `/kit` in
+tabs, menu, toast region, date picker, the data table pieces, the five form
+fields (`TextField`, `TextareaField`, `SelectField`, `CheckboxField`,
+`RadioGroupField`, reporting edits through `onChange`) and `Chart` (a
+`type="custom"` chart takes the library's mount point as children, default
+slot or `children` snippet); the other primitives are HBS-only for now. A runnable page is `/kit` in
 `examples/inertia-react`.
 
 ## Limits
 
-No chart wrapper or form-field wrappers yet. The combobox needs JavaScript to
+Charts are bar, line and sparkline only (at most 200 labels and 8 series);
+use `type='custom'` with your own library for anything else. The combobox needs JavaScript to
 choose values, and dialogs and drawers need JavaScript, so provide `href`
 fallbacks. Menus, popovers and accordion panels stay readable without
 JavaScript (the theme hides them only when scripting is enabled). See the
