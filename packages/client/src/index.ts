@@ -712,6 +712,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     });
   }
   const handledEvents = new WeakSet<Event>();
+  /** Components with a queued `STALE_REVISION` resync. */
+  const resyncing = new WeakSet<Component>();
   const direct = createDirectEventListeners((event, element, attribute) => {
     try {
       const value = element.getAttribute(attribute);
@@ -832,6 +834,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         child.failure = error;
         child.request?.abort();
         busy(child);
+        // Styling hook for a reload affordance (`[data-nv-suspended] …`).
+        child.root.setAttribute('data-nv-suspended', '');
       }
     report(error, state.root);
   }
@@ -1188,6 +1192,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     allowRenderless = true,
     /** Render even without dirty fields (lazy first render). */
     force = false,
+    /** Recovery after `STALE_REVISION`: render current server state, send no drafts. */
+    resync = false,
   ): Promise<void> {
     flushResets();
     if (!usable(state)) return;
@@ -1203,7 +1209,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       );
     modelSelections(state.root, (field) => current(state, field));
     if (action === '_sync' && !force && !hasChanges(state)) return;
-    const sent = new Map(state.dirty);
+    // A resync sends no drafts: they stay local and go with the next request.
+    const sent = resync ? new Map<string, never>() : new Map(state.dirty);
     const updates = Object.create(null) as Record<string, unknown>;
     // Nested model paths are sent as their whole top-level field: the current
     // server value with every dirty leaf applied. The server accepts it only
@@ -1281,6 +1288,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
                 ...(assetVersion === null
                   ? {}
                   : { 'x-nestvexa-asset-version': assetVersion }),
+                ...(resync ? { 'x-nestvexa-resync': '1' } : {}),
               },
               body,
             },
@@ -1339,7 +1347,9 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         result.requestId !== requestId ||
         result.component.id !== state.id ||
         result.component.name !== state.name ||
-        result.component.revision !== state.revision + 1
+        (resync
+          ? result.component.revision <= state.revision
+          : result.component.revision !== state.revision + 1)
       )
         throw new LiveClientError(
           'RESPONSE',
@@ -1547,6 +1557,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           presentation?.refresh(item.root);
       }
       applied = true;
+      // A committed request may have changed what prefetched pages show.
+      navigation?.invalidate();
       state.root.dispatchEvent(
         new window.CustomEvent('nestvexa:updated', {
           bubbles: true,
@@ -1599,7 +1611,23 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       // Without a response, an unsent request or a `$sync` (no action method
       // runs; a committed one is caught by the next revision check) stays
       // usable. An action that may have reached the server suspends.
+      // `STALE_REVISION` (another change won; nothing ran) is answered with
+      // one fresh resync. The failed call is not replayed and a resync that
+      // fails the same way suspends instead of looping.
+      const stale = error instanceof LiveHttpError && error.resync && !resync;
+      // Stale requests queued behind this one share a single resync.
+      if (stale && !resyncing.has(state))
+        try {
+          resyncing.add(state);
+          void schedule(state, '_sync', false, null, true, true, true)
+            .finally(() => resyncing.delete(state))
+            .catch(() => undefined);
+        } catch {
+          // A full queue: a later queued request meets the same hint.
+          resyncing.delete(state);
+        }
       const recoverable =
+        stale ||
         (networkFailure && (unsent || action === '_sync')) ||
         (error instanceof LiveHttpError &&
           [400, 401, 403, 404, 405, 413, 415, 422, 429].includes(error.status));
@@ -1649,6 +1677,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     input: LiveActionInput = null,
     allowRenderless = true,
     force = false,
+    resync = false,
   ): Promise<void> {
     const failure = failureFor(state);
     if (failure) return Promise.reject(failure);
@@ -1684,7 +1713,15 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     const task: Promise<void> = state.queue
       .then(() => {
         if (state.waiting === task) state.waiting = undefined;
-        return invoke(state, action, queuedAt, input, allowRenderless, force);
+        return invoke(
+          state,
+          action,
+          queuedAt,
+          input,
+          allowRenderless,
+          force,
+          resync,
+        );
       })
       .finally(() => {
         state.pending--;
@@ -1814,9 +1851,17 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     binding: { element: Element; directive: EventDirective },
   ): void {
     if (handledEvents.has(event)) return;
-    if (event.type === 'submit') event.preventDefault();
     const state = registeredScope(binding.element);
-    if (state && failureFor(state)) return;
+    const failed = state && failureFor(state);
+    // A suspended component hands a form with an explicit host `action` back
+    // to the browser: that full-page request is this interaction's first
+    // attempt, never a resend of the failed Live request.
+    if (
+      event.type === 'submit' &&
+      !(failed && binding.element.hasAttribute('action'))
+    )
+      event.preventDefault();
+    if (failed) return;
     if (dispatcher?.handle(event, binding.element, binding.directive))
       handledEvents.add(event);
   }
@@ -2507,6 +2552,9 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           onNavigated: () => {
             // A swapped document starts a fresh URL-state history scope.
             urlHistory = false;
+            // Register the new components synchronously: Alpine's mutation
+            // observer predates ours and initializes `$live` reads first.
+            discover();
           },
         });
       dispatcher = createEventDispatcher({

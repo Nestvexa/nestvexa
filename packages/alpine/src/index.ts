@@ -6,8 +6,22 @@ export interface LiveClientBridge {
   /** Optional: deliver a browser event to `@OnEvent` listeners. */
   dispatch?(name: string, payload?: unknown): void;
 }
+/** Alpine data interceptor callback (`Alpine.interceptor`), used by `$live.entangle`. */
+export type AlpineInterceptorCallback = (
+  initialValue: unknown,
+  getter: () => unknown,
+  setter: (value: unknown) => void,
+  path: string,
+  key: string,
+) => unknown;
 export interface AlpineMagicUtilities {
   cleanup(callback: () => void): void;
+  /** Element-bound reactive effect, released with the element (Alpine 3). */
+  effect?(callback: () => void): unknown;
+  /** Alpine's data interceptor factory (Alpine 3), required by `$live.entangle`. */
+  interceptor?(
+    callback: AlpineInterceptorCallback,
+  ): (initialValue?: unknown) => unknown;
 }
 /** Public Alpine extension APIs; neither importing nor installing this plugin starts Alpine. */
 export interface AlpineHost {
@@ -20,6 +34,8 @@ export interface AlpineHost {
     ) => unknown,
   ): void;
   reactive(value: { revision: number }): { revision: number };
+  /** Alpine 3 tree teardown; used before `nv:navigate` replaces the body. */
+  destroyTree?(root: Element): void;
 }
 export interface LiveMagic {
   call(action: string): Promise<void>;
@@ -37,6 +53,26 @@ export interface LiveMagic {
     name: string,
     callback: (payload: unknown, source: string | null) => void,
   ): () => void;
+  /**
+   * Read-only reactive view of public state: `$live.state.count` equals
+   * `$live.get('count')` (including local drafts). Writes, deletes and
+   * property definitions throw; stage changes with `set` or `entangle`.
+   */
+  readonly state: Readonly<Record<string, unknown>>;
+  /**
+   * Two-way binding for one primitive public field, used as an `x-data`
+   * property: `{ title: $live.entangle('title') }`. Alpine writes stage a
+   * local draft through the client (exactly like `set`, sent with the next
+   * request and validated server-side); committed server values flow back.
+   */
+  entangle(name: string): unknown;
+}
+function primitive(value: unknown): value is string | number | boolean {
+  return (
+    typeof value === 'string' ||
+    typeof value === 'boolean' ||
+    (typeof value === 'number' && Number.isFinite(value))
+  );
 }
 
 const installed = new WeakMap<object, LiveClientBridge>();
@@ -108,7 +144,68 @@ export function installLiveAlpine(
       if (!disposed && event.target === component) signal.revision++;
     };
     const subscriptions = new Set<() => void>();
+    const readOnly = (): never => {
+      throw new Error('$live.state is read-only; use $live.set or entangle');
+    };
+    // Alpine and the CSP evaluator probe internal keys (`_x_*`, `__v_skip`,
+    // `$data`, symbols); only plain names are public state reads.
+    const stateKey = (key: string | symbol): key is string =>
+      typeof key === 'string' && /^[A-Za-z]/.test(key);
+    const state = new Proxy<Record<string, unknown>>(Object.create(null), {
+      get: (_target, key) => (stateKey(key) ? facade.get(key) : undefined),
+      has(_target, key) {
+        if (!stateKey(key)) return false;
+        try {
+          facade.get(key);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      set: readOnly,
+      deleteProperty: readOnly,
+      defineProperty: readOnly,
+      setPrototypeOf: readOnly,
+    });
     const facade: LiveMagic = Object.freeze({
+      state,
+      entangle(name: string): unknown {
+        assertActive();
+        const { interceptor, effect } = utilities;
+        if (typeof interceptor !== 'function' || typeof effect !== 'function')
+          throw new Error(
+            '$live.entangle requires the Alpine 3 interceptor and effect APIs',
+          );
+        let last: unknown = client.get(element, name);
+        if (!primitive(last))
+          throw new Error('$live.entangle binds primitive public fields only');
+        return interceptor((_initial, getter, setter) => {
+          setter(last);
+          // Committed server values (and other local stagings) flow into Alpine.
+          effect(() => {
+            void signal.revision;
+            if (disposed || !element.isConnected) return;
+            const value = client.get(element, name);
+            if (Object.is(value, last)) return;
+            last = value;
+            setter(value);
+          });
+          // Alpine writes stage a local draft; only a request commits it.
+          effect(() => {
+            const value = getter();
+            if (disposed || Object.is(value, last)) return;
+            if (!primitive(value)) {
+              setter(last);
+              throw new Error('$live.entangle accepts primitive values only');
+            }
+            assertActive();
+            client.set(element, name, value);
+            last = value;
+            signal.revision++;
+          });
+          return last;
+        })();
+      },
       call(action: string): Promise<void> {
         assertActive();
         return client.call(element, action);
@@ -302,6 +399,7 @@ function bootstrap<Alpine extends AlpineHost>(
       if (record.status === 'disposed' || record.status === 'failed') return;
       record.status = 'disposed';
       view.removeEventListener('pagehide', pagehide);
+      view.removeEventListener('nestvexa:navigate', navigate);
       client.dispose();
     },
   });
@@ -313,6 +411,12 @@ function bootstrap<Alpine extends AlpineHost>(
   };
   const pagehide = (event: PageTransitionEvent): void => {
     if (!event.persisted) application.dispose();
+  };
+  // Alpine only tears down removed nodes it marked itself, so server-rendered
+  // trees from the first load would keep their `$live` subscriptions after a
+  // body swap. Destroy them explicitly right before the swap.
+  const navigate = (): void => {
+    if (typeof alpine.destroyTree === 'function') alpine.destroyTree(doc.body);
   };
   Object.defineProperty(doc, bootstrapKey, { value: record });
   try {
@@ -331,12 +435,14 @@ function bootstrap<Alpine extends AlpineHost>(
         );
     }
     view.addEventListener('pagehide', pagehide);
+    view.addEventListener('nestvexa:navigate', navigate);
     record.status = 'active';
     return application;
   } catch (error) {
     const alreadyDisposed = record.status === 'disposed';
     record.status = 'failed';
     view.removeEventListener('pagehide', pagehide);
+    view.removeEventListener('nestvexa:navigate', navigate);
     if (!alreadyDisposed) {
       try {
         client.dispose();

@@ -1,0 +1,11 @@
+<div class="cell" nv:poll.60s="poll">
+  <span class="cell-hits">{{hits}}</span>
+  <span class="cell-sentinel" nv:intersect.once="see"
+    >{{#if seen}}seen{{else}}new{{/if}}</span
+  >
+  <button type="button" class="cell-hit" nv:click="hit">Hit</button>
+  <span nv:ignore="" x-data="labCell">
+    <output class="cell-alpine" x-text="$live.get('hits')">{{hits}}</output>
+    <output class="cell-pongs" x-text="pongs">0</output>
+  </span>
+</div>

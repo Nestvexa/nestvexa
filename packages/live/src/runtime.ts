@@ -699,6 +699,18 @@ export class LiveRuntime implements OnApplicationShutdown {
         identity.binding,
       );
       if (snapshot.name !== component.name) fail(403, 'COMPONENT_MISMATCH');
+      // Recovery after `STALE_REVISION`: a `$sync` without updates may target
+      // the current revision of the caller's own state. Nothing is written
+      // from the client and no action runs; it only re-renders.
+      if (header(request, 'x-nestvexa-resync') !== undefined) {
+        if (
+          header(request, 'x-nestvexa-resync') !== '1' ||
+          action !== INTERNAL_SYNC_ACTION ||
+          Object.keys(payload.updates).length > 0
+        )
+          fail(400, 'INVALID_REQUEST');
+        payload = { ...payload, revision: snapshot.revision };
+      }
     } catch (error) {
       mapped(error);
     }

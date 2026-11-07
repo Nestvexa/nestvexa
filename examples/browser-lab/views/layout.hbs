@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en" dir="{{#if dir}}{{dir}}{{else}}ltr{{/if}}">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{title}}</title>
+    <meta name="description" content="{{description}}" />
+    {{#if robots}}
+    <meta name="robots" content="{{robots}}" />
+    {{/if}}
+    <link rel="stylesheet" href="/lab.css" />
+    {{#if extraStyles}}
+    <link rel="stylesheet" href="/lab-extra.css" />
+    {{/if}}
+    <script type="module" src="/lab-alpine.js"></script>
+    {{nvScripts}}
+  </head>
+  <body data-served="{{served}}">
+    <header>
+      <nav aria-label="Lab">
+        <a href="/" nv:navigate>Home</a>
+        <a href="/long" nv:navigate>Long</a>
+        <a href="/long#section-b" nv:navigate>Long section B</a>
+        <a href="/prefetch" nv:navigate.hover>Prefetch</a>
+        <a href="/alpine" nv:navigate>Alpine</a>
+        <a href="/ticker" nv:navigate>Ticker</a>
+        <a href="/many" nv:navigate>Many</a>
+        <a href="/assets-differ" nv:navigate>Different assets</a>
+        <a href="/rtl" nv:navigate>RTL</a>
+        <a href="/plain.txt" nv:navigate>Plain text</a>
+        <a href="/to-long#section-b" nv:navigate>Redirect</a>
+        <a href="/missing" nv:navigate>Missing</a>
+        <a href="/long" id="native-long">Native long</a>
+      </nav>
+    </header>
+    <main>{{body}}</main>
+  </body>
+</html>
