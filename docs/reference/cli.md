@@ -32,9 +32,9 @@ It never prompts; every command is scriptable and supports `--dry-run`.
 | `nestvexa make:layout <Name>` / `make:policy <Name>`                             | Layout view / deny-by-default guard.                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `nestvexa make:form <Name>`                                                      | Live form validated by `@nestvexa/forms` with a Zod schema (per-field and submit validation, accessible errors); registered and authorized (`$mount`, `$sync`, `submit`).                                                                                                                                                                                                                                                                                                             |
 | `nestvexa make:action <Name>`                                                    | `@ActionGroup` with a `greet` server action, appended to `actionGroups` and the deny-by-default `allowedActions` in `actions.config.ts`; `ActionsModule.register(actionsOptions)` is added once.                                                                                                                                                                                                                                                                                      |
-| `nestvexa make:resource <Name> [--crud] [--orm memory]`                          | In-memory service, module, Live CRUD table + view (registered with its module in `liveImports`); `--crud` adds REST routes. Other ORMs exit 2.                                                                                                                                                                                                                                                                                                                                        |
+| `nestvexa make:resource <Name> [--crud] [--orm memory                            | typeorm]`                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Zod DTOs (`create`, `update`, list query with `q`/`page`/`size`) shared by REST and Live, a `<Name>Repository` interface with the in-memory or **TypeORM** implementation (entity + repository; no migration is generated), the service, the module, a Live CRUD table (search, pages, validated create) and generated DTO/service tests. `--crud` adds a validated REST controller (list, show, create, update, delete; 400 with field errors) and its HTTP test. Other ORMs exit 2. |
 | `nestvexa make:island <Name> --renderer <react\|vue\|svelte>`                    | Island component (`.tsx`, or `.vue`/`.svelte` with a wrapper), the server `IslandRegistry` entry and the client module allowlist entry; adds the framework plugin to the islands Vite config.                                                                                                                                                                                                                                                                                         |
-| `nestvexa make:test <Name> [--kind …]`                                           | Detects the generated artifact (component, page, form, action) or writes an HTTP smoke test booting `AppModule`. Uses vitest unless the project uses jest.                                                                                                                                                                                                                                                                                                                            |
+| `nestvexa make:test <Name> [--kind …]`                                           | Detects the generated artifact (component, page, form, action) or writes an HTTP smoke test booting `AppModule`. Uses vitest, or Jest (`@jest/globals`, added as a pinned dev dependency) when the project uses Jest without vitest. Nestvexa is ESM only: run Jest in its ESM mode (`node --experimental-vm-modules`).                                                                                                                                                               |
 | `nestvexa templates` / `templates:eject <id>`                                    | List generator templates (version, override, outdated files) / copy one to `.nestvexa/templates/<id>` to customize it.                                                                                                                                                                                                                                                                                                                                                                |
 | `nestvexa inspect:routes\|components\|actions`                                   | Static source inspection with the TypeScript AST; no app code runs.                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `nestvexa remove <feature>`                                                      | Deletes generated files of a feature (`init`, `component:<name>`, `page:<name>`, …) only if unchanged; modified files are kept and reported.                                                                                                                                                                                                                                                                                                                                          |
@@ -109,8 +109,21 @@ with `nestvexa templates:eject component.class`, edit
 `nvCamelName` are replaced by the generated name) and later generators use it. The
 manifest records which template id (`custom:<id>` for overrides) and version
 produced each file. Generated code compiles under `strict`,
-`exactOptionalPropertyTypes` and `noUncheckedIndexedAccess`; the CLI does not run
-your formatter — run it on the reported files.
+`exactOptionalPropertyTypes` and `noUncheckedIndexedAccess`.
+
+## Formatting and linting
+
+When the project declares `prettier` or `eslint` in `package.json` and they are
+installed, every command runs them on the files it writes, with the project's own
+configuration, before anything is written: ESLint `--fix` first (generated files
+only), then Prettier. Created files and files the CLI generated earlier are always
+formatted; another edited file (for example `main.ts`) only when it was
+Prettier-clean before, so unrelated lines of an unformatted file never change.
+`.prettierignore`, `.gitignore` and ESLint ignores are honored, and the manifest
+checksums are those of the formatted output, so `remove` and idempotent re-runs
+keep working. This is best effort: a missing, broken or misconfigured tool, a file
+the formatter cannot parse or remaining lint problems are reported as notes and
+never fail the command. `--no-format` skips it.
 
 ## Safety
 
@@ -155,21 +168,37 @@ resource, realtime, uploads, i18n, migrate) plus one hand-written showcase page.
 `tests/cli-example.test.ts` regenerates it and fails on any difference;
 `tests/browser/cli-generated.spec.ts` drives it in a browser with axe.
 
+## Project detection
+
+The package manager comes from the `packageManager` field (Corepack), else from a
+lockfile (`pnpm-lock.yaml`/`pnpm-workspace.yaml`, `yarn.lock`, `bun.lock`/`bun.lockb`,
+`package-lock.json`) in the project or an enclosing workspace (searched upwards to
+the repository's `.git`, at most eight levels), else npm. It is used for install
+hints, `--install`, `build` and generated `build:client` scripts.
+
 ## Limits
 
 Live components keep the umbrella HBS renderer (`make:component --view`
-accepts only `hbs`). `make:resource --orm` generates only the in-memory service.
+accepts only `hbs`). `make:resource --orm` supports `memory` and `typeorm` (no Prisma or Drizzle
+generator: implement `<Name>Repository` yourself); the TypeORM variant expects your
+`TypeOrmModule.forRoot(...)` DataSource and never creates or runs migrations.
+`routes:types` reads controllers statically: routes registered at runtime, global
+prefixes and versions are not in the map, and patterns `RouteTable` cannot
+reverse (regular expressions) are skipped. `add plugin` wires `NestvexaExtension`
+exports only; the plugin manifest format may change while the core extension API
+is unified.
 The generated session/identity
 policies are guest starters and must be replaced for production. `inspect:*`
 reads source statically and cannot see routes registered dynamically.
-`make:test` targets vitest (jest projects get `@jest/globals` imports, not
-type-checked in this repository).
+Jest projects must run Jest in ESM mode (Nestvexa packages are ESM only);
+`tests/cli-jest.test.ts` proves the generated Jest tests with
+`--experimental-vm-modules` on compiled output, not with `ts-jest`.
 
 ## Testing
 
 ```sh
 pnpm --filter @nestvexa/cli... build
-pnpm exec vitest run tests/cli.test.ts tests/cli-generators.test.ts tests/cli-fastify.test.ts tests/cli-inertia-ssr.test.ts tests/cli-example.test.ts tests/dev-errors.test.ts
+pnpm exec vitest run tests/cli.test.ts tests/cli-generators.test.ts tests/cli-fastify.test.ts tests/cli-inertia-ssr.test.ts tests/cli-example.test.ts tests/dev-errors.test.ts \n  tests/cli-doctor.test.ts tests/cli-routes.test.ts tests/cli-resource.test.ts tests/cli-format.test.ts \n  tests/cli-jest.test.ts tests/cli-plugins.test.ts
 ```
 
 `tests/cli.test.ts` runs `init` and generators on a fresh CommonJS Nest app,
@@ -182,6 +211,15 @@ templates, output modes, Windows paths, `build` and the migration framework.
 `tests/cli-fastify.test.ts` does the same on a Fastify app (sessions, engines,
 Inertia, islands, uploads, realtime and redis against a RESP test double).
 `tests/cli-inertia-ssr.test.ts` builds the three generated roots with Vite and
-checks production SSR.
+checks production SSR. `tests/cli-doctor.test.ts` covers package-manager detection
+and every doctor check on synthetic projects. `tests/cli-routes.test.ts` generates
+the route map, type-checks route names, parameters and the Inertia links with
+`tsc`, `vue-tsc` and `svelte-check`, compares `route()` with `RouteTable` and
+renders `{{route}}` in the running app. `tests/cli-resource.test.ts` compiles both
+ORM variants, runs their generated tests and serves CRUD through TypeORM on
+sql.js. `tests/cli-format.test.ts` runs a project's Prettier and ESLint
+configuration and the failure paths. `tests/cli-jest.test.ts` runs the generated
+Jest tests with Jest. `tests/cli-plugins.test.ts` wires and boots an installed
+extension and refuses untrusted specifiers and invalid manifests.
 
 Package: [@nestvexa/cli](../../packages/cli/README.md).

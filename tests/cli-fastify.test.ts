@@ -222,7 +222,12 @@ describe(
         component: 'Dashboard',
         props: { title: 'Dashboard' },
       });
-      expect(await (await fetch(`${origin}/invoice`)).json()).toEqual([]);
+      expect(await (await fetch(`${origin}/invoice`)).json()).toEqual({
+        items: [],
+        total: 0,
+        page: 1,
+        size: 20,
+      });
       const greet = await fetch(`${origin}/_nestvexa/actions/billing/greet`, {
         method: 'POST',
         headers: { origin, 'content-type': 'application/json', cookie },

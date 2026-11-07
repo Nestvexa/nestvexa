@@ -744,7 +744,7 @@ export function formView(kebab: string, pascal: string): string {
       nv:model.blur="${name}"
       value="{{${name}}}"
       aria-invalid="{{fields.${name}.ariaInvalid}}"
-      {{#if fields.${name}.describedBy}}aria-describedby="{{fields.${name}.describedBy}}"{{/if}}
+      aria-describedby="{{fields.${name}.describedBy}}"
     />
     {{#if fields.${name}.invalid}}<span id="{{fields.${name}.errorId}}" role="alert">{{fields.${name}.message}}</span>{{/if}}
   </p>`;

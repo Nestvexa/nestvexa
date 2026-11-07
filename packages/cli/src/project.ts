@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import ts from 'typescript';
 import { CliError } from './plan.js';
 import type { ChangePlan } from './plan.js';
@@ -16,6 +16,7 @@ export interface ProjectInfo {
 }
 interface PackageJson {
   readonly type?: string;
+  readonly packageManager?: string;
   readonly dependencies?: Record<string, string>;
   readonly devDependencies?: Record<string, string>;
   readonly scripts?: Record<string, string>;
@@ -28,6 +29,46 @@ export function readPackage(root: string): PackageJson {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
     throw new CliError('package.json must contain an object');
   return parsed as PackageJson;
+}
+export type PackageManager = ProjectInfo['packageManager'];
+const lockfiles: readonly (readonly [string, PackageManager])[] = [
+  ['pnpm-lock.yaml', 'pnpm'],
+  ['pnpm-workspace.yaml', 'pnpm'],
+  ['yarn.lock', 'yarn'],
+  ['bun.lock', 'bun'],
+  ['bun.lockb', 'bun'],
+  ['package-lock.json', 'npm'],
+  ['npm-shrinkwrap.json', 'npm'],
+];
+/**
+ * The package manager of a project: the `packageManager` field (Corepack),
+ * else a lockfile in the project or in an enclosing workspace (searched
+ * upwards until a `.git` boundary, at most eight levels), else npm.
+ */
+export function detectPackageManager(
+  root: string,
+  pkg: { readonly packageManager?: unknown } = readPackage(root),
+): PackageManager {
+  const declared =
+    typeof pkg.packageManager === 'string'
+      ? /^(npm|pnpm|yarn|bun)@/.exec(pkg.packageManager)?.[1]
+      : undefined;
+  if (
+    declared === 'npm' ||
+    declared === 'pnpm' ||
+    declared === 'yarn' ||
+    declared === 'bun'
+  )
+    return declared;
+  let directory = root;
+  for (let depth = 0; depth < 8; depth++) {
+    for (const [file, manager] of lockfiles)
+      if (existsSync(join(directory, file))) return manager;
+    const parent = dirname(directory);
+    if (parent === directory || existsSync(join(directory, '.git'))) break;
+    directory = parent;
+  }
+  return 'npm';
 }
 /** Detect a Nest project without assuming more than package.json and the Nest CLI layout. */
 export function detectProject(root: string): ProjectInfo {
@@ -52,16 +93,9 @@ export function detectProject(root: string): ProjectInfo {
     )
       sourceRoot = value.replace(/\/$/, '');
   }
-  const packageManager = existsSync(join(root, 'pnpm-lock.yaml'))
-    ? 'pnpm'
-    : existsSync(join(root, 'yarn.lock'))
-      ? 'yarn'
-      : existsSync(join(root, 'bun.lockb'))
-        ? 'bun'
-        : 'npm';
   return Object.freeze({
     root,
-    packageManager,
+    packageManager: detectPackageManager(root, pkg),
     esm: pkg.type === 'module',
     platform: dependencies['@nestjs/platform-fastify'] ? 'fastify' : 'express',
     sourceRoot,

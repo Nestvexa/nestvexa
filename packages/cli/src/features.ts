@@ -30,6 +30,7 @@ import type { ProjectInfo } from './project.js';
 import * as app from './templates-app.js';
 import type { Engine, Framework } from './templates-app.js';
 import { version } from './templates.js';
+import { addPlugin } from './plugins.js';
 import { pins } from './versions.js';
 
 const range = `^${version}`;
@@ -40,7 +41,7 @@ function first(project: ProjectInfo, path: string): string {
   return `${project.sourceRoot}/${path}`;
 }
 /** Patch main.ts with `call` before `await app.listen()`, importing `name` from `file`. */
-function patchMain(
+export function patchMain(
   plan: ChangePlan,
   project: ProjectInfo,
   statement: string,
@@ -73,7 +74,7 @@ function patchMain(
     );
   plan.update(project.mainFile, next);
 }
-const configureNestvexaCall = {
+export const configureNestvexaCall = {
   pattern: /^awaitconfigureNestvexa\(/,
   description: '`await configureNestvexa(app)` in main.ts',
 };
@@ -482,9 +483,10 @@ export function add(
   feature: string | undefined,
   detail: string | undefined,
 ): CommandResult {
+  if (feature === 'plugin') return addPlugin(context, detail);
   if (!isFeature(feature))
     throw new CliError(
-      `Unknown feature "${feature ?? ''}". Supported: ${features.join(', ')} (engine takes hbs|ejs|pug|nunjucks).`,
+      `Unknown feature "${feature ?? ''}". Supported: ${features.join(', ')}, plugin <package> (engine takes hbs|ejs|pug|nunjucks).`,
       2,
     );
   const project = detectProject(context.cwd);

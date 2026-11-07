@@ -4,6 +4,8 @@ import type { Names } from './context.js';
 import type { ProjectInfo } from './project.js';
 import * as base from './templates.js';
 import * as app from './templates-app.js';
+import * as resource from './templates-resource.js';
+import type { ResourceOptions, ResourceOrm } from './templates-resource.js';
 import type { Engine, Framework, TestRunner } from './templates-app.js';
 
 /**
@@ -35,6 +37,8 @@ export const paths = {
     `${src(p)}/nestvexa/forms/${n.kebab}.form.ts`,
   action: (n: Names, p: ProjectInfo) =>
     `${src(p)}/actions/${n.kebab}.actions.ts`,
+  resourceTable: (n: Names, p: ProjectInfo) =>
+    `${src(p)}/${n.kebab}/${n.kebab}-table.component.ts`,
   smoke: (n: Names, p: ProjectInfo) =>
     `test/${n.kebab}.${testRunner(p) === 'jest' ? 'e2e-spec' : 'e2e.spec'}.ts`,
 } as const;
@@ -91,6 +95,147 @@ function island(framework: Framework): TemplateDefinition {
   };
 }
 
+/** Options of a `make:resource` template for this project. */
+export function resourceOptions(
+  project: ProjectInfo,
+  orm: ResourceOrm,
+  crud: boolean,
+): ResourceOptions {
+  return {
+    esm: project.esm,
+    orm,
+    crud,
+    runner: testRunner(project),
+    platform: project.platform,
+  };
+}
+const resourceFile = (suffix: string) => (n: Names, p: ProjectInfo) =>
+  `${src(p)}/${n.kebab}/${n.kebab}${suffix}`;
+function resourceEntries(): Record<string, TemplateDefinition> {
+  const entry = (
+    version: number,
+    description: string,
+    suffix: string,
+    render: (n: Names, options: ResourceOptions) => string,
+    orm: ResourceOrm = 'memory',
+    crud = false,
+  ): TemplateDefinition => ({
+    version,
+    description,
+    path: resourceFile(suffix),
+    render: (n, p) => render(n, resourceOptions(p, orm, crud)),
+  });
+  return {
+    'resource.dto': entry(
+      1,
+      'Zod DTOs and adapters (create, update, list query)',
+      '.dto.ts',
+      resource.resourceDto,
+    ),
+    'resource.repository': entry(
+      1,
+      'Repository interface and injection token',
+      '.repository.ts',
+      resource.resourceRepository,
+    ),
+    'resource.repository.memory': entry(
+      1,
+      'In-memory repository (--orm memory, tests)',
+      '.memory-repository.ts',
+      resource.resourceMemoryRepository,
+    ),
+    'resource.repository.typeorm': entry(
+      1,
+      'TypeORM repository (--orm typeorm)',
+      '.typeorm-repository.ts',
+      resource.resourceTypeOrmRepository,
+      'typeorm',
+    ),
+    'resource.entity.typeorm': entry(
+      1,
+      'TypeORM entity (--orm typeorm; no migration)',
+      '.entity.ts',
+      resource.resourceEntity,
+      'typeorm',
+    ),
+    'resource.service': entry(
+      2,
+      'Resource service over the repository interface',
+      '.service.ts',
+      resource.resourceService,
+    ),
+    'resource.module': entry(
+      2,
+      'Resource module binding the in-memory repository',
+      '.module.ts',
+      resource.resourceModule,
+    ),
+    'resource.module.crud': entry(
+      2,
+      'Resource module with the REST controller (--crud)',
+      '.module.ts',
+      resource.resourceModule,
+      'memory',
+      true,
+    ),
+    'resource.module.typeorm': entry(
+      1,
+      'Resource module binding the TypeORM repository',
+      '.module.ts',
+      resource.resourceModule,
+      'typeorm',
+    ),
+    'resource.module.typeorm.crud': entry(
+      1,
+      'TypeORM resource module with the REST controller',
+      '.module.ts',
+      resource.resourceModule,
+      'typeorm',
+      true,
+    ),
+    'resource.controller': entry(
+      2,
+      'Validated REST CRUD controller (--crud)',
+      '.controller.ts',
+      resource.resourceController,
+      'memory',
+      true,
+    ),
+    'resource.component': entry(
+      2,
+      'Live CRUD table: search, pages, validated create',
+      '-table.component.ts',
+      resource.resourceComponent,
+    ),
+    'resource.view': {
+      version: 2,
+      description: 'Live CRUD table view',
+      path: (n) => `views/components/${n.kebab}-table.hbs`,
+      render: (n) => resource.resourceView(n),
+    },
+    'resource.test.service': entry(
+      1,
+      'Service test over the in-memory repository',
+      '.service.spec.ts',
+      resource.resourceServiceTest,
+    ),
+    'resource.test.dto': entry(
+      1,
+      'DTO validation test',
+      '.dto.spec.ts',
+      resource.resourceDtoTest,
+    ),
+    'resource.test.controller': entry(
+      1,
+      'HTTP test of the REST controller (--crud)',
+      '.controller.spec.ts',
+      resource.resourceControllerTest,
+      'memory',
+      true,
+    ),
+  };
+}
+
 export const catalog: Readonly<Record<string, TemplateDefinition>> =
   Object.freeze({
     'component.class': {
@@ -141,46 +286,7 @@ export const catalog: Readonly<Record<string, TemplateDefinition>> =
       path: (n, p) => `${src(p)}/policies/${n.kebab}.policy.ts`,
       render: (n) => base.policyGuard(n.pascal),
     },
-    'resource.service': {
-      version: 1,
-      description: 'In-memory resource service',
-      path: (n, p) => `${src(p)}/${n.kebab}/${n.kebab}.service.ts`,
-      render: (n, p) =>
-        base.resourceFiles(n.kebab, n.pascal, n.camel, p.esm).service,
-    },
-    'resource.component': {
-      version: 1,
-      description: 'Live CRUD table component',
-      path: (n, p) => `${src(p)}/${n.kebab}/${n.kebab}-table.component.ts`,
-      render: (n, p) =>
-        base.resourceFiles(n.kebab, n.pascal, n.camel, p.esm).component,
-    },
-    'resource.view': {
-      version: 1,
-      description: 'Live CRUD table view',
-      path: (n) => `views/components/${n.kebab}-table.hbs`,
-      render: (n, p) =>
-        base.resourceFiles(n.kebab, n.pascal, n.camel, p.esm).view,
-    },
-    'resource.controller': {
-      version: 1,
-      description: 'REST CRUD controller (--crud)',
-      path: (n, p) => `${src(p)}/${n.kebab}/${n.kebab}.controller.ts`,
-      render: (n, p) =>
-        base.resourceController(n.kebab, n.pascal, n.camel, p.esm),
-    },
-    'resource.module': {
-      version: 1,
-      description: 'Resource module providing and exporting the service',
-      path: (n, p) => `${src(p)}/${n.kebab}/${n.kebab}.module.ts`,
-      render: (n, p) => base.resourceModule(n.kebab, n.pascal, p.esm, false),
-    },
-    'resource.module.crud': {
-      version: 1,
-      description: 'Resource module with the REST controller (--crud)',
-      path: (n, p) => `${src(p)}/${n.kebab}/${n.kebab}.module.ts`,
-      render: (n, p) => base.resourceModule(n.kebab, n.pascal, p.esm, true),
-    },
+    ...resourceEntries(),
     'form.component': {
       version: 1,
       description: 'Live form with a Zod schema and @nestvexa/forms validation',
@@ -188,7 +294,7 @@ export const catalog: Readonly<Record<string, TemplateDefinition>> =
       render: (n) => app.formComponent(n.kebab, n.pascal, n.camel),
     },
     'form.view': {
-      version: 1,
+      version: 2,
       description: 'Accessible form view',
       path: (n) => `views/components/${n.kebab}-form.hbs`,
       render: (n) => app.formView(n.kebab, n.pascal),

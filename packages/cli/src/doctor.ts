@@ -179,6 +179,12 @@ function inertiaRoots(text: string): { key: string; ssr: boolean }[] {
   return [];
 }
 
+/** Node release lines Nestvexa supports: 22.13+ and 24. */
+export function supportedNode(version: string): boolean {
+  const [major = 0, minor = 0] = version.split('.').map(Number);
+  return (major === 22 && minor >= 13) || major === 24;
+}
+
 /**
  * `nestvexa doctor`: environment and configuration checks. Secret values are
  * never printed — only whether they are set and long enough. `--production`
@@ -195,10 +201,9 @@ export function doctor(context: CommandContext): CommandResult {
   const production =
     context.options['production'] === true ||
     process.env['NODE_ENV'] === 'production';
-  const [major = 0, minor = 0] = process.versions.node.split('.').map(Number);
   add(
     'node',
-    (major === 22 && minor >= 13) || major === 24 ? 'pass' : 'fail',
+    supportedNode(process.versions.node) ? 'pass' : 'fail',
     `Node ${process.versions.node} (supported: ^22.13 or ^24)`,
     'Install a Node LTS release (22.13+ or 24).',
   );

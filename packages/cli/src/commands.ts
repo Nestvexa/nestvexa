@@ -1,11 +1,12 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import ts from 'typescript';
 import { finish, installDependencies, newPlan } from './context.js';
 import type { CommandContext, CommandResult } from './context.js';
 import { doctor } from './doctor.js';
 import { CliError, toPosix, untouchedGenerated } from './plan.js';
+import { collectRoutes, decoratorName, sourceFiles } from './routes.js';
 import {
   addDependencies,
   addModuleArrayEntry,
@@ -158,20 +159,6 @@ export function remove(
   return finish(plan, context, messages);
 }
 
-function sourceFiles(
-  directory: string,
-  root: string,
-  out: string[] = [],
-): string[] {
-  if (!existsSync(directory)) return out;
-  for (const entry of readdirSync(directory)) {
-    if (entry === 'node_modules' || entry.startsWith('.')) continue;
-    const path = join(directory, entry);
-    if (statSync(path).isDirectory()) sourceFiles(path, root, out);
-    else if (/\.ts$/.test(entry) && !entry.endsWith('.d.ts')) out.push(path);
-  }
-  return out;
-}
 function stringArgument(
   node: ts.Decorator,
   property?: string,
@@ -191,20 +178,21 @@ function stringArgument(
         return item.initializer.text;
   return undefined;
 }
-function decoratorName(node: ts.Decorator): string | undefined {
-  const expression = ts.isCallExpression(node.expression)
-    ? node.expression.expression
-    : node.expression;
-  return ts.isIdentifier(expression) ? expression.text : undefined;
-}
 /** Static source inspection (no application code is executed). */
 export function inspect(context: CommandContext, what: string): CommandResult {
   const project = detectProject(context.cwd);
-  const rows: Record<string, string>[] = [];
-  for (const file of sourceFiles(
-    join(project.root, project.sourceRoot),
-    project.root,
-  )) {
+  const rows: Record<string, string>[] =
+    what === 'routes'
+      ? collectRoutes(project).map((row) => ({
+          method: row.method,
+          path: row.path,
+          handler: `${row.controller}.${row.handler}`,
+          file: row.file,
+        }))
+      : [];
+  for (const file of what === 'routes'
+    ? []
+    : sourceFiles(join(project.root, project.sourceRoot))) {
     const source = ts.createSourceFile(
       file,
       readFileSync(file, 'utf8'),
@@ -223,14 +211,8 @@ export function inspect(context: CommandContext, what: string): CommandResult {
             view: stringArgument(decorator, 'view') ?? '?',
             file: location,
           });
-        if (
-          (what === 'routes' || what === 'actions') &&
-          (name === 'Controller' || name === 'LiveComponent')
-        ) {
-          const prefix =
-            name === 'Controller'
-              ? (stringArgument(decorator) ?? '')
-              : `_nestvexa/live/${stringArgument(decorator, 'name') ?? '?'}`;
+        if (what === 'actions' && name === 'LiveComponent') {
+          const prefix = `_nestvexa/live/${stringArgument(decorator, 'name') ?? '?'}`;
           for (const member of statement.members) {
             if (
               !ts.isMethodDeclaration(member) ||
@@ -239,27 +221,7 @@ export function inspect(context: CommandContext, what: string): CommandResult {
             )
               continue;
             for (const method of ts.getDecorators(member) ?? []) {
-              const verb = decoratorName(method);
-              if (
-                what === 'routes' &&
-                verb &&
-                ['Get', 'Post', 'Put', 'Patch', 'Delete'].includes(verb) &&
-                name === 'Controller'
-              )
-                rows.push({
-                  method: verb.toUpperCase(),
-                  path: `/${[prefix, stringArgument(method) ?? ''].filter(Boolean).join('/')}`.replace(
-                    /\/+/g,
-                    '/',
-                  ),
-                  handler: `${statement.name.text}.${member.name.text}`,
-                  file: location,
-                });
-              if (
-                what === 'actions' &&
-                verb === 'Action' &&
-                name === 'LiveComponent'
-              )
+              if (decoratorName(method) === 'Action')
                 rows.push({
                   component: prefix.split('/').at(-1) ?? '?',
                   action: stringArgument(method, 'id') ?? member.name.text,

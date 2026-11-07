@@ -27,6 +27,12 @@ export interface FileChange {
   readonly generated?: boolean;
   /** Template id and version that produced a generated file. */
   readonly template?: { readonly id: string; readonly version: number };
+  /**
+   * A generated file that differs from the file on disk without `--force`.
+   * Resolved after formatting: a no-op when the formatted output equals the
+   * file, an error otherwise.
+   */
+  readonly conflict?: boolean;
 }
 export interface ManifestFile {
   readonly sha256: string;
@@ -106,17 +112,40 @@ export class ChangePlan {
   ): void {
     const current = this.read(path);
     if (current === content) return;
-    if (current !== undefined && !options.force)
-      throw new CliError(
-        `${path} already exists. Re-run with --force to overwrite, or remove it first.`,
-      );
     this.#changes.set(path, {
       path,
       kind: current === undefined ? 'create' : 'update',
       content,
       generated: true,
       ...(options.template ? { template: options.template } : {}),
+      ...(current !== undefined && !options.force ? { conflict: true } : {}),
     });
+  }
+  /** Replace the content of a pending change (formatting), keeping its kind and metadata. */
+  replaceContent(path: string, content: string): void {
+    const pending = this.#changes.get(path);
+    if (!pending || pending.kind === 'delete') return;
+    this.#changes.set(path, { ...pending, content });
+  }
+  /** Content of a file before this plan (undefined when it does not exist yet). */
+  original(path: string): string | undefined {
+    const absolute = projectPath(this.root, path);
+    return existsSync(absolute) ? readFileSync(absolute, 'utf8') : undefined;
+  }
+  /**
+   * Settle conflicting generated files: identical to the file on disk (for
+   * example after formatting) is a no-op; anything else is refused.
+   */
+  resolveConflicts(): void {
+    for (const change of this.changes) {
+      if (!change.conflict) continue;
+      if (this.original(change.path) === change.content)
+        this.#changes.delete(change.path);
+      else
+        throw new CliError(
+          `${change.path} already exists. Re-run with --force to overwrite, or remove it first.`,
+        );
+    }
   }
   /** Create a generated file only when it does not exist yet (shared scaffolding). */
   ensure(
@@ -145,6 +174,7 @@ export class ChangePlan {
         content,
         ...(pending.generated ? { generated: true } : {}),
         ...(template ? { template } : {}),
+        ...(pending.conflict ? { conflict: true } : {}),
       });
       return;
     }

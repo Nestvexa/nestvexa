@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, posix } from 'node:path';
+import { formatPlan } from './format.js';
 import { ChangePlan, CliError, projectPath } from './plan.js';
 import {
   addArrayElement,
@@ -34,14 +35,20 @@ export function finish(
   messages: readonly string[],
   data?: unknown,
 ): CommandResult {
+  // The project's ESLint/Prettier (best effort), then conflicts are settled
+  // against the formatted output.
+  const formatting =
+    context.options['no-format'] === true ? [] : formatPlan(plan);
+  plan.resolveConflicts();
   const changes = plan.describe();
   if (!context.dryRun) plan.apply();
+  const notes = changes.length ? formatting : [];
   return {
     ok: true,
     changes,
     messages: context.dryRun
-      ? ['Dry run: no files were changed.', ...messages]
-      : [...messages],
+      ? ['Dry run: no files were changed.', ...messages, ...notes]
+      : [...messages, ...notes],
     ...(data === undefined ? {} : { data }),
   };
 }
