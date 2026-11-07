@@ -179,6 +179,31 @@ All need the host identity and `x-nestvexa-csrf`; non-GET routes need the exact
 | `storage`                                       | `LocalStorage(<directory>/objects)`                                                                 |                 |
 | `scanner`                                       | none (`scan: 'not-configured'`)                                                                     |                 |
 | `instrumentation`                               | none (`nestvexa.upload.receive` / `.finalize` spans: mode, purpose, bytes, file count; never names) |                 |
+| `policies` / `policyOwner`                      | none / `uploads` (kernel policy registry, see below)                                                |                 |
+
+## Kernel policy registry
+
+`policies` accepts any object shaped like `SecurityPolicyRegistry` from
+`@nestvexa/core` (structural; this package imports no Nestvexa package). At startup
+uploads registers, under `policyOwner` (default `uploads`): `origin` (the exact origin),
+`csrf` (constant-time `x-nestvexa-csrf` check), `action-authorization` (your
+`authorize`, purpose as resource, operation as action) and `upload-quota`
+(`maxFileBytes` = the largest purpose `maxFileSize`, `maxFiles` =
+`quotas.identityFiles`, `maxTotalBytes` = `quotas.identityBytes`). Every origin,
+CSRF-header and authorization decision then goes through the registry. The form
+route's CSRF field is compared with the identity token directly (it is a body field,
+not a header proof).
+
+```ts
+UploadsModule.registerAsync({
+  inject: [SecurityPolicyRegistry, DiagnosticsRegistry], // kernel registered with { global: true }
+  useFactory: (policies, diagnostics) => ({
+    ...hostOptions,
+    policies,
+    instrumentation: diagnostics.instrumentation(),
+  }),
+});
+```
 
 ## Security model
 

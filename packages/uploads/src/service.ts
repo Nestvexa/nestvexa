@@ -25,6 +25,8 @@ import type {
 } from './options.js';
 import { UPLOAD_SESSION_PATTERN, UPLOAD_TOKEN_PATTERN } from './references.js';
 import { traced } from './instrumentation.js';
+import { uploadPolicyEnforcer, uploadSecurityPolicies } from './policies.js';
+import type { UploadPolicyEnforcer } from './policies.js';
 import type { UploadSpanAttributes } from './instrumentation.js';
 import { sendDownload } from './download.js';
 import type { ScanVerdict } from './scanner.js';
@@ -213,9 +215,27 @@ export class UploadsService
   #closed = false;
   #ready: Promise<void> | undefined;
 
+  /** Origin, CSRF-header and authorization decisions (the kernel registry when configured). */
+  readonly #policy: UploadPolicyEnforcer;
+
   constructor(
     @Inject(UPLOADS_OPTIONS) private readonly options: ResolvedOptions,
-  ) {}
+  ) {
+    this.#policy = uploadPolicyEnforcer(
+      uploadSecurityPolicies({
+        origin: options.origin,
+        resolveIdentity: (request) => this.identity(request),
+        authorize: options.authorize,
+        maxFileBytes: Math.max(
+          ...[...options.purposes.values()].map((entry) => entry.maxFileSize),
+        ),
+        maxFiles: options.quotas.identityFiles,
+        maxTotalBytes: options.quotas.identityBytes,
+      }),
+      options.policies,
+      options.policyOwner,
+    );
+  }
 
   /** Per-process temporary directory. */
   get temporaryDirectory(): string {
@@ -351,7 +371,7 @@ export class UploadsService
     purpose: string,
     operation: 'upload' | 'finalize' | 'discard',
   ): Promise<void> {
-    if (!(await this.options.authorize(identity, purpose, operation)))
+    if (!(await this.#policy.authorize(identity, purpose, operation)))
       fail(403, 'UPLOAD_FORBIDDEN');
     if (this.#closed) fail(503, 'UPLOADS_SHUTDOWN');
   }
@@ -375,13 +395,13 @@ export class UploadsService
     request: object,
     stateChanging: boolean,
   ): Promise<UploadIdentity> {
-    if (stateChanging && header(request, 'origin') !== this.options.origin)
+    if (stateChanging && !this.#policy.originAllowed(header(request, 'origin')))
       fail(403, 'ORIGIN_REJECTED');
     const encoding = header(request, 'content-encoding');
     if (encoding !== undefined && encoding.trim().toLowerCase() !== 'identity')
       fail(415, 'CONTENT_ENCODING');
     const identity = await this.identity(request);
-    if (!equal(header(request, 'x-nestvexa-csrf') ?? '', identity.csrfToken))
+    if (!(await this.#policy.verifyCsrf(request, identity)))
       fail(403, 'CSRF_REJECTED');
     this.limit(identity);
     return identity;
@@ -1152,7 +1172,7 @@ export class UploadsService
     options: FormUploadOptions,
   ): Promise<FormUploadResult> {
     const originHeader = header(request, 'origin');
-    if (originHeader !== undefined && originHeader !== this.options.origin)
+    if (originHeader !== undefined && !this.#policy.originAllowed(originHeader))
       fail(403, 'ORIGIN_REJECTED');
     const encoding = header(request, 'content-encoding');
     if (encoding !== undefined && encoding.trim().toLowerCase() !== 'identity')

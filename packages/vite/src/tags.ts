@@ -12,7 +12,9 @@ export interface ViteTagOptions {
  * Renders `<head>` tags for resolved entry assets: an optional
  * `<meta property="csp-nonce">` (read by Vite's preload helper for chunks and
  * CSS it injects later), stylesheets, module preloads and entry scripts. Every
- * attribute is escaped.
+ * attribute is escaped. Assets with integrity metadata get `integrity` and a
+ * `crossorigin` attribute (`anonymous` unless configured), which browsers
+ * need to check the hash of cross-origin (CDN) responses.
  */
 export function renderAssetTags(
   assets: ViteEntryAssets,
@@ -22,21 +24,25 @@ export function renderAssetTags(
     options.nonce === undefined
       ? ''
       : ` nonce=${attribute(assertNonce(options.nonce))}`;
-  const cross =
-    options.crossOrigin === undefined
-      ? ''
-      : ` crossorigin=${attribute(options.crossOrigin)}`;
+  const integrity = assets.integrity ?? {};
+  const extra = (url: string): string => {
+    const hash = Object.hasOwn(integrity, url) ? integrity[url] : undefined;
+    const cross = options.crossOrigin ?? (hash ? 'anonymous' : undefined);
+    return `${cross === undefined ? '' : ` crossorigin=${attribute(cross)}`}${
+      hash === undefined ? '' : ` integrity=${attribute(hash)}`
+    }`;
+  };
   const tags: string[] = [];
   if (nonce) tags.push(`<meta property="csp-nonce"${nonce}>`);
   for (const href of assets.styles)
-    tags.push(`<link rel="stylesheet" href=${attribute(href)}${cross}>`);
+    tags.push(`<link rel="stylesheet" href=${attribute(href)}${extra(href)}>`);
   for (const href of assets.preloads)
     tags.push(
-      `<link rel="modulepreload" href=${attribute(href)}${cross}${nonce}>`,
+      `<link rel="modulepreload" href=${attribute(href)}${extra(href)}${nonce}>`,
     );
   for (const src of assets.scripts)
     tags.push(
-      `<script type="module" src=${attribute(src)}${cross}${nonce}></script>`,
+      `<script type="module" src=${attribute(src)}${extra(src)}${nonce}></script>`,
     );
   return tags.join('');
 }

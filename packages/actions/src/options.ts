@@ -112,6 +112,13 @@ export interface ActionsHostOptions {
   readonly logger?: ActionsLogger;
   /** Queue for `job: true` actions (202 job tickets, status polling, cancellation). */
   readonly jobs?: ActionJobsOptions;
+  /**
+   * Request correlation (structural; for example `RequestContextFactory`
+   * from @nestvexa/core). The envelope `requestId`, the
+   * `x-nestvexa-request-id` header, call logs and spans then use the host
+   * correlation ID instead of a random one. Malformed IDs are ignored.
+   */
+  readonly requestContext?: { correlationId(request: object): string };
 }
 
 export type ActionsErrorEnvelopeMode = 'actions' | 'host';
@@ -142,6 +149,7 @@ export interface NormalizedActionsOptions {
   readonly jobChannel: ((id: string) => string) | undefined;
   readonly jobOwner: ActionJobsOptions['owner'];
   readonly jobPollAfterMs: number;
+  readonly requestContext: ActionsHostOptions['requestContext'];
 }
 
 export const HOST_KEYS: ReadonlySet<string> = new Set([
@@ -157,6 +165,7 @@ export const HOST_KEYS: ReadonlySet<string> = new Set([
   'instrumentation',
   'logger',
   'jobs',
+  'requestContext',
 ]);
 
 function hasMethods(value: unknown, names: readonly string[]): boolean {
@@ -323,6 +332,14 @@ export function normalizeHostOptions(
   const owner = jobs['owner'];
   if (owner !== undefined && typeof owner !== 'function')
     throw new Error('Actions jobs.owner must be a function');
+  const requestContext = options['requestContext'];
+  if (
+    requestContext !== undefined &&
+    !hasMethods(requestContext, ['correlationId'])
+  )
+    throw new Error(
+      'Actions requestContext must implement correlationId(request)',
+    );
   return Object.freeze({
     origins: origins(options['origin']),
     resolveIdentity: options[
@@ -390,5 +407,6 @@ export function normalizeHostOptions(
       100,
       60_000,
     ),
+    requestContext: requestContext as ActionsHostOptions['requestContext'],
   });
 }

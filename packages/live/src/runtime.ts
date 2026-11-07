@@ -53,6 +53,14 @@ import type { UrlStateEffect } from './state-context.js';
 import { closeTextStreams } from './text-stream.js';
 import { checkWritablePaths } from './writable-paths.js';
 import type { TextStreamAuthorization } from './text-stream.js';
+import {
+  liveSecurityPolicies,
+  livePolicyEnforcer,
+} from './security-policies.js';
+import type {
+  LivePolicyEnforcer,
+  LivePolicyRegistry,
+} from './security-policies.js';
 
 export const LIVE_OPTIONS = Symbol('nv:live-options');
 export interface LiveIdentity {
@@ -133,6 +141,24 @@ export interface LiveHostOptions {
    * snapshots or HTML. Do not configure it in production.
    */
   readonly inspector?: LiveInspector;
+  /**
+   * Kernel security policy registry (structural; for example
+   * `SecurityPolicyRegistry` from @nestvexa/core, which the `nestvexa`
+   * umbrella passes automatically). Live registers its origin, CSRF,
+   * action-authorization and snapshot policies once under `policyOwner` and
+   * asks the registry for every admission decision, so the registry is the
+   * single source of truth. Without it Live enforces the same policies
+   * directly.
+   */
+  readonly policies?: LivePolicyRegistry;
+  /** Owner name for `policies` (default `live`); a duplicate owner fails startup. */
+  readonly policyOwner?: string;
+  /**
+   * Request correlation (structural; for example `RequestContextFactory`
+   * from @nestvexa/core). Admission, mount and action spans then carry
+   * `nestvexa.request_id`, the same ID error bodies and logs use.
+   */
+  readonly requestContext?: { correlationId(request: object): string };
 }
 /** Static shape of a registered component, for development inspectors. */
 export interface LiveComponentDescription {
@@ -485,6 +511,10 @@ export class LiveRuntime implements OnApplicationShutdown {
   readonly #inflight = new Set<Promise<unknown>>();
   /** Idempotent replay and identity locks: shared when the store coordinates replicas. */
   readonly #actions: ActionPolicy;
+  /** Origin, CSRF and authorization decisions (the kernel registry when configured). */
+  readonly #policy: LivePolicyEnforcer;
+  /** Seconds until the rate-limit window of a rejected request resets. */
+  readonly #retryAfter = new WeakMap<object, number>();
   constructor(
     @Inject(LIVE_OPTIONS) private readonly options: RuntimeOptions,
     @Inject(ModuleRef) private readonly moduleRef: ModuleRef,
@@ -492,6 +522,22 @@ export class LiveRuntime implements OnApplicationShutdown {
     private readonly registry: LiveApplicationRegistry,
   ) {
     this.store = options.store ?? new MemoryLiveStore();
+    const ttlMs: unknown = Reflect.get(this.store, 'ttlMs');
+    this.#policy = livePolicyEnforcer(
+      liveSecurityPolicies({
+        origin: options.origin,
+        resolveIdentity: (request) => this.identity(request),
+        authorize: options.authorize,
+        ...(typeof ttlMs === 'number' &&
+        Number.isSafeInteger(ttlMs) &&
+        ttlMs >= 1 &&
+        ttlMs <= 86_400_000
+          ? { ttlMs }
+          : {}),
+      }),
+      options.policies,
+      options.policyOwner,
+    );
     this.#actions = isLiveActionCoordination(this.store)
       ? sharedActionPolicy(this.store)
       : memoryActionPolicy();
@@ -553,18 +599,50 @@ export class LiveRuntime implements OnApplicationShutdown {
       csrfToken: identity.csrfToken,
     });
   }
-  private limit(identity: LiveIdentity): void {
+  private limit(identity: LiveIdentity, request: object): void {
     const now = Date.now();
     for (const [key, value] of this.#rate)
       if (now - value.start >= 60_000) this.#rate.delete(key);
     let bucket = this.#rate.get(identity.binding);
     if (!bucket) {
-      if (this.#rate.size >= 1000) fail(429, 'RATE_LIMIT');
+      if (this.#rate.size >= 1000) {
+        // Every window ends within a minute of its start.
+        let oldest = now;
+        for (const value of this.#rate.values())
+          oldest = Math.min(oldest, value.start);
+        this.#retryAfter.set(
+          request,
+          Math.max(1, Math.ceil((oldest + 60_000 - now) / 1000)),
+        );
+        fail(429, 'RATE_LIMIT');
+      }
       bucket = { start: now, count: 0 };
       this.#rate.set(identity.binding, bucket);
     }
-    if (++bucket.count > (this.options.maxRequestsPerMinute ?? 60))
+    if (++bucket.count > (this.options.maxRequestsPerMinute ?? 60)) {
+      this.#retryAfter.set(
+        request,
+        Math.max(1, Math.ceil((bucket.start + 60_000 - now) / 1000)),
+      );
       fail(429, 'RATE_LIMIT');
+    }
+  }
+  /** `Retry-After` seconds for a request rejected with `429 RATE_LIMIT`. */
+  retryAfter(request: object): number | undefined {
+    return this.#retryAfter.get(request);
+  }
+  /** Correlation span attribute when a request context is configured. */
+  private correlation(request: object): Readonly<Record<string, string>> {
+    const context = this.options.requestContext;
+    if (!context) return {};
+    try {
+      const id: unknown = context.correlationId(request);
+      return typeof id === 'string' && /^[A-Za-z0-9._:-]{1,128}$/.test(id)
+        ? { 'nestvexa.request_id': id }
+        : {};
+    } catch {
+      return {};
+    }
   }
   /**
    * Runs as a real Nest class guard, before application component/method guards.
@@ -578,7 +656,11 @@ export class LiveRuntime implements OnApplicationShutdown {
   ): Promise<void> {
     return this.traced(
       'nestvexa.live.admit',
-      { 'nestvexa.component': component.name, 'nestvexa.action': action },
+      {
+        'nestvexa.component': component.name,
+        'nestvexa.action': action,
+        ...this.correlation(request),
+      },
       () => this.admitUntraced(request, component, action),
     );
   }
@@ -587,7 +669,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     component: ComponentDefinition,
     action: string,
   ): Promise<void> {
-    if (header(request, 'origin') !== this.options.origin)
+    if (!this.#policy.originAllowed(header(request, 'origin')))
       fail(403, 'ORIGIN_REJECTED');
     if (
       !/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(
@@ -596,7 +678,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     )
       fail(415, 'CONTENT_TYPE');
     const identity = await this.identity(request);
-    if (!equal(header(request, 'x-nestvexa-csrf') ?? '', identity.csrfToken))
+    if (!(await this.#policy.verifyCsrf(request, identity)))
       fail(403, 'CSRF_REJECTED');
     // After CSRF so only same-origin pages of this identity are told to reload.
     if (
@@ -604,7 +686,7 @@ export class LiveRuntime implements OnApplicationShutdown {
       header(request, 'x-nestvexa-asset-version') !== this.options.assetVersion
     )
       fail(409, 'ASSET_VERSION_MISMATCH');
-    this.limit(identity);
+    this.limit(identity, request);
     let payload: LiveRequest;
     let capabilities: ReadonlySet<LiveCapability>;
     try {
@@ -622,7 +704,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     }
     if (action !== INTERNAL_SYNC_ACTION && !component.actions.has(action))
       fail(404, 'UNKNOWN_ACTION');
-    if (!(await this.options.authorize(identity, component.name, action)))
+    if (!(await this.#policy.authorize(identity, component.name, action)))
       fail(403, 'ACTION_FORBIDDEN');
     if (this.closed) fail(503, 'LIVE_SHUTDOWN');
     this.#admissions.set(request, {
@@ -660,7 +742,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     )
       throw new Error('Invalid registered stream identifier');
     if (Reflect.get(request, 'method') !== 'POST') fail(405, 'STREAM_METHOD');
-    if (header(request, 'origin') !== this.options.origin)
+    if (!this.#policy.originAllowed(header(request, 'origin')))
       fail(403, 'ORIGIN_REJECTED');
     if (
       !/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(
@@ -681,17 +763,17 @@ export class LiveRuntime implements OnApplicationShutdown {
       const token = ref['snapshot'];
       const revision = ref['revision'];
       const identity = await this.identity(request);
-      this.limit(identity);
+      this.limit(identity, request);
       const inspect = async (current: LiveIdentity) => {
         if (!equal(current.binding, identity.binding))
           fail(403, 'IDENTITY_CHANGED');
-        if (!equal(header(request, 'x-nestvexa-csrf') ?? '', current.csrfToken))
+        if (!(await this.#policy.verifyCsrf(request, current)))
           fail(403, 'CSRF_REJECTED');
         const before = await this.store.peek(token, current.binding);
         if (before.name !== component.name) fail(403, 'COMPONENT_MISMATCH');
         if (before.revision !== revision) fail(409, 'STALE_REVISION');
         if (
-          !(await this.options.authorize(
+          !(await this.#policy.authorize(
             current,
             component.name,
             `$stream:${streamId}`,
@@ -1138,7 +1220,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     context: RenderContext,
   ): Promise<{ html: string; reference: ChildReference }> {
     const { identity, request } = context;
-    if (!(await this.options.authorize(identity, child.name, '$mount')))
+    if (!(await this.#policy.authorize(identity, child.name, '$mount')))
       fail(403, 'COMPONENT_FORBIDDEN');
     if (this.closed) fail(503, 'LIVE_SHUTDOWN');
     const instance = await this.instance(child, request);
@@ -1336,7 +1418,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     return this.tracked(
       this.traced(
         'nestvexa.live.mount',
-        { 'nestvexa.component': definition.name },
+        { 'nestvexa.component': definition.name, ...this.correlation(request) },
         () => this.mountUntraced(type, request),
       ),
     );
@@ -1364,8 +1446,8 @@ export class LiveRuntime implements OnApplicationShutdown {
       throw new Error('Component is not registered in this Nest application');
     }
     const identity = await this.identity(request);
-    this.limit(identity);
-    if (!(await this.options.authorize(identity, component.name, '$mount')))
+    this.limit(identity, request);
+    if (!(await this.#policy.authorize(identity, component.name, '$mount')))
       fail(403, 'COMPONENT_FORBIDDEN');
     if (this.closed) fail(503, 'LIVE_SHUTDOWN');
     const instance = await this.instance(component, request);
@@ -1444,6 +1526,7 @@ export class LiveRuntime implements OnApplicationShutdown {
           'nestvexa.component': admitted.component.name,
           'nestvexa.action': admitted.action,
           'nestvexa.revision': admitted.payload.revision,
+          ...this.correlation(request),
         },
         () => this.executeUntraced(request, input),
         // Server side of the client morph: the size of the HTML it applies.

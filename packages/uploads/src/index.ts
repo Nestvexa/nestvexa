@@ -23,6 +23,12 @@ export type {
   UploadInstrumentation,
   UploadSpanAttributes,
 } from './instrumentation.js';
+export { uploadSecurityPolicies } from './policies.js';
+export type {
+  UploadPolicyKind,
+  UploadPolicyRegistry,
+  UploadSecurityPolicies,
+} from './policies.js';
 export { UploadError } from './errors.js';
 export type { UploadErrorCode } from './errors.js';
 export {

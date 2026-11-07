@@ -45,7 +45,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --root ../.. tests/core.test tests/core-",
+    "test": "vitest run --root ../.. tests/core.test tests/core- tests/kernel-integration",
     "lint": "eslint src"
   },
   "peerDependencies": {

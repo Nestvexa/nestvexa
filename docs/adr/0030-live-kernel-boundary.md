@@ -31,7 +31,9 @@ umbrella, which:
 - requires `live.enabled: true` for an explicit Live registration and rejects
   `security.csrf` / `security.requireAuthorizedActions` set to `false`;
 - verifies `live.client` (when configured) equals the Live browser mode;
-- shares one HBS renderer between MVC and Live.
+- shares one HBS renderer between MVC and Live;
+- passes the kernel `SecurityPolicyRegistry` as Live's structural `policies` option and
+  `RequestContextFactory` as `requestContext` (amendment below).
 
 ## Rejected alternatives
 
@@ -51,7 +53,22 @@ umbrella, which:
   the edge then, together with the code that uses it, and amend this ADR.
 - `scripts/boundaries.mjs` and the docs graph check keep the declared graph honest.
 
+## Amendment (2026-11-06): one source of truth for security policies
+
+Live used to enforce its own copy of origin, CSRF and authorization while the umbrella
+registered look-alike entries in `SecurityPolicyRegistry`. Live now declares structural
+interfaces (`LivePolicyRegistry`, `LiveHostOptions.requestContext`) that the core
+classes satisfy, still without importing core. With `policies`, Live registers the
+objects built by `liveSecurityPolicies(options)` once (owner `live`) and asks the
+registry for every origin, CSRF and authorization decision; without it the same objects
+are enforced directly. `@nestvexa/uploads` follows the same pattern (owner `uploads`,
+including `upload-quota`). The package graph is unchanged; `scripts/boundaries.mjs`
+still forbids `live → core`.
+
 ## Evidence
+
+- [Kernel integration tests](../../tests/kernel-integration.test.ts): Live and uploads
+  decisions come from the registry on Express and Fastify.
 
 - [Package dependency graph](../architecture/package-dependency-graph.md) (checked by
   `pnpm docs:build`).
