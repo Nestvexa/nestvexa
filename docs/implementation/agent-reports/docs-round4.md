@@ -156,9 +156,11 @@ Accepted ADR decisions were not rewritten. Changes are dated **Amendment** or
 Run in the worktree:
 
 - `pnpm exec prettier --check` on every changed file: clean.
-- `pnpm docs:build`: see the final message for the result.
+- `pnpm docs:build` (after merging `main`): 230 documents, 44 provenance snippets,
+  30 packages and 1636 API symbols checked; exit 0.
 - `pnpm exec vitest run tests/contracts.test.ts`: 3 passed.
 - `pnpm --filter @nestvexa/cache test` and `pnpm --filter @nestvexa/flags test`:
   pass.
-- `pnpm lint` and `pnpm exec tsc -p tsconfig.tests.json --noEmit`: see the final
-  message.
+- `pnpm lint` (eslint and `scripts/boundaries.mjs`, 30 packages) and
+  `pnpm exec tsc -p tsconfig.tests.json --noEmit`: exit 0.
+- `pnpm format:check`: clean.
