@@ -94,7 +94,9 @@ Same contract as `MemoryLiveStore` (see `LiveStateStore` in `@nestvexa/live`):
   replay records (`<prefix>r:<digest>`) are AES-256-GCM ciphertext sealed by Live
   with a key the store never sees; identity locks are `SET NX PX` leases
   (`<prefix>a:<digest>`) released by compare-and-delete and expiring after the
-  action deadline plus one second (300 s without a deadline).
+  action deadline plus one second (300 s without a deadline). Both are checked
+  against real Redis by `pnpm test:services`, with two store instances and in
+  the four-replica browser suite (Express and Fastify replicas).
 
 Cost: about seven round trips per Live action (read, lease, re-read, watched
 commit). Clocks of all replicas must be NTP-synchronized.

@@ -87,7 +87,11 @@ test('a Live component whose state was created on replica A continues on replica
   browser,
 }) => {
   const { context, page } = await pinned(browser, 'a');
+  // The client is mounted once its realtime stream is open; a click before
+  // that would be a plain button press.
+  const mountedClient = sseOpened(page);
   await page.goto(proxy);
+  await mountedClient;
   await increment(page);
   await expect(page.locator('#clicks')).toHaveText('1');
   await expect(page.locator('#rendered-by')).toHaveText('a');
@@ -217,9 +221,12 @@ test('Fastify and Express replicas serve the same app: events, Live state and tr
   const onA = await pinned(browser, 'a');
   const onC = await pinned(browser, 'c');
   const onD = await pinned(browser, 'd');
+  const streamA = sseOpened(onA.page);
   const stream = sseOpened(onC.page);
   const socket = websocketReady(onD.page);
   for (const { page } of [onA, onC, onD]) await page.goto(proxy);
+  // Every client is mounted (its realtime connection is open) before acting.
+  await streamA;
   await expect(onA.page.locator('#http-adapter')).toHaveText('express');
   await expect(onC.page.locator('#http-adapter')).toHaveText('fastify');
   await expect(onD.page.locator('#http-adapter')).toHaveText('fastify');
@@ -289,8 +296,18 @@ test('browsers reconnect after the load balancer drops them, without duplicates 
   await firstStream;
   await firstSocket;
   const start = await total(onA.page);
+  // Both pages refresh on the event. Let those refreshes finish first: a drop
+  // that cuts a committed `$sync` lets the browser resend it on a new
+  // connection, which the server refuses as a stale revision.
+  const synced = [onA.page, onD.page].map((page) =>
+    page.waitForResponse((response) =>
+      response.url().includes('/_nestvexa/live/replica-board/_sync'),
+    ),
+  );
   await increment(onD.page);
   await expect(onA.page.locator('#total')).toHaveText(String(start + 1));
+  for (const response of await Promise.all(synced))
+    expect(response.status()).toBe(201);
   // Every open connection is cut, like a load balancer restart.
   const reconnectedStream = sseOpened(onA.page);
   const reconnectedSocket = websocketReady(onD.page);
@@ -328,4 +345,139 @@ test('browsers reconnect after the load balancer drops them, without duplicates 
       ).toBe(0);
   }).toPass({ timeout: 30_000 });
   await probe.close();
+});
+
+/** Mount the board on `replica` and read the envelope fields a browser would send. */
+async function mounted(page: Page) {
+  await page.goto(proxy);
+  const root = page.locator('[data-nv-name="replica-board"]');
+  return {
+    snapshot: (await root.getAttribute('data-nv-snapshot')) ?? '',
+    csrf: (await root.getAttribute('data-nv-csrf')) ?? '',
+  };
+}
+function action(
+  page: Page,
+  name: string,
+  fields: { snapshot: string; csrf: string },
+  requestId: string,
+) {
+  return page.request.post(`${proxy}/_nestvexa/live/replica-board/${name}`, {
+    headers: {
+      origin: proxy,
+      'content-type': 'application/json',
+      'x-nestvexa-csrf': fields.csrf,
+    },
+    data: {
+      protocol: 'nestvexa-live/1',
+      requestId,
+      snapshot: fields.snapshot,
+      revision: 0,
+      updates: {},
+      input: null,
+    },
+  });
+}
+async function charges(page: Page): Promise<number> {
+  const response = await page.request.get(`${direct.a}/api/charges`);
+  return Number((await response.json()).charges);
+}
+
+test('an idempotent retry replays on another replica (Express → Fastify) without repeating the side effect', async ({
+  browser,
+}) => {
+  const { context, page } = await pinned(browser, 'a');
+  const fields = await mounted(page);
+  const before = await charges(page);
+  const requestId = crypto.randomUUID();
+  const first = await action(page, 'pay', fields, requestId);
+  expect(first.status()).toBe(201);
+  expect(first.headers()['x-nestvexa-replica']).toBe('a');
+  const firstBody = await first.json();
+  expect(firstBody.replayed).toBeUndefined();
+  expect(await charges(page)).toBe(before + 1);
+  // The response was lost; the browser retries and lands on Fastify c.
+  await pin(context, 'c');
+  const retry = await action(page, 'pay', fields, requestId);
+  expect(retry.status()).toBe(201);
+  expect(retry.headers()['x-nestvexa-replica']).toBe('c');
+  const retryBody = await retry.json();
+  expect(retryBody).toMatchObject({
+    replayed: true,
+    snapshot: firstBody.snapshot,
+    html: firstBody.html,
+  });
+  expect(await charges(page)).toBe(before + 1);
+  // Reusing the request ID for a different request is refused on any replica.
+  await pin(context, 'd');
+  const reused = await page.request.post(
+    `${proxy}/_nestvexa/live/replica-board/pay`,
+    {
+      headers: {
+        origin: proxy,
+        'content-type': 'application/json',
+        'x-nestvexa-csrf': fields.csrf,
+      },
+      data: {
+        protocol: 'nestvexa-live/1',
+        requestId,
+        snapshot: firstBody.snapshot,
+        revision: 1,
+        updates: {},
+        input: null,
+      },
+    },
+  );
+  expect(reused.status()).toBe(422);
+  expect(await charges(page)).toBe(before + 1);
+  await context.close();
+});
+
+test('an identity-scoped action holds one lock across replicas and releases it', async ({
+  browser,
+}) => {
+  const owner = await pinned(browser, 'a');
+  const firstTab = await mounted(owner.page);
+  const secondTab = await mounted(owner.page);
+  const running = action(
+    owner.page,
+    'exportAll',
+    firstTab,
+    crypto.randomUUID(),
+  );
+  // While the export runs on Express a, the same identity on Fastify d is busy.
+  await pin(owner.context, 'd');
+  await expect(async () => {
+    const busy = await action(
+      owner.page,
+      'exportAll',
+      secondTab,
+      crypto.randomUUID(),
+    );
+    expect(busy.headers()['x-nestvexa-replica']).toBe('d');
+    expect(busy.status()).toBe(409);
+    expect((await busy.json()).code).toBe('ACTION_BUSY');
+  }).toPass({ timeout: 5000 });
+  // Another identity is not blocked by that lock.
+  const other = await pinned(browser, 'd');
+  const otherFields = await mounted(other.page);
+  expect(
+    (
+      await action(other.page, 'exportAll', otherFields, crypto.randomUUID())
+    ).status(),
+  ).toBe(201);
+  const finished = await running;
+  expect(finished.status()).toBe(201);
+  expect(finished.headers()['x-nestvexa-replica']).toBe('a');
+  // Released when the first export finished: the waiting tab runs on d now.
+  const after = await action(
+    owner.page,
+    'exportAll',
+    secondTab,
+    crypto.randomUUID(),
+  );
+  expect(after.status()).toBe(201);
+  expect(after.headers()['x-nestvexa-replica']).toBe('d');
+  await owner.context.close();
+  await other.context.close();
 });

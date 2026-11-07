@@ -14,7 +14,10 @@ import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { setTimeout as delay } from 'node:timers/promises';
 import { RespRealtimeBroker } from '../packages/realtime/dist/index.js';
-import { RedisLiveStore } from '../packages/realtime-redis/dist/index.js';
+import {
+  RedisLiveStore,
+  RespConnection,
+} from '../packages/realtime-redis/dist/index.js';
 import {
   RedisJobQueue,
   RedisPresenceStore,
@@ -101,10 +104,23 @@ process.stdin.resume();`,
         const restart = spawnSync(
           'docker',
           ['restart', env.NESTVEXA_REDIS_CONTAINER],
-          { encoding: 'utf8', timeout: 60_000 },
+          // Docker Desktop can take minutes on a loaded host.
+          { encoding: 'utf8', timeout: 300_000 },
         );
         if (restart.status !== 0)
-          throw new Error('docker restart failed: ' + restart.stderr);
+          throw new Error(
+            'docker restart failed: ' +
+              (restart.error?.message ?? restart.stderr),
+          );
+        // Later sections need the server back before they run.
+        const ready = new RespConnection({ port, commandTimeoutMs: 2000 });
+        const deadline = Date.now() + 120_000;
+        while ((await ready.command('PING').catch(() => '')) !== 'PONG') {
+          if (Date.now() > deadline)
+            throw new Error('Redis did not come back after restart');
+          await delay(500);
+        }
+        await ready.close();
         // Events published while the subscriber is disconnected are lost by
         // design; after reconnecting, new events must flow again.
         let delivered = false;
@@ -275,6 +291,56 @@ const realtimeUrl = JSON.stringify(
 );
 
 if (env.NESTVEXA_REDIS_PORT)
+  await check('redis-live-coordination', async (step) => {
+    // LiveActionCoordination on RedisLiveStore (shared idempotent replay and
+    // identity locks). Two store instances stand in for two replicas; the
+    // browser suite also exercises both through the Live runtime.
+    const options = redisOptions(
+      'nvcoord' + randomBytes(4).toString('hex') + ':',
+    );
+    const a = new RedisLiveStore(options);
+    const b = new RedisLiveStore(options);
+    const key = randomBytes(32).toString('base64url');
+    const ownerA = randomBytes(18).toString('base64url');
+    const ownerB = randomBytes(18).toString('base64url');
+    try {
+      await a.writeReplay(key, 'r1.sealed-response', 1500);
+      if ((await b.readReplay(key)) !== 'r1.sealed-response')
+        throw new Error('replay record written by A not read by B');
+      await delay(1700);
+      if ((await b.readReplay(key)) !== undefined)
+        throw new Error('replay record outlived its PX expiry');
+      step(
+        'a replay record written on one replica is read on another and expires by PX',
+      );
+      if (!(await a.acquireActionLease(key, ownerA, 5000)))
+        throw new Error('A could not acquire a free lease');
+      if (await b.acquireActionLease(key, ownerB, 5000))
+        throw new Error('B acquired a lease A holds');
+      await a.releaseActionLease(key, ownerA);
+      if (!(await b.acquireActionLease(key, ownerB, 800)))
+        throw new Error('B could not acquire after A released');
+      step(
+        'an identity lease held on one replica excludes the other until released',
+      );
+      // B "crashes" holding the lease: it lapses by PX, then A's late
+      // release of a lease it no longer owns must not drop B's successor.
+      await delay(1000);
+      if (!(await a.acquireActionLease(key, ownerA, 5000)))
+        throw new Error('lease of a crashed holder did not expire');
+      await b.releaseActionLease(key, ownerB);
+      if (await b.acquireActionLease(key, ownerB, 5000))
+        throw new Error('a stale owner released the current lease');
+      step(
+        "a crashed holder's lease expires; a stale owner cannot release the new owner's lease",
+      );
+    } finally {
+      await a.close();
+      await b.close();
+    }
+  });
+
+if (env.NESTVEXA_REDIS_PORT)
   await check('redis-job-queue', async (step) => {
     const { JobRunner } = await import('../packages/realtime/dist/index.js');
     const prefix = 'nvjobs' + randomBytes(4).toString('hex') + ':';
@@ -282,11 +348,12 @@ if (env.NESTVEXA_REDIS_PORT)
     const owner = { binding: 'tenant-a/session-alice/principal-alice' };
     const other = { binding: 'tenant-a/session-bob/principal-bob' };
     // This process enqueues but stays saturated by a blocker job, so the
-    // report job is claimed by the worker process.
+    // report job is claimed by the worker process. Leases are 3 s: with 1 s a
+    // loaded host can miss a renewal and the worker reclaims its own job.
     const enqueuer = new JobRunner({
       queue: new RedisJobQueue(options),
       concurrency: 1,
-      leaseMs: 1000,
+      leaseMs: 3000,
     });
     enqueuer.register(
       'block',
@@ -309,7 +376,7 @@ if (env.NESTVEXA_REDIS_PORT)
       // hangs until it is killed (a crash: no shutdown hand-back).
       worker = child(`import { JobRunner } from ${realtimeUrl};
 import { RedisJobQueue } from ${realtimeRedisUrl};
-const runner = new JobRunner({ queue: new RedisJobQueue(${JSON.stringify(options)}), pollMs: 50, leaseMs: 1000 });
+const runner = new JobRunner({ queue: new RedisJobQueue(${JSON.stringify(options)}), pollMs: 50, leaseMs: 3000 });
 runner.register('report', async ({ progress, attempt }) => {
   progress(30);
   console.log('running ' + attempt);
@@ -345,7 +412,7 @@ console.log('ready');`);
       // The killed worker's lease lapses; a new runner takes the job over.
       rescuer = new JobRunner({
         queue: new RedisJobQueue(options),
-        leaseMs: 1000,
+        leaseMs: 3000,
         pollMs: 50,
       });
       rescuer.register('report', async ({ attempt, input }) => ({
@@ -438,7 +505,8 @@ if (env.NESTVEXA_REDIS_PORT && env.NESTVEXA_SERVICES_BROWSER !== '0')
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: true,
-        timeout: 900_000,
+        // Five servers start before the tests; a loaded host needs minutes.
+        timeout: 1_800_000,
         env,
       },
     );
@@ -450,7 +518,7 @@ if (env.NESTVEXA_REDIS_PORT && env.NESTVEXA_SERVICES_BROWSER !== '0')
       );
     const passed = /(\d+) passed/.exec(run.stdout ?? '')?.[1] ?? '?';
     step(
-      `${passed} browser tests passed: cross-replica refresh over SSE and WebSocket on Express and Fastify; Live state continues across replicas and adapters; cross-identity isolation; presence across four replicas; reconnect after a dropped load balancer without duplicates; no leaked connections`,
+      `${passed} browser tests passed: cross-replica refresh over SSE and WebSocket on Express and Fastify; Live state continues across replicas and adapters; idempotent retry replays on another replica; identity lock held across replicas and released; cross-identity isolation; presence across four replicas; reconnect after a dropped load balancer without duplicates; no leaked connections`,
     );
   });
 

@@ -69,6 +69,7 @@ const redis =
         ...(env['REDIS_PASSWORD'] ? { password: env['REDIS_PASSWORD'] } : {}),
       };
 const prefix = env['REDIS_PREFIX'] ?? 'nvdemo:';
+const exportDelay = Number(env['EXPORT_DELAY_MS'] ?? 1500);
 function secret(name: string): string {
   const value = env[name];
   if (value && Buffer.byteLength(value) >= 32) return value;
@@ -115,8 +116,26 @@ export class SharedTotal {
     return typeof value === 'string' ? Number(value) : 0;
   }
   async increment(): Promise<number> {
-    if (!this.#redis) return ++this.#local;
-    const value = await this.#redis.command('INCR', `${prefix}total`);
+    return this.#incr('total');
+  }
+  /** Side effects of the idempotent `pay` action, counted across replicas. */
+  async charge(): Promise<number> {
+    return this.#incr('charges');
+  }
+  async charges(): Promise<number> {
+    if (!this.#redis) return this.#counts.get('charges') ?? 0;
+    const value = await this.#redis.command('GET', `${prefix}charges`);
+    return typeof value === 'string' ? Number(value) : 0;
+  }
+  readonly #counts = new Map<string, number>();
+  async #incr(name: 'total' | 'charges'): Promise<number> {
+    if (!this.#redis) {
+      if (name === 'total') return ++this.#local;
+      const next = (this.#counts.get(name) ?? 0) + 1;
+      this.#counts.set(name, next);
+      return next;
+    }
+    const value = await this.#redis.command('INCR', `${prefix}${name}`);
     if (typeof value !== 'number') throw new Error('Redis INCR failed');
     return value;
   }
@@ -162,12 +181,28 @@ export class ReplicaBoard {
       { identity: { binding: guestOf(this.request).binding } },
     );
   }
+  /**
+   * A non-repeatable side effect. With RedisLiveStore the replay record is
+   * shared, so a retry with the same request ID on any replica replays the
+   * first response instead of charging again.
+   */
+  @Action({ idempotent: true }) async pay(): Promise<void> {
+    await this.shared.charge();
+  }
+  /**
+   * One export per identity at a time across replicas (a Redis lease held
+   * for the action's duration). EXPORT_DELAY_MS stands in for real work.
+   */
+  @Action({ concurrency: 'identity' }) async exportAll(): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, exportDelay));
+  }
 }
 
 const csp = `default-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`;
 @Controller()
 class Pages {
   constructor(
+    @Inject(SharedTotal) private readonly shared: SharedTotal,
     @Inject(LiveRuntime) private readonly live: LiveRuntime,
     @Inject(RealtimeService) private readonly realtime: RealtimeService,
     @Inject(HttpAdapterHost) private readonly host: HttpAdapterHost,
@@ -209,11 +244,18 @@ class Pages {
       transports: this.realtime.transports,
     };
   }
+  /** Side-effect count of the idempotent `pay` action (all replicas). */
+  @Get('api/charges')
+  @Header('Cache-Control', 'no-store')
+  async charges() {
+    return { charges: await this.shared.charges() };
+  }
 }
 
 const root = fileURLToPath(new URL('../views', import.meta.url));
 @Module({
   imports: [
+    SharedModule,
     RealtimeModule.forRoot({
       secrets: [realtimeSecret],
       origin,
@@ -267,7 +309,9 @@ const root = fileURLToPath(new URL('../views', import.meta.url));
           },
           authorize: (_identity, component, action) =>
             component === 'replica-board' &&
-            ['$mount', '$sync', 'increment'].includes(action),
+            ['$mount', '$sync', 'increment', 'pay', 'exportAll'].includes(
+              action,
+            ),
         }),
       },
     ),

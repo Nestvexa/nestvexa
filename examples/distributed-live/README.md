@@ -57,6 +57,7 @@ load balancer restart (development only).
 | `REALTIME_TRANSPORT`                 | `auto` (default), `sse`, `websocket` or `polling`                  |
 | `HTTP_ADAPTER`                       | `express` (default) or `fastify`                                   |
 | `PRESENCE_TTL_MS`                    | Presence entry lifetime with Redis (default 30000)                 |
+| `EXPORT_DELAY_MS`                    | Duration of the identity-scoped `exportAll` action (default 1500)  |
 
 ## What it demonstrates
 
@@ -71,6 +72,11 @@ load balancer restart (development only).
 - The same app on Express and Fastify replicas; `/api/health` reports the
   adapter, the transports offered and this replica's open connections.
 - Per-identity publish rate limits (`publish(..., { identity })`).
+- Cross-replica action coordination with `RedisLiveStore`: `pay` is
+  `@Action({ idempotent: true })`, so a retry with the same request ID on any
+  replica replays the first response (its side effect, counted at
+  `/api/charges`, runs once); `exportAll` is `@Action({ concurrency: 'identity' })`,
+  so one identity runs one export at a time across all replicas.
 
 The acceptance suite `tests/services/distributed.spec.ts` (run by
 `pnpm test:services` with `NESTVEXA_REDIS_PORT`, see the
