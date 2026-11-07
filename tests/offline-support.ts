@@ -1,7 +1,7 @@
-import { chromium } from '@playwright/test';
+import { chromium, firefox, webkit } from '@playwright/test';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { createServer } from 'node:http';
-import type { Server } from 'node:http';
+import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
 
 declare global {
@@ -11,7 +11,21 @@ declare global {
   }
 }
 
-/** Real Chromium against a strict-CSP fixture server serving the built browser module. */
+export type FixtureBrowser = 'chromium' | 'firefox' | 'webkit';
+export interface OfflineFixtureOptions {
+  /** Default `chromium`. */
+  readonly browser?: FixtureBrowser;
+  /** Trusted markup for the document `<head>` (for example an allowlist meta). */
+  readonly head?: string;
+  /** Dynamic routes; return `true` when the request was answered. */
+  readonly handle?: (
+    request: IncomingMessage,
+    response: ServerResponse,
+    path: string,
+  ) => boolean | Promise<boolean>;
+}
+
+/** Real browsers against a strict-CSP fixture server serving the built browser module. */
 export interface OfflineFixture {
   readonly base: string;
   readonly browser: Browser;
@@ -26,9 +40,21 @@ export async function startOfflineFixture(
   routes: Readonly<
     Record<string, { status: number; type: string; body: string }>
   > = {},
+  options: OfflineFixtureOptions = {},
 ): Promise<OfflineFixture> {
   const server: Server = createServer((request, response) => {
+    void serve(request, response).catch(() => {
+      if (!response.headersSent) response.writeHead(500);
+      response.end();
+    });
+  });
+  async function serve(
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): Promise<void> {
     const path = new URL(request.url ?? '/', 'http://localhost').pathname;
+    if (options.handle && (await options.handle(request, response, path)))
+      return;
     if (path === '/') {
       response
         .writeHead(200, {
@@ -36,7 +62,7 @@ export async function startOfflineFixture(
           'content-security-policy': csp,
         })
         .end(
-          `<!doctype html><html lang="en"><head><title>Offline fixture</title><script type="module" src="/fixture.js"></script></head><body><main>${body}</main></body></html>`,
+          `<!doctype html><html lang="en"><head><title>Offline fixture</title>${options.head ?? ''}<script type="module" src="/fixture.js"></script></head><body><main>${body}</main></body></html>`,
         );
       return;
     }
@@ -69,13 +95,15 @@ export async function startOfflineFixture(
       return;
     }
     response.writeHead(404).end();
-  });
+  }
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
   if (!address || typeof address === 'string')
     throw new Error('Missing fixture port');
   const base = `http://127.0.0.1:${address.port}`;
-  const browser = await chromium.launch();
+  const browser = await { chromium, firefox, webkit }[
+    options.browser ?? 'chromium'
+  ].launch();
   return {
     base,
     browser,

@@ -68,8 +68,9 @@ flow, and axe scans with and without validation errors.
   stable secret of at least 32 bytes from its secret store.
 - Snapshots are sanitized when stored and again when restored, carry no Live
   snapshot, CSRF token or form target, and expire with the tab.
-- There is deliberately no offline action queue. Submits are explicit user
-  actions validated by the server like any other request.
+- This example does not use the opt-in offline action queue (see the
+  [offline guide](../../docs/guides/offline.md), section 8). Submits are
+  explicit user actions validated by the server like any other request.
 - Sessions are an in-memory guest demonstration. Production needs real
   authentication, a persistent session store and HTTPS-only cookies.
 

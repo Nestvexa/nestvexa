@@ -7,8 +7,12 @@ Optional progressive/offline helpers for Nestvexa Live and plain HTML forms:
 - **Read-only HTML snapshots** of the last rendered region, shown as an inert,
   labelled copy when a refresh fails because the network is unavailable.
 - **A safe reconnect flow**: an interrupted submit keeps the draft and tells
-  the user. When the connection returns, only the message changes. Nothing is
-  replayed, re-submitted or retried automatically.
+  the user. When the connection returns, only the message changes. Drafts are
+  never replayed, re-submitted or retried automatically.
+- **An opt-in offline action queue** for operations the server declares
+  idempotent: bounded, expiring, identity-scoped entries replayed in order with
+  the same request ID, deduplicated server-side. Purchases, payments and
+  deletes are never queueable.
 
 Alpha software. The package is **not** part of the `nestvexa` default install
 and adds nothing to the 48 KiB core client budget; it is a separate browser
@@ -28,7 +32,7 @@ owner-authorized publication: `npm install @nestvexa/offline`,
     file with no imports, safe to import in Node because it touches no browser
     global at evaluation time).
   - `@nestvexa/offline/server` — Node helpers (`draftScope`,
-    `clearSiteDataHeader`).
+    `clearSiteDataHeader`, the offline allowlist and replay guard).
 
 ## Minimal usage
 
@@ -174,7 +178,8 @@ Removes every draft under the prefix (default `nv-draft`) for all scopes.
 as a fallback for other tabs, and dispatches `nestvexa:logout` on the window.
 `listenForLogout` performs the same clearing when another tab announces, at
 most once per announcement, and returns an unsubscribe function. Options:
-`window`, `storage`, `prefix`, `snapshotStorage`, `snapshotPrefix`, `channel`.
+`window`, `storage`, `prefix`, `snapshotStorage`, `snapshotPrefix`,
+`queuePrefix` (`nv-queue`, cleared in `storage` for all scopes), `channel`.
 
 ### `createSnapshotCache(options): SnapshotCache`
 
@@ -210,6 +215,66 @@ bodies over 1 MiB return `unavailable` and never fall back to a cached copy,
 so a 401 after logout cannot reveal stale content. Options: `cache`, `key`,
 `fetch`, `label`, `signal` (an aborted signal rethrows).
 
+### `createOfflineQueue(options): OfflineQueue`
+
+An identity-scoped queue of server-allowlisted idempotent operations
+(ADR 0026, amendment EXT-014). Nothing is queued unless you create one.
+
+| Option                              | Default                                    | Notes                                                                                                        |
+| ----------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `scope`                             | required                                   | The same `draftScope` value as drafts.                                                                       |
+| `actions`                           | `<meta name="nv-offline-actions">` content | The server allowlist (JSON string or parsed list). Entries without a literal `idempotent: true` are ignored. |
+| `storage`                           | `window.localStorage`                      | Keys are `<prefix>:v1:<scope>:<requestId>`.                                                                  |
+| `prefix`                            | `nv-queue`                                 | `/^[a-z][a-z0-9-]{0,31}$/`.                                                                                  |
+| `ttlMs`                             | 1 hour                                     | 1 second to 24 hours. Expired entries are removed unsent and announced.                                      |
+| `maxEntries`                        | 20                                         | 1 to 100 per identity; more throws `QUEUE_FULL`.                                                             |
+| `maxBytes`                          | 16 KiB                                     | 256 B to 256 KiB per serialized entry; larger throws `TOO_LARGE`.                                            |
+| `csrf`                              | `<meta name="nestvexa-csrf">` content      | Read at every send; the token is never stored.                                                               |
+| `csrfHeader`                        | `x-nestvexa-csrf`                          |                                                                                                              |
+| `retry`                             | `{ baseMs: 1000, maxMs: 60000 }`           | Exponential backoff for network errors, timeouts and transient statuses.                                     |
+| `timeoutMs`                         | 30 seconds                                 | Per attempt; a timeout is retried.                                                                           |
+| `autoReplay`                        | `true`                                     | Send pending entries on creation (the `online` event always replays).                                        |
+| `fetch`, `now`, `window`, `onError` | platform                                   | Injection points.                                                                                            |
+
+Methods: `canQueue(action)`, `enqueue(action, fields)` (returns the frozen
+`QueueEntry`; throws `OfflineQueueError` with code `NOT_ALLOWLISTED`,
+`SENSITIVE_FIELD`, `INVALID_FIELDS`, `TOO_LARGE`, `QUEUE_FULL`, `STORAGE` or
+`CLOSED`), `list()`, `discard(id)`, `retry(id)`, `replay()`, `clear()`,
+`subscribe(listener)` (`change`, `queued`, `sent`, `failed`, `expired`,
+`discarded`) and `dispose()`. Field values are strings, string arrays, finite
+numbers, booleans or `null`.
+
+Replay sends entries in order, one tab at a time (Web Locks when available),
+with `Idempotency-Key: <requestId>`, `X-Nestvexa-Offline-Scope: <scope>`, the
+current CSRF header, `credentials: 'same-origin'` and `redirect: 'manual'`.
+Network errors, timeouts and 408, 425, 429, 502, 503, 504 or in-progress
+conflicts retry with backoff and the same request ID. Any other failure,
+including a redirect (for example to a login page), marks the entry `failed`
+and halts the queue until the user discards it or tries again.
+
+### `attachOfflineQueue(root, { queue, messages?, labels? }): OfflineController`
+
+- `form[data-nv-queue="<action id>"]` submits are queued instead of sent and
+  replayed at once (or when back online). A form is refused, and submits
+  natively, when its action is not allowlisted, its `action` attribute is not
+  the allowlisted path, a field name is invalid, or a password, file,
+  `data-nv-sensitive`, secret-named or `cc-*`/password/one-time-code
+  `autocomplete` field has a value. CSRF fields and `data-nv-queue-never`
+  fields are dropped. The form gets `data-nv-queue-state="queued"` or
+  `"refused"`.
+- `[data-nv-queue-status]` receives status text via `textContent` (it gets
+  `role="status"` unless it already has a role or `aria-live`) plus
+  `data-nv-queue-state` (`idle`, `pending`, `sending`, `failed`) and
+  `data-nv-queue-count`. Messages: `pending`, `sending`, `failed`, `sent`,
+  `expired`, `refused`, `discarded`, overridable with
+  `data-nv-queue-message-<kind>` and `data-nv-queue-message-<kind>-one`;
+  `{count}` is replaced.
+- `[data-nv-queue-list]` receives one `<li data-nv-queue-entry>` per entry
+  with its label, state, a `<time>`, a Discard button and, when failed, a Try
+  again button. Labels:
+  `data-nv-queue-label-<pending|sending|retrying|failed|discard|retry>`.
+  Keyboard focus stays in the list across re-renders.
+
 ## Public API (server, `@nestvexa/offline/server`)
 
 - `draftScope(secret, identity): string` — HMAC-SHA256 of
@@ -219,6 +284,31 @@ so a 401 after logout cannot reveal stale content. Options: `cache`, `key`,
 - `clearSiteDataHeader` — `{ name: 'Clear-Site-Data', value: '"storage"' }`
   for logout responses. Defense in depth only: WebKit support is partial, so
   `announceLogout()` / `data-nv-logout` remain the primary mechanism.
+- `offlineActionAllowlist(definitions)` — validates `{ id, path, method?,
+encoding?, label?, idempotent: true }` definitions (at most 64). Refuses a
+  missing or non-literal `idempotent: true`, `DELETE` and safe methods, paths
+  with a query, fragment or `//`, duplicates, and ids or paths naming payments,
+  purchases, checkout, refunds, transfers or deletion. Returns `actions`,
+  `get(id)`, `match(method, path)`, `metaContent` and `metaTag()` (the escaped
+  `<meta name="nv-offline-actions">` element).
+- `offlineServerAction(descriptor, { prefix?, label? })` — a definition for an
+  `@nestvexa/actions` descriptor; throws unless it is declared idempotent.
+- `createOfflineReplayGuard({ allowlist, store?, ttlMs? })` — `run(request,
+execute)` executes at most once per (identity scope, action, request ID) and
+  returns `{ status, body, headers, outcome }` (`executed`, `replayed`,
+  `passthrough`, `rejected`); `check(request)` is admission only. Pass
+  `scope: draftScope(secret, identity)` of the authenticated identity and the
+  parsed body. Codes: `OFFLINE_NOT_ALLOWED` (403, offline header on a route
+  that is not allowlisted), `OFFLINE_KEY_REQUIRED` / `OFFLINE_KEY_INVALID`
+  (400), `OFFLINE_SCOPE_MISMATCH` (403), `OFFLINE_IN_PROGRESS` (409),
+  `OFFLINE_KEY_REUSED` (422, same key with another body), `OFFLINE_CAPACITY`
+  (503). Only 2xx outcomes are stored; failures release the key. TTL defaults
+  to (and is capped at) 7 days.
+- `MemoryOfflineReplayStore({ maxEntries?, now? })` — the default bounded,
+  process-local store. Implement `OfflineReplayStore` (`begin` must be atomic)
+  to share request IDs across replicas; it only ever sees SHA-256 digests.
+- Header names: `offlineKeyHeader`, `offlineScopeHeader`,
+  `offlineReplayedHeader`.
 
 ## Privacy and security
 
@@ -229,10 +319,16 @@ so a 401 after logout cannot reveal stale content. Options: `cache`, `key`,
   read drafts; never mark secrets, tokens or payment data. Keep a strict CSP.
 - The namespace is an identity hash, not the identity. A shared device still
   holds drafts until TTL, logout or purge; logout clears all scopes.
-- No action is ever replayed. There is deliberately **no offline action
-  queue**: section 16.2 of the master plan allows queueing only allowlisted
-  idempotent operations, and none is implemented here
-  ([ADR 0026](../../docs/adr/0026-extensions-i18n-ui-ai.md), item 7).
+- Drafts are never replayed. The **offline action queue** is opt-in and
+  limited to what the server allowlists with `idempotent: true` (section 16.2
+  of the master plan). Purchases, payments and deletes cannot be allowlisted.
+  The browser refuses everything else, and the replay guard refuses an offline
+  replay to a route that is not allowlisted and executes each request ID at
+  most once per identity.
+- Queue entries never contain passwords, tokens, CSRF values, payment data or
+  files; the CSRF token is read at send time. Entries are identity-scoped,
+  expire (1 hour by default), are bounded in count and size, and are purged
+  for other identities and on logout.
 - Restored snapshots are inert and carry no Live snapshot, CSRF token or form
   target.
 
@@ -242,7 +338,9 @@ Status text is written with `textContent` into your `role="status"` element,
 so screen readers announce restoration, interruption and reconnection without
 moving focus. The snapshot region is labelled and shows its save time as
 visible text. Translate every message through the `data-nv-draft-message-*`
-attributes.
+attributes. The queue status region works the same way
+(`data-nv-queue-message-*`), and every queued entry has labelled Discard and
+Try again buttons; focus stays in the list when an entry disappears.
 
 ## Compatibility
 
@@ -259,9 +357,10 @@ drafts, snapshots and logout clearing with a Live form; see also the
 
 ## Status and limits
 
-Status: **Partial**. Opt-in drafts, read-only snapshots, the safe reconnect flow and logout clearing are implemented and tested in real Chromium; the allowlisted offline action queue the specification names is deliberately absent.
+Status: **Partial**. Opt-in drafts, read-only snapshots, the safe reconnect flow, logout clearing and the opt-in allowlisted offline action queue are implemented and tested in real Chromium (the queue's offline/online replay also in Firefox and WebKit).
 
-- No offline action queue, even for allowlisted idempotent operations (EXT-014; deliberate, ADR 0026).
+- No example app wires up the offline action queue yet; the evidence is the fixture-based suites.
+- Multi-replica hosts must supply an atomic shared `OfflineReplayStore`; no Redis store ships.
 - **No service worker.** Reloading a page while fully offline shows the
   browser's own error page; snapshots only help within an already loaded page.
 - Conflict handling is limited to "review and submit again": the server stays
@@ -270,6 +369,8 @@ Status: **Partial**. Opt-in drafts, read-only snapshots, the safe reconnect flow
   sight; large clock skew can keep or clear one draft unexpectedly.
 - `BroadcastChannel` and storage events only reach tabs of the same origin
   and browser profile.
+- The queue replays only while a page that created it is open; there is no
+  background sync. The default replay store is per process.
 
 ## Testing
 
@@ -277,7 +378,7 @@ Status: **Partial**. Opt-in drafts, read-only snapshots, the safe reconnect flow
 pnpm --filter @nestvexa/offline test
 ```
 
-Runs `tests/offline-*.test.ts` ([drafts](../../tests/offline-drafts.test.ts), [snapshots](../../tests/offline-snapshot.test.ts), [server helpers](../../tests/offline-server.test.ts)) with the root Vitest config; the browser suites drive real Chromium against a strict-CSP fixture server. The tests import `packages/*/dist`, so run `pnpm --filter @nestvexa/offline... build` first. The example spec `tests/browser/offline-progressive.spec.ts` runs separately with `pnpm test:e2e`.
+Runs `tests/offline-*.test.ts` ([drafts](../../tests/offline-drafts.test.ts), [snapshots](../../tests/offline-snapshot.test.ts), [server helpers](../../tests/offline-server.test.ts), [queue](../../tests/offline-queue.test.ts), [queue security](../../tests/offline-queue-security.test.ts), [replay guard](../../tests/offline-queue-server.test.ts), [offline/online replay in Chromium, Firefox and WebKit](../../tests/offline-queue-browsers.test.ts)) with the root Vitest config; the browser suites drive real Chromium against a strict-CSP fixture server. The tests import `packages/*/dist`, so run `pnpm --filter @nestvexa/offline... build` first. The example spec `tests/browser/offline-progressive.spec.ts` runs separately with `pnpm test:e2e`.
 
 ## Maintainers
 
