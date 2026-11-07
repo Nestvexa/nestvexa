@@ -639,7 +639,7 @@ const generated = await generateActionClient({
 assert.ok(generated.ok, JSON.stringify(generated.diagnostics));
 assert.ok(
   generated.files[1]?.contents.includes(
-    'readonly echo: ActionMethod<{ text: string }, { text: string; subject: string; at: string }>;',
+    "readonly echo: ActionMethod<{ text: string }, { text: string; subject: string; at: string }, 'text'>;",
   ),
 );
 const actionsApp = await NestFactory.create(ActionsApp, { logger: false });
