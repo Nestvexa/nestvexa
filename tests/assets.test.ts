@@ -16,6 +16,7 @@ import { Test } from '@nestjs/testing';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
 import { request } from 'node:http';
 import type { IncomingHttpHeaders } from 'node:http';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
@@ -308,7 +309,7 @@ describe('asset catalog and configuration boundaries', () => {
       '"2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"',
     );
   });
-  it('serves the complete self-contained canonical entry and excludes private test outputs', async () => {
+  it('serves the canonical entry plus on-demand chunks only, and excludes private test outputs', async () => {
     const manifest = JSON.parse(
       await readFile(
         new URL('../packages/client/package.json', import.meta.url),
@@ -319,35 +320,71 @@ describe('asset catalog and configuration boundaries', () => {
       .filter((file) => file.endsWith('.js'))
       .map((file) => file.replace('dist/', ''));
     expect([...CLIENT_MODULES]).toEqual(runtime);
-    const source = await readFile(
-      new URL('../packages/client/dist/index.js', import.meta.url),
-      'utf8',
-    );
     const ts = await import('typescript');
-    const ast = ts.createSourceFile(
-      'index.js',
-      source,
-      ts.ScriptTarget.Latest,
-      true,
-      ts.ScriptKind.JS,
-    );
-    const dependencies: string[] = [];
-    const inspect = (node: import('typescript').Node): void => {
-      if (
-        ts.isImportDeclaration(node) ||
-        (ts.isExportDeclaration(node) && node.moduleSpecifier)
-      )
-        dependencies.push(node.getText(ast));
-      if (
-        ts.isCallExpression(node) &&
-        node.expression.kind === ts.SyntaxKind.ImportKeyword
-      )
-        dependencies.push(node.getText(ast));
-      ts.forEachChild(node, inspect);
+    const dependencies = async (
+      file: string,
+    ): Promise<{ statics: string[]; dynamics: string[] }> => {
+      const source = await readFile(
+        new URL(`../packages/client/dist/${file}`, import.meta.url),
+        'utf8',
+      );
+      const ast = ts.createSourceFile(
+        file,
+        source,
+        ts.ScriptTarget.Latest,
+        true,
+        ts.ScriptKind.JS,
+      );
+      const statics: string[] = [];
+      const dynamics: string[] = [];
+      const inspect = (node: import('typescript').Node): void => {
+        if (
+          ts.isImportDeclaration(node) ||
+          (ts.isExportDeclaration(node) && node.moduleSpecifier)
+        )
+          statics.push(node.getText(ast));
+        if (
+          ts.isCallExpression(node) &&
+          node.expression.kind === ts.SyntaxKind.ImportKeyword
+        )
+          dynamics.push(node.getText(ast));
+        ts.forEachChild(node, inspect);
+      };
+      inspect(ast);
+      return { statics, dynamics };
     };
-    inspect(ast);
-    expect(dependencies).toEqual([]);
+    // The entry has no static dependency and imports only the catalog chunks
+    // dynamically, by literal sibling names (no computed specifier).
+    const entry = await dependencies('index.js');
+    expect(entry.statics).toEqual([]);
+    expect(entry.dynamics.sort()).toEqual(
+      CLIENT_MODULES.filter((name) => name !== 'index.js')
+        .map((name) => `import("./${name}")`)
+        .sort(),
+    );
+    // Each chunk reuses the entry's error class and grammar (one identity) and
+    // loads nothing else.
+    for (const chunk of CLIENT_MODULES.filter((name) => name !== 'index.js')) {
+      const { statics, dynamics } = await dependencies(chunk);
+      expect(dynamics, chunk).toEqual([]);
+      expect(statics, chunk).toHaveLength(1);
+      expect(statics[0], chunk).toMatch(
+        /^import\{LiveClientError as \w+(?:,parseIdentifier as \w+)?\}from"\.\/index\.js";$/,
+      );
+    }
     expect(new Set(CLIENT_MODULES).size).toBe(CLIENT_MODULES.length);
+  });
+  it('shares one LiveClientError identity between the entry and a loaded chunk', async () => {
+    const entry = (await import(
+      '../packages/client/dist/index.js'
+    )) as typeof import('../packages/client/dist/index.js');
+    // The chunk has no declarations of its own; it is the bundled sort module.
+    const sort = (await import(
+      new URL('../packages/client/dist/live-sort.js', import.meta.url).href
+    )) as typeof import('../packages/client/dist/sort.js');
+    expect(() => sort.parseSortDirective('nv:sort.bogus', '')).toThrow(
+      entry.LiveClientError,
+    );
   });
 });
 
@@ -415,14 +452,29 @@ describe.each(['express', 'fastify'] as const)(
           assets.read(manifest.version, name).content,
         );
         expect(response.headers['etag'], name).toBe(assetTag(response.body));
+        // SRI digest of the exact bytes on the wire.
+        expect(manifest.integrity[name], name).toBe(
+          `sha384-${createHash('sha384').update(Buffer.from(response.body, 'utf8')).digest('base64')}`,
+        );
       }
-      const live = await send(app, manifest.entries.live);
-      for (const match of live.body.matchAll(
-        /from ['"]\.\/([^'"]+\.js)['"]/g,
-      )) {
-        const sibling = match[1];
-        if (!sibling) throw new Error('Missing sibling import');
-        expect(manifest.files[sibling], sibling).toBeDefined();
+      expect(Object.isFrozen(manifest.integrity)).toBe(true);
+      expect(Object.keys(manifest.integrity).sort()).toEqual(
+        Object.keys(manifest.files).sort(),
+      );
+      // Static and dynamic sibling imports of the entry and every chunk resolve
+      // to catalog members under the same content-addressed version.
+      for (const name of CLIENT_MODULES) {
+        const body = (await send(app, manifest.files[name] ?? '')).body;
+        for (const match of body.matchAll(
+          /(?:from|import\()\s*['"]\.\/([^'"]+\.js)['"]/g,
+        )) {
+          const sibling = match[1];
+          if (!sibling) throw new Error('Missing sibling import');
+          expect(manifest.files[sibling], `${name} → ${sibling}`).toBe(
+            new URL(sibling, `http://host${manifest.files[name] ?? ''}`)
+              .pathname,
+          );
+        }
       }
       const require = createRequire(
         new URL('../packages/nestvexa/package.json', import.meta.url),

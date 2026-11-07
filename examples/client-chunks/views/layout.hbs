@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{title}} · Nestvexa client chunks</title>
+    <link rel="stylesheet" href="/assets/chunks.css" />
+    {{nvScripts nonce=cspNonce integrity=true}}
+  </head>
+  <body>
+    <header>
+      <nav aria-label="Main">
+        <a href="/">Core only</a> <a href="/board">Sortable board</a>
+      </nav>
+    </header>
+    <main>{{body}}</main>
+  </body>
+</html>

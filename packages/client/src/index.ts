@@ -39,27 +39,26 @@ import {
 import { applyUrlEffects } from './url-state.js';
 import { cloneActionInput } from './action-input.js';
 import { createNavigationController } from './navigation.js';
-import { createRealtimeController, tokenChannels } from './realtime.js';
-import type { RealtimeEndpoint } from './realtime.js';
+// Only the small parsers, option copies and token reader of the optional
+// features are bundled into the entry; their controllers and structural
+// validators load on demand (see `loadFeature`).
+import { tokenChannels } from './realtime.js';
+import type { RealtimeController, RealtimeEndpoint } from './realtime.js';
 import { parseOptimisticDirective, projectOptimistic } from './optimistic.js';
 import type { LiveActionInput } from './action-input.js';
 export type { LiveActionInput } from './action-input.js';
 import { createInitializationScheduler } from './initialization.js';
-import { createSortController, validateSort } from './sort.js';
+import type { SortController } from './sort.js';
 export { parseSortDirective } from './sort.js';
 export type { SortDirective } from './sort.js';
-import {
-  copyStreamEndpoints,
-  createStreamController,
-  validateStreams,
+import { copyStreamEndpoints } from './stream.js';
+import type {
+  StreamController,
+  StreamEndpoint,
+  StreamResult,
 } from './stream.js';
-import type { StreamEndpoint, StreamResult } from './stream.js';
-import {
-  copyUploadEndpoint,
-  createUploadController,
-  validateUploads,
-} from './upload.js';
-import type { UploadEndpoint } from './upload.js';
+import { copyUploadEndpoint } from './upload.js';
+import type { UploadController, UploadEndpoint } from './upload.js';
 export { parseStreamDirective } from './stream.js';
 export { parseUploadDirective } from './upload.js';
 export type { UploadDirective, UploadEndpoint } from './upload.js';
@@ -205,6 +204,71 @@ export interface LiveClient {
 }
 type Field = ModelValue;
 const componentOwners = new WeakMap<Element, symbol>();
+
+/**
+ * Optional feature chunks (ADR 0035). Each is a separate content-addressed
+ * asset beside the entry, imported once on first use and shared by every
+ * client on the page. The production build rewrites these specifiers to
+ * `./live-<feature>.js`; a chunk imports its shared error class back from the
+ * entry, so `instanceof LiveClientError` keeps one identity.
+ */
+interface FeatureModules {
+  readonly sort: typeof import('./sort.js');
+  readonly stream: typeof import('./stream.js');
+  readonly upload: typeof import('./upload.js');
+  readonly realtime: typeof import('./realtime.js');
+}
+type Feature = keyof FeatureModules;
+const featureImports: {
+  readonly [K in Feature]: () => Promise<FeatureModules[K]>;
+} = {
+  sort: () => import('./sort.js'),
+  stream: () => import('./stream.js'),
+  upload: () => import('./upload.js'),
+  realtime: () => import('./realtime.js'),
+};
+const featureModules: { [K in Feature]?: FeatureModules[K] } = {};
+const featureRequests = new Map<Feature, Promise<void>>();
+function importFeature<K extends Feature>(name: K): Promise<void> {
+  return featureImports[name]().then((module) => {
+    featureModules[name] = module;
+  });
+}
+function loadFeature(name: Feature): Promise<void> {
+  if (featureModules[name]) return Promise.resolve();
+  let request = featureRequests.get(name);
+  if (!request) {
+    request = importFeature(name).catch(() => {
+      // A later discovery may retry, for example after connectivity returns.
+      featureRequests.delete(name);
+      throw new LiveClientError(
+        'NETWORK',
+        'A Live feature module failed to load',
+      );
+    });
+    featureRequests.set(name, request);
+  }
+  return request;
+}
+const directiveFeatures: readonly (readonly [Feature, RegExp])[] = [
+  ['sort', /^nv:sort(?:\.|$)/],
+  ['stream', /^nv:stream(?:\.|$)/],
+  ['upload', /^nv:upload(?:\.|$)/],
+];
+/** Features named by any directive in a subtree: a superset of what their validators read. */
+function directiveFeaturesIn(subtree: Element | DocumentFragment): Feature[] {
+  const found = new Set<Feature>();
+  const elements =
+    subtree.nodeType === 1
+      ? [subtree as Element, ...subtree.querySelectorAll('*')]
+      : subtree.querySelectorAll('*');
+  for (const element of elements)
+    for (const attribute of element.attributes)
+      if (attribute.name.startsWith('nv:'))
+        for (const [feature, pattern] of directiveFeatures)
+          if (pattern.test(attribute.name)) found.add(feature);
+  return [...found];
+}
 const markerAttributes = new Set([
   'data-nv-component',
   'data-nv-name',
@@ -335,9 +399,11 @@ function validateDirectives(
   validateLoading(component);
   validateObservers(component);
   validatePresentation(component);
-  validateSort(component);
-  validateStreams(component, streams);
-  validateUploads(component, uploads);
+  // Callers load a feature before validating markup that names it (discovery
+  // defers the component; a server response awaits the chunk before morphing).
+  featureModules.sort?.validateSort(component);
+  featureModules.stream?.validateStreams(component, streams);
+  featureModules.upload?.validateUploads(component, uploads);
   validateReplacement(component, component);
   for (const element of owned(component)) {
     getModelDirective(element);
@@ -554,16 +620,21 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   let confirmations = makeConfirmations();
   let loading = createLoadingController(focus);
   let background: ReturnType<typeof createObserverController> | undefined;
-  let sorting: ReturnType<typeof createSortController> | undefined;
+  let sorting: SortController | undefined;
   let lazyObserver: IntersectionObserver | undefined;
   let navigation: ReturnType<typeof createNavigationController> | undefined;
-  let realtime: ReturnType<typeof createRealtimeController> | undefined;
+  let realtime: RealtimeController | undefined;
   const realtimeRefresh = new WeakMap<Component, number>();
   let lastRealtimeRenewal = 0;
-  let streaming: ReturnType<typeof createStreamController> | undefined;
+  let streaming: StreamController | undefined;
   const streams = copyStreamEndpoints(options.streams ?? Object.freeze({}));
   const uploadEndpoint = copyUploadEndpoint(options.uploads);
-  let uploading: ReturnType<typeof createUploadController> | undefined;
+  let uploading: UploadController | undefined;
+  /** Features this mounted client uses; their controllers start once loaded. */
+  const needed = new Set<Feature>();
+  /** Markers waiting for a feature chunk; registered by the discovery that follows the load. */
+  let deferred = new WeakSet<Element>();
+  let awaitingFeatures = new Set<Feature>();
   let presentation: ReturnType<typeof createPresentationController> | undefined;
   let initialization:
     ReturnType<typeof createInitializationScheduler> | undefined;
@@ -913,6 +984,201 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         .catch((error: unknown) => report(error, owner(node)));
     }
   }
+  /** Record features in use and return those whose chunk has not loaded yet. */
+  function useFeatures(features: readonly Feature[]): Feature[] {
+    for (const feature of features) needed.add(feature);
+    return features.filter((feature) => !featureModules[feature]);
+  }
+  /**
+   * A marker naming a feature whose chunk is not loaded waits, unregistered and
+   * inert like server HTML before boot, until the chunk arrives; the next
+   * discovery validates and registers it. A failed load rejects the marker.
+   */
+  function deferForFeatures(element: Element): boolean {
+    if (deferred.has(element)) return true;
+    const missing = useFeatures(directiveFeaturesIn(element));
+    if (!missing.length) return false;
+    deferred.add(element);
+    const at = generation;
+    void Promise.all(missing.map((feature) => loadFeature(feature))).then(
+      () => {
+        if (!mounted || generation !== at) return;
+        deferred.delete(element);
+        discover();
+      },
+      (error: unknown) => {
+        if (!mounted || generation !== at) return;
+        deferred.delete(element);
+        rejected.add(element);
+        report(error, element);
+      },
+    );
+    return true;
+  }
+  function requestFeatures(features: readonly Feature[]): void {
+    const at = generation;
+    for (const feature of useFeatures(features)) {
+      if (awaitingFeatures.has(feature)) continue;
+      awaitingFeatures.add(feature);
+      void loadFeature(feature).then(
+        () => {
+          if (!mounted || generation !== at) return;
+          awaitingFeatures.delete(feature);
+          discover();
+        },
+        (error: unknown) => {
+          if (!mounted || generation !== at) return;
+          awaitingFeatures.delete(feature);
+          report(error, null);
+        },
+      );
+    }
+  }
+  /** Start the controller of every used feature whose chunk is available. */
+  function startFeatures(): void {
+    if (!mounted) return;
+    const { sort, stream, upload } = featureModules;
+    if (stream && needed.has('stream') && !streaming)
+      streaming = stream.createStreamController({
+        window,
+        streams,
+        fetch: transport,
+        component: (target) => {
+          const state = registeredScope(target);
+          if (!state || failureFor(state) || ignored(target, state.root))
+            return undefined;
+          return {
+            root: state.root,
+            id: state.id,
+            name: state.name,
+            snapshot: state.snapshot,
+            revision: state.revision,
+            csrf: state.csrf,
+          };
+        },
+        onError: (error, target) => report(error, owner(target)),
+      });
+    if (upload && needed.has('upload') && !uploading)
+      uploading = upload.createUploadController({
+        root,
+        window,
+        endpoint: uploadEndpoint,
+        component: (element) => {
+          const state = registeredScope(element);
+          if (!state || failureFor(state) || ignored(element, state.root))
+            return undefined;
+          return { root: state.root, name: state.name, csrf: state.csrf };
+        },
+        set: (element, field, value) => api.set(element, field, value),
+        onError: (error, element) => report(error, owner(element)),
+      });
+    if (sort && needed.has('sort') && !sorting)
+      sorting = sort.createSortController({
+        window,
+        maxLists: sortLimit,
+        usable: (element) => {
+          const state = registeredScope(element);
+          return (
+            state !== undefined &&
+            !failureFor(state) &&
+            !ignored(element, state.root)
+          );
+        },
+        invoke: async (element, action, input) => {
+          try {
+            await schedule(
+              componentFor(element),
+              action,
+              false,
+              cloneActionInput(input),
+              false,
+            );
+          } catch (error) {
+            if (error && typeof error === 'object')
+              reportedBackground.add(error);
+            throw error;
+          }
+        },
+        onError: (error, element) => {
+          if (
+            error &&
+            typeof error === 'object' &&
+            reportedBackground.has(error)
+          )
+            return;
+          report(error, owner(element));
+        },
+      });
+  }
+  /** Load a feature on explicit API use (stream/upload calls), then start its controller. */
+  function featureController<T>(
+    feature: Feature,
+    controller: () => T | undefined,
+  ): Promise<T> {
+    if (!mounted)
+      return Promise.reject(
+        new LiveClientError('DIRECTIVE', 'Live client is not mounted'),
+      );
+    const at = generation;
+    useFeatures([feature]);
+    return loadFeature(feature).then(() => {
+      if (mounted && generation === at) startFeatures();
+      const started = mounted && generation === at ? controller() : undefined;
+      if (started === undefined)
+        throw new LiveClientError('DIRECTIVE', 'Live client is not mounted');
+      return started;
+    });
+  }
+  function startRealtime(
+    module: FeatureModules['realtime'],
+    endpoint: RealtimeEndpoint,
+  ): RealtimeController {
+    return module.createRealtimeController({
+      ...endpoint,
+      window,
+      fetch: transport,
+      onMessage: (message) => {
+        window.dispatchEvent(
+          new window.CustomEvent('nestvexa:realtime', {
+            detail: Object.freeze({ ...message }),
+          }),
+        );
+        // `{ nvEvent, payload }` is a server-pushed domain event: subscribed
+        // listeners run their @OnEvent actions (authorized server-side);
+        // other subscribers refresh.
+        const data = message.data;
+        const name: unknown =
+          data && typeof data === 'object'
+            ? Reflect.get(data, 'nvEvent')
+            : undefined;
+        let event: LiveEvent | undefined;
+        try {
+          if (name !== undefined)
+            event = {
+              name: parseEventName(name),
+              payload: Reflect.get(Object(data), 'payload') ?? null,
+            };
+        } catch (error) {
+          report(error, null);
+        }
+        const listening = new Set<Component>();
+        for (const state of components.values())
+          if (realtimeChannels(state).includes(message.channel)) {
+            if (event && state.listeners.has(event.name)) listening.add(state);
+            else invalidate(state);
+          }
+        if (event && listening.size)
+          deliverEvents([event], undefined, listening);
+      },
+      onExpired: () => {
+        // Renew tokens through ordinary authorized refreshes, at most every 30 s.
+        if (Date.now() - lastRealtimeRenewal < 30_000) return;
+        lastRealtimeRenewal = Date.now();
+        for (const state of components.values())
+          if (realtimeChannels(state).length) invalidate(state);
+      },
+    });
+  }
   function discover(): void {
     initialization?.prune();
     confirmations.prune();
@@ -941,6 +1207,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
               'MARKER',
               'Live component already belongs to another client instance',
             );
+          if (deferForFeatures(element)) continue;
           validateDirectives(element, streams, uploadEndpoint !== undefined);
           const id = element.getAttribute('data-nv-component');
           const name = element.getAttribute('data-nv-name');
@@ -1064,6 +1331,12 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           report(error, element);
         }
       }
+    // Registered markup can gain a feature directive from a script; load it
+    // without suspending the component (its controller validates on refresh).
+    if (directiveFeatures.some(([feature]) => !needed.has(feature)))
+      for (const state of components.values())
+        if (usable(state)) requestFeatures(directiveFeaturesIn(state.root));
+    startFeatures();
     refreshRealtime();
     try {
       syncDirectListeners();
@@ -1345,6 +1618,22 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           'RESPONSE',
           'Mismatched or stale Live response',
         );
+      // Renderless acknowledgements never parse HTML.
+      let template: HTMLTemplateElement | undefined;
+      if (!result.renderless) {
+        template = doc.createElement('template');
+        template.innerHTML = trustedHTML(window, result.html);
+        // Markup naming a feature whose chunk has not loaded waits for it, so
+        // the response is validated exactly as if every chunk were present.
+        const missing = useFeatures(directiveFeaturesIn(template.content));
+        if (missing.length) {
+          await Promise.all(missing.map((feature) => loadFeature(feature)));
+          if (!usable(state)) return;
+          const suspended = failureFor(state);
+          if (suspended) throw suspended;
+          startFeatures();
+        }
+      }
       const dirty = new Map<string, unknown>();
       for (const [key, field] of state.dirty)
         if (sent.get(key)?.version !== field.version)
@@ -1372,8 +1661,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         modelSelections(state.root, read, state.invalid);
         prepareBindings(state.root, read, differs, focus);
       } else {
-        const template = doc.createElement('template');
-        template.innerHTML = trustedHTML(window, result.html);
+        if (!template)
+          throw new LiveClientError('RESPONSE', 'Missing Live response HTML');
         validateFragment(template.content);
         const incoming = prepareMorph(state.root, template.content);
         const preview = state.root.cloneNode(false) as Element;
@@ -1998,7 +2287,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     }
   }
   function refreshRealtime(): void {
-    if (!realtime) return;
+    const endpoint = options.realtime;
+    if (!mounted || !endpoint || root.nodeType !== 9) return;
     const tokens: string[] = [];
     for (const state of components.values()) {
       const token = state.root.getAttribute('data-nv-realtime');
@@ -2006,6 +2296,16 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         tokens.push(token);
     }
     try {
+      if (!realtime) {
+        // The transport chunk loads with the first subscribed component.
+        if (!tokens.length) return;
+        const module = featureModules.realtime;
+        if (!module) {
+          requestFeatures(['realtime']);
+          return;
+        }
+        realtime = startRealtime(module, endpoint);
+      }
       realtime.update(tokens.slice(0, 32));
     } catch (error) {
       report(error, null);
@@ -2201,9 +2501,10 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     startStream(target: Element): Promise<StreamResult> {
       try {
         componentFor(target);
-        if (!streaming)
-          throw new LiveClientError('DIRECTIVE', 'Live client is not mounted');
-        return streaming.start(target);
+        if (streaming) return streaming.start(target);
+        return featureController('stream', () => streaming).then((controller) =>
+          controller.start(target),
+        );
       } catch (error) {
         return Promise.reject(error);
       }
@@ -2212,11 +2513,10 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       streaming?.cancel(target);
     },
     upload(input: Element): Promise<readonly string[]> {
-      if (!uploading)
-        return Promise.reject(
-          new LiveClientError('DIRECTIVE', 'Live client is not mounted'),
-        );
-      return uploading.start(input);
+      if (uploading) return uploading.start(input);
+      return featureController('upload', () => uploading).then((controller) =>
+        controller.start(input),
+      );
     },
     cancelUpload(element: Element): void {
       uploading?.cancel(element);
@@ -2332,6 +2632,22 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     },
     mount(): void {
       if (mounted) return;
+      if (options.realtime && root.nodeType === 9) {
+        // Fail at mount, as before the transport moved into its own chunk.
+        const endpoint = new URL(
+          options.realtime.endpoint,
+          window.location.href,
+        );
+        if (
+          endpoint.origin !== window.location.origin ||
+          endpoint.search ||
+          endpoint.hash
+        )
+          throw new LiveClientError(
+            'DIRECTIVE',
+            'Realtime endpoint must be same-origin without query or fragment',
+          );
+      }
       models = makeModels();
       confirmations = makeConfirmations();
       focus = createFocusController();
@@ -2377,123 +2693,10 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         },
       });
       mounted = true;
-      streaming = createStreamController({
-        window,
-        streams,
-        fetch: transport,
-        component: (target) => {
-          const state = registeredScope(target);
-          if (!state || failureFor(state) || ignored(target, state.root))
-            return undefined;
-          return {
-            root: state.root,
-            id: state.id,
-            name: state.name,
-            snapshot: state.snapshot,
-            revision: state.revision,
-            csrf: state.csrf,
-          };
-        },
-        onError: (error, target) => report(error, owner(target)),
-      });
-      uploading = createUploadController({
-        root,
-        window,
-        endpoint: uploadEndpoint,
-        component: (element) => {
-          const state = registeredScope(element);
-          if (!state || failureFor(state) || ignored(element, state.root))
-            return undefined;
-          return { root: state.root, name: state.name, csrf: state.csrf };
-        },
-        set: (element, field, value) => api.set(element, field, value),
-        onError: (error, element) => report(error, owner(element)),
-      });
-      sorting = createSortController({
-        window,
-        maxLists: sortLimit,
-        usable: (element) => {
-          const state = registeredScope(element);
-          return (
-            state !== undefined &&
-            !failureFor(state) &&
-            !ignored(element, state.root)
-          );
-        },
-        invoke: async (element, action, input) => {
-          try {
-            await schedule(
-              componentFor(element),
-              action,
-              false,
-              cloneActionInput(input),
-              false,
-            );
-          } catch (error) {
-            if (error && typeof error === 'object')
-              reportedBackground.add(error);
-            throw error;
-          }
-        },
-        onError: (error, element) => {
-          if (
-            error &&
-            typeof error === 'object' &&
-            reportedBackground.has(error)
-          )
-            return;
-          report(error, owner(element));
-        },
-      });
+      // Sort, stream, upload and realtime controllers start from discovery
+      // once their chunk has loaded (startFeatures/refreshRealtime).
       generation++;
       initializations = 0;
-      if (options.realtime && root.nodeType === 9)
-        realtime = createRealtimeController({
-          ...options.realtime,
-          window,
-          fetch: transport,
-          onMessage: (message) => {
-            window.dispatchEvent(
-              new window.CustomEvent('nestvexa:realtime', {
-                detail: Object.freeze({ ...message }),
-              }),
-            );
-            // `{ nvEvent, payload }` is a server-pushed domain event: subscribed
-            // listeners run their @OnEvent actions (authorized server-side);
-            // other subscribers refresh.
-            const data = message.data;
-            const name: unknown =
-              data && typeof data === 'object'
-                ? Reflect.get(data, 'nvEvent')
-                : undefined;
-            let event: LiveEvent | undefined;
-            try {
-              if (name !== undefined)
-                event = {
-                  name: parseEventName(name),
-                  payload: Reflect.get(Object(data), 'payload') ?? null,
-                };
-            } catch (error) {
-              report(error, null);
-            }
-            const listening = new Set<Component>();
-            for (const state of components.values())
-              if (realtimeChannels(state).includes(message.channel)) {
-                if (event && state.listeners.has(event.name))
-                  listening.add(state);
-                else invalidate(state);
-              }
-            if (event && listening.size)
-              deliverEvents([event], undefined, listening);
-          },
-          onExpired: () => {
-            // Renew tokens through ordinary authorized refreshes, at most every 30 s.
-            if (Date.now() - lastRealtimeRenewal < 30_000) return;
-            lastRealtimeRenewal = Date.now();
-            for (const state of components.values())
-              if (realtimeChannels(state).length) invalidate(state);
-          },
-        });
       if (root.nodeType === 9)
         navigation = createNavigationController({
           window,
@@ -2577,6 +2780,9 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       streaming = undefined;
       uploading?.dispose();
       uploading = undefined;
+      needed.clear();
+      deferred = new WeakSet<Element>();
+      awaitingFeatures = new Set<Feature>();
       initialization?.dispose();
       initialization = undefined;
       background = undefined;

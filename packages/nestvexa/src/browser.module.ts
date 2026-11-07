@@ -120,6 +120,17 @@ function attribute(value: string): string {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;');
 }
+/** Validated, escaped ` nonce="…"` attribute (empty without a nonce). */
+function scriptNonce(nonce: unknown): string {
+  if (nonce === undefined) return '';
+  if (
+    typeof nonce !== 'string' ||
+    /[\r\n]/.test(nonce) ||
+    !/^[a-zA-Z0-9+/_-]{1,256}={0,2}$/.test(nonce)
+  )
+    throw new Error('Invalid browser script nonce');
+  return ` nonce="${attribute(nonce)}"`;
+}
 
 /** Application-local document script integration; does not contain identity or session data. */
 @Injectable()
@@ -139,18 +150,46 @@ export class NestvexaBrowserService implements OnApplicationShutdown {
     this.assets.getManifest();
     return `${this.options.basePath}${this.options.path}/boot.js`;
   }
-  /** Trusted external module tag for document layouts; optional CSP nonce is validated and escaped. */
-  scripts(nonce?: string): SafeHtml {
-    if (
-      nonce !== undefined &&
-      (typeof nonce !== 'string' ||
-        /[\r\n]/.test(nonce) ||
-        !/^[a-zA-Z0-9+/_-]{1,256}={0,2}$/.test(nonce))
-    )
-      throw new Error('Invalid browser script nonce');
+  /**
+   * Trusted external module tag for document layouts; optional CSP nonce is
+   * validated and escaped. `integrity: true` prefixes `importMap()` so the
+   * browser verifies the entry and every on-demand chunk it loads.
+   */
+  scripts(
+    nonce?: string,
+    options: { readonly integrity?: boolean } = {},
+  ): SafeHtml {
+    const nonceAttribute = scriptNonce(nonce);
     const url = this.getBootUrl();
+    const tag = `<script type="module" src="${attribute(url)}"${nonceAttribute}></script>`;
     return SafeHtml.trusted(
-      `<script type="module" src="${attribute(url)}"${nonce === undefined ? '' : ` nonce="${attribute(nonce)}"`}></script>`,
+      options.integrity === true ? `${this.importMap(nonce).value}${tag}` : tag,
+    );
+  }
+  /**
+   * Inline import map whose `integrity` section pins every served client
+   * module (entry, feature chunks, Alpine and its adapter) to its SHA-384
+   * digest. Place it before any module script; it maps no specifiers.
+   */
+  importMap(nonce?: string): SafeHtml {
+    const nonceAttribute = scriptNonce(nonce);
+    if (this.closed)
+      throw new ServiceUnavailableException('Nestvexa browser has shut down');
+    const { files, integrity } = this.assets.getManifest();
+    const pinned: Record<string, string> = Object.create(null) as Record<
+      string,
+      string
+    >;
+    for (const [name, url] of Object.entries(files)) {
+      const digest = integrity[name];
+      if (digest !== undefined) pinned[url] = digest;
+    }
+    const json = JSON.stringify({ integrity: pinned }).replaceAll(
+      '<',
+      '\\u003c',
+    );
+    return SafeHtml.trusted(
+      `<script type="importmap"${nonceAttribute}>${json}</script>`,
     );
   }
   /** Generated trusted module imports only the current installed allowlist; no inline application code. */
@@ -325,17 +364,21 @@ export function documentScripts(
   args: readonly unknown[],
 ): SafeHtml {
   const options = args[0];
+  const usage = 'nvScripts accepts only optional nonce and integrity hash keys';
   if (args.length !== 1 || typeof options !== 'object' || options === null)
-    throw new Error('nvScripts accepts only an optional nonce hash');
+    throw new Error(usage);
   const hash: unknown = Reflect.get(options, 'hash');
   if (
     typeof hash !== 'object' ||
     hash === null ||
-    Object.keys(hash).some((key) => key !== 'nonce')
+    Object.keys(hash).some((key) => key !== 'nonce' && key !== 'integrity')
   )
-    throw new Error('nvScripts accepts only an optional nonce hash');
+    throw new Error(usage);
   const nonce: unknown = Reflect.get(hash, 'nonce');
   if (nonce !== undefined && typeof nonce !== 'string')
     throw new Error('Invalid browser script nonce');
-  return browser.scripts(nonce);
+  const integrity: unknown = Reflect.get(hash, 'integrity');
+  if (integrity !== undefined && typeof integrity !== 'boolean')
+    throw new Error('nvScripts integrity must be true or false');
+  return browser.scripts(nonce, { integrity: integrity === true });
 }

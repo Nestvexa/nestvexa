@@ -10,8 +10,18 @@ export interface AssetOptions {
   readonly path: string;
   readonly basePath: string;
 }
-/** One canonical bundled client identity; private implementation outputs are not public assets. */
-export const CLIENT_MODULES = ['index.js'] as const;
+/**
+ * The canonical client entry and its on-demand feature chunks (ADR 0035), in
+ * package `files` order. The entry imports each chunk by this sibling name;
+ * private implementation outputs are not public assets.
+ */
+export const CLIENT_MODULES = [
+  'index.js',
+  'live-realtime.js',
+  'live-sort.js',
+  'live-stream.js',
+  'live-upload.js',
+] as const;
 
 export interface ClientAsset {
   readonly content: string;
@@ -21,6 +31,8 @@ export interface ClientAsset {
 export interface ClientAssetManifest {
   readonly version: string;
   readonly files: Readonly<Record<string, string>>;
+  /** Subresource Integrity (`sha384-…`) of each served file, keyed like `files`. */
+  readonly integrity: Readonly<Record<string, string>>;
   readonly entries: {
     readonly live: string;
     readonly alpine: string;
@@ -71,6 +83,10 @@ export function catalogVersion(files: ReadonlyMap<string, string>): string {
     hash.update(content);
   }
   return hash.digest('hex');
+}
+/** SRI metadata of the exact served UTF-8 bytes. */
+export function assetIntegrity(content: string): string {
+  return `sha384-${createHash('sha384').update(content, 'utf8').digest('base64')}`;
 }
 export function assetTag(content: string): string {
   return `"${createHash('sha256').update(content).digest('hex')}"`;

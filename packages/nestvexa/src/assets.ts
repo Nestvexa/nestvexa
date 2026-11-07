@@ -22,6 +22,7 @@ import { HttpAdapterHost } from '@nestjs/core';
 import { readFile } from 'node:fs/promises';
 import {
   CLIENT_MODULES,
+  assetIntegrity,
   assetTag,
   catalogVersion,
   matchesAssetTag,
@@ -103,16 +104,22 @@ export class NestvexaAssetsService
       string,
       string
     >;
+    const integrity: Record<string, string> = Object.create(null) as Record<
+      string,
+      string
+    >;
     for (const [name, content] of files) {
       this.assets.set(
         name,
         Object.freeze({ content, etag: assetTag(content) }),
       );
       urls[name] = `${prefix}/${name}`;
+      integrity[name] = assetIntegrity(content);
     }
     this.manifest = Object.freeze({
       version,
       files: Object.freeze(urls),
+      integrity: Object.freeze(integrity),
       entries: Object.freeze({
         live: `${prefix}/index.js`,
         alpine: `${prefix}/alpine.js`,
