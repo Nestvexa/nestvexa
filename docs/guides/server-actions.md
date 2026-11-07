@@ -237,7 +237,16 @@ signs in, calls the typed client through the generated Live/HBS binding, and
 verifies that guest, CSRF-less, forged-token and cross-origin calls fail without
 side effects. The [hybrid dashboard](../../examples/hybrid-dashboard) calls typed
 actions from React (hook), Vue (composable) and Svelte (store) islands and runs
-a job action with progress.
+a job action with progress. The Inertia examples
+(`examples/inertia-{react,vue,svelte}`, `/features/actions`) call a typed
+action from an Inertia page through the generated hook, composable and store,
+with the page props as initial data, an optimistic value with rollback, typed
+validation issues and the session's `XSRF-TOKEN` as the CSRF token
+(`defineTypedActionsSuite` in `tests/browser/inertia-feature-tour.ts`). `pnpm
+test:pack` generates the React, Vue, Svelte and Live bindings from the packed
+`@nestvexa/actions` tarball, type-checks them against the packed declarations
+and runs the hook, composable and store against a packed `ActionsModule`
+(`tests/pack-consumers/consumer.ts`).
 
 ## CLI
 

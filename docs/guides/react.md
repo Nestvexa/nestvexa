@@ -93,6 +93,12 @@ same `@nestvexa/forms` adapter validates the real submission in the handler
 (see `examples/inertia-react/src/features.ts` and the
 [Inertia guide](inertia.md#precognition-live-validation)).
 
+The upload page validates files too: `useForm('post', '/uploads', data)
+.validateFiles()` sends the chosen file as a multipart Precognition request,
+and the route lists its `FileInterceptor` in `@Precognitive(rules, {
+interceptors })` so the file is parsed before the rules run (see
+[Files: `validateFiles()`](inertia.md#files-validatefiles)).
+
 ## Client-owned features verified in the browser
 
 `/features` in the example is a tour of the official client's features, each
@@ -106,7 +112,49 @@ reloads, `<InfiniteScroll>` over a `scroll()` prop and a `merge()` prop,
 `once()` props reused with `X-Inertia-Except-Once-Props`, history encryption
 (`encryptHistory`) with `clearHistory` invalidating old entries, `optimistic`
 visits with rollback on a validation error, Precognition, and a 2.6 MB page
-payload over SSR and XHR. The server side of each is ordinary Nest code.
+payload over SSR and XHR. Scroll management (visits reset the window and
+`scroll-region` elements, `preserveScroll` keeps them, back/forward restores
+them, `#hash` visits scroll to the anchor) and the progress bar
+(`showProgress: false` hides it) run through the shared
+`defineScrollAndProgress` suite in `tests/browser/inertia-feature-tour.ts`.
+The server side of each is ordinary Nest code.
+
+## Typed server actions
+
+`@nestvexa/actions` generates React hooks (`createActionHooks`) from the server's `@ActionGroup`
+classes. The example runs the codegen before its build
+(`scripts/codegen.mjs`, `targets: ['react']`, output in the git-ignored
+`client/generated/`) and `/features/actions` calls `notes.add`
+(`src/actions.ts`) from an Inertia page:
+
+```tsx
+// client/actions.ts
+export const actionHooks = createActionHooks(
+  createActions(createActionsClient({ csrf: xsrfToken })),
+);
+
+// client/pages/Features/Actions.tsx
+const add = actionHooks.useNotesAdd({
+  initialData: board, // page prop
+  optimistic: (current, input) => ({
+    total: (current?.total ?? 0) + 1,
+    latest: [input.text, ...(current?.latest ?? [])].slice(0, 5),
+  }),
+});
+const issue = add.error?.issues.find((entry) => entry.path[0] === 'text'); // path: 'text'
+// <button disabled={add.pending} onClick={() => add.run({ text })}>
+```
+
+Input, output and the validation-issue field union come from the server
+method's signature; the page props are the initial data, the optimistic value
+shows while the call is pending and is rolled back when the server answers
+with a validation error. The CSRF token is the session's `XSRF-TOKEN` cookie
+(the one the official client echoes), sent as `x-nestvexa-csrf`
+(`client/actions.ts`); identity is the host session. The browser test
+(`defineTypedActionsSuite` in `tests/browser/inertia-feature-tour.ts`) checks
+the request, the optimistic and rolled-back states, the server-rendered
+result after a reload, and that calls without the token or from another origin
+get `403`. See the [server actions guide](server-actions.md).
 
 ## Client-only mode
 
