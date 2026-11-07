@@ -3,6 +3,9 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './tests/browser',
   workers: 2,
+  // Shared CI runners are slow; a test that passes on retry is still reported as "flaky".
+  retries: process.env.CI ? 2 : 0,
+  forbidOnly: Boolean(process.env.CI),
   reporter: [
     ['list'],
     ['json', { outputFile: 'artifacts/reports/playwright.json' }],
