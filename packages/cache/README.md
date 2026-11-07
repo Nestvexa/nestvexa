@@ -54,7 +54,11 @@ refreshes when that tag is invalidated (see `@nestvexa/realtime`).
 ## Security and correctness
 
 - Private values require an identity binding; the key contains only a SHA-256 of
-  binding and tenant, never the raw binding.
+  binding and tenant, never the raw binding. Bindings with unpaired surrogates
+  are refused: UTF-8 hashing would map them all to U+FFFD and merge keys.
+- Single-flight coalescing is per key, so concurrent misses for different
+  identities or tenants never share a computation, a value or a failure; each
+  caller receives its own copy.
 - Include everything the output depends on in `vary` (locale, permission set,
   renderer, asset version, component revision). Missing vary inputs cause wrong
   content, so prefer short TTLs and do not cache per-user HTML unless required.
