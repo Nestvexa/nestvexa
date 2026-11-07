@@ -32,7 +32,7 @@
     "vue": "3.5.44"
   },
   "devDependencies": {
-    "@inertiajs/core": "3.10.0",
+    "@inertiajs/core": "3.11.0",
     "@sveltejs/vite-plugin-svelte": "7.3.1",
     "@types/express-session": "1.19.0",
     "@types/react": "19.3.0",
