@@ -107,3 +107,19 @@ clients. Codegen runs at build time and needs `typescript` (optional peer).
   [browser acceptance](../../tests/browser/actions.spec.ts) and the packed
   consumer in [tests/pack-consumers](../../tests/pack-consumers/consumer.ts).
 - Guide: [server actions](../guides/server-actions.md).
+
+## Status update (2026-11-07)
+
+Of the items the status line lists as open:
+
+- **Framework hooks:** shipped. Codegen emits `react`, `vue`, `svelte` and
+  `live` targets, and the browser runtime has `createActionController` and
+  `bindActionElement` (`tests/actions-codegen.test.ts`,
+  `tests/actions-client-state.test.ts`).
+- **Job tickets:** shipped. A job action answers `202` with a ticket, and the
+  status and cancel routes go through the same admission
+  (`tests/actions-jobs.test.ts`).
+- **Streaming results:** not implemented. Progress streams through the job's
+  realtime channel instead.
+- **Shared (Redis) stores:** not implemented for actions. The idempotency
+  store, rate limiter and serial locks are still process-local.

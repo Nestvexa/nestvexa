@@ -29,3 +29,23 @@ Requiring an ordinary action for every live field edit was rejected: it couples 
 ## Acceptance evidence
 
 The [protocol tests](../../tests/live-protocol.test.ts), [Live integration tests](../../tests/live.test.ts), [security regressions](../../tests/live-security.test.ts), [registration/scope tests](../../tests/live-registration.test.ts) and [browser interaction fixtures](../../tests/browser/live.spec.ts) cover the initial slice. [Model reader tests](../../tests/client-models.test.ts), [scheduler tests](../../tests/client-model-scheduler.test.ts), [synchronization tests](../../tests/live-model.test.ts) and [browser model scenarios](../../tests/browser/models.spec.ts) cover the amendment's defined boundaries. The [current status](../implementation/STATUS.md) records executed results. Full protocol evolution, distributed state, complete decorators/directives and the master-plan compatibility/security acceptance gates remain incomplete; this ADR is not a release-readiness claim.
+
+## Status update (2026-11-07)
+
+The decision is unchanged. Opaque server-state references remain the model.
+Since the status line was written:
+
+- Distributed state exists. `LiveStore` is pluggable, and `RedisLiveStore` in
+  `@nestvexa/realtime-redis` passes the shared store contract suite
+  (`tests/live-store-contract.test.ts`) and a real Redis 7 two-replica browser
+  run ([ADR 0032](0032-distributed-state-and-redis.md)).
+- Protocol evolution, capability negotiation and opt-in idempotent replay are
+  recorded in [ADR 0031](0031-live-protocol-evolution-and-action-replay.md)
+  (`tests/live-protocol-contract.test.ts`, `tests/live-client-negotiation.test.ts`,
+  `tests/live-action-options.test.ts`).
+- Signed browser snapshots are still not implemented. The browser never holds
+  authoritative state.
+
+Still open: full release acceptance, and replay and identity locks across
+replicas against real Redis (tested only against the in-process RESP test
+double).
