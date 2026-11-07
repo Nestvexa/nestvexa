@@ -1,0 +1,67 @@
+# Nestvexa showcase with its optional services, all local and free:
+#   app    the showcase (Dockerfile in this directory, built from the repo root)
+#   redis  realtime pub/sub between instances + shared dashboard metrics
+#   s3     SeaweedFS's S3-compatible API for uploads (no cloud account)
+#
+#   docker compose -f examples/showcase/docker-compose.yml up --build
+#   open http://127.0.0.1:3124  (SHOWCASE_PORT changes the host port)
+#
+# Seed / reset (stop the app first; it keeps data in memory while running):
+#   docker compose -f examples/showcase/docker-compose.yml run --rm app node dist/scripts/reset.js
+#
+# Every port is published on 127.0.0.1 only. The credentials below are local
+# demonstration values for disposable containers; never reuse them.
+name: nestvexa-showcase
+
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: examples/showcase/Dockerfile
+    environment:
+      HOST: 0.0.0.0
+      PORT: '3124'
+      PUBLIC_ORIGIN: http://127.0.0.1:${SHOWCASE_PORT:-3124}
+      SHOWCASE_INSTANCE: compose
+      SHOWCASE_DATA_DIR: /var/lib/showcase
+      # The memory and console mail transports refuse NODE_ENV=production.
+      NODE_ENV: development
+      MAIL_TRANSPORT: memory
+      REDIS_HOST: redis
+      REDIS_PORT: '6379'
+      REDIS_PREFIX: 'showcase:'
+      S3_ENDPOINT: http://s3:8333
+      S3_REGION: us-east-1
+      S3_BUCKET: showcase
+      S3_ACCESS_KEY_ID: showcase
+      S3_SECRET_ACCESS_KEY: showcase-local-secret
+    ports:
+      - '127.0.0.1:${SHOWCASE_PORT:-3124}:3124'
+    volumes:
+      - showcase-data:/var/lib/showcase
+    depends_on:
+      redis:
+        condition: service_healthy
+      s3:
+        condition: service_started
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  s3:
+    image: chrislusf/seaweedfs:latest
+    command: server -s3 -s3.port=8333 -dir=/data
+    environment:
+      AWS_ACCESS_KEY_ID: showcase
+      AWS_SECRET_ACCESS_KEY: showcase-local-secret
+    volumes:
+      - s3-data:/data
+
+volumes:
+  showcase-data:
+  s3-data:

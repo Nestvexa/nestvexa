@@ -1,0 +1,40 @@
+<h1>{{title}}</h1>
+<p class="lead">
+  A small team workspace built with NestJS and Nestvexa. Everything here runs in
+  one Nest application with seeded, fictional data.
+</p>
+<section aria-labelledby="features-heading">
+  <h2 id="features-heading">What you can try</h2>
+  <ul>
+    <li>
+      A dashboard whose metrics update in realtime, next to a Vue chart island.
+    </li>
+    <li>
+      A Live task board: search, filters, sorting, pages, a modal editor and
+      file attachments.
+    </li>
+    <li>
+      A three-step profile setup with server validation, drafts and a path that
+      works without JavaScript.
+    </li>
+    <li>
+      A Vue Inertia analytics section with server rendering and deferred data.
+    </li>
+    <li>
+      Email notifications rendered with the same view engine (test transport).
+    </li>
+  </ul>
+</section>
+<section aria-labelledby="workspaces-heading">
+  <h2 id="workspaces-heading">Sample workspaces</h2>
+  <ul id="workspace-list">
+    {{#each workspaces}}
+    <li><strong>{{name}}</strong>: {{tagline}}</li>
+    {{/each}}
+  </ul>
+</section>
+{{#if signedIn}}
+<p><a href="/app">Open your dashboard</a></p>
+{{else}}
+<p><a href="/login" id="home-sign-in">Sign in with a demo account</a></p>
+{{/if}}

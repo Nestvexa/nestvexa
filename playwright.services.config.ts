@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 import { randomBytes } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 /*
  * Multi-replica acceptance test against a real Redis (see
@@ -11,7 +13,9 @@ import { randomBytes } from 'node:crypto';
  *                           ├──► c :base+3 Fastify, SSE         ├─► Redis
  *                           └──► d :base+4 Fastify, WebSocket  ─┘
  *
- * NESTVEXA_ACCEPT_BASE_PORT (default 3220) moves all five ports together.
+ * examples/showcase runs as two more instances on base+5 and base+6.
+ *
+ * NESTVEXA_ACCEPT_BASE_PORT (default 3220) moves all seven ports together.
  */
 const redisPort = process.env['NESTVEXA_REDIS_PORT'];
 if (!redisPort)
@@ -25,7 +29,12 @@ export const ports = {
   proxy: base + 2,
   c: base + 3,
   d: base + 4,
+  showcaseA: base + 5,
+  showcaseB: base + 6,
 };
+// Read by tests/services/showcase-redis.spec.ts in the Playwright workers.
+process.env['NV_SHOWCASE_A_URL'] ??= `http://127.0.0.1:${ports.showcaseA}`;
+process.env['NV_SHOWCASE_B_URL'] ??= `http://127.0.0.1:${ports.showcaseB}`;
 const shared = {
   REDIS_HOST: process.env['NESTVEXA_REDIS_HOST'] ?? '127.0.0.1',
   REDIS_PORT: redisPort,
@@ -103,5 +112,23 @@ export default defineConfig({
         TARGET_D: `http://127.0.0.1:${ports.d}`,
       },
     ),
+    // examples/showcase as two instances on the same Redis
+    // (tests/services/showcase-redis.spec.ts); each is its own origin.
+    ...(['a', 'b'] as const).map((name) => {
+      const port = String(name === 'a' ? ports.showcaseA : ports.showcaseB);
+      return server(
+        'pnpm --filter @nestvexa/example-showcase start',
+        Number(port),
+        {
+          PORT: port,
+          PUBLIC_ORIGIN: `http://127.0.0.1:${port}`,
+          SHOWCASE_INSTANCE: `showcase-${name}`,
+          SHOWCASE_DATA_DIR: join(
+            tmpdir(),
+            `nestvexa-showcase-services-${port}`,
+          ),
+        },
+      );
+    }),
   ],
 });

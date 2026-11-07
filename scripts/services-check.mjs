@@ -518,7 +518,7 @@ if (env.NESTVEXA_REDIS_PORT && env.NESTVEXA_SERVICES_BROWSER !== '0')
       );
     const passed = /(\d+) passed/.exec(run.stdout ?? '')?.[1] ?? '?';
     step(
-      `${passed} browser tests passed: cross-replica refresh over SSE and WebSocket on Express and Fastify; Live state continues across replicas and adapters; idempotent retry replays on another replica; identity lock held across replicas and released; cross-identity isolation; presence across four replicas; reconnect after a dropped load balancer without duplicates; no leaked connections`,
+      `${passed} browser tests passed: cross-replica refresh over SSE and WebSocket on Express and Fastify; Live state continues across replicas and adapters; idempotent retry replays on another replica; identity lock held across replicas and released; cross-identity isolation; presence across four replicas; reconnect after a dropped load balancer without duplicates; no leaked connections; showcase on two instances (cross-instance dashboard refresh and notifications, workspace isolation)`,
     );
   });
 
