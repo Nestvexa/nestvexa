@@ -314,7 +314,7 @@ describe('S3-compatible storage (S3Storage)', () => {
     expect(failures).toHaveLength(4);
     for (const failure of failures) {
       expect(failure).toBeInstanceOf(UploadError);
-      expect((failure as UploadError).status).toBe(502);
+      expect((failure as UploadError).getStatus()).toBe(502);
     }
     expect(redirecting.requests.map((request) => request.method)).toEqual([
       'GET',
