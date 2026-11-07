@@ -1,4 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 export default defineConfig({
   testDir: './tests/browser',
@@ -202,6 +204,21 @@ export default defineConfig({
       // One server running every VISION-029..037 route (apps/playground equivalent).
       command: 'pnpm --filter @nestvexa/example-integration-matrix start',
       url: 'http://127.0.0.1:3123/api/health',
+      reuseExistingServer: false,
+      timeout: 180000,
+    },
+    // The coherent showcase app (examples/showcase): one process, memory
+    // broker, test mail transport, a fresh data directory per run.
+    {
+      command: 'pnpm --filter @nestvexa/example-showcase start',
+      url: 'http://127.0.0.1:3124/api/health',
+      env: {
+        PORT: '3124',
+        SHOWCASE_DATA_DIR: join(
+          tmpdir(),
+          `nestvexa-showcase-e2e-${process.pid}`,
+        ),
+      },
       reuseExistingServer: false,
       timeout: 180000,
     },
