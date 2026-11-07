@@ -49,7 +49,7 @@
     "busboy": "1.6.0"
   },
   "devDependencies": {
-    "@types/busboy": "1.5.4"
+    "@types/busboy": "1.5.5"
   },
   "peerDependencies": {
     "@nestjs/common": "^12.0.0",
