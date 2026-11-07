@@ -19,26 +19,44 @@ import { connectUi, menuSelection, showToast } from '@nestvexa/ui/browser';
 import type { ToastOptions } from '@nestvexa/ui/browser';
 import {
   booleanAttributes,
+  chartMarkup,
+  checkboxFieldMarkup,
   dataTableMarkup,
   datePickerMarkup,
   dialogMarkup,
   dialogTriggerMarkup,
   isMarkupSlot,
   menuMarkup,
+  radioGroupFieldMarkup,
   selectAllMarkup,
+  selectFieldMarkup,
   selectRowMarkup,
   sortHeaderMarkup,
   tabPanelSlot,
   tableFilterMarkup,
   tableSearchMarkup,
   tabsMarkup,
+  textFieldMarkup,
+  textareaFieldMarkup,
   toastRegionMarkup,
   voidElements,
 } from '@nestvexa/ui/markup';
-import type { DateStyle, MarkupElement, MarkupNode } from '@nestvexa/ui/markup';
+import type {
+  ChartType,
+  DateStyle,
+  FieldInputType,
+  FieldViewLike,
+  MarkupElement,
+  MarkupNode,
+} from '@nestvexa/ui/markup';
 
-export { closeDialog, openDialog } from '@nestvexa/ui/browser';
-export type { ToastOptions } from '@nestvexa/ui/browser';
+export { chartData, closeDialog, openDialog } from '@nestvexa/ui/browser';
+export type { ChartData, ToastOptions } from '@nestvexa/ui/browser';
+export type {
+  ChartType,
+  FieldInputType,
+  FieldViewLike,
+} from '@nestvexa/ui/markup';
 
 type Slots = Readonly<Record<string, ReactNode>>;
 
@@ -49,6 +67,8 @@ const names: Readonly<Record<string, string>> = {
   autocomplete: 'autoComplete',
   spellcheck: 'spellCheck',
   readonly: 'readOnly',
+  minlength: 'minLength',
+  maxlength: 'maxLength',
 };
 
 /** Contract attributes as React props (uncontrolled form values). */
@@ -93,6 +113,14 @@ function render(
     );
   const elementProps = { ...props(node), key, ...(ref ? { ref } : {}) };
   if (voidElements.has(node.tag)) return createElement(node.tag, elementProps);
+  // React sets a textarea's initial text through defaultValue, not children.
+  if (node.tag === 'textarea')
+    return createElement(node.tag, {
+      ...elementProps,
+      defaultValue: node.children
+        .filter((child) => typeof child === 'string')
+        .join(''),
+    });
   return createElement(
     node.tag,
     elementProps,
@@ -492,4 +520,277 @@ export function SortHeader(props: SortHeaderProps): ReactElement {
       href: props.href,
     }),
   );
+}
+
+// Form fields ---------------------------------------------------------------
+/** Options shared by every field wrapper. */
+export interface FieldProps {
+  /** Control id; optional when `field` supplies it. */
+  readonly id?: string;
+  readonly name: string;
+  readonly label: string;
+  /** Hint text (`{id}-hint`), referenced by `aria-describedby`. */
+  readonly hint?: string;
+  /** Error message(s); sets `aria-invalid` and renders `{id}-error`. */
+  readonly error?: string | readonly string[];
+  /** A `@nestvexa/forms` field view instead of `id`/`error`. */
+  readonly field?: FieldViewLike;
+  readonly required?: boolean;
+  readonly disabled?: boolean;
+  /** Extra id(s) for `aria-describedby`, before the hint and error. */
+  readonly describedBy?: string;
+  readonly className?: string;
+}
+function fieldInput(props: FieldProps): Record<string, unknown> {
+  return {
+    id: props.id,
+    name: props.name,
+    label: props.label,
+    hint: props.hint,
+    error: props.error,
+    field: props.field,
+    required: props.required,
+    disabled: props.disabled,
+    describedBy: props.describedBy,
+    class: props.className,
+  };
+}
+/** Report a field's value from `input`/`change` events, once per new value. */
+function useFieldChange<T>(
+  ref: RefObject<Element | null>,
+  initial: T,
+  read: (target: EventTarget | null) => T | undefined,
+  onChange: ((value: T) => void) | undefined,
+): void {
+  const reported = useRef(initial);
+  const changed = (event: Event) => {
+    const value = read(event.target);
+    if (value === undefined || Object.is(value, reported.current)) return;
+    reported.current = value;
+    onChange?.(value);
+  };
+  useDomEvent(ref, 'input', onChange ? changed : undefined);
+  useDomEvent(ref, 'change', onChange ? changed : undefined);
+}
+const controlValue = (target: EventTarget | null): string | undefined =>
+  target instanceof HTMLInputElement ||
+  target instanceof HTMLTextAreaElement ||
+  target instanceof HTMLSelectElement
+    ? target.value
+    : undefined;
+
+export interface TextFieldProps extends FieldProps {
+  readonly type?: FieldInputType;
+  /** Initial value (read once; the input is uncontrolled). */
+  readonly defaultValue?: string;
+  readonly placeholder?: string;
+  readonly autocomplete?: string;
+  readonly minLength?: number;
+  readonly maxLength?: number;
+  readonly readOnly?: boolean;
+  /** Called with the value on each edit. */
+  readonly onChange?: (value: string) => void;
+}
+/** Labelled text-like input with hint and error wiring. */
+export function TextField(props: TextFieldProps): ReactElement {
+  const ref = useRef<Element | null>(null);
+  const [initial] = useState(props.defaultValue);
+  useFieldChange(ref, initial ?? '', controlValue, props.onChange);
+  return render(
+    textFieldMarkup({
+      ...fieldInput(props),
+      type: props.type,
+      value: initial,
+      placeholder: props.placeholder,
+      autocomplete: props.autocomplete,
+      minLength: props.minLength,
+      maxLength: props.maxLength,
+      readOnly: props.readOnly,
+    }),
+    {},
+    undefined,
+    ref,
+  ) as ReactElement;
+}
+
+export interface TextareaFieldProps extends FieldProps {
+  readonly defaultValue?: string;
+  readonly rows?: number;
+  readonly placeholder?: string;
+  readonly minLength?: number;
+  readonly maxLength?: number;
+  readonly readOnly?: boolean;
+  readonly onChange?: (value: string) => void;
+}
+/** Labelled textarea with hint and error wiring. */
+export function TextareaField(props: TextareaFieldProps): ReactElement {
+  const ref = useRef<Element | null>(null);
+  const [initial] = useState(props.defaultValue);
+  useFieldChange(ref, initial ?? '', controlValue, props.onChange);
+  return render(
+    textareaFieldMarkup({
+      ...fieldInput(props),
+      value: initial,
+      rows: props.rows,
+      placeholder: props.placeholder,
+      minLength: props.minLength,
+      maxLength: props.maxLength,
+      readOnly: props.readOnly,
+    }),
+    {},
+    undefined,
+    ref,
+  ) as ReactElement;
+}
+
+export interface FieldOption {
+  readonly value: string;
+  readonly label: string;
+  readonly disabled?: boolean;
+}
+const options = (list: readonly FieldOption[]) =>
+  list.map((option) => ({
+    value: option.value,
+    label: option.label,
+    disabled: option.disabled,
+  }));
+
+export interface SelectFieldProps extends FieldProps {
+  readonly options: readonly FieldOption[];
+  readonly defaultValue?: string;
+  /** First empty option, e.g. `Choose a country`. */
+  readonly placeholder?: string;
+  readonly autocomplete?: string;
+  readonly onChange?: (value: string) => void;
+}
+/** Labelled native select with hint and error wiring. */
+export function SelectField(props: SelectFieldProps): ReactElement {
+  const ref = useRef<Element | null>(null);
+  const [initial] = useState(props.defaultValue);
+  useFieldChange(ref, initial ?? '', controlValue, props.onChange);
+  return render(
+    selectFieldMarkup({
+      ...fieldInput(props),
+      options: options(props.options),
+      value: initial,
+      placeholder: props.placeholder,
+      autocomplete: props.autocomplete,
+    }),
+    {},
+    undefined,
+    ref,
+  ) as ReactElement;
+}
+
+export interface CheckboxFieldProps extends FieldProps {
+  readonly value?: string;
+  readonly defaultChecked?: boolean;
+  /** Called with the checked state on change. */
+  readonly onChange?: (checked: boolean) => void;
+}
+/** Single checkbox with its label, hint and error. */
+export function CheckboxField(props: CheckboxFieldProps): ReactElement {
+  const ref = useRef<Element | null>(null);
+  const [initial] = useState(props.defaultChecked ?? false);
+  useFieldChange(
+    ref,
+    initial,
+    (target) =>
+      target instanceof HTMLInputElement && target.type === 'checkbox'
+        ? target.checked
+        : undefined,
+    props.onChange,
+  );
+  return render(
+    checkboxFieldMarkup({
+      ...fieldInput(props),
+      value: props.value,
+      checked: initial,
+    }),
+    {},
+    undefined,
+    ref,
+  ) as ReactElement;
+}
+
+export interface RadioGroupFieldProps extends FieldProps {
+  readonly options: readonly FieldOption[];
+  readonly defaultValue?: string;
+  readonly onChange?: (value: string) => void;
+}
+/** Radio group in a `<fieldset role="radiogroup">` with legend, hint and error. */
+export function RadioGroupField(props: RadioGroupFieldProps): ReactElement {
+  const ref = useRef<Element | null>(null);
+  const [initial] = useState(props.defaultValue);
+  useFieldChange(
+    ref,
+    initial ?? '',
+    (target) =>
+      target instanceof HTMLInputElement &&
+      target.type === 'radio' &&
+      target.checked
+        ? target.value
+        : undefined,
+    props.onChange,
+  );
+  return render(
+    radioGroupFieldMarkup({
+      ...fieldInput(props),
+      options: options(props.options),
+      value: initial,
+    }),
+    {},
+    undefined,
+    ref,
+  ) as ReactElement;
+}
+
+// Chart ---------------------------------------------------------------------
+export interface ChartSeries {
+  readonly name: string;
+  readonly values: readonly number[];
+}
+export interface ChartProps {
+  readonly id: string;
+  /** `bar` (default), `line`, `sparkline` or `custom` (third-party chart). */
+  readonly type?: ChartType;
+  readonly title: string;
+  readonly description?: string;
+  /** Header of the data table's label column. */
+  readonly categoryLabel: string;
+  readonly labels: readonly string[];
+  readonly series: readonly ChartSeries[];
+  readonly min?: number;
+  readonly max?: number;
+  /** BCP 47 locale for the table and axis numbers. */
+  readonly locale?: string;
+  /** Show the data table instead of keeping it visually hidden. */
+  readonly showTable?: boolean;
+  readonly className?: string;
+  /** Mount point of a third-party chart (`type="custom"`). */
+  readonly children?: ReactNode;
+}
+/** Server-rendered SVG chart (or third-party container) plus its data table. */
+export function Chart(props: ChartProps): ReactElement {
+  return render(
+    chartMarkup({
+      id: props.id,
+      type: props.type,
+      title: props.title,
+      description: props.description,
+      categoryLabel: props.categoryLabel,
+      labels: [...props.labels],
+      series: props.series.map((entry) => ({
+        name: entry.name,
+        values: [...entry.values],
+      })),
+      min: props.min,
+      max: props.max,
+      locale: props.locale,
+      showTable: props.showTable,
+      class: props.className,
+    }),
+    { chart: props.children },
+    undefined,
+  ) as ReactElement;
 }

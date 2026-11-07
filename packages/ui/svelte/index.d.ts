@@ -1,9 +1,20 @@
 import type { Component, Snippet } from 'svelte';
 import type { ToastOptions } from '@nestvexa/ui/browser';
-import type { DateStyle, MarkupNode } from '@nestvexa/ui/markup';
+import type {
+  ChartType,
+  DateStyle,
+  FieldInputType,
+  FieldViewLike,
+  MarkupNode,
+} from '@nestvexa/ui/markup';
 
-export { closeDialog, openDialog } from '@nestvexa/ui/browser';
-export type { ToastOptions } from '@nestvexa/ui/browser';
+export { chartData, closeDialog, openDialog } from '@nestvexa/ui/browser';
+export type { ChartData, ToastOptions } from '@nestvexa/ui/browser';
+export type {
+  ChartType,
+  FieldInputType,
+  FieldViewLike,
+} from '@nestvexa/ui/markup';
 
 export interface DialogProps {
   id: string;
@@ -175,6 +186,112 @@ export interface SortHeaderProps {
 }
 /** `<th>` with `aria-sort` and a sort link. */
 export declare const SortHeader: Component<SortHeaderProps>;
+
+/** Props shared by every field wrapper. */
+export interface FieldProps {
+  /** Control id; optional when `field` supplies it. */
+  id?: string | undefined;
+  name: string;
+  label: string;
+  /** Hint text (`{id}-hint`), referenced by `aria-describedby`. */
+  hint?: string | undefined;
+  /** Error message(s); sets `aria-invalid` and renders `{id}-error`. */
+  error?: string | readonly string[] | undefined;
+  /** A `@nestvexa/forms` field view instead of `id`/`error`. */
+  field?: FieldViewLike | undefined;
+  required?: boolean;
+  disabled?: boolean;
+  /** Extra id(s) for `aria-describedby`, before the hint and error. */
+  describedBy?: string | undefined;
+  class?: string | undefined;
+}
+export interface FieldOption {
+  readonly value: string;
+  readonly label: string;
+  readonly disabled?: boolean;
+}
+
+export interface TextFieldProps extends FieldProps {
+  type?: FieldInputType | undefined;
+  /** Initial value (read once; the input is uncontrolled). */
+  defaultValue?: string | undefined;
+  placeholder?: string | undefined;
+  autocomplete?: string | undefined;
+  minLength?: number | undefined;
+  maxLength?: number | undefined;
+  readOnly?: boolean;
+  /** Called with the value on each edit. */
+  onchange?: ((value: string) => void) | undefined;
+}
+/** Labelled text-like input with hint and error wiring. */
+export declare const TextField: Component<TextFieldProps>;
+
+export interface TextareaFieldProps extends FieldProps {
+  defaultValue?: string | undefined;
+  rows?: number | undefined;
+  placeholder?: string | undefined;
+  minLength?: number | undefined;
+  maxLength?: number | undefined;
+  readOnly?: boolean;
+  onchange?: ((value: string) => void) | undefined;
+}
+/** Labelled textarea with hint and error wiring. */
+export declare const TextareaField: Component<TextareaFieldProps>;
+
+export interface SelectFieldProps extends FieldProps {
+  options: readonly FieldOption[];
+  defaultValue?: string | undefined;
+  /** First empty option, e.g. `Choose a country`. */
+  placeholder?: string | undefined;
+  autocomplete?: string | undefined;
+  onchange?: ((value: string) => void) | undefined;
+}
+/** Labelled native select with hint and error wiring. */
+export declare const SelectField: Component<SelectFieldProps>;
+
+export interface CheckboxFieldProps extends FieldProps {
+  value?: string | undefined;
+  defaultChecked?: boolean;
+  /** Called with the checked state on change. */
+  onchange?: ((checked: boolean) => void) | undefined;
+}
+/** Single checkbox with its label, hint and error. */
+export declare const CheckboxField: Component<CheckboxFieldProps>;
+
+export interface RadioGroupFieldProps extends FieldProps {
+  options: readonly FieldOption[];
+  defaultValue?: string | undefined;
+  onchange?: ((value: string) => void) | undefined;
+}
+/** Radio group in a `<fieldset role="radiogroup">` with legend, hint and error. */
+export declare const RadioGroupField: Component<RadioGroupFieldProps>;
+
+export interface ChartSeries {
+  readonly name: string;
+  readonly values: readonly number[];
+}
+export interface ChartProps {
+  id: string;
+  /** `bar` (default), `line`, `sparkline` or `custom` (third-party chart). */
+  type?: ChartType | undefined;
+  title: string;
+  description?: string | undefined;
+  /** Header of the data table's label column. */
+  categoryLabel: string;
+  labels: readonly string[];
+  series: readonly ChartSeries[];
+  min?: number | undefined;
+  max?: number | undefined;
+  /** BCP 47 locale for the table and axis numbers. */
+  locale?: string | undefined;
+  /** Show the data table instead of keeping it visually hidden. */
+  showTable?: boolean;
+  class?: string | undefined;
+  /** Mount point of a third-party chart (`type="custom"`). */
+  children?: Snippet | undefined;
+}
+/** Server-rendered SVG chart (or third-party container) plus its data table. */
+export declare const Chart: Component<ChartProps>;
 
 export interface MarkupProps {
   node: MarkupNode;

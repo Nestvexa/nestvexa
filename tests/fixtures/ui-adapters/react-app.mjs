@@ -1,25 +1,43 @@
 // React fixture for tests/ui-adapters.test.ts (no JSX: bundled as is).
 import { createElement as h, useRef, useState } from 'react';
 import {
+  Chart,
+  CheckboxField,
   DataTable,
   DatePicker,
   Dialog,
   DialogTrigger,
   Menu,
+  RadioGroupField,
   SelectAll,
+  SelectField,
   SelectRow,
   TableFilter,
   TableSearch,
   Tabs,
+  TextField,
+  TextareaField,
   ToastRegion,
 } from '@nestvexa/ui/react';
-import { categories, menuItems, products, tabs } from './data.mjs';
+import {
+  categories,
+  countries,
+  menuItems,
+  months,
+  plans,
+  products,
+  sales,
+  tabs,
+  visitors,
+} from './data.mjs';
 
 function Kit() {
   const toasts = useRef(null);
   const [closed, setClosed] = useState(0);
   const [selected, setSelected] = useState([]);
   const [date, setDate] = useState('');
+  const [log, setLog] = useState('');
+  const report = (name) => (value) => setLog(`${name}:${value}`);
   return h(
     'div',
     { id: 'kit' },
@@ -131,6 +149,104 @@ function Kit() {
       },
       h('label', { htmlFor: 'kit-name' }, 'Name'),
       h('input', { id: 'kit-name' }),
+    ),
+    h(
+      'form',
+      { id: 'kit-profile' },
+      h(TextField, {
+        id: 'kit-email',
+        name: 'email',
+        label: 'Email',
+        type: 'email',
+        hint: 'We never share it.',
+        error: 'Enter a valid email address.',
+        required: true,
+        autocomplete: 'email',
+        onChange: report('email'),
+      }),
+      h(TextField, {
+        id: 'kit-nick',
+        name: 'nickname',
+        label: 'Nickname',
+        defaultValue: 'Ada',
+      }),
+      h(TextareaField, {
+        id: 'kit-bio',
+        name: 'bio',
+        label: 'Biography',
+        rows: 3,
+        defaultValue: 'Hello',
+        onChange: report('bio'),
+      }),
+      h(SelectField, {
+        id: 'kit-country',
+        name: 'country',
+        label: 'Country',
+        options: countries,
+        placeholder: 'Choose a country',
+        required: true,
+        onChange: report('country'),
+      }),
+      h(CheckboxField, {
+        id: 'kit-terms',
+        name: 'terms',
+        label: 'I accept the terms',
+        value: 'yes',
+        error: 'You must accept the terms.',
+        onChange: report('terms'),
+      }),
+      h(RadioGroupField, {
+        id: 'kit-plan',
+        name: 'plan',
+        label: 'Plan',
+        options: plans,
+        hint: 'Change it later.',
+        defaultValue: 'basic',
+        onChange: report('plan'),
+      }),
+    ),
+    h('p', { id: 'field-log' }, log),
+    h(
+      'div',
+      { id: 'kit-charts' },
+      h(Chart, {
+        id: 'kit-sales',
+        title: 'Monthly sales',
+        description: 'Online sales peaked in March.',
+        categoryLabel: 'Month',
+        labels: months,
+        series: sales,
+        locale: 'en-US',
+      }),
+      h(Chart, {
+        id: 'kit-trend',
+        type: 'line',
+        title: 'Visitors',
+        categoryLabel: 'Month',
+        labels: months,
+        series: visitors,
+        showTable: true,
+      }),
+      h(Chart, {
+        id: 'kit-spark',
+        type: 'sparkline',
+        title: 'Weekly visitors',
+        categoryLabel: 'Month',
+        labels: months,
+        series: visitors,
+      }),
+      h(
+        Chart,
+        {
+          id: 'kit-ext',
+          type: 'custom',
+          title: 'Third-party visits',
+          categoryLabel: 'Month',
+          labels: months,
+          series: visitors,
+        },
+        h('canvas', { id: 'kit-ext-chart', width: '320', height: '120' }),
+      ),
     ),
   );
 }

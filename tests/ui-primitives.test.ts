@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { HbsEngine } from '../packages/engine-hbs/dist/index.js';
 import { UiError, uiHelpers } from '../packages/ui/dist/index.js';
+import { chartMarkup, renderMarkup } from '../packages/ui/dist/markup.js';
 
 // Server markup contracts for the second UI kit slice. Browser behavior and
 // axe checks live in tests/ui-primitives-browser.test.ts.
@@ -40,6 +41,12 @@ const templates: Record<string, string> = {
     '{{#uiDataTable id="products" caption="Products" selectionLabel="{count} selected"}}<thead><tr>{{uiSelectAll table="products" label="Select all products"}}<th>Name</th></tr></thead><tbody><tr data-category="books">{{uiSelectRow name="ids" value="p1" label="Select Atlas" checked=true}}<td>Atlas</td></tr></tbody>{{/uiDataTable}}',
   search:
     '{{uiTableSearch table="products" label="Search products" client=client model=model name=name value=value resultsLabel=results}}',
+  chart:
+    '{{uiChart id="sales" type=type title=title description=description categoryLabel=categoryLabel labels=labels series=series min=min max=max locale=locale showTable=showTable class=klass}}',
+  chartCustom:
+    '{{#uiChart id="visits" type="custom" title="Visits" categoryLabel="Day" labels=labels series=series}}<canvas width="300" height="150"></canvas>{{/uiChart}}',
+  chartBlock:
+    '{{#uiChart id="bad" title="T" categoryLabel="C" labels=labels series=series}}<p>body</p>{{/uiChart}}',
   filter:
     '{{uiTableFilter table="products" key=key label="Category" allLabel="All categories" options=options value=value client=client model=model resultsLabel="{count} results"}}',
 };
@@ -435,6 +442,171 @@ describe('data table', () => {
       { key: 'category', options: [{ value: 'x', label: 'X', extra: 1 }] },
     ])
       expect(await failure('filter', model)).toBeInstanceOf(UiError);
+  });
+});
+
+describe('chart', () => {
+  const sales = {
+    title: 'Monthly sales',
+    categoryLabel: 'Month',
+    labels: ['Jan', 'Feb', 'Mar'],
+    series: [
+      { name: 'Online', values: [1200, -300, 4500.5] },
+      { name: 'Retail', values: [800, 900, 1000] },
+    ],
+  };
+  /** No script, no inline style or event handler: the page CSP needs nothing extra. */
+  const cspSafe = (html: string) =>
+    expect(html).not.toMatch(/<script|\sstyle=|\son[a-z]+=|javascript:/i);
+  it('renders an SVG bar chart named by its caption with an always-present data table', async () => {
+    const html = await render('chart', {
+      ...sales,
+      description: 'Online sales peaked in March.',
+      locale: 'en-US',
+    });
+    cspSafe(html);
+    expect(html).toMatch(
+      /^<figure class="nv-chart nv-chart--bar" id="sales" data-nv-ui-chart="bar"><figcaption class="nv-chart__title" id="sales-title">Monthly sales<\/figcaption><p class="nv-chart__description" id="sales-desc">Online sales peaked in March\.<\/p><svg class="nv-chart__svg" viewBox="0 0 640 320" role="img" aria-labelledby="sales-title" aria-describedby="sales-desc">/,
+    );
+    expect(html.match(/<rect class="nv-chart__bar"/g)).toHaveLength(6);
+    // The negative bar grows down from the zero axis.
+    expect(html).toContain('<line class="nv-chart__axis"');
+    expect(html).toContain('<g class="nv-chart__series nv-chart__series--2">');
+    expect(html).toContain(
+      '<ul class="nv-chart__legend" aria-hidden="true"><li class="nv-chart__key"><span class="nv-chart__swatch nv-chart__series--1"></span>Online</li>',
+    );
+    expect(html).toContain(
+      '<div class="nv-chart__data nv-visually-hidden"><table class="nv-chart__table" id="sales-data"><caption class="nv-chart__caption">Monthly sales</caption><thead><tr><th scope="col">Month</th><th scope="col">Online</th><th scope="col">Retail</th></tr></thead><tbody><tr><th scope="row">Jan</th><td data-value="1200">1,200</td><td data-value="800">800</td></tr><tr><th scope="row">Feb</th><td data-value="-300">-300</td>',
+    );
+    expect(html).toContain('<td data-value="4500.5">4,500.5</td>');
+    expect(await render('chart', { ...sales, locale: 'de-DE' })).toContain(
+      '<td data-value="4500.5">4.500,5</td>',
+    );
+    const shown = await render('chart', { ...sales, showTable: true });
+    expect(shown).toContain(
+      '<div class="nv-chart__data"><table class="nv-chart__table" id="sales-data">',
+    );
+    expect(shown).not.toContain('aria-describedby');
+  });
+  it('renders line charts and sparklines with deterministic geometry', async () => {
+    const line = await render('chart', {
+      ...sales,
+      type: 'line',
+      series: [{ name: 'Online', values: [3, 1, 2] }],
+    });
+    cspSafe(line);
+    expect(line).toContain(
+      '<polyline class="nv-chart__line" points="164,16 348,280 532,148"></polyline>',
+    );
+    expect(line.match(/<circle class="nv-chart__point"/g)).toHaveLength(3);
+    expect(line).not.toContain('nv-chart__legend');
+    const spark = await render('chart', {
+      ...sales,
+      type: 'sparkline',
+      series: [{ name: 'Online', values: [3, 1, 2] }],
+    });
+    expect(spark).toContain(
+      '<svg class="nv-chart__svg" viewBox="0 0 120 32" role="img" aria-labelledby="sales-title"><g class="nv-chart__series nv-chart__series--1"><polyline class="nv-chart__line" points="3,3 60,29 117,16"></polyline></g></svg>',
+    );
+    expect(spark).not.toContain('<text');
+    expect(spark).toContain('id="sales-data"');
+    // Flat data still gets a non-empty domain.
+    expect(
+      await render('chart', {
+        ...sales,
+        series: [{ name: 'Online', values: [5, 5, 5] }],
+        type: 'line',
+      }),
+    ).toContain('points="164,148 348,148 532,148"');
+    expect(
+      await failure('chart', { ...sales, type: 'sparkline' }),
+    ).toBeInstanceOf(UiError);
+  });
+  it('wraps a third-party chart in a named container that keeps the data table', async () => {
+    const html = await render('chartCustom', {
+      labels: ['Mon', 'Tue'],
+      series: [{ name: 'Visits', values: [10, 12] }],
+    });
+    cspSafe(html);
+    expect(html).toContain(
+      '<div class="nv-chart__canvas" id="visits-canvas" role="img" aria-labelledby="visits-title"><canvas width="300" height="150"></canvas></div>',
+    );
+    expect(html).not.toContain('<svg');
+    expect(html).toContain('<td data-value="12">12</td>');
+    expect(await failure('chartBlock', sales)).toBeInstanceOf(UiError);
+  });
+  it('escapes every label, title and series name', async () => {
+    const attack = '<script>alert(1)</script>';
+    const quote = '" onmouseover="alert(2)';
+    const html = await render('chart', {
+      title: attack,
+      description: quote,
+      categoryLabel: `<img src=x onerror=alert(3)>`,
+      labels: [attack, quote, "'><svg onload=alert(4)>"],
+      series: [{ name: quote, values: [1, 2, 3] }],
+    });
+    cspSafe(html);
+    expect(html).not.toMatch(/<img|<svg onload/);
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(html).toContain('&quot; onmouseover&#61;&quot;alert(2)');
+    for (const model of [
+      { ...sales, klass: 'a" onclick="x' },
+      { ...sales, type: 'pie' },
+      { ...sales, locale: 'en-US" x="' },
+    ])
+      expect(await failure('chart', model)).toBeInstanceOf(UiError);
+  });
+  it('rejects non-numeric, non-finite and out-of-bounds data', async () => {
+    const one = (values: unknown[]) => ({
+      ...sales,
+      series: [{ name: 'Online', values }],
+    });
+    // Through HBS: the engine itself refuses NaN/Infinity in view models, and
+    // the helper rejects strings, nulls, booleans and huge magnitudes.
+    for (const model of [
+      one([1, '2', 3]),
+      one([1, null, 3]),
+      one([1, true, 3]),
+      one([1, 1e16, 3]),
+      one([1, 2]),
+      { ...sales, labels: [] },
+      {
+        ...sales,
+        labels: Array.from({ length: 201 }, (_, index) => `L${index}`),
+      },
+      { ...sales, series: [] },
+      {
+        ...sales,
+        series: Array.from({ length: 9 }, (_, index) => ({
+          name: `S${index}`,
+          values: [1, 2, 3],
+        })),
+      },
+      { ...sales, series: [{ name: 'x', values: [1, 2, 3], color: 'red' }] },
+      { ...sales, min: 0 },
+      { ...sales, max: 10 },
+      { ...sales, min: 5000, max: 5000 },
+      { ...sales, labels: ['ok', '', 'x'] },
+    ])
+      expect(await failure('chart', model)).toBeInstanceOf(UiError);
+    // Through framework props (the markup contract): NaN and ±Infinity.
+    for (const value of [
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+    ]) {
+      expect(() => chartMarkup({ id: 'c', ...one([1, value, 3]) })).toThrow(
+        UiError,
+      );
+      expect(() => chartMarkup({ id: 'c', ...sales, min: value })).toThrow(
+        UiError,
+      );
+    }
+    expect(
+      renderMarkup(chartMarkup({ id: 'c', ...sales, min: -1000, max: 5000 })),
+    ).toContain(
+      '<text class="nv-chart__tick nv-chart__tick--y" x="64" y="16">5000</text>',
+    );
   });
 });
 
