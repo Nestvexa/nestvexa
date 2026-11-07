@@ -1,6 +1,6 @@
 # @nestvexa/alpine
 
-Alpine adapter for the Nestvexa Live client. `installLiveAlpine` registers `$live.call`, `$live.get`, and `$live.set` through Alpine's public magic API. `startLiveAlpine` additionally supports explicitly delegated startup. Importing the package does not touch browser globals or install a runtime.
+Alpine adapter for the Nestvexa Live client. `installLiveAlpine` registers `$live.call`, `$live.get`, `$live.set`, `$live.state`, `$live.on`, `$live.dispatch` and `$live.entangle` through Alpine's public magic API. `startLiveAlpine` additionally supports explicitly delegated startup. Importing the package does not touch browser globals or install a runtime.
 
 ## Installation
 
@@ -25,7 +25,7 @@ Install after loading Alpine and before calling `Alpine.start()`. If the host al
 
 For a fresh document whose startup is delegated to Nestvexa, replace those three startup calls with `const app = startLiveAlpine(Alpine, client)`. Import it from this package. Optional `{ document, configure }` supplies an attached document and a trusted synchronous extension hook after bridge installation but before mount/start. The returned frozen application exposes `alpine`, `client`, and idempotent `dispose()`.
 
-One document owns one application, including across copies of the bootstrap package. A repeated startup with the same Alpine returns the existing application; a different runtime or visible host `window.Alpine` rejects. Undisclosed already-started Alpine cannot be detected using public APIs, so delegated mode requires fresh startup. Persisted pagehide retains the same client/drafts for BFCache; nonpersisted departure disposes Live and removes its page listener. This does not stop or destroy Alpine DOM. Failed/disposed startup leaves a reload-only tombstone, preventing unsafe partial restart. Cleanup failures are surfaced. Existing host startup must keep using `installLiveAlpine`.
+One document owns one application, including across copies of the bootstrap package. A repeated startup with the same Alpine returns the existing application; a different runtime or visible host `window.Alpine` rejects. Undisclosed already-started Alpine cannot be detected using public APIs, so delegated mode requires fresh startup. Persisted pagehide retains the same client/drafts for BFCache; nonpersisted departure disposes Live and removes its page listeners. Before an `nv:navigate` body swap the bootstrap calls `Alpine.destroyTree(document.body)`: Alpine only tears down removed nodes it marked itself, so trees from the first server render would otherwise keep their `$live.on` window listeners (found by the Chromium heap check in `tests/browser/lifecycle-leaks.spec.ts`). Hosts that call `installLiveAlpine` directly and use `nv:navigate` should do the same on the window `nestvexa:navigate` event. This does not stop or destroy Alpine DOM. Failed/disposed startup leaves a reload-only tombstone, preventing unsafe partial restart. Cleanup failures are surfaced. Existing host startup must keep using `installLiveAlpine`.
 
 ### Host-owned Alpine
 
@@ -52,20 +52,39 @@ The adapter caches a facade per element and registers cleanup with Alpine. Remov
 
 `$live.dispatch(name, payload)` delivers a browser event to `@OnEvent` listeners through the client. `$live.on(name, callback)` observes `nestvexa:event` deliveries with that name: the callback receives a private copy of the public payload and the source component name (or `null`), the call returns an unsubscribe function, each element holds at most 32 subscriptions and Alpine cleanup removes all of them. Names use the Live event grammar; an invalid name, a non-function callback or a detached element throws.
 
+The CSP build cannot evaluate arrow functions in templates, so register the callback in a component (the default boot module announces `nestvexa:alpine:init` with `{ Alpine, client }` before Alpine starts):
+
+```js
+document.addEventListener('nestvexa:alpine:init', ({ detail: { Alpine } }) => {
+  Alpine.data('savedList', () => ({
+    last: '',
+    init() {
+      this.$live.on('saved', (payload) => {
+        this.last = payload.title;
+      });
+    },
+  }));
+});
+```
+
 ```html
-<div
-  nv:ignore=""
-  x-data="{ last: null }"
-  x-init="$live.on('saved', (payload) => (last = payload))"
->
-  <span x-text="last?.title"></span>
+<div nv:ignore="" x-data="savedList"><span x-text="last"></span></div>
+```
+
+`$live.state` is a read-only reactive view of public state: `$live.state.count` reads exactly like `$live.get('count')` (including local drafts) and re-evaluates on committed updates. Assigning, deleting or defining properties on it throws; internal probe keys (`_x_*`, `__v_skip`, `$…`, symbols) read as `undefined`. It cannot be enumerated.
+
+`$live.entangle(name)` binds one primitive public field (string, finite number or boolean) to an `x-data` property through Alpine's interceptor and element-bound effect APIs:
+
+```html
+<div nv:ignore="" x-data="{ title: $live.entangle('title') }">
+  <input x-model="title" />
 </div>
 ```
 
-`$live.state` and `$live.entangle` are intentionally not provided. A whole-state proxy would blur which fields are public, writable and server-validated, and two-way entanglement would let Alpine reactivity write drafts outside the client's model scheduler and invalid-input rules. Read with `$live.get` (reactive), stage with `$live.set` and commit with `$live.call`, or use an owned `nv:model` control. Arbitrary mixed DOM ownership, teleport handling and the full Live directive set are not implemented here. No expression evaluator is added by Nestvexa. Templates are trusted application code.
+An Alpine write stages a local draft exactly like `$live.set`; nothing is committed until the next Live request (an action, `nv:model` sync or `$live.call`), and the server still validates writable state. Committed server values flow back into the Alpine property without echoing a new draft. Non-primitive Alpine values are reverted and throw. Entanglement stops with Alpine element cleanup. Use `nv:model` when you need the client's debounce, invalid-input and composition rules; entangle bypasses that scheduler deliberately, as `$live.set` does. Arbitrary mixed DOM ownership, teleport handling and the full Live directive set are not implemented here. No expression evaluator is added by Nestvexa. Templates are trusted application code.
 
 ## Public API and verification
 
-Exports: `installLiveAlpine`, `startLiveAlpine`, `AlpineHost`, `AlpineMagicUtilities`, `LiveClientBridge`, `LiveMagic`, `AlpineRuntime`, `ManagedLiveClient`, `StartLiveAlpineOptions`, and `LiveAlpineApplication`. Delegated startup defaults to the current document. There are no import-time startup side effects.
+Exports: `installLiveAlpine`, `startLiveAlpine`, `adoptLiveAlpine`, `hostAlpine`, `AlpineHost`, `AlpineMagicUtilities`, `AlpineInterceptorCallback`, `LiveClientBridge`, `LiveMagic`, `AlpineRuntime`, `ManagedLiveClient`, `StartLiveAlpineOptions`, and `LiveAlpineApplication`. Delegated startup defaults to the current document. There are no import-time startup side effects.
 
-At repository root run `pnpm exec vitest run tests/alpine.test.ts tests/alpine-start.test.ts` and `pnpm test:e2e`. The startup tests use Chromium with the actual CSP runtime/client and explicitly controlled transport fixtures. Browser examples exercise real server requests. See the [default starter](../../examples/starter-live/README.md), [Live counter](../../examples/live-counter/README.md), [client package](../client/README.md), [security policy](../../SECURITY.md), [status](../../docs/implementation/STATUS.md), and [changelog](../../CHANGELOG.md). Maintainer identity and official repository URLs await owner input. ESM only; no dual-module identity promise.
+At repository root run `pnpm exec vitest run tests/alpine.test.ts tests/alpine-start.test.ts` and `pnpm test:e2e`. `tests/browser/alpine-bridge.spec.ts` drives `$live.state`, `$live.dispatch`, `$live.on` and `$live.entangle` with the real CSP Alpine 3.17 build against the [browser-lab example](../../examples/browser-lab/README.md) in Chromium, Firefox and WebKit, on a loaded page and on pages reached with `nv:navigate`. The startup tests use Chromium with the actual CSP runtime/client and explicitly controlled transport fixtures. Browser examples exercise real server requests. See the [default starter](../../examples/starter-live/README.md), [Live counter](../../examples/live-counter/README.md), [client package](../client/README.md), [security policy](../../SECURITY.md), [status](../../docs/implementation/STATUS.md), and [changelog](../../CHANGELOG.md). Maintainer identity and official repository URLs await owner input. ESM only; no dual-module identity promise.
