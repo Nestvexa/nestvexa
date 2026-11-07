@@ -17,6 +17,13 @@ token as JSON, Precognition validates title and token with the same forms
 schema, and upload, field and form-level (`_form`) failures appear as `useForm`
 errors. Tested by `tests/browser/inertia-forms-uploads.ts`.
 
+With `--test-controls` (`start:e2e`, `start:csr`), `/__test/hostile` serves
+hostile page props (`src/hostile.ts`): script, event-handler, attribute-breakout,
+template-syntax and `javascript:`/`data:` URL payloads. The page renders them as
+text and attribute values and binds links through a scheme allowlist
+(`client/safe-href.ts`), because the framework escapes markup but does not filter
+URL schemes. Tested by `tests/browser/inertia-hostile-props.ts` (SEC-022).
+
 ```sh
 pnpm --filter @nestvexa/example-inertia-svelte build
 pnpm --filter @nestvexa/example-inertia-svelte start   # http://127.0.0.1:3108
