@@ -4,7 +4,7 @@ An isolated [EJS](https://ejs.co) 7.0.2 adapter implementing the `ViewEngineAdap
 
 ## Install
 
-After owner-authorized publication: `npm install @nestvexa/engine-ejs`, `pnpm add @nestvexa/engine-ejs` or `yarn add @nestvexa/engine-ejs`. Before publication, use the workspace or a packed tarball. Node 22+, ESM only. Dependencies are `@nestvexa/views` and pinned `ejs` 7.0.2 (Apache-2.0); there are no peer dependencies. The `nestvexa` umbrella does **not** install this package; the default install stays HBS-only.
+The package is not published yet: install the workspace package or the local tarball produced by `pnpm build && pnpm test:pack`. Future registry syntax after owner-authorized publication: `npm install @nestvexa/engine-ejs`, `pnpm add @nestvexa/engine-ejs` or `yarn add @nestvexa/engine-ejs`. Node 22+, ESM (the `default` export condition also lets CommonJS hosts load it through `require(esm)`). Dependencies are `@nestvexa/views` and pinned `ejs` 7.0.2 (Apache-2.0); there are no peer dependencies. The `nestvexa` umbrella does **not** install this package; the default install stays HBS-only, and `nestvexa add engine ejs` adds and wires it.
 
 ## Minimal usage
 
@@ -46,7 +46,7 @@ app.setBaseViewsDir(root); // the same directory as `root`
 app.setViewEngine('ejs');
 ```
 
-Controllers then use Nest's `@Render('home')` normally. `renderFile` maps the absolute filename back to a root-relative view ID, rejects files outside the root and strips Express `settings`, `_locals` and `cache` before rendering. On Fastify, decorate the reply once: `fastify.decorateReply('view', async function (view, model) { return this.type('text/html; charset=utf-8').send(await engine.render(view, model)); })`. The umbrella's `NestvexaModule.forRoot({ views })` currently configures only HBS; register this adapter manually as shown.
+Controllers then use Nest's `@Render('home')` normally. `renderFile` maps the absolute filename back to a root-relative view ID, rejects files outside the root and strips Express `settings`, `_locals` and `cache` before rendering. On Fastify, decorate the reply once: `fastify.decorateReply('view', async function (view, model) { return this.type('text/html; charset=utf-8').send(await engine.render(view, model)); })`. In an umbrella app, `NestvexaModule.forRoot({ views })` keeps HBS as the primary engine; render `.ejs` views next to it with `await registerViewEngine(app, 'ejs', engine)` from `nestvexa` before `app.listen()` (Express `app.engine()`, Fastify `reply.view` extension dispatch). Without the umbrella, register the adapter manually as shown.
 
 ### Live components
 
@@ -97,10 +97,31 @@ Failures surface as `ViewError`: `INVALID_VIEW` (bad ID, traversal, oversized te
 
 Templates and helpers are trusted code, never uploads or browser input. Model data never becomes EJS options, so option-injection attacks through `settings['view options']` (for example `outputFunctionName`) do not apply. Models accept finite JSON values, `undefined` and `SafeHtml` only (no class instances, Dates, functions, accessors, symbols, cycles, prototype keys, depth > 32 or > 10,000 values). Keep template directories writable only by deployment tooling.
 
-## Testing
-
-From the repository root: `pnpm --filter @nestvexa/views --filter @nestvexa/engine-ejs build`, then `pnpm exec vitest run tests/engine-ejs.test.ts tests/engine-live.test.ts`. See the [template engine guide](../../docs/guides/template-engines.md), [views API](../views/README.md) and [changelog](../../CHANGELOG.md).
-
 ## Namespaces and themes
 
 `namespaces` (name -> directory) and `themes` (name -> override directory) options resolve `admin::users/index` views and per-render `RenderOptions.theme` overrides for the view, its layout and its includes, with the same containment rules as the root. See the [template engine guide](../../docs/guides/template-engines.md#namespaces-and-themes) for the include rules specific to EJS. Covered by `tests/views-composition.test.ts`.
+
+## Links
+
+See the [template engine guide](../../docs/guides/template-engines.md), the [views API](../views/README.md), [`examples/starter-ejs`](../../examples/starter-ejs/README.md) (MVC pages and Live components rendered by one `EjsEngine`, with `tests/browser/starter-ejs.spec.ts`) and [`examples/cli-generated`](../../examples/cli-generated/README.md).
+
+## Status and limits
+
+Status: **Shipped (alpha)**. The EJS adapter renders MVC views and Live component templates with containment, the model contract and debug line info, and is tested on Express and Fastify.
+
+- No streaming and no precompilation: templates render as complete strings and compile at runtime (cached per instance in production).
+- Included partials are recompiled on each include call even in production, because EJS 7 has no per-instance compiled-include cache.
+- Layout nesting is composed explicitly (render a layout as a view).
+- Template JavaScript runs with `with (locals)`; templates must stay trusted application code.
+
+## Testing
+
+```sh
+pnpm --filter @nestvexa/engine-ejs test
+```
+
+Runs `tests/engine-ejs.test.ts` (escaping, includes, containment, model contract, caching, errors) and `tests/engine-live.test.ts` (Live components rendered by EJS, Pug and Nunjucks on Express and Fastify); build first with `pnpm --filter @nestvexa/engine-ejs... build` because the tests import `dist`. Namespaces and themes for all adapters are covered by `tests/views-composition.test.ts`, and umbrella registration by `tests/umbrella-view-engines.test.ts`, both in the root suite.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

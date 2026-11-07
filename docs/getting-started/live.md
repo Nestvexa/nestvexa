@@ -188,11 +188,11 @@ authorization. Details: [Live protocol](../guides/live-protocol.md) and
 - Validation with Zod or class-validator: [forms](../guides/forms.md).
 - Other engines for components: [template engines](../guides/template-engines.md#live-components-on-any-engine).
 
-> **Known gap:** Live state lives in the process-local `MemoryLiveStore`; there
-> is no shared store, so several replicas need sticky sessions and a restart
-> loses component state (requests fail closed). `@State` custom serializers,
-> `@Action({ concurrency, idempotent })`, Alpine `$live` entanglement beyond
-> `call/get/set` are not implemented. Live actions need JavaScript; for
+> **Known gap:** the default `MemoryLiveStore` is per process, so several
+> replicas need sticky sessions or the shared `RedisLiveStore` from
+> `@nestvexa/realtime-redis` (single Redis primary only), and a restart of a
+> memory-store process loses component state (requests fail closed). Alpine
+> `$live.state` and `$live.entangle` are intentionally not provided. Live actions need JavaScript; for
 > no-JavaScript submissions post an ordinary form to a controller
 > ([forms guide](../guides/forms.md#4-the-same-form-without-javascript)). Nest testing helpers for components (a Livewire-style
 > `test()` API) do not exist; tests drive real Nest apps over HTTP.

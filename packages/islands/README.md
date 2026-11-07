@@ -3,15 +3,25 @@
 Allowlisted React, Vue and Svelte **islands** inside Nestvexa HBS and Live pages, with
 explicit DOM ownership: the framework owns its island root, Live and Alpine never
 patch inside it, and Live morphs retain island roots. Optional; not part of the
-default `nestvexa` install.
+default `nestvexa` install. Its only runtime dependency is `@nestvexa/views`
+(for `SafeHtml` fallbacks); it composes with `@nestvexa/live` pages and
+`@nestvexa/actions` services without depending on them. See the
+[islands guide](../../docs/guides/islands.md).
 
 ## Install
 
+Not published yet. Build local tarballs with `pnpm build && pnpm test:pack`
+(written to `artifacts/packages`) and install the `.tgz` files. After
+owner-authorized publication the registry syntax will be:
+
 ```sh
-npm install @nestvexa/islands
+pnpm add @nestvexa/islands
 # plus the frameworks you use (optional peers)
-npm install react react-dom   # and/or vue, svelte
+pnpm add react react-dom   # and/or vue, svelte
 ```
+
+(`npm install` and `yarn add` take the same package names.) Optional peers:
+`react`/`react-dom` `^19`, `vue` `^3.5`, `svelte` `^5`. ESM only.
 
 Node 22.13+ or 24 on the server. Browser bundles are built with your bundler:
 esbuild with code splitting (hybrid dashboard example) or Vite through
@@ -263,13 +273,42 @@ must be trusted (`SafeHtml`) or plain text (escaped). SSR output is framework
 generated. Tenant and permission checks stay server-side; signed props prove
 origin only.
 
+## Examples
+
+- [hybrid dashboard](../../examples/hybrid-dashboard/README.md): esbuild
+  build, Live-owned React island, SSR React/Vue/Svelte islands, typed actions.
+- [islands-vite](../../examples/islands-vite/README.md): the same islands built
+  through Vite, manifest-only production loader and a dev-mode server.
+
+## Status and limits
+
+Status: **Shipped (alpha)**. Registry, manifest allowlist, closed props
+schemas, signed props, SSR and hydration for React, Vue and Svelte, all four
+mount strategies, the event bridge, Live retention and bundle budgets work and
+are tested in unit, real-browser and Playwright suites.
+
+- Vue attribute-only hydration mismatches are not repaired by Vue in
+  production builds and therefore not reported.
+- Props schemas are a closed JSON-schema subset (no `pattern`, `format` or
+  `$ref`); validate richer contracts in your server action.
+- The CLI islands template builds with Vite but does not use
+  `islandsVitePlugin` yet; the `hybrid-dashboard` esbuild path and the Vite path
+  are both supported.
+- The `islands-vite` Playwright suite had two load flakes (Firefox, WebKit)
+  in the combined dev/prod run; it passes in isolation.
+
 ## Testing
 
 ```sh
-pnpm build
-pnpm vitest run tests/islands.test.ts tests/islands-client.test.ts tests/islands-bundle.test.ts tests/islands-vite.test.ts
-pnpm exec playwright test tests/browser/islands.spec.ts tests/browser/islands-vite.spec.ts
+pnpm --filter @nestvexa/islands test
 ```
+
+Runs `tests/islands*.test.ts` (`islands`, `islands-client`, `islands-bundle`,
+`islands-vite`) with the root Vitest config; the tests import
+`packages/*/dist`, so run `pnpm --filter @nestvexa/islands... build` first, and
+`islands-bundle`/`islands-vite` also read the built hybrid-dashboard and
+islands-vite examples. Browser specs run separately through Playwright:
+`tests/browser/islands.spec.ts` and `tests/browser/islands-vite.spec.ts`.
 
 `islands-vite.test.ts` covers the Vite plugin, `createViteIslandManifest`,
 `moduleIslandRenderers` and the islands-vite example build;
@@ -288,3 +327,7 @@ Svelte islands that hydrate and call typed server actions; its browser spec
 covers Live retention, removal and reinsertion, typed actions, signed props,
 clean and mismatched hydration, no-JS output, navigation cleanup, the unmount
 race and axe checks. License: MIT.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

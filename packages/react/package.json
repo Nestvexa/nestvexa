@@ -4,6 +4,12 @@
   "description": "Official @inertiajs/react client and SSR entry helpers for Nestvexa Inertia hosts built with Vite",
   "license": "MIT",
   "author": "Nestvexa contributors",
+  "maintainers": [
+    {
+      "name": "Nestvexa",
+      "url": "https://github.com/Nestvexa"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Nestvexa/nestvexa.git",
@@ -42,7 +48,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run ../../tests/react-adapter.test.ts",
+    "test": "vitest run --root ../.. tests/react-adapter",
     "lint": "eslint src"
   },
   "dependencies": {

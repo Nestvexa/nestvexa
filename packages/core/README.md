@@ -4,7 +4,9 @@ Nestvexa's small NestJS kernel: validated immutable configuration and explicit c
 
 ## Install and requirements
 
-Use `pnpm add @nestvexa/core @nestjs/common reflect-metadata rxjs` (equivalently `npm install` or `yarn add`). Registry publication is pending owner authorization; use workspace or packed artifacts meanwhile. Node 22+ and NestJS 12, TypeScript legacy decorators (`experimentalDecorators` and `emitDecoratorMetadata`) are required. ESM import is supported; CommonJS `require` is not advertised.
+Registry publication is pending owner authorization; meanwhile install the local tarballs produced by `pnpm build && pnpm test:pack`. Future registry syntax: `pnpm add @nestvexa/core @nestjs/common reflect-metadata rxjs` (equivalently `npm install` or `yarn add`). Peers are `@nestjs/common` ^12, `reflect-metadata` ^0.2.2 and `rxjs` ^7.8.1; there are no runtime dependencies. Node 22+ and TypeScript legacy decorators (`experimentalDecorators` and `emitDecoratorMetadata`) are required. The package is ESM; its `default` export condition lets CommonJS hosts load it through `require(esm)`.
+
+Architecture role: core is the dependency-free base of the stack. The `nestvexa` umbrella depends on it and re-exports its public API, and `NestvexaModule.forRoot` passes its third argument to `CoreModule` as the kernel registration, so most applications use core through `nestvexa` rather than installing it directly.
 
 ```ts
 import { Module } from '@nestjs/common';
@@ -30,7 +32,7 @@ export class AppModule {}
 - `NestvexaError`, `NestvexaConfigError`: typed `code` plus diagnostic message; these are not HTTP error envelopes. `NESTVEXA_ERROR_CODES` documents each code.
 - `NESTVEXA_OPTIONS`, `NestvexaOptions`, `NormalizedNestvexaOptions`, `NestvexaAsyncOptions`, `NestvexaOptionsFactory`, `CoreModuleRegistration`, `FeatureCapability`, `NestvexaErrorCode`, `NestvexaConfigIssue`: integration tokens and contracts.
 
-Providers are scoped to the importing module, not global. Separate applications receive separate registries. Do not put per-user state in a registry. No dependency on template engines, Live, Inertia, frontend frameworks or DOM globals. HTTP adapter support belongs to higher-level integration packages; no HTTP hooks run on import. Policy, request scope and action pipeline behavior are not implemented by this package.
+Providers are scoped to the importing module unless `global: true` is set. Separate applications receive separate registries. Do not put per-user state in a registry. No dependency on template engines, Live, Inertia, frontend frameworks or DOM globals. HTTP adapter support belongs to higher-level integration packages; no HTTP hooks run on import. Request admission and the action pipeline are enforced by higher-level packages (Live, actions); the kernel services below describe and evaluate policies and build request contexts.
 
 ## Typed routes
 
@@ -133,8 +135,29 @@ register?(context), contributeContext?(request), shutdown?() }`. At module init,
   then the capability and security registries are sealed. `shutdown` runs in reverse
   order and one failure does not block the others. Duplicate names fail at startup.
 
-## Development and compatibility
+## Compatibility
 
-Run root `pnpm exec vitest run tests/core-kernel.test.ts tests/core.test.ts tests/core-config.test.ts tests/architecture-runtime.test.ts tests/core-routes.test.ts tests/core-plugins.test.ts`; `pnpm --filter @nestvexa/core build` builds declarations and ESM output. Tests boot real Nest testing modules and cover factory rejection, isolation, malformed input and registries. See [core tests](../../tests/core.test.ts), [root README](../../README.md) and [changelog](../../CHANGELOG.md). Packed consumption and the full Node/OS matrix must pass before release; NestJS 12 is the intended peer range, not evidence that every patch has been tested.
+Packed consumption and the full Node/OS matrix must pass before release; NestJS 12 is the intended peer range, not evidence that every patch has been tested. Changes use the repository Changesets policy. APIs may change during alpha with migration notes. See the [root README](../../README.md) and the [configuration reference](../../docs/reference/configuration.md).
 
-Maintainer identity and repository/issue URLs await the owner; none are fabricated. Changes use the repository Changesets policy. APIs may change during alpha with migration notes.
+## Status and limits
+
+Status: **Shipped (alpha)**. Configuration, registries, typed routes, the plugin registry and the kernel services (request context, exception filter, redaction, security policy and diagnostics registries, extensions) are implemented and tested on Express and Fastify.
+
+- `NestvexaExceptionFilter` is opt-in (`app.useGlobalFilters(...)`); exception messages are logged as written apart from credential scrubbing.
+- Views do not read the CSP nonce from `RequestContextFactory` automatically; hosts pass it.
+- `SecurityPolicyRegistry` describes and evaluates policies; Live keeps enforcing its own copy, and `@nestvexa/uploads` does not register its quotas there yet.
+- `DiagnosticsRegistry` has no exporter (OpenTelemetry stays in `@nestvexa/observability`).
+- `PluginRegistry` is separate from the extension hooks, and no out-of-tree plugin package has been consumed from a tarball.
+- Typed routes do not reflect controllers added inside `forRootAsync` factories, Nest versioning or host constraints, and do not generate permission-aware links.
+
+## Testing
+
+```sh
+pnpm --filter @nestvexa/core test
+```
+
+Runs `tests/core.test.ts` and `tests/core-*.test.ts` (config, kernel services, plugins, typed routes); the tests boot real Nest testing modules and cover factory rejection, isolation, malformed input and registries. Build first with `pnpm --filter @nestvexa/core build` because the tests import `dist`. The import-side-effect check in `tests/architecture-runtime.test.ts` runs in the root suite.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

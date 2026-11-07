@@ -4,7 +4,7 @@ An isolated [Pug](https://pugjs.org) 3.0.4 adapter implementing the `ViewEngineA
 
 ## Install
 
-After owner-authorized publication: `npm install @nestvexa/engine-pug`, `pnpm add @nestvexa/engine-pug` or `yarn add @nestvexa/engine-pug`. Before publication, use the workspace or a packed tarball. Node 22+, ESM only. Dependencies are `@nestvexa/views` and pinned `pug` 3.0.4 (MIT); there are no peer dependencies. The `nestvexa` umbrella does **not** install this package; the default install stays HBS-only.
+The package is not published yet: install the workspace package or the local tarball produced by `pnpm build && pnpm test:pack`. Future registry syntax after owner-authorized publication: `npm install @nestvexa/engine-pug`, `pnpm add @nestvexa/engine-pug` or `yarn add @nestvexa/engine-pug`. Node 22+, ESM (the `default` export condition also lets CommonJS hosts load it through `require(esm)`). Dependencies are `@nestvexa/views` and pinned `pug` 3.0.4 (MIT); there are no peer dependencies. The `nestvexa` umbrella does **not** install this package; the default install stays HBS-only, and `nestvexa add engine pug` adds and wires it.
 
 ## Minimal usage
 
@@ -52,7 +52,7 @@ app.setBaseViewsDir(root);
 app.setViewEngine('pug');
 ```
 
-Use Nest's `@Render('home')` as usual. `renderFile` rejects files outside the root and strips Express `settings`, `_locals` and `cache`. On Fastify: `fastify.decorateReply('view', async function (view, model) { return this.type('text/html; charset=utf-8').send(await engine.render(view, model)); })`. The umbrella's `NestvexaModule.forRoot({ views })` currently configures only HBS; register this adapter manually.
+Use Nest's `@Render('home')` as usual. `renderFile` rejects files outside the root and strips Express `settings`, `_locals` and `cache`. On Fastify: `fastify.decorateReply('view', async function (view, model) { return this.type('text/html; charset=utf-8').send(await engine.render(view, model)); })`. In an umbrella app, `NestvexaModule.forRoot({ views })` keeps HBS as the primary engine; render `.pug` views next to it with `await registerViewEngine(app, 'pug', engine)` from `nestvexa` before `app.listen()` (Express `app.engine()`, Fastify `reply.view` extension dispatch). Without the umbrella, register the adapter manually as shown.
 
 ### Live components
 
@@ -109,10 +109,31 @@ The adapter compiles with Pug's documented `compileClient` and binds the result 
 
 Templates, filters and helpers are trusted code. Models accept finite JSON values, `undefined` and `SafeHtml` only; prototype keys, accessors, class instances, functions, symbols, cycles and oversized structures are rejected without invoking getters. Pug templates can reference globals; never compile templates from browser input.
 
-## Testing
-
-From the repository root: `pnpm --filter @nestvexa/views --filter @nestvexa/engine-pug build`, then `pnpm exec vitest run tests/engine-pug.test.ts tests/engine-live.test.ts`. See the [template engine guide](../../docs/guides/template-engines.md), [views API](../views/README.md) and [changelog](../../CHANGELOG.md).
-
 ## Namespaces and themes
 
 `namespaces` (name -> directory) and `themes` (name -> override directory) options resolve `admin::users/index` views and per-render `RenderOptions.theme` overrides for the view, its layout and its includes, with the same containment rules as the root. See the [template engine guide](../../docs/guides/template-engines.md#namespaces-and-themes) for the include rules specific to Pug. Covered by `tests/views-composition.test.ts`.
+
+## Links
+
+See the [template engine guide](../../docs/guides/template-engines.md), the [views API](../views/README.md), [`examples/cli-generated`](../../examples/cli-generated/README.md) (a `nestvexa make:page --renderer pug` page).
+
+## Status and limits
+
+Status: **Shipped (alpha)**. The Pug adapter renders MVC views and Live component templates with containment, the model contract and debug line info, and is tested on Express and Fastify.
+
+- No streaming and no precompilation: runtime compilation, cached per instance in production.
+- `RenderOptions.partials` is unsupported (includes resolve at compile time) and fails with `UNSUPPORTED_CAPABILITY`.
+- `SafeHtml` is never emitted as raw attribute markup.
+- Pug templates can reference globals; never compile templates from browser input.
+
+## Testing
+
+```sh
+pnpm --filter @nestvexa/engine-pug test
+```
+
+Runs `tests/engine-pug.test.ts` (escaping, includes, filters, containment, caching, errors) and `tests/engine-live.test.ts` (Live components rendered by EJS, Pug and Nunjucks on Express and Fastify); build first with `pnpm --filter @nestvexa/engine-pug... build` because the tests import `dist`. Namespaces and themes for all adapters are covered by `tests/views-composition.test.ts`, and umbrella registration by `tests/umbrella-view-engines.test.ts`, both in the root suite.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

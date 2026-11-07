@@ -4,6 +4,12 @@
   "description": "Optional provider-neutral streaming chat adapter with server-enforced tool approval for Nestvexa",
   "license": "MIT",
   "author": "Nestvexa contributors",
+  "maintainers": [
+    {
+      "name": "Nestvexa",
+      "url": "https://github.com/Nestvexa"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Nestvexa/nestvexa.git",
@@ -42,6 +48,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json",
+    "test": "vitest run --root ../.. tests/ai-",
     "lint": "eslint src"
   },
   "peerDependencies": {

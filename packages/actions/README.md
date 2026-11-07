@@ -14,14 +14,23 @@ it is `@Injectable`, public or named a certain way: a method becomes a route onl
 when it is decorated with `@ServerAction` on an `@ActionGroup` class **and** that
 class is listed in `ActionsModule.register({ groups })`.
 
-Status: experimental alpha (`0.1.0-alpha.0`), not published. Framework hooks
-(React/Vue/Svelte wrappers), streaming results and job tickets are planned for
-later phases; the client is framework-neutral today.
+Status: experimental alpha (`0.1.0-alpha.0`), not published. The client is
+framework-neutral; the code generator can also emit React hooks, Vue
+composables, Svelte stores and Live element helpers, and long-running actions
+answer `202` with a job ticket (see below).
+
+The package is optional: the `nestvexa` umbrella package does not include it, so
+add it next to `nestvexa` (or plain Nest) when you want universal actions. It has
+no runtime dependency on other Nestvexa packages; the job queue and telemetry
+hooks are structural, so `@nestvexa/realtime` and `@nestvexa/observability` plug
+in without being dependencies.
 
 ## Install
 
-Not yet on the registry. Build local tarballs with `pnpm build && pnpm test:pack`.
-Future registry syntax: `npm install @nestvexa/actions` / `pnpm add @nestvexa/actions`.
+Not yet on the registry. Build local tarballs with `pnpm build && pnpm test:pack`
+and install the packed `.tgz` file. Future registry syntax:
+`npm install @nestvexa/actions` / `pnpm add @nestvexa/actions` /
+`yarn add @nestvexa/actions`.
 
 Peer dependencies: `@nestjs/common` ^12, `@nestjs/core` ^12, `reflect-metadata`
 ^0.2.2, `rxjs` ^7.8.2. `typescript` ^6 is an **optional** peer needed only for
@@ -385,23 +394,17 @@ class filters on the group win; the actions envelope filter is the last resort.
   undo work; services must honor `AbortSignal` and own their transactions.
 - Logs never include inputs; the default logger records 5xx with request id.
 
-## Testing
+## Project links
 
-Root suites (build first): `tests/actions-metadata.test.ts`, `actions-runtime.test.ts`,
-`actions-http.test.ts` (Express and Fastify apps with global/class/method guards,
-request-scoped providers, pipes, interceptors, filters and the negative corpus),
-`actions-client.test.ts`, `actions-codegen.test.ts` (deterministic output,
-framework targets and `tsc --noEmit` against passing and failing consumer
-fixtures), `actions-jobs.test.ts` (202 tickets, owner-bound polling and
-cancellation over Express and Fastify, `JobRunner` compatibility, spans and
-redacted logs), `actions-security.test.ts` (expired/tampered tokens, expired
-idempotency records, non-boolean policies, unguarded groups),
-`actions-client-state.test.ts` (controller, `settle`, element binding in
-Chromium) and the browser specs `tests/browser/actions.spec.ts` and
-`tests/browser/islands.spec.ts` (typed actions from React, Vue and Svelte
-islands).
+See the [security policy](../../SECURITY.md),
+[server actions guide](../../docs/guides/server-actions.md) and
+[ADR 0019](../../docs/adr/0019-universal-server-actions.md). MIT licensed.
 
-## Caveats
+## Status and limits
+
+Status: **Shipped (alpha)**. Registration, admission, the Nest pipeline, typed
+codegen with framework targets, `202` job tickets and per-call tracing and logs
+are implemented and covered by HTTP, codegen and browser tests.
 
 - Global interceptors wrap the action envelope (they see `{ ok, data }`), while
   class/method interceptors see the raw return value. Global exception filters do
@@ -411,14 +414,37 @@ islands).
 - Fastify rejects some malformed bodies (for example `__proto__` keys) in its own
   parser with a plain 400 before routing.
 - The memory idempotency store, rate limiter and serial locks are process-local;
-  multi-instance deployments need shared implementations (Redis adapters arrive
-  in a later phase).
+  multi-instance deployments need shared implementations of the same contracts
+  (no Redis adapter ships for them yet). `jobRunnerQueue` runs accepted work in
+  the accepting process; a durable queue is host-supplied.
+- Results are a single JSON envelope or a job ticket; there is no incremental
+  streaming of an action's return value (progress streams through the job
+  `stream.channel`).
+- Coexistence with Nest GraphQL or microservice transports is untested.
 - The `ActionInput` name also exists in `@nestvexa/live` with Live semantics;
   import it from the package that owns the class you decorate.
 
-## Project links
+## Testing
 
-See the [security policy](../../SECURITY.md), [changelog](../../CHANGELOG.md),
-[server actions guide](../../docs/guides/server-actions.md) and
-[ADR 0019](../../docs/adr/0019-universal-server-actions.md). Maintainer and
-hosted repository URLs await owner input; MIT licensed.
+```sh
+pnpm --filter @nestvexa/actions test
+```
+
+Runs the root suites `tests/actions-*.test.ts` (build first with
+`pnpm --filter @nestvexa/actions... build`, since tests import `dist`):
+metadata, runtime, `actions-http.test.ts` (Express and Fastify apps with
+global/class/method guards, request-scoped providers, pipes, interceptors,
+filters and the negative corpus), client, `actions-codegen.test.ts`
+(deterministic output, framework targets and `tsc --noEmit` against passing and
+failing consumer fixtures), `actions-jobs.test.ts` (202 tickets, owner-bound
+polling and cancellation over Express and Fastify, `JobRunner` compatibility,
+spans and redacted logs), `actions-security.test.ts` (expired/tampered tokens,
+expired idempotency records, non-boolean policies, unguarded groups) and
+`actions-client-state.test.ts` (controller, `settle`, element binding in
+Chromium). The browser specs `tests/browser/actions.spec.ts` and
+`tests/browser/islands.spec.ts` (typed actions from React, Vue and Svelte
+islands) run through the root Playwright config.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

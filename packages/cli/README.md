@@ -7,13 +7,18 @@ code safely.
 
 ## Install
 
+Not published yet: build local tarballs with `pnpm build && pnpm test:pack` and
+install the packed `.tgz` file as a dev dependency. Future registry syntax:
+
 ```sh
-npm install --save-dev @nestvexa/cli
+npm install --save-dev @nestvexa/cli    # or: pnpm add -D / yarn add -D
 npx nestvexa --help
 ```
 
-Node 22.13+ or 24. The CLI depends on `typescript` for AST-based source edits.
-It never prompts; every command is scriptable and supports `--dry-run`.
+Node 22.13+ or 24, ESM. The CLI depends on `typescript` (pinned) for AST-based
+source edits and has no peers. The `nestvexa` umbrella declares it as a peer and
+its own `nestvexa` bin delegates to it. The CLI never prompts; every command is
+scriptable and supports `--dry-run`.
 
 ## Commands
 
@@ -155,23 +160,34 @@ resource, realtime, uploads, i18n, migrate) plus one hand-written showcase page.
 `tests/cli-example.test.ts` regenerates it and fails on any difference;
 `tests/browser/cli-generated.spec.ts` drives it in a browser with axe.
 
-## Limits
+Full reference: [docs/reference/cli.md](../../docs/reference/cli.md). License: MIT.
 
-Live components keep the umbrella HBS renderer (`make:component --view`
-accepts only `hbs`). `make:resource --orm` generates only the in-memory service.
-The generated session/identity
-policies are guest starters and must be replaced for production. `inspect:*`
-reads source statically and cannot see routes registered dynamically.
-`make:test` targets vitest (jest projects get `@jest/globals` imports, not
-type-checked in this repository).
+## Status and limits
+
+Status: **Partial**. Every listed command is implemented on Express and Fastify
+hosts and covered by generator, boot and browser tests; the clauses below are
+missing.
+
+- `make:resource --orm` generates only the in-memory service; other ORMs exit 2
+  (DX-016).
+- Live components keep the umbrella HBS renderer (`make:component --view`
+  accepts only `hbs`).
+- The generated session/identity policies are guest starters and must be
+  replaced for production.
+- `inspect:*` reads source statically and cannot see routes registered
+  dynamically.
+- `make:test` targets vitest (jest projects get `@jest/globals` imports, not
+  type-checked in this repository).
+- Only two migrations exist so far; the CLI does not run your formatter.
 
 ## Testing
 
 ```sh
-pnpm --filter @nestvexa/cli... build
-pnpm exec vitest run tests/cli.test.ts tests/cli-generators.test.ts tests/cli-fastify.test.ts tests/cli-inertia-ssr.test.ts tests/cli-example.test.ts tests/dev-errors.test.ts
+pnpm --filter @nestvexa/cli test
 ```
 
+Runs `tests/cli.test.ts` and `tests/cli-*.test.ts` (build first with
+`pnpm --filter @nestvexa/cli... build`, since the tests use workspace `dist`).
 `tests/cli.test.ts` runs `init` and generators on a fresh CommonJS Nest app,
 compiles, boots it and executes a Live action. `tests/cli-generators.test.ts`
 runs every `add` (idempotency and dry run) and generator on a strict ESM app,
@@ -182,6 +198,11 @@ templates, output modes, Windows paths, `build` and the migration framework.
 `tests/cli-fastify.test.ts` does the same on a Fastify app (sessions, engines,
 Inertia, islands, uploads, realtime and redis against a RESP test double).
 `tests/cli-inertia-ssr.test.ts` builds the three generated roots with Vite and
-checks production SSR.
+checks production SSR, and `tests/cli-example.test.ts` regenerates
+`examples/cli-generated`. The development error page is covered by
+`tests/dev-errors.test.ts`, and `tests/browser/cli-generated.spec.ts` runs
+through the root Playwright config.
 
-Full reference: [docs/reference/cli.md](../../docs/reference/cli.md). License: MIT.
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

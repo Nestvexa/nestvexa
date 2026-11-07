@@ -6,11 +6,21 @@ dependencies and no vendor lock-in.
 
 ## Install
 
+Not published yet. Build local tarballs with `pnpm build && pnpm test:pack`
+(written to `artifacts/packages`) and install the `.tgz` file. After
+owner-authorized publication the registry syntax will be:
+
 ```sh
 npm install @nestvexa/observability
+pnpm add @nestvexa/observability
+yarn add @nestvexa/observability
 ```
 
-Peers for the devtools module: `@nestjs/common`/`@nestjs/core` 12. Node 22.13+ or 24.
+Peers: `@nestjs/common`/`@nestjs/core` 12, `reflect-metadata` 0.2, `rxjs` 7.8
+(used by the devtools module and the error filter). Node 22.13+ or 24, ESM only.
+It is not part of the `nestvexa` umbrella and no Nestvexa package depends on it:
+Live, actions, uploads, Inertia, realtime and Vite accept its `instrumentation`
+shape structurally, and an OpenTelemetry `Tracer` is passed in, not imported.
 
 ## Live spans
 
@@ -231,10 +241,40 @@ are read for excerpts; every value is HTML-escaped; responses are `no-store` wit
 `default-src 'none'`. `nestvexa doctor --production` fails when `DevErrorFilter`
 or `DevtoolsModule` is registered in a file without a `NODE_ENV` guard.
 
+## Status and limits
+
+Status: **Partial**. Live and cross-package spans, the OpenTelemetry bridge,
+trace context, request ids, render budgets, redacted logging, the devtools panel
+and the development error page work and are tested; the panel still lacks named
+DX-033 views.
+
+- The panel does not show browser-side morph timing or network batches (use the
+  client `onDiagnostic` option and browser developer tools), cache hit/miss,
+  prop resolution, nested child renders, a live subscription gauge or MVC-only
+  renderer counts (DX-033).
+- `@nestvexa/client` does not send `traceparent`; client-side spans need a
+  browser OpenTelemetry SDK (DX-035, by design).
+- A devtools browser extension is out of scope for v1
+  ([ADR 0034](../../docs/adr/0034-devtools-browser-extension-scope.md)).
+- Render budgets do not detect N+1 queries or island bundle sizes.
+- `MemoryInstrumentation` keeps the last `capacity` (default 500) records in process memory; export
+  production telemetry through the OpenTelemetry bridge.
+
 ## Testing
 
 ```sh
-pnpm build && pnpm vitest run tests/observability.test.ts tests/observability-tracing.test.ts tests/observability-spans.test.ts tests/devtools-inspector.test.ts tests/devtools-browser.test.ts tests/dev-errors.test.ts
+pnpm --filter @nestvexa/observability test
 ```
 
+Runs `tests/observability*.test.ts` and `tests/devtools-*.test.ts` with the root
+Vitest config (`devtools-browser` drives Chromium, plus Firefox and WebKit with
+`NV_UI_BROWSERS`); the tests import `packages/*/dist` of Live, the HBS engine,
+actions, uploads, Inertia, realtime and Vite, so run `pnpm build` first. The
+development error page suite runs separately:
+`pnpm exec vitest run tests/dev-errors.test.ts`.
+
 See the [observability guide](../../docs/guides/observability.md). License: MIT.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

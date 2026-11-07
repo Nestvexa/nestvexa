@@ -15,14 +15,30 @@ on Node 22/24, Express and the official Inertia 3.10.0 clients. See the
 
 ## Install
 
+Not published yet. Build local tarballs with `pnpm build && pnpm test:pack`
+(written to `artifacts/packages`) and install the `.tgz` files together. After
+owner-authorized publication the registry syntax will be:
+
 ```sh
 pnpm add @nestvexa/vite
 pnpm add -D vite   # only for development mode
 ```
 
+(`npm install` and `yarn add` take the same package names.)
+
 Peer dependencies: `vite` `^8` is an **optional** peer, needed only by
 `createViteDevServer`. Production (manifest mode) never imports Vite, so it can
 be omitted from production installs. Node `^22.13 || ^24`, ESM only.
+
+## Architecture and dependencies
+
+The asset layer between a Vite build and Nest: `@nestvexa/inertia` roots use
+`viteInertiaRootView` and the SSR renderers, the `@nestvexa/react`, `/vue` and
+`/svelte` adapters depend on it for the page registry and the official SSR
+server launcher, `@nestvexa/islands/build` (`islandsVitePlugin`) builds islands
+through Vite, and HBS/Live pages print manifest tags with `viteViewHelpers`.
+Its only runtime dependency is `@nestvexa/views` (`SafeHtml`). It is optional
+and **not** included in the `nestvexa` umbrella.
 
 ## Usage
 
@@ -163,21 +179,51 @@ Also exports `isPageName` and the shared types `InertiaPageLike`,
 - Run production hosts with `NODE_ENV=production` so externalized framework
   runtimes load their production builds.
 
+## Compatibility
+
+- Vite 8 (`build.rolldownOptions`) is the tested version.
+- `viteStaticMiddleware` is tested on Express; Fastify uses it through
+  `@fastify/middie` (`request.raw`).
+- Examples: [`examples/inertia-react`](../../examples/inertia-react),
+  [`examples/inertia-vue`](../../examples/inertia-vue),
+  [`examples/inertia-svelte`](../../examples/inertia-svelte),
+  [`examples/inertia-mixed`](../../examples/inertia-mixed) (HBS/Live page
+  assets through `viteTags`) and
+  [`examples/islands-vite`](../../examples/islands-vite) (islands built with
+  Vite, production manifest and `--dev` mode).
+
+## Status and limits
+
+Status: **Shipped (alpha)**. Manifest tags, immutable static serving, in-process
+and official-server SSR, middleware-mode dev server with HMR, the CSP nonce
+middleware and the Inertia and HBS/Live view helpers are implemented and
+tested.
+
+- `viteStaticMiddleware` behind Fastify (`@fastify/middie`) is not covered by
+  a test.
+- In-process SSR shares the Nest event loop and its timeout cannot abort a
+  running render (see Security and performance).
+- The static index is built once at startup; a rebuild needs a restart.
+- Manifests from Vite versions before 8 are not tested.
+
 ## Testing
 
-`tests/vite-manifest.test.ts`, `tests/vite-static.test.ts` (raw-socket
+```sh
+pnpm --filter @nestvexa/vite test
+```
+
+Runs `tests/vite-manifest.test.ts`, `tests/vite-static.test.ts` (raw-socket
 traversal corpus, Nest Express host), `tests/vite-ssr.test.ts` (fallback/strict
 through `@nestvexa/inertia`), `tests/vite-dev.test.ts` (real Vite middleware
-mode and SSR reload), `tests/vite-builds.test.ts` (source maps, duplicate
+mode and SSR reload) and `tests/vite-builds.test.ts` (source maps, duplicate
 modules/runtimes and browser-only code in SSR bundles of the real example
-builds). Browser coverage: `tests/browser/inertia-*.spec.ts` (the mixed host's
-`/live` route loads its assets through `viteTags`).
+builds, so the examples must be built too); the tests import
+`packages/*/dist`, so run `pnpm --filter @nestvexa/vite... build` first. Browser coverage runs separately
+through Playwright: `tests/browser/inertia-*.spec.ts` (the mixed host's `/live`
+route loads its assets through `viteTags`), `tests/browser/inertia-hmr.spec.ts`
+(browser HMR for the React, Vue and Svelte examples in dev mode) and
+`tests/browser/islands-vite.spec.ts`.
 
-## Caveats and compatibility
+## Maintainers
 
-- Vite 8 (`build.rolldownOptions`); manifests from Vite 5–7 share the format.
-- HMR through middleware mode is implemented and unit-tested at the server
-  level (client module serving, SSR module reload); browser HMR is not covered
-  by automated tests.
-- `viteStaticMiddleware` is tested on Express; Fastify uses it through
-  `@fastify/middie` (`request.raw`), untested here.
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

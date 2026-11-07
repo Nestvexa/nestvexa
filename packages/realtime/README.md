@@ -7,14 +7,19 @@ progress. Optional: the default `nestvexa` install does not include it.
 
 ## Install
 
+Not published yet: install the tarballs produced by `pnpm build && pnpm test:pack`.
+The future registry syntax, after owner-authorized publication, is:
+
 ```sh
-npm install @nestvexa/realtime
+npm install @nestvexa/realtime   # or: pnpm add / yarn add
 # optional WebSocket transport
 npm install ws
 ```
 
-Peers: `@nestjs/common` and `@nestjs/core` 12, `reflect-metadata`, `rxjs`; `ws` 8
-(optional). Node 22.13+ or 24.
+Peers: `@nestjs/common` and `@nestjs/core` 12, `reflect-metadata` 0.2, `rxjs` 7;
+`ws` 8 (optional). No runtime dependencies. ESM only; Node 22.13+ or 24. The
+browser side lives in `@nestvexa/client`; the Redis entry point for several
+replicas is [`@nestvexa/realtime-redis`](../realtime-redis/README.md).
 
 ## How it works
 
@@ -108,7 +113,7 @@ or the umbrella `browser.realtime` option.
 - Pushed data is never applied as server state; components re-render through the
   normal Live security pipeline.
 
-## Delivery semantics and limits
+## Delivery semantics
 
 At-most-once per connected subscriber. The memory broker replays the last 100
 events per channel (`replaySize`) after reconnect, for at most 10,000 channels
@@ -116,22 +121,34 @@ events per channel (`replaySize`) after reconnect, for at most 10,000 channels
 first, so per-user channel names cannot grow memory without bound); unknown or
 evicted cursors replay nothing and clients refresh. Redis pub/sub is
 fire-and-forget. The default `MemoryJobQueue` keeps jobs in memory only;
-presence and replay windows are per replica. The unit tests use an in-process
-RESP test double; `pnpm test:services`
-([guide](../../docs/guides/production-services.md)) runs the broker against real
-Redis (two OS processes, Redis restart) and the two-replica browser acceptance
-suite of [`examples/distributed-live`](../../examples/distributed-live/README.md).
-The in-process hub churn check in `pnpm load` covers single-replica memory;
-distributed load testing is not yet done.
+presence and replay windows are per replica.
+
+## Examples
+
+[realtime-dashboard](../../examples/realtime-dashboard/README.md) (channels,
+jobs with progress), [starter-live](../../examples/starter-live/README.md) and
+[distributed-live](../../examples/distributed-live/README.md) (two replicas and
+Redis, presence, SSE and WebSocket).
+
+## Status and limits
+
+Status: **Partial**. Authorized SSE, long-polling and WebSocket invalidation, presence, rate limits, the memory and Redis-protocol brokers and the job runner are implemented and tested, including a two-replica browser run against Redis 7; the clauses below remain open.
+
+- Transport is chosen per app/client, not per component, and `auto` falls back from SSE to polling but never tries WebSocket (REAL-004).
+- Presence counts members connected to one replica; there is no cross-replica aggregation and no dedicated notification/dashboard primitive (REAL-009).
+- Events published on a channel before its subscription is established are not replayed (REAL-006).
+- No durable job queue ships: `MemoryJobQueue` loses jobs on restart and BullMQ is a documented recipe only (DATA-010, DATA-011).
+- The Redis broker implementation still lives in this package; `@nestvexa/realtime-redis/realtime` re-exports it (REAL-002, ADR 0032).
+- Browser reconnect and deduplication across a replica restart, subscription-leak and slow-client checks are unit-tested at hub level only; the two-replica suite runs on Express only, and distributed load testing is not done (REAL-014).
 
 ## Testing
 
 ```sh
-pnpm build && pnpm exec vitest run tests/realtime.test.ts tests/realtime-hub.test.ts \
-  tests/realtime-jobs.test.ts tests/realtime-live.test.ts tests/client-realtime.test.ts
-pnpm exec playwright test tests/browser/realtime.spec.ts tests/browser/realtime-transports.spec.ts
-NESTVEXA_REDIS_PORT=6379 pnpm test:services
+pnpm --filter @nestvexa/realtime test
 ```
 
-See the [realtime guide](../../docs/guides/realtime.md) and
-[ADR 0009](../../docs/adr/0009-realtime-backpressure.md). License: MIT.
+Runs `tests/realtime.test.ts` and `tests/realtime-*.test.ts` (hub, jobs, Live integration) with the root Vitest config against an in-process RESP test double; the tests import `packages/*/dist`, so run `pnpm --filter @nestvexa/realtime... build` first. Run separately: the browser controller in `tests/client-realtime.test.ts`, the token property tests (`pnpm test:property`), the browser specs `tests/browser/realtime.spec.ts`, `realtime-transports.spec.ts` and `realtime-dashboard.spec.ts` (`pnpm test:e2e`), and `NESTVEXA_REDIS_PORT=6379 pnpm test:services`, which runs the broker against real Redis (two OS processes, Redis restart) and the two-replica browser suite ([guide](../../docs/guides/production-services.md)). See the [realtime guide](../../docs/guides/realtime.md) and [ADR 0009](../../docs/adr/0009-realtime-backpressure.md). License: MIT.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

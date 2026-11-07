@@ -130,7 +130,7 @@ data-only grammar — no expressions are evaluated. See the
 | [@nestvexa/svelte](packages/svelte/README.md)                   | Official `@inertiajs/svelte` (Svelte 5) boot and SSR helpers (optional)                         |
 | [@nestvexa/islands](packages/islands/README.md)                 | Allowlisted React/Vue/Svelte islands with explicit DOM ownership (optional)                     |
 | [@nestvexa/i18n](packages/i18n/README.md)                       | Locale negotiation, ICU-style catalogs, Intl formatting, RTL helpers (optional)                 |
-| [@nestvexa/ui](packages/ui/README.md)                           | Unstyled accessible HBS/Live primitives with keyboard module and theme (optional)               |
+| [@nestvexa/ui](packages/ui/README.md)                           | Accessible HBS/Live primitives, React/Vue/Svelte wrappers, keyboard module and theme (optional) |
 | [@nestvexa/ai](packages/ai/README.md)                           | Provider-neutral streaming chat with server-enforced tool approval (optional)                   |
 | [@nestvexa/flags](packages/flags/README.md)                     | Server-enforced feature flags: guard, view and Live policy helpers (optional)                   |
 | [@nestvexa/offline](packages/offline/README.md)                 | Identity-scoped drafts, read-only snapshots, safe reconnect (optional)                          |
@@ -230,22 +230,36 @@ pnpm size:check && pnpm docs:build && pnpm ledger:check
 pnpm checkpoint:check     # all of the above plus coverage, bench, audit and release:check
 ```
 
-`release:check` intentionally fails while mandatory acceptance work remains.
-Linux execution, real Redis/S3/ClamAV services and load tests have not been run.
+`release:check` intentionally fails while mandatory acceptance work remains. A
+Linux checkpoint (Ubuntu 24.04 in Docker) and the real-service suite
+(`pnpm test:services`: Redis 7, SeaweedFS S3, ClamAV, and a two-replica Redis browser
+run) have passed; see [STATUS.md](docs/implementation/STATUS.md). Load tests have not
+been run.
+
+Each package also has its own `test` script that runs that package's suites from the
+root Vitest config, for example `pnpm --filter @nestvexa/cache test`. Build the package
+and its dependencies first (`pnpm --filter @nestvexa/cache... build`), because the tests
+import `dist`.
 
 ## Known limitations
 
 - This is an alpha with no stability promise. There has been no independent security
   review, and no load, fuzz or mutation testing.
-- Live state lives in one process (`MemoryLiveStore`). Several replicas need sticky
-  sessions. No two-replica Redis browser run has been executed.
-- Not implemented yet:
-  - Inertia Precognition
-  - typed React/Vue/Svelte action hooks
-  - island SSR
-  - CLI scaffolding for React/Vue/Svelte pages
-- 15 packages cannot be loaded with `require()` from CommonJS yet; use `import()`
-  there ([details](docs/architecture/package-dependency-graph.md#output-format)).
+- Live state defaults to one process (`MemoryLiveStore`). For several replicas,
+  use `RedisLiveStore` from `@nestvexa/realtime-redis`. It supports a single Redis
+  primary only, with no Sentinel failover and no Redis Cluster. Cross-replica
+  idempotent replay is tested only against an in-process Redis test double.
+- Server-action idempotency, rate limits and serial locks are process-local, and
+  action results do not stream.
+- Coexistence with Nest GraphQL and microservice transports is untested.
+- Not implemented:
+  - Inertia `shareOnce` sugar and error-page helpers
+  - UI kit chart and form-field wrappers
+  - an offline action queue (deliberate, ADR 0026)
+  - Live `layout`/`isolated` options and `@Layout`/`@Transition`, by design
+    ([ADR 0035](docs/adr/0035-live-layout-isolation-and-transitions.md))
+- Packages are ESM. CommonJS hosts load them through Node 22.12+ `require(esm)`
+  ([details](docs/architecture/package-dependency-graph.md#output-format)).
 - As of 2026-11-05 the packages do not appear on the public npm registry. Install
   them from the `pnpm test:pack` tarballs.
 
@@ -255,5 +269,7 @@ The [feature matrix](docs/feature-matrix.md) and [roadmap](ROADMAP.md) list the 
 
 [Contributing](CONTRIBUTING.md) · [Governance](GOVERNANCE.md) · [Security](SECURITY.md) ·
 [Support](SUPPORT.md) · [Roadmap](ROADMAP.md) · [Changelog](CHANGELOG.md) ·
-[ADRs](docs/adr/) · [License (MIT)](LICENSE). Registry scope ownership, maintainer
-identity and official URLs are owner-supplied release prerequisites.
+[ADRs](docs/adr/) · [License (MIT)](LICENSE). Every package declares the GitHub
+organization `Nestvexa` as maintainer. Review ownership is in
+[CODEOWNERS](.github/CODEOWNERS). Registry scope ownership, individual maintainers and
+official URLs are owner-supplied release prerequisites.

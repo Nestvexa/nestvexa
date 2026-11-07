@@ -81,7 +81,8 @@ The full status-code table, prop evaluation model and parity matrix are in the
 > testing assertions (`assertInertia` from `@nestvexa/inertia/testing`) are
 > implemented. **Known gap:** `shareOnce()` sugar and an error-page rendering
 > helper are not implemented; write a Nest exception filter that calls
-> `InertiaService.render` for error pages. Several client-owned features
-> (history encryption, view transitions, prefetching, polling, infinite scroll)
-> are emitted by the server but not yet verified in browser tests with the
-> official clients.
+> `InertiaService.render` for error pages. Client-owned features (history
+> encryption, view transitions, prefetching, polling, infinite scroll,
+> `WhenVisible`) are verified with the official React client in
+> [browser tests](../../tests/browser/inertia-react-features.spec.ts); scroll
+> management and the progress indicator are not asserted separately.

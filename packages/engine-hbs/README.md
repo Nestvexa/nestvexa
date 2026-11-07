@@ -1,8 +1,12 @@
 # @nestvexa/engine-hbs
 
-An isolated Handlebars 4.7.10 adapter for Nestvexa. Default HBS rendering requires no React, Vue, Svelte or Vite installation. Alpha software; consult the root release blockers before production use.
+An isolated Handlebars 4.7.10 adapter implementing the `ViewEngineAdapter` contract from `@nestvexa/views`. It is the default engine of the `nestvexa` umbrella, which depends on it, configures native Nest `@Render` with it and uses it as the Live renderer. Default HBS rendering requires no React, Vue, Svelte or Vite installation. Alpha software; consult the root release blockers before production use.
 
-After owner-authorized publication: `npm install @nestvexa/engine-hbs`, `pnpm add @nestvexa/engine-hbs`, or `yarn add @nestvexa/engine-hbs`. Before publication, use workspace or packed artifacts. Node 22+, ESM; dependencies are `@nestvexa/views` and pinned Handlebars, with no additional peers.
+## Install
+
+The package is not published yet: use the workspace package or the local tarball produced by `pnpm build && pnpm test:pack`. Future registry syntax after owner-authorized publication: `npm install @nestvexa/engine-hbs`, `pnpm add @nestvexa/engine-hbs`, or `yarn add @nestvexa/engine-hbs`. Applications using `nestvexa` get it automatically. Node 22+, ESM (the `default` export condition lets CommonJS hosts load it through `require(esm)`); dependencies are `@nestvexa/views` and pinned Handlebars 4.7.10, with no peers.
+
+## Usage
 
 ```ts
 import { HbsEngine } from '@nestvexa/engine-hbs';
@@ -20,7 +24,9 @@ await engine.dispose();
 `layouts/main.hbs`: `<main>{{body}}</main>`.
 Layout body is internally trusted rendered HTML. Named trusted slots use `{{slots.sidebar}}` and `render` options `{ slots: { sidebar: SafeHtml.trusted(renderedFragment) } }`. The explicit trusted API belongs to `@nestvexa/views`; never wrap user input. Normal interpolation escapes HTML. Triple braces intentionally bypass escaping and must only appear in trusted templates. Escaping alone does not validate URL schemes or script/style contexts; avoid placing untrusted values there.
 
-Public API: `HbsEngine`, `HbsOptions`, `HbsPrecompiledViews`, `render(view, model, options?)` (`layout`, `partials`, `helpers`, `slots`, `theme`), `renderFile(filename, model, callback)` (Express bridge), `precompile(views)`, `initialize`, `clearCache`, `dispose`, `name`, `extensions`, `capabilities`. The umbrella configures native Nest `@Render`; the low-level package itself registers no routes or global hooks. No decorators exported.
+## API, options and security
+
+Public API: `HbsEngine`, `HbsOptions`, `HbsPrecompiledViews`, `render(view, model, options?)` (`layout`, `partials`, `helpers`, `slots`, `theme`), `renderFile(filename, model, callback)` (Express bridge), `registerHelpers(helpers)`, `precompile(views)`, `initialize`, `clearCache`, `dispose`, `name`, `extensions`, `capabilities`. The umbrella configures native Nest `@Render`; the low-level package itself registers no routes or global hooks. No decorators exported.
 
 `registerHelpers(helpers)` adds trusted engine-wide helpers after construction, which is how optional packages such as `@nestvexa/i18n`, `@nestvexa/ui` and `@nestvexa/flags` plug into an engine owned by the umbrella: call `app.get(HbsEngine).registerHelpers(...)` before `configureNestvexa(app)`. Registration is locked once `initialize()` or the first render runs; duplicate names, non-function values, accessors and the reserved `nv` + uppercase prefix are rejected. Helpers receive the Handlebars context as `this`, so trusted block helpers can render their body with `options.fn(this)`.
 
@@ -70,4 +76,27 @@ const html = await production.render('home', { title: 'Precompiled' });
 
 The precompiled map contains executable application code, not JSON. Load only your trusted build artifact, using a static import. In this mode the original `.hbs` files/root need not exist, missing registered views fail closed, layout parents recorded by `{{!< parent}}` are kept, themes are refused with `UNSUPPORTED_CAPABILITY`, and there is no source compilation fallback or module loading by view ID. The root remains necessary for the Express filename bridge. Rebuild modules and restart after template changes; `clearCache` affects source-mode caching only. Match compiler/runtime Handlebars versions through the lockfile. This API avoids compilation during rendering; it does not currently strip the compiler dependency from the server bundle. Upstream contracts: [precompile/template](https://handlebarsjs.com/api-reference/compilation.html), [runtime security options](https://handlebarsjs.com/api-reference/runtime-options.html).
 
-Run `pnpm --filter @nestvexa/views build`, `pnpm --filter @nestvexa/engine-hbs build`, then `pnpm exec vitest run tests/views.test.ts tests/views-composition.test.ts tests/views-error-pages.test.ts` from repository root. See [root examples/setup](../../README.md), [views API](../views/README.md), [changelog](../../CHANGELOG.md). The framework compatibility matrix and pack-consumer checks are root release gates.
+## Links
+
+See the [template engine guide](../../docs/guides/template-engines.md), the [views API](../views/README.md), the [root setup](../../README.md) and [`examples/starter-hbs`](../../examples/starter-hbs/README.md). The framework compatibility matrix and pack-consumer checks are root release gates.
+
+## Status and limits
+
+Status: **Shipped (alpha)**. Rendering, nested layouts, namespaces, themes, debug line info, helper registration and precompiled views are implemented and tested.
+
+- Streaming is unsupported; views render as complete strings.
+- Precompiled mode refuses themes and does not strip the Handlebars compiler from the server bundle.
+- Helpers must be synchronous; async data belongs in `ViewEngineRegistry` composers.
+- Layout nesting stops at 8 levels; template directories must be writable only by trusted deployment tooling.
+
+## Testing
+
+```sh
+pnpm --filter @nestvexa/engine-hbs test
+```
+
+Runs `tests/views.test.ts` (trust boundaries, containment, model contract, caching, precompilation) and `tests/views-composition.test.ts` (namespaces, themes, nested layouts, development line info, link/metadata helpers); build first with `pnpm --filter @nestvexa/engine-hbs... build` because the tests import `dist`. View-rendered error pages (`tests/views-error-pages.test.ts`) and helper registration by `@nestvexa/i18n` (`tests/i18n-hbs.test.ts`) run in the root suite, and `tests/browser/mvc.spec.ts` covers HBS pages through the root Playwright config.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

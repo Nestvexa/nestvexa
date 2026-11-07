@@ -16,6 +16,10 @@ installing UI or i18n code, and the UI kit stays free of authorization logic.
 
 ## Install
 
+The package is not published yet: build local tarballs with
+`pnpm build && pnpm test:pack` and install the packed `.tgz` file. Future
+registry syntax:
+
 ```sh
 npm install @nestvexa/flags
 pnpm add @nestvexa/flags
@@ -23,7 +27,8 @@ yarn add @nestvexa/flags
 ```
 
 Peers: `@nestjs/common` and `@nestjs/core` 12, `reflect-metadata` 0.2, `rxjs` 7.8.
-Node 22.13+ or 24, ESM. No runtime dependencies.
+Node 22.13+ or 24, ESM. No runtime dependencies; it does not depend on other
+Nestvexa packages (the HBS helper and Live wrapper are structural).
 
 ## Usage
 
@@ -132,16 +137,35 @@ Inside an action, `await flagService.assert('bulk-export', { identity })` throws
   are re-evaluated per request and a revoked flag takes effect on the next action.
 - Do not encode flags in realtime channel names or URLs.
 
+## Compatibility and links
+
+Node 22.13+/24, NestJS 12. The guard uses the standard Nest `CanActivate` API.
+[`examples/admin-i18n`](../../examples/admin-i18n/README.md) gates an assistant
+panel and an export route with flags (`ai-assistant` on, `bulk-export` off).
+
+## Status and limits
+
+Status: **Shipped (alpha)**. The provider interface, rule provider, fail-closed
+service, guard, HBS helper and Live wrapper are implemented and tested.
+
+- `StaticFlagProvider` is in-process configuration; changing rules requires a
+  restart or your own provider. There is no flag management UI or remote sync,
+  and no adapter for a hosted flag service ships.
+- The Nest guard tests run on Express only; Fastify is not exercised.
+
 ## Testing
 
 ```sh
-pnpm --filter @nestvexa/flags build
-pnpm exec vitest run tests/flags-core.test.ts tests/flags-nest.test.ts
+pnpm --filter @nestvexa/flags test
 ```
 
-## Caveats and compatibility
+Runs `tests/flags-core.test.ts` (rules, buckets, service failure behavior,
+helper, Live wrapper) and `tests/flags-nest.test.ts` (module, guard and
+per-request memoization in a Nest Express app); build first with
+`pnpm --filter @nestvexa/flags... build` because the tests import `dist`.
+`tests/browser/admin-i18n.spec.ts` covers the flagged example through the root
+Playwright config.
 
-`StaticFlagProvider` is in-process configuration; changing rules requires a
-restart or your own provider. There is no flag management UI or remote sync. Node
-22.13+/24, NestJS 12 (Express and Fastify guards behave the same). See the
-[changelog](../../CHANGELOG.md).
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

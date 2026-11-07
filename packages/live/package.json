@@ -4,6 +4,12 @@
   "description": "Explicit NestJS live component routes with bound server-side state",
   "license": "MIT",
   "author": "Nestvexa contributors",
+  "maintainers": [
+    {
+      "name": "Nestvexa",
+      "url": "https://github.com/Nestvexa"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Nestvexa/nestvexa.git",
@@ -37,7 +43,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run ../../tests/live-protocol.test.ts ../../tests/live.test.ts ../../tests/live-async.test.ts",
+    "test": "vitest run --root ../.. tests/live.test tests/live- tests/property-live-protocol",
     "lint": "eslint src"
   },
   "dependencies": {

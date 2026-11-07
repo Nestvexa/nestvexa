@@ -4,6 +4,12 @@
   "description": "Explicit Alpine integration for the Nestvexa Live client",
   "license": "MIT",
   "author": "Nestvexa contributors",
+  "maintainers": [
+    {
+      "name": "Nestvexa",
+      "url": "https://github.com/Nestvexa"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Nestvexa/nestvexa.git",
@@ -37,7 +43,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run ../../tests/alpine.test.ts ../../tests/alpine-start.test.ts",
+    "test": "vitest run --root ../.. tests/alpine",
     "lint": "eslint src"
   },
   "dependencies": {

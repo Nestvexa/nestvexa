@@ -4,6 +4,12 @@
   "description": "NestJS-native full-stack rendering: default Handlebars distribution",
   "license": "MIT",
   "author": "Nestvexa contributors",
+  "maintainers": [
+    {
+      "name": "Nestvexa",
+      "url": "https://github.com/Nestvexa"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Nestvexa/nestvexa.git",
@@ -43,7 +49,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run ../../tests/integration.test.ts ../../tests/assets.test.ts ../../tests/umbrella-live.test.ts",
+    "test": "vitest run --root ../.. tests/integration.test tests/assets.test tests/umbrella-",
     "lint": "eslint src"
   },
   "dependencies": {

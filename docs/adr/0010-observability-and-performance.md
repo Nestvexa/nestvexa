@@ -38,3 +38,17 @@ gzip cap and explicit Alpine/maps exclusions. Server/OTel spans and comparative
 production measurements remain later work.
 
 [The current benchmark script](../../scripts/bench.mjs) measures HBS rendering only. [Lifecycle tests](../../tests/lifecycle.test.ts) exercise current engine cleanup/cache isolation. They are not production load, heap-leak or end-to-end latency evidence. Browser timing redaction tests and per-module bundle estimates now exist. OpenTelemetry integration, the broader server redaction corpus, comparison baseline, long-running memory tests, distributed throughput and render-budget diagnostics remain pending. No measured result should be copied from a target in the master specification.
+
+## Status update (2026-11-07)
+
+Server diagnostics now exist in `@nestvexa/observability`. It has Live and
+cross-package spans, an OpenTelemetry bridge (the host passes in a `Tracer`),
+W3C trace context, request ids, development render budgets, redacted logging and
+the development panel ([ADR 0034](0034-devtools-browser-extension-scope.md)).
+Tests: `tests/observability.test.ts`, `tests/observability-spans.test.ts`,
+`tests/observability-tracing.test.ts` and `tests/devtools-inspector.test.ts`.
+The browser client does not send `traceparent`.
+
+Still open, as above: production load and comparative baselines, long-running
+memory tests and distributed throughput. No measured performance target is
+claimed.

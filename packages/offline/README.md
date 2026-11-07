@@ -16,9 +16,10 @@ module you serve yourself.
 
 ## Installation
 
-After owner-authorized publication: `npm install @nestvexa/offline`,
-`pnpm add @nestvexa/offline` or `yarn add @nestvexa/offline`. Before
-publication, use the workspace package or packed tarballs.
+Not published yet: install the tarballs produced by
+`pnpm build && pnpm test:pack`, or use the workspace package. After
+owner-authorized publication: `npm install @nestvexa/offline`,
+`pnpm add @nestvexa/offline` or `yarn add @nestvexa/offline`.
 
 - Node `^22.13.0 || ^24.0.0`, ESM only.
 - No runtime dependencies and no peer dependencies.
@@ -230,7 +231,8 @@ so a 401 after logout cannot reveal stale content. Options: `cache`, `key`,
   holds drafts until TTL, logout or purge; logout clears all scopes.
 - No action is ever replayed. There is deliberately **no offline action
   queue**: section 16.2 of the master plan allows queueing only allowlisted
-  idempotent operations, and none is implemented here.
+  idempotent operations, and none is implemented here
+  ([ADR 0026](../../docs/adr/0026-extensions-i18n-ui-ai.md), item 7).
 - Restored snapshots are inert and carry no Live snapshot, CSRF token or form
   target.
 
@@ -242,22 +244,24 @@ moving focus. The snapshot region is labelled and shows its save time as
 visible text. Translate every message through the `data-nv-draft-message-*`
 attributes.
 
-## Testing
+## Compatibility
 
-```sh
-pnpm --filter @nestvexa/offline build
-pnpm exec vitest run tests/offline-
-```
+Evergreen Chromium, Firefox and WebKit (uses `inert`, `MutationObserver`,
+`BroadcastChannel` when available, `TextEncoder`, `crypto.getRandomValues`).
+Changes follow [the changelog](../../CHANGELOG.md).
 
-The suites run in real Chromium against a strict-CSP fixture server:
-[drafts](../../tests/offline-drafts.test.ts),
-[snapshots](../../tests/offline-snapshot.test.ts),
-[server helpers](../../tests/offline-server.test.ts). See also the
-[offline guide](../../docs/guides/offline.md) and the core advisory
-indicator [`nv:offline`](../../docs/reference/nv-offline.md).
+## Examples
 
-## Production caveats
+[offline-progressive](../../examples/offline-progressive/README.md) combines
+drafts, snapshots and logout clearing with a Live form; see also the
+[offline guide](../../docs/guides/offline.md) and the core advisory indicator
+[`nv:offline`](../../docs/reference/nv-offline.md).
 
+## Status and limits
+
+Status: **Partial**. Opt-in drafts, read-only snapshots, the safe reconnect flow and logout clearing are implemented and tested in real Chromium; the allowlisted offline action queue the specification names is deliberately absent.
+
+- No offline action queue, even for allowlisted idempotent operations (EXT-014; deliberate, ADR 0026).
 - **No service worker.** Reloading a page while fully offline shows the
   browser's own error page; snapshots only help within an already loaded page.
 - Conflict handling is limited to "review and submit again": the server stays
@@ -267,8 +271,14 @@ indicator [`nv:offline`](../../docs/reference/nv-offline.md).
 - `BroadcastChannel` and storage events only reach tabs of the same origin
   and browser profile.
 
-## Compatibility
+## Testing
 
-Evergreen Chromium, Firefox and WebKit (uses `inert`, `MutationObserver`,
-`BroadcastChannel` when available, `TextEncoder`, `crypto.getRandomValues`).
-Changes follow [the changelog](../../CHANGELOG.md).
+```sh
+pnpm --filter @nestvexa/offline test
+```
+
+Runs `tests/offline-*.test.ts` ([drafts](../../tests/offline-drafts.test.ts), [snapshots](../../tests/offline-snapshot.test.ts), [server helpers](../../tests/offline-server.test.ts)) with the root Vitest config; the browser suites drive real Chromium against a strict-CSP fixture server. The tests import `packages/*/dist`, so run `pnpm --filter @nestvexa/offline... build` first. The example spec `tests/browser/offline-progressive.spec.ts` runs separately with `pnpm test:e2e`.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

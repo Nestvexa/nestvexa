@@ -4,7 +4,7 @@ An isolated [Nunjucks](https://mozilla.github.io/nunjucks/) 3.2.4 adapter implem
 
 ## Install
 
-After owner-authorized publication: `npm install @nestvexa/engine-nunjucks`, `pnpm add @nestvexa/engine-nunjucks` or `yarn add @nestvexa/engine-nunjucks`. Before publication, use the workspace or a packed tarball. Node 22+, ESM only. Dependencies are `@nestvexa/views` and pinned `nunjucks` 3.2.4 (BSD-2-Clause); there are no peer dependencies and the published declarations do not require `@types/nunjucks`. The `nestvexa` umbrella does **not** install this package; the default install stays HBS-only.
+The package is not published yet: install the workspace package or the local tarball produced by `pnpm build && pnpm test:pack`. Future registry syntax after owner-authorized publication: `npm install @nestvexa/engine-nunjucks`, `pnpm add @nestvexa/engine-nunjucks` or `yarn add @nestvexa/engine-nunjucks`. Node 22+, ESM (the `default` export condition also lets CommonJS hosts load it through `require(esm)`). Dependencies are `@nestvexa/views` and pinned `nunjucks` 3.2.4 (BSD-2-Clause); there are no peer dependencies and the published declarations do not require `@types/nunjucks`. The `nestvexa` umbrella does **not** install this package; the default install stays HBS-only, and `nestvexa add engine nunjucks` adds and wires it.
 
 ## Minimal usage
 
@@ -47,7 +47,7 @@ app.setBaseViewsDir(root);
 app.setViewEngine('njk');
 ```
 
-Use Nest's `@Render('home')` as usual. Do not call `nunjucks.configure(...).express(app)`: that installs Nunjucks' unrestricted `FileSystemLoader`. On Fastify: `fastify.decorateReply('view', async function (view, model) { return this.type('text/html; charset=utf-8').send(await engine.render(view, model)); })`. The umbrella's `NestvexaModule.forRoot({ views })` currently configures only HBS; register this adapter manually.
+Use Nest's `@Render('home')` as usual. Do not call `nunjucks.configure(...).express(app)`: that installs Nunjucks' unrestricted `FileSystemLoader`. On Fastify: `fastify.decorateReply('view', async function (view, model) { return this.type('text/html; charset=utf-8').send(await engine.render(view, model)); })`. In an umbrella app, `NestvexaModule.forRoot({ views })` keeps HBS as the primary engine; render `.njk` views next to it with `await registerViewEngine(app, 'njk', engine)` from `nestvexa` before `app.listen()` (Express `app.engine()`, Fastify `reply.view` extension dispatch). Without the umbrella, register the adapter manually as shown.
 
 ### Live components
 
@@ -95,10 +95,31 @@ Autoescaping is always enabled and cannot be disabled through adapter options. `
 
 Never render templates from browser input (`renderString` with user text is code execution). Templates, filters and helpers are trusted code. Models accept finite JSON values, `undefined` and `SafeHtml` only; prototype keys, accessors, class instances, functions, symbols, cycles and oversized structures are rejected without invoking getters.
 
-## Testing
-
-From the repository root: `pnpm --filter @nestvexa/views --filter @nestvexa/engine-nunjucks build`, then `pnpm exec vitest run tests/engine-nunjucks.test.ts tests/engine-live.test.ts`. See the [template engine guide](../../docs/guides/template-engines.md), [views API](../views/README.md) and [changelog](../../CHANGELOG.md).
-
 ## Namespaces and themes
 
 `namespaces` (name -> directory) and `themes` (name -> override directory) options resolve `admin::users/index` views and per-render `RenderOptions.theme` overrides for the view, its layout and its includes, with the same containment rules as the root. See the [template engine guide](../../docs/guides/template-engines.md#namespaces-and-themes) for the include rules specific to Nunjucks. Covered by `tests/views-composition.test.ts`.
+
+## Links
+
+See the [template engine guide](../../docs/guides/template-engines.md), the [views API](../views/README.md), [`examples/cli-generated`](../../examples/cli-generated/README.md) (a `nestvexa make:page --renderer nunjucks` page).
+
+## Status and limits
+
+Status: **Shipped (alpha)**. The Nunjucks adapter renders MVC views and Live component templates with containment, the model contract and debug line info, and is tested on Express and Fastify.
+
+- No streaming, and Nunjucks precompiled loaders are not wired by this adapter.
+- Template names are root-relative IDs only; relative `./x`/`../x` references are rejected.
+- Filters and helpers must be synchronous; async filters are rejected.
+- Never render templates from browser input (`renderString` with user text is code execution).
+
+## Testing
+
+```sh
+pnpm --filter @nestvexa/engine-nunjucks test
+```
+
+Runs `tests/engine-nunjucks.test.ts` (escaping, loader containment, aliases, caching, line-corrected errors) and `tests/engine-live.test.ts` (Live components rendered by EJS, Pug and Nunjucks on Express and Fastify); build first with `pnpm --filter @nestvexa/engine-nunjucks... build` because the tests import `dist`. Namespaces and themes for all adapters are covered by `tests/views-composition.test.ts`, and umbrella registration by `tests/umbrella-view-engines.test.ts`, both in the root suite.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).
