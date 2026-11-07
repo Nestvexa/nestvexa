@@ -4,7 +4,9 @@ Nestvexa's small NestJS kernel: validated immutable configuration and explicit c
 
 ## Install and requirements
 
-Use `pnpm add @nestvexa/core @nestjs/common reflect-metadata rxjs` (equivalently `npm install` or `yarn add`). Registry publication is pending owner authorization; use workspace or packed artifacts meanwhile. Node 22+ and NestJS 12, TypeScript legacy decorators (`experimentalDecorators` and `emitDecoratorMetadata`) are required. ESM import is supported; CommonJS `require` is not advertised.
+Registry publication is pending owner authorization; meanwhile install the local tarballs produced by `pnpm build && pnpm test:pack`. Future registry syntax: `pnpm add @nestvexa/core @nestjs/common reflect-metadata rxjs` (equivalently `npm install` or `yarn add`). Peers are `@nestjs/common` ^12, `reflect-metadata` ^0.2.2 and `rxjs` ^7.8.1; there are no runtime dependencies. Node 22+ and TypeScript legacy decorators (`experimentalDecorators` and `emitDecoratorMetadata`) are required. The package is ESM; its `default` export condition lets CommonJS hosts load it through `require(esm)`.
+
+Architecture role: core is the dependency-free base of the stack. The `nestvexa` umbrella depends on it and re-exports its public API, and `NestvexaModule.forRoot` passes its third argument to `CoreModule` as the kernel registration, so most applications use core through `nestvexa` rather than installing it directly.
 
 ```ts
 import { Module } from '@nestjs/common';
@@ -30,7 +32,7 @@ export class AppModule {}
 - `NestvexaError`, `NestvexaConfigError`: typed `code` plus diagnostic message; these are not HTTP error envelopes. `NESTVEXA_ERROR_CODES` documents each code.
 - `NESTVEXA_OPTIONS`, `NestvexaOptions`, `NormalizedNestvexaOptions`, `NestvexaAsyncOptions`, `NestvexaOptionsFactory`, `CoreModuleRegistration`, `FeatureCapability`, `NestvexaErrorCode`, `NestvexaConfigIssue`: integration tokens and contracts.
 
-Providers are scoped to the importing module, not global. Separate applications receive separate registries. Do not put per-user state in a registry. No dependency on template engines, Live, Inertia, frontend frameworks or DOM globals. HTTP adapter support belongs to higher-level integration packages; no HTTP hooks run on import. Policy, request scope and action pipeline behavior are not implemented by this package.
+Providers are scoped to the importing module unless `global: true` is set. Separate applications receive separate registries. Do not put per-user state in a registry. No dependency on template engines, Live, Inertia, frontend frameworks or DOM globals. HTTP adapter support belongs to higher-level integration packages; no HTTP hooks run on import. Request admission and the action pipeline are enforced by higher-level packages (Live, actions); the kernel services below describe and evaluate policies and build request contexts.
 
 ## Typed routes
 
@@ -65,15 +67,60 @@ route('users.index', {}, { page: 2 }); // '/api/admin/users?page=2'
 - `buildPath(template, params, query?)` is the runtime equivalent; it also rejects unknown and non-primitive parameters.
 - Limits: `moduleControllers` walks static `@Module` imports and dynamic modules returned by `forRoot`; controllers added only inside `forRootAsync` factories, Nest versioning and host constraints are not reflected. Permission-aware links are not generated: check authorization where you render the link.
 
-## Plugin registry contract
+## Extensions and legacy plugins
+
+`NestvexaExtension` is the one public extension model (see "Kernel services" below):
+capability flags, `register`, `contributeContext`, `shutdown`, plus an optional `version`
+and a supported `nestvexa` range that is checked against `NESTVEXA_VERSION` when the
+application starts (an excluded version fails startup with `UNSUPPORTED_CAPABILITY`).
 
 ```ts
-const registry = new PluginRegistry({ frameworkVersion: '0.1.0-alpha.0' });
-registry.install(chartsPlugin); // an object you imported explicitly
-registry.seal();
+const charts = defineExtension({
+  name: 'acme.charts',
+  version: '1.2.0',
+  nestvexa: '^0.1.0-alpha.0',
+  capabilities: { 'island-renderer:acme.charts': { supported: true } },
+  register: ({ capabilities, security, diagnostics }) => {
+    /* startup only */
+  },
+});
+CoreModule.forRoot(options, { extensions: [charts] });
 ```
 
-A plugin is `{ manifest: { name, version, nestvexa, capabilities, description? }, setup?(context) }`. `parsePluginManifest` validates manifests (own data properties only, unknown keys rejected, npm-style names, semver versions, a supported Nestvexa range and capabilities from `PLUGIN_CAPABILITIES`: `view-engine`, `state-synthesizer`, `action-policy`, `storage`, `cache`, `realtime-transport`, `island-renderer`, `cli-generator`, `instrumentation`, `ui-kit`). `install` rejects strings (names and URLs never become imports), duplicates, plugins whose `nestvexa` range does not include the running version and installs after `seal()`; a throwing `setup` leaves the plugin uninstalled. `satisfiesVersion` implements the range subset (`=`, `>`, `>=`, `<`, `<=`, `^`, `~`, spaces, `||`, prerelease precedence). The registry never downloads, resolves or evaluates code.
+The older plugin contract is a **deprecated adapter** over extensions. A plugin is
+`{ manifest: { name, version, nestvexa, capabilities, description? }, setup?(context) }`;
+`parsePluginManifest` validates manifests (own data properties only, unknown keys
+rejected, npm-style names, semver versions, a supported Nestvexa range and capabilities
+from `PLUGIN_CAPABILITIES`: `view-engine`, `state-synthesizer`, `action-policy`,
+`storage`, `cache`, `realtime-transport`, `island-renderer`, `cli-generator`,
+`instrumentation`, `ui-kit`). Nothing resolves, downloads or evaluates code; strings are
+rejected so names and URLs never become imports.
+
+Migration (no behavior is lost):
+
+```ts
+// Before (deprecated): a standalone registry the kernel never saw.
+const registry = new PluginRegistry({ frameworkVersion: '0.1.0-alpha.0' });
+registry.install(chartsPlugin);
+registry.seal();
+
+// After: install the plugin as an extension.
+CoreModule.forRoot(options, { extensions: [pluginExtension(chartsPlugin)] });
+// Or keep the registry for now and hand its plugins to the kernel.
+CoreModule.forRoot(options, { extensions: registry.extensions() });
+```
+
+`pluginExtension(plugin, { name? })` keeps the plugin's `version` and `nestvexa` range,
+declares each manifest capability as the flag `<capability>:<name>` (for example
+`ui-kit:acme.nestvexa-charts`), and runs `setup` once from the extension's `register`
+hook with `frameworkVersion` and the capabilities other extensions declared. The
+extension name is the package name with `@scope/name` written as `scope.name`; pass
+`{ name }` when that is not a valid extension name. `registry.extensions()` converts the
+installed plugins without running `setup` again. `PluginRegistry` still rejects
+duplicates, incompatible ranges and installs after `seal()`, and defaults
+`frameworkVersion` to `NESTVEXA_VERSION`. `satisfiesVersion` implements the range subset
+(`=`, `>`, `>=`, `<`, `<=`, `^`, `~`, spaces, `||`, prerelease precedence) and is not
+deprecated.
 
 ## Kernel services
 
@@ -119,22 +166,48 @@ correlationId }`. Every error response carries `x-request-id`. Server errors are
   registration (a snapshot policy must bind state to the identity). `verifyCsrf`,
   `originAllowed`, `authorize` and `uploadAllowed` fail closed (missing policy, thrown
   error or non-`true` result denies); `require(owner, kinds)` asserts registration at
-  startup; `report()` lists configuration without functions. The umbrella registers
-  Live's policies under `live`; Live keeps enforcing them itself.
+  startup; `report()` lists configuration without functions. A CSRF policy receives
+  `verify(request, subject?)`, where `subject` is the identity the feature already
+  resolved. Live (`policies` option, owner `live`) and `@nestvexa/uploads` (owner
+  `uploads`, including its `upload-quota`) register their policies here and ask the
+  registry for every origin, CSRF and authorization decision, so the registry is the
+  single source of truth; the `nestvexa` umbrella wires Live automatically.
 - **`DiagnosticsRegistry`**: typed `event`, `metric` and `span` records with bounded,
   primitive, key-redacted attributes; `define()` builds a catalog (`strict` rejects
   undefined names); `subscribe()` listeners are isolated; `recent()` reads a bounded
   buffer for tests and devtools; `instrumentation()` adapts it to the Live
   `instrumentation` hook (the umbrella does this by default).
-- **Extensions** (`NestvexaExtension`, `defineExtension`): `{ name, capabilities?,
-register?(context), contributeContext?(request), shutdown?() }`. At module init,
+- **Extensions** (`NestvexaExtension`, `defineExtension`): `{ name, version?,
+nestvexa?, capabilities?, register?(context), contributeContext?(request), shutdown?() }`.
+  The `nestvexa` range is checked when the host is created. At module init,
   capabilities are declared, `register` runs with the capability, security and
   diagnostics registries, and context contributors are attached, in installation order;
   then the capability and security registries are sealed. `shutdown` runs in reverse
   order and one failure does not block the others. Duplicate names fail at startup.
 
-## Development and compatibility
+## Compatibility
 
-Run root `pnpm exec vitest run tests/core-kernel.test.ts tests/core.test.ts tests/core-config.test.ts tests/architecture-runtime.test.ts tests/core-routes.test.ts tests/core-plugins.test.ts`; `pnpm --filter @nestvexa/core build` builds declarations and ESM output. Tests boot real Nest testing modules and cover factory rejection, isolation, malformed input and registries. See [core tests](../../tests/core.test.ts), [root README](../../README.md) and [changelog](../../CHANGELOG.md). Packed consumption and the full Node/OS matrix must pass before release; NestJS 12 is the intended peer range, not evidence that every patch has been tested.
+Packed consumption and the full Node/OS matrix must pass before release; NestJS 12 is the intended peer range, not evidence that every patch has been tested. Changes use the repository Changesets policy. APIs may change during alpha with migration notes. See the [root README](../../README.md) and the [configuration reference](../../docs/reference/configuration.md).
 
-Maintainer identity and repository/issue URLs await the owner; none are fabricated. Changes use the repository Changesets policy. APIs may change during alpha with migration notes.
+## Status and limits
+
+Status: **Shipped (alpha)**. Configuration, registries, typed routes, the plugin registry and the kernel services (request context, exception filter, redaction, security policy and diagnostics registries, extensions) are implemented and tested on Express and Fastify.
+
+- `NestvexaExceptionFilter` is opt-in (`app.useGlobalFilters(...)`); exception messages are logged as written apart from credential scrubbing.
+- Views do not read the CSP nonce from `RequestContextFactory` automatically; hosts pass it.
+- `SecurityPolicyRegistry` describes and evaluates policies; Live keeps enforcing its own copy, and `@nestvexa/uploads` does not register its quotas there yet.
+- `DiagnosticsRegistry` has no exporter (OpenTelemetry stays in `@nestvexa/observability`).
+- `PluginRegistry` is separate from the extension hooks, and no out-of-tree plugin package has been consumed from a tarball.
+- Typed routes do not reflect controllers added inside `forRootAsync` factories, Nest versioning or host constraints, and do not generate permission-aware links.
+
+## Testing
+
+```sh
+pnpm --filter @nestvexa/core test
+```
+
+Runs `tests/core.test.ts` and `tests/core-*.test.ts` (config, kernel services, plugins, typed routes); the tests boot real Nest testing modules and cover factory rejection, isolation, malformed input and registries. Build first with `pnpm --filter @nestvexa/core build` because the tests import `dist`. The import-side-effect check in `tests/architecture-runtime.test.ts` runs in the root suite.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

@@ -4,6 +4,12 @@
   "description": "Isolated EJS view adapter for Nestvexa",
   "license": "MIT",
   "author": "Nestvexa contributors",
+  "maintainers": [
+    {
+      "name": "Nestvexa",
+      "url": "https://github.com/Nestvexa"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Nestvexa/nestvexa.git",
@@ -41,7 +47,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run ../../tests/engine-ejs.test.ts ../../tests/engine-live.test.ts",
+    "test": "vitest run --root ../.. tests/engine-ejs tests/engine-live",
     "lint": "eslint src"
   }
 }

@@ -91,13 +91,14 @@ See [CSP and security headers](../deployment/csp-and-headers.md).
 
 ## 7. Scale out (optional)
 
-Running more than one replica requires sticky sessions for Live, uploads and jobs,
-and `RespRealtimeBroker` so realtime publishes reach every replica. See
+Running more than one replica needs `RedisLiveStore` (or sticky sessions) for
+Live state, sticky sessions for uploads and in-memory jobs, and a Redis broker so
+realtime publishes reach every replica. See
 [multiple replicas with Redis](../deployment/multi-replica-redis.md).
 
-> **Known gap:** there is no shared Live state store (DATA-004, DATA-005), and two
-> replicas serving one browser through Redis has not been tested end to end
-> (REAL-014).
+> **Known gap:** the Redis adapters support a single Redis primary only, with no
+> Sentinel failover and no Redis Cluster (DATA-004). The two-replica browser suite
+> passed against Redis 7 on Express; load behavior is unverified (REAL-014).
 
 ## 8. Verify the deployment
 

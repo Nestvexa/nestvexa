@@ -35,12 +35,19 @@ export interface BrokenProps {
   readonly reason: string;
 }
 
+/** Hostile strings for the XSS regression suite (--test-controls only). */
+export interface SecurityHostileProps {
+  readonly payloads: readonly string[];
+  readonly links: readonly string[];
+}
+
 export interface AppPages {
   readonly Home: HomeProps;
   readonly 'Users/Index': UsersIndexProps;
   readonly 'Users/Show': UsersShowProps;
   readonly 'Users/Create': Readonly<Record<string, never>>;
   readonly Broken: BrokenProps;
+  readonly 'Security/Hostile': SecurityHostileProps;
 }
 
 /** Pages of the client-feature smoke tour (src/features.ts). */

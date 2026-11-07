@@ -179,6 +179,9 @@ class PageController {
       { views: { root, layout: 'layout' }, live: { enabled: true } },
       {
         components: [ChunkCounter, ChunkBoard],
+        // Integrity-checked boot module and preloads plus an import map that
+        // pins the on-demand chunks.
+        browser: { integrity: true },
         useFactory: () => ({
           origin: `http://127.0.0.1:${port}`,
           resolveIdentity(request: object) {

@@ -172,8 +172,12 @@ root, so navigating between roots is always a full page load
 > previous-URL storage and Inertia test assertions
 > (`@nestvexa/inertia/testing`) are implemented; see the
 > [guide](../guides/inertia.md#empty-responses-and-the-previous-url).
-> Client-owned features such as view transitions, prefetch caching, polling,
-> infinite scroll, `WhenVisible`, remembered state and history encryption are
-> emitted by the server but not yet verified with the official clients in
-> browser tests. The CLI does not scaffold React/Vue/Svelte projects, and there
-> are no React/Vue/Svelte hooks around `@nestvexa/actions` yet.
+> Prefetch, instant visits, view transitions, polling, infinite scroll,
+> `WhenVisible`, remembered state, once props, history encryption and optimistic
+> updates are verified with the official clients in
+> [browser tests](../../tests/browser/inertia-react-features.spec.ts). Scroll
+> management and the progress indicator are client-owned and not asserted
+> separately. `nestvexa add react|vue|svelte` scaffolds a root, and
+> `@nestvexa/actions` codegen emits typed hooks for each framework.
+> `shareOnce` sugar and error-page helpers are not implemented
+> ([package limits](../../packages/inertia/README.md#status-and-limits)).

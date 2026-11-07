@@ -1,45 +1,16 @@
 # @nestvexa/live
 
-Each component operation creates a fresh explicitly registered component using
-the actual Nest request context; request-scoped dependencies remain shared within
-that HTTP request. See [instance isolation](../../docs/guides/component-instance-scope.md).
-
-Ordinary guarded Nest routes can serve [authorized text streams](../../docs/guides/text-streams.md)
-using `LiveRuntime.authorizeStream`, `parseTextStreamRequest` and
-`createTextStreamResponse`. Streams are read-only, bounded, checked around each
-awaited chunk, and cancelled before the HTTP adapter closes. They do not bypass
-host resource policies or claim action-guard execution for a read.
-
-`@Url` and `@Session` pair with explicit public `@State` fields. URL values use
-typed primitive validation; session values use the host-owned session object,
-authoritative identity binding, component/field namespace and TTL. See
-[URL/session state](../../docs/guides/url-session-state.md). Neither decorator
-supplies authentication or a production session store. The [activity example](../../examples/starter-live/src/activity-panel.ts)
-exercises URL history, independent sessions and protected background actions.
-
-`ComputedOptions` now supports synchronous getters and explicit `async: true`
-zero-argument methods, with instance/stage-local memoization, state dependencies,
-TTL and async evaluation deadlines. Returned JSON is detached; computed names
-remain outside writable state and action routes. See
-[computed values](../../docs/guides/computed-values.md) for defaults, invalidation,
-resource bounds, failure handling and alpha migration changes.
-
-Computed methods reject Nest route/parameter/policy decorators such as method-level
-`@UseGuards`: they are not route invocations, so that metadata would not execute.
-Authorize sensitive reads in host routes and services. Normal Live action guards
-and component policies retain their existing execution pipeline.
-
-Phase 4 begins with awaited `boot`, `beforeUpdate` and `afterUpdate` hooks and
-exported `LiveLifecycleHooks`, `LiveUpdateContext` and `ReadonlyLiveValue` types.
-All input validation precedes execution; update context is detached/frozen. See
-[ordering, failure boundaries and reserved-name migration](../../docs/guides/live-update-hooks.md).
-Awaited `beforeRender`, `afterRender`, `onError` and request `dispose` hooks are now implemented; see [the lifecycle guide](../../docs/guides/live-lifecycle.md). Server nesting and whole Phase 4 acceptance remain open.
-
-Experimental Nest-native Live components. This first slice has explicit component/action registration, JSON state, computed getters, opaque server-side snapshots, host identity/CSRF/origin/authorization checks and generated Nest controller routes. It is not the full Live feature set.
+Nest-native Live components (alpha): explicitly registered component classes
+with decorated JSON state, computed values, actions that run through generated
+Nest controller routes, nested children, events and effects, opaque server-side
+snapshots and host identity/CSRF/origin/authorization checks. The `nestvexa`
+umbrella re-exports this package and connects it to its shared HBS renderer and
+browser boot; on its own it works with any renderer implementing the
+`@nestvexa/views` adapter.
 
 ## Install and setup
 
-Not published. Install local tarballs after `pnpm build && pnpm test:pack`. Future registry syntax is `npm install @nestvexa/live` / `pnpm add @nestvexa/live` / `yarn add @nestvexa/live`, subject to owner publication. Peers: Nest12 common/core, reflect-metadata0.2 and RxJS7. Node22.13/24 targeted; actual matrix is recorded separately.
+Not published yet. Install the tarballs produced by `pnpm build && pnpm test:pack`. The future registry syntax is `npm install @nestvexa/live` / `pnpm add @nestvexa/live` / `yarn add @nestvexa/live`, subject to owner publication. Peers: Nest 12 (`@nestjs/common`, `@nestjs/core`), `reflect-metadata` 0.2 and RxJS 7. Runtime dependency: `@nestvexa/views`. ESM only; Node 22.13+ or 24 targeted, with the executed matrix in [compatibility](../../docs/architecture/upstream-compatibility.md).
 
 ```ts
 @LiveComponent({ name: 'counter', view: 'counter' })
@@ -64,7 +35,38 @@ Disjoint registrations may live in separate Nest modules. An application-local D
 
 The host owns the supplied renderer lifecycle: initialize it before requests and dispose it during shutdown, using a Nest lifecycle provider as the counter example does. Live does not automatically initialize/dispose a renderer that may be shared with MVC or another host integration.
 
-## Contracts and limits
+## Features
+
+Each component operation creates a fresh explicitly registered component using
+the actual Nest request context; request-scoped dependencies remain shared within
+that HTTP request. See [instance isolation](../../docs/guides/component-instance-scope.md).
+
+Ordinary guarded Nest routes can serve [authorized text streams](../../docs/guides/text-streams.md)
+using `LiveRuntime.authorizeStream`, `parseTextStreamRequest` and
+`createTextStreamResponse`. Streams are read-only, bounded, checked around each
+awaited chunk, and cancelled before the HTTP adapter closes. They do not bypass
+host resource policies or claim action-guard execution for a read.
+
+`@Url` and `@Session` pair with explicit public `@State` fields. URL values use
+typed primitive validation; session values use the host-owned session object,
+authoritative identity binding, component/field namespace and TTL. See
+[URL/session state](../../docs/guides/url-session-state.md). Neither decorator
+supplies authentication or a production session store. The [activity example](../../examples/starter-live/src/activity-panel.ts)
+exercises URL history, independent sessions and protected background actions.
+
+`ComputedOptions` supports synchronous getters and explicit `async: true`
+zero-argument methods, with instance/stage-local memoization, state dependencies,
+TTL and async evaluation deadlines. Returned JSON is detached; computed names
+remain outside writable state and action routes. See
+[computed values](../../docs/guides/computed-values.md) for defaults, invalidation,
+resource bounds, failure handling and alpha migration changes.
+
+Computed methods reject Nest route/parameter/policy decorators such as method-level
+`@UseGuards`: they are not route invocations, so that metadata would not execute.
+Authorize sensitive reads in host routes and services. Normal Live action guards
+and component policies retain their existing execution pipeline.
+
+## Public API and contracts
 
 Nested components, events, lazy components and redirects: `@LiveComponent({ children: { alias: Child }, lazy?, placeholder? })`, the `nvChild alias key props…` template helper, `@Prop()`, `@Reactive()`, `@Modelable()`, `@OnEvent(name)` (on an `@Action`), `dispatchLiveEvent(this, name, payload, { to?, self? })` and `redirectLive(this, path)`. See the [nested components guide](../../docs/guides/nested-components.md).
 
@@ -75,6 +77,10 @@ Realtime: `@RealtimeChannels()` marks a method returning channel names; with the
 State stores: the `store` option accepts any `LiveStateStore` (`create`, `peek`, `transaction`, `revoke`, `delete`, `close`; sync or async). `MemoryLiveStore` is the default: process-local, bounded (`maxEntries` 1000, `ttlMs` 15 min) and lost on restart, so it fits development and single-process deployments only. Several replicas need a shared store such as `RedisLiveStore` from [`@nestvexa/realtime-redis`](../realtime-redis/README.md). Every store must keep the documented identity-binding, revision compare-and-set, single-transaction, TTL and no-resurrection semantics; [`tests/live-store-contract.test.ts`](../../tests/live-store-contract.test.ts) is the shared contract suite, and `isLiveStateStore`, `liveStateUnavailable`, `liveBindingHash`, `freezeStateSnapshot` and `assertLiveComponentName` are exported for implementers. On shutdown the runtime calls `store.close()`. See [ADR 0032](../../docs/adr/0032-distributed-state-and-redis.md).
 
 Tracing: the optional `instrumentation` policy receives `nestvexa.live.mount`, `nestvexa.live.admit` (request admission, with the closed error code of a rejection), `nestvexa.live.hydrate`, `nestvexa.live.hook`, `nestvexa.live.action` and `nestvexa.live.render` spans with names, revisions and sizes only (see `@nestvexa/observability`). The optional development-only `inspector` policy (for example `DevtoolsInspector`) receives the registered component catalog and each top-level render's public state, cause and sizes; `LiveRuntime.describeComponents()` returns the catalog.
+
+Kernel policies (structural, no `@nestvexa/core` dependency, [ADR 0030](../../docs/adr/0030-live-kernel-boundary.md)): with `policies` (any object shaped like `SecurityPolicyRegistry` from `@nestvexa/core`), Live registers its `origin`, `csrf`, `action-authorization` and `snapshot` policies once under `policyOwner` (default `live`; a second registration of the owner fails startup) and asks the registry for every origin, CSRF and authorization decision (mount, child mount, actions, `$sync`, text streams), so the registry is the single source of truth. `liveSecurityPolicies(options)` is the one implementation (exact origin, constant-time `x-nestvexa-csrf` comparison, host `authorize` where only a literal `true` admits); without `policies` Live enforces the same objects directly. The snapshot policy reports the store's `ttlMs` (`MemoryLiveStore` and `RedisLiveStore` declare it). `requestContext` (for example `RequestContextFactory`) adds `nestvexa.request_id` to admission, mount and action spans. The `nestvexa` umbrella passes both automatically.
+
+Rate limit: `maxRequestsPerMinute` (default 60) per identity binding counts mounts, actions, `$sync` and stream authorizations; a rejected request gets `429 { statusCode, code: 'RATE_LIMIT' }` with `Retry-After` (seconds until the identity's window resets) before any state is read or component code runs.
 
 `@State({writable:true})` explicitly allows top-level JSON updates; default state is locked against client writes. `@Locked()` is an equivalent readable state declaration. `@Computed()` supports synchronous getters; `@Computed({async:true})` supports awaited zero-argument methods. `@Action({id?, renderless?})` exposes only registered methods; `renderless: true` acknowledges state without rendering when the client negotiates `renderless-v1` (see the [renderless guide](../../docs/guides/renderless-actions.md)). A single argument may use `@ActionInput(...pipes)`; normal Nest parameter pipes perform transformation and validation. No arbitrary service or class selection is accepted.
 
@@ -88,13 +94,13 @@ Writable state can supply a pure `validate(value)` callback returning `boolean` 
 name = '';
 ```
 
-The callback receives detached, frozen JSON and must return exactly `true` to accept it. It runs before component hooks, action effects and the store transaction; it must not perform side effects. Locked, type-mismatched or rejected updates return422 without consuming the current snapshot, allowing a corrected request at the same revision. The transaction rechecks the revision after asynchronous validation, so a competing update can still produce409. Validator exceptions are application errors and are not converted into field validation messages. This primitive is not the planned DTO/Zod forms subsystem.
+The callback receives detached, frozen JSON and must return exactly `true` to accept it. It runs before component hooks, action effects and the store transaction; it must not perform side effects. Locked, type-mismatched or rejected updates return 422 without consuming the current snapshot, allowing a corrected request at the same revision. The transaction rechecks the revision after asynchronous validation, so a competing update can still produce 409. Validator exceptions are application errors and are not converted into field validation messages. For schema libraries use `@Validate` and `schemaPipe` (below).
 
 Class/method guards, pipes, interceptors and filters execute on generated Nest routes using copied metadata. The action instance resolves through public `ModuleRef` with the actual request context and request scope. ExecutionContext identifies the generated controller, not the component class by identity; custom metadata is copied. Interceptors observe the Live response envelope. Global host middleware and policies remain host-owned. See actual integration tests for validated behavior; this is not a blanket claim covering every Nest extension.
 
 Each registered component also has `POST <endpoint>/<component>/_sync` for model synchronization. The reserved path cannot name a public action. The host authorizes it as `$sync`, with the normal origin/CSRF/identity/ownership/rate/payload/revision checks. It uses component/global Nest route policies, interceptors and filters; there is no selected action method or action input, so action-method guards, pipes, interceptors and filters are not copied onto it. Policies required for all writable state must therefore live at component/global scope or in `authorize`. Synchronization accepts absent/null `input` only and does not call any action.
 
-Hooks include boot/mount/hydrate, field updates, action hooks, dehydrate, beforeRender/afterRender, onError and request disposal. See [exact ordering and failure rules](../../docs/guides/live-lifecycle.md), including nested parent/child order. Computed caches clear around hooks and before rendering. Only decorated public state is stored; typed fields need a synthesizer.
+Hooks include boot/mount/hydrate, field updates (`beforeUpdate`/`afterUpdate`), action hooks, dehydrate, beforeRender/afterRender, onError and request disposal, all awaited; `LiveLifecycleHooks`, `LiveUpdateContext` and `ReadonlyLiveValue` are exported. All input validation precedes execution and the update context is detached and frozen. See [exact ordering and failure rules](../../docs/guides/live-lifecycle.md), including nested parent/child order, and [update hooks](../../docs/guides/live-update-hooks.md). Computed caches clear around hooks and before rendering. Only decorated public state is stored; typed fields need a synthesizer.
 
 ## Protocol, action options and typed state
 
@@ -107,13 +113,48 @@ The exact wire contract, every error code and every limit are in the [Live proto
 - `@State({ writable: ['city', 'geo.lat'] })` allowlists nested paths of an object field: the client sends the whole object and any difference outside those leaves (or an added/removed key) fails with `422 STATE_LOCKED` before component code runs; `describeLiveState()` reports `writablePaths` ([nested models](../../docs/guides/nested-models.md)).
 - Action and `$sync` replies carry `x-nestvexa-protocol` and `x-nestvexa-capabilities`; the wrapper lists idempotent actions in `data-nv-idempotent`, the only actions the browser retries ([client transport](../../docs/guides/client-transport.md)).
 - Startup rejects host controller routes that overlap generated Live routes, with the controller and method in the message.
-- Optional decorators: `@Renderless()` on an `@Action` equals `@Action({ renderless: true })`; `@Validate(validator)` on a writable `@State` accepts a function, a Standard Schema v1 (Zod 3.24+, Valibot, ArkType) or a `safeParse` schema and rejects client writes with `422 STATE_INVALID` before any hook runs; `@ActionInput(schemaPipe(schema))` validates action input and passes the schema output (`400 { message, issues }`, input never echoed); `@Title()` on a getter or method returns plain text that a rendered action response carries as `title` and the browser applies to `document.title` for top-level components. `@Transition` and `@Layout` are intentionally not provided: transitions are the `nv:transition` directive, and layouts belong to the host route that renders the page around mounted components.
+- Optional decorators: `@Renderless()` on an `@Action` equals `@Action({ renderless: true })`; `@Validate(validator)` on a writable `@State` accepts a function, a Standard Schema v1 (Zod 3.24+, Valibot, ArkType) or a `safeParse` schema and rejects client writes with `422 STATE_INVALID` before any hook runs; `@ActionInput(schemaPipe(schema))` validates action input and passes the schema output (`400 { message, issues }`, input never echoed); `@Title()` on a getter or method returns plain text that a rendered action response carries as `title` and the browser applies to `document.title` for top-level components. `@Transition` and `@Layout` are intentionally not provided: transitions are the `nv:transition` directive, and layouts belong to the host route that renders the page around mounted components. [ADR 0035](../../docs/adr/0035-live-layout-isolation-and-transitions.md) records this decision and the matching absence of `layout` and `isolated` `@LiveComponent` options.
 - `assetVersion` makes a stale page reload (`409 ASSET_VERSION_MISMATCH`); `LiveEvents` publishes server-pushed `@OnEvent` domain events through a structural publisher such as `RealtimeService` ([reference](../../docs/reference/live-protocol.md#server-pushed-domain-events)).
 
 Live depends on `@nestvexa/views`, not on `@nestvexa/core`; see [ADR 0030](../../docs/adr/0030-live-kernel-boundary.md).
 
-Read [protocol](../../docs/guides/live-protocol.md) for the64KiB/depth/node limits, token binding, 15-minute fixed expiry, capacity1000, revision conflicts and failure invalidation. Default rate limit is 60 requests/minute per binding. Configure host body parser limits before parsing. In-memory state is single-process; no distributed or exactly-once guarantee. Failed callbacks invalidate state because external side effects may already have happened. The browser retries only actions declared idempotent, with the same request ID. The host must revoke the binding on logout. Host policies and handlers need their own external-operation timeouts.
+## Defaults, security and performance
 
-`endpoint` defaults to `/_nestvexa/live`. Set `basePath` to a host global prefix such as `/app`; generated route paths stay relative to Nest's prefix while mount URLs include it. Express/Fastify prefix flows have integration tests; host routing/versioning variants still require broader acceptance. Responses use `Cache-Control: no-store`; host mount routes must also set that header. Initial/update HTML is limited to1MiB. State type checks preserve top-level kinds; use pure state validators for domain constraints and action DTOs for action input validation. The experimental protocol may require reload/migration between alpha versions.
+Read [protocol](../../docs/guides/live-protocol.md) for the 64 KiB/depth/node limits, token binding, 15-minute fixed expiry, capacity 1000, revision conflicts and failure invalidation. Default rate limit is 60 requests/minute per binding. Configure host body parser limits before parsing. The default `MemoryLiveStore` is single-process; replicas share state through `RedisLiveStore` (see State stores above). There is no exactly-once guarantee for external side effects: failed callbacks invalidate state because external side effects may already have happened. The browser retries only actions declared idempotent, with the same request ID. The host must revoke the binding on logout. Host policies and handlers need their own external-operation timeouts.
 
-Run `pnpm test` and `pnpm test:e2e` at repository root. See [security policy](../../SECURITY.md), [changelog](../../CHANGELOG.md) and [status](../../docs/implementation/STATUS.md). Maintainer and hosted URLs await owner input.
+`endpoint` defaults to `/_nestvexa/live`. Set `basePath` to a host global prefix such as `/app`; generated route paths stay relative to Nest's prefix while mount URLs include it. Express/Fastify prefix flows have integration tests; host routing/versioning variants still require broader acceptance. Responses use `Cache-Control: no-store`; host mount routes must also set that header. Initial/update HTML is limited to 1 MiB. State type checks preserve top-level kinds; use pure state validators for domain constraints and action DTOs for action input validation. The experimental protocol may require reload/migration between alpha versions.
+
+See the [security policy](../../SECURITY.md) and [implementation status](../../docs/implementation/STATUS.md).
+
+## Examples
+
+[live-counter](../../examples/live-counter/README.md) (manual bootstrap),
+[starter-live](../../examples/starter-live/README.md) (umbrella setup, nesting,
+URL/session state, effects), [live-crud](../../examples/live-crud/README.md) and
+[distributed-live](../../examples/distributed-live/README.md) (two replicas over
+`RedisLiveStore`). Guides: [Live getting started](../../docs/getting-started/live.md)
+and [default Live setup](../../docs/guides/default-live-setup.md).
+
+## Status and limits
+
+Status: **Partial**. Components, state, computed values, actions through the Nest pipeline, nesting, events, effects, lifecycle hooks, pluggable stores and the versioned protocol are implemented and tested on Express and Fastify; named clauses below remain open.
+
+- No `layout` or `isolated` `@LiveComponent` option and no `@Transition`/`@Layout` decorators, by design ([ADR 0035](../../docs/adr/0035-live-layout-isolation-and-transitions.md); LIVE-003, LIVE-014).
+- Browser acceptance for morphing is incomplete for teleports, shadow DOM, multi-range selection and screen readers (PROT-012).
+- Cross-replica idempotent replay and identity locks (`LiveActionCoordination`) are tested against the in-process RESP test double only, not real Redis; a replayed `download` URL is served only by the replica that created it (LIVE-007).
+- The asset-version reload is covered by server tests; the client reload path has no browser test (PROT-018).
+- No cross-component request batching: each component is its own Nest request and store transaction (PROT-007, by design).
+- Server-pushed `@OnEvent` events are at-most-once and not replayed to browsers that subscribe later; payloads are untrusted when they return (LIVE-012).
+- Host routing and versioning variants beyond the tested Express/Fastify prefix flows need broader acceptance; the experimental protocol may require reload or migration between alpha versions.
+
+## Testing
+
+```sh
+pnpm --filter @nestvexa/live test
+```
+
+Runs `tests/live.test.ts`, `tests/live-*.test.ts` and `tests/property-live-protocol.test.ts` with the root Vitest config; the tests import `packages/*/dist`, so run `pnpm --filter @nestvexa/live... build` first. Browser specs under `tests/browser` (for example `live.spec.ts`, `nesting.spec.ts`, `projects.spec.ts`) run with `pnpm test:e2e`, and `pnpm test:services` runs the Redis Live store and two-replica checks; both run separately from the package script.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

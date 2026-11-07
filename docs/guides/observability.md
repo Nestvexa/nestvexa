@@ -137,6 +137,12 @@ browser extension as out of scope for v1). Not shown: browser-side morph
 timing and network batching (use the browser's developer tools and the client
 `onDiagnostic` option), cache hit/miss and prop resolution (no hook yet).
 
+With `DevtoolsModule.registerAsync` and the `kernel` option (the `@nestvexa/core`
+`DiagnosticsRegistry`, `SecurityPolicyRegistry` and `FeatureCapabilityRegistry`), the
+panel and `data.json` also list the registered security policies (configuration only,
+such as Live's snapshot TTL and the upload quotas), declared capabilities and recent
+kernel diagnostics. See the [observability README](../../packages/observability/README.md#development-panel).
+
 ## Devtools safety
 
 `DevtoolsModule.register` and `new DevtoolsInspector()` throw when the

@@ -1,0 +1,9 @@
+# BuildKit reads this file for examples/showcase/Dockerfile (context: repo root).
+**/node_modules
+**/dist
+.git
+.claude
+artifacts
+test-results
+playwright-report
+OLD_CODEX_CHAT.md

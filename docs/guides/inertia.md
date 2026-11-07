@@ -33,7 +33,10 @@ or upstream test it reproduces, and lists any intentional delta.
    - full visit: `text/html` document with
      `<script data-page="<id>" type="application/json">…</script><div id="<id>"></div>`;
    - Inertia visit: `application/json` page object, `X-Inertia: true`;
-   - both carry `Vary: X-Inertia` (merged with an existing `Vary`).
+   - both carry `Vary` (merged with an existing `Vary`): `X-Inertia` for
+     documents; for JSON page responses also `X-Inertia-Version` and every
+     partial-reload, reset, error-bag, merge-intent and except-once header, so a
+     shared cache cannot replay a partial reload to a full visit (SEC-030).
 5. Exception filters run as usual. `InertiaValidationFilter` turns
    `InertiaValidationException` into errors-in-session plus a redirect back.
 
@@ -291,7 +294,9 @@ cross-session tokens are rejected with 403).
 `{ head, body }`. `HttpSsrGateway` talks to the official Inertia SSR server
 (`POST /render`, `GET /health`) and classifies failures (`browser-api`,
 `component-resolution`, `render`, `connection`, `timeout`,
-`invalid-response`). `fallback` mode (default) logs, calls `onError` and serves
+`invalid-response`). It posts only to the configured URL (`http(s)`, no
+credentials, query or fragment), never follows redirects and cancels a
+response body beyond `maxResponseBytes` (default 5 MiB). `fallback` mode (default) logs, calls `onError` and serves
 the client-rendered document; `strict` propagates a 500 without exposing the
 SSR detail. Framework SSR bundles, the in-process `moduleSsrRenderer` and the
 official SSR server launcher are covered in the [Vite](vite.md),

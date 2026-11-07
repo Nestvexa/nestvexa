@@ -42,6 +42,11 @@ export interface Admission {
 const admissions = new WeakMap<object, Admission>();
 const requestIds = new WeakMap<object, string>();
 
+/** Use a host correlation ID for this request when none was assigned yet. */
+export function adoptRequestId(request: object, id: string): void {
+  if (!requestIds.has(request)) requestIds.set(request, id);
+}
+
 export function requestIdFor(request: object): string {
   let id = requestIds.get(request);
   if (!id) {

@@ -197,15 +197,16 @@ write the same kind of tests for your app.
 
 ## Limits
 
-> **Known gap:** Live state is held in the single-process `MemoryLiveStore`; there
-> is no Redis-backed or pluggable Live state store yet (ledger DATA-004, DATA-005).
-> Run one process or use sticky sessions, and expect a restart to invalidate open
-> pages.
+> **Known gap:** this tutorial uses the single-process `MemoryLiveStore`. Run one
+> process or use sticky sessions, and expect a restart to invalidate open pages.
+> For several replicas use `RedisLiveStore`
+> ([multiple replicas](../deployment/multi-replica-redis.md)).
 
-> **Known gap:** `@Action({ concurrency, idempotent })` options are not implemented
-> for Live actions (LIVE-007). Use database transactions and your own idempotency
-> for irreversible effects; revision checks reject replays but are not
-> exactly-once guarantees.
+> **Note:** `@Action({ idempotent: true })` replays an identical retry
+> instead of running it twice, and `concurrency` selects how overlapping calls
+> are handled ([ADR 0031](../adr/0031-live-protocol-evolution-and-action-replay.md)).
+> Neither makes an external effect exactly-once, so use database transactions for
+> irreversible effects.
 
 > **Known gap:** there are no Prisma, TypeORM or Drizzle examples (DATA-014), and
 > `@nestvexa/forms` has no pipe binding a schema to `@ActionInput` arguments

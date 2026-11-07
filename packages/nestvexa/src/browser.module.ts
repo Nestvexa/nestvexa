@@ -11,7 +11,7 @@ import {
 import type { DynamicModule, OnApplicationShutdown } from '@nestjs/common';
 import { SafeHtml } from '@nestvexa/views';
 import { NestvexaAssetsModule, NestvexaAssetsService } from './assets.js';
-import { normalizeAssetOptions } from './asset-catalog.js';
+import { assetIntegrity, normalizeAssetOptions } from './asset-catalog.js';
 
 /** Automatic bundled Alpine, or explicit host-owned browser startup. */
 export interface NestvexaBrowserOptions {
@@ -30,6 +30,14 @@ export interface NestvexaBrowserOptions {
   };
   /** Public prefix of the opt-in @nestvexa/uploads routes, including any host prefix. */
   readonly uploads?: { readonly endpoint: string };
+  /**
+   * Subresource Integrity for `{{nvScripts}}`: the boot module tag carries
+   * `integrity` (SHA-384 of the generated boot module) and
+   * `crossorigin="anonymous"`, preceded by integrity-checked
+   * `<link rel="modulepreload">` tags for the client, Alpine and the adapter.
+   * Default false.
+   */
+  readonly integrity?: boolean;
 }
 interface BrowserOptions {
   readonly mode: 'alpine' | 'manual';
@@ -41,6 +49,7 @@ interface BrowserOptions {
     readonly transport: 'auto' | 'sse' | 'websocket' | 'polling';
   };
   readonly uploads: { readonly endpoint: string } | undefined;
+  readonly integrity: boolean;
 }
 const BROWSER_OPTIONS = Symbol('nv:browser-options');
 function normalizeStreams(value: unknown): BrowserOptions['streams'] {
@@ -152,42 +161,43 @@ export class NestvexaBrowserService implements OnApplicationShutdown {
   }
   /**
    * Trusted external module tag for document layouts; optional CSP nonce is
-   * validated and escaped. `integrity: true` prefixes `importMap()` so the
-   * browser verifies the entry and every on-demand chunk it loads.
+   * validated and escaped. With the `integrity` option the boot module is
+   * integrity-checked, preceded by `importMap()` (which pins every client
+   * module, including the on-demand feature chunks of ADR 0036, for dynamic
+   * imports) and integrity-checked modulepreloads of the client, Alpine and
+   * the adapter.
    */
-  scripts(
-    nonce?: string,
-    options: { readonly integrity?: boolean } = {},
-  ): SafeHtml {
+  scripts(nonce?: string): SafeHtml {
     const nonceAttribute = scriptNonce(nonce);
     const url = this.getBootUrl();
-    const tag = `<script type="module" src="${attribute(url)}"${nonceAttribute}></script>`;
+    if (!this.options.integrity)
+      return SafeHtml.trusted(
+        `<script type="module" src="${attribute(url)}"${nonceAttribute}></script>`,
+      );
+    const { entries, integrity } = this.assets.getManifest();
+    const preloads = [entries.live, entries.alpine, entries.alpineAdapter]
+      .map(
+        (href) =>
+          `<link rel="modulepreload" href="${attribute(href)}" integrity="${attribute(integrity[href] ?? '')}" crossorigin="anonymous"${nonceAttribute}>`,
+      )
+      .join('');
     return SafeHtml.trusted(
-      options.integrity === true ? `${this.importMap(nonce).value}${tag}` : tag,
+      `${this.importMap(nonce).value}${preloads}<script type="module" src="${attribute(url)}" integrity="${attribute(assetIntegrity(this.boot()))}" crossorigin="anonymous"${nonceAttribute}></script>`,
     );
   }
   /**
    * Inline import map whose `integrity` section pins every served client
    * module (entry, feature chunks, Alpine and its adapter) to its SHA-384
-   * digest. Place it before any module script; it maps no specifiers.
+   * digest, so module imports the page does not preload (the on-demand
+   * chunks) are verified too. Place it before any module script; it maps no
+   * specifiers. Also usable by host-owned (manual mode) layouts.
    */
   importMap(nonce?: string): SafeHtml {
     const nonceAttribute = scriptNonce(nonce);
     if (this.closed)
       throw new ServiceUnavailableException('Nestvexa browser has shut down');
-    const { files, integrity } = this.assets.getManifest();
-    const pinned: Record<string, string> = Object.create(null) as Record<
-      string,
-      string
-    >;
-    for (const [name, url] of Object.entries(files)) {
-      const digest = integrity[name];
-      if (digest !== undefined) pinned[url] = digest;
-    }
-    const json = JSON.stringify({ integrity: pinned }).replaceAll(
-      '<',
-      '\\u003c',
-    );
+    const { integrity } = this.assets.getManifest();
+    const json = JSON.stringify({ integrity }).replaceAll('<', '\\u003c');
     return SafeHtml.trusted(
       `<script type="importmap"${nonceAttribute}>${json}</script>`,
     );
@@ -269,6 +279,7 @@ export class NestvexaBrowserModule {
           'streams',
           'realtime',
           'uploads',
+          'integrity',
         ].includes(String(key)) ||
         typeof key !== 'string' ||
         !descriptor ||
@@ -313,6 +324,13 @@ export class NestvexaBrowserModule {
         'Configure streams on the host-owned client in manual browser mode',
       );
     const uploads = normalizeUploads(read('uploads'));
+    const integrity = read('integrity') ?? false;
+    if (typeof integrity !== 'boolean')
+      throw new Error('Browser integrity option must be a boolean');
+    if (mode === 'manual' && integrity)
+      throw new Error(
+        'Browser integrity covers the bundled boot module; add integrity to host-owned tags in manual mode',
+      );
     if (mode === 'manual' && uploads)
       throw new Error(
         'Configure uploads on the host-owned client in manual browser mode',
@@ -348,6 +366,7 @@ export class NestvexaBrowserModule {
             mode,
             streams,
             uploads,
+            integrity,
             ...(realtime === undefined ? {} : { realtime }),
           }),
         },
@@ -364,21 +383,17 @@ export function documentScripts(
   args: readonly unknown[],
 ): SafeHtml {
   const options = args[0];
-  const usage = 'nvScripts accepts only optional nonce and integrity hash keys';
   if (args.length !== 1 || typeof options !== 'object' || options === null)
-    throw new Error(usage);
+    throw new Error('nvScripts accepts only an optional nonce hash');
   const hash: unknown = Reflect.get(options, 'hash');
   if (
     typeof hash !== 'object' ||
     hash === null ||
-    Object.keys(hash).some((key) => key !== 'nonce' && key !== 'integrity')
+    Object.keys(hash).some((key) => key !== 'nonce')
   )
-    throw new Error(usage);
+    throw new Error('nvScripts accepts only an optional nonce hash');
   const nonce: unknown = Reflect.get(hash, 'nonce');
   if (nonce !== undefined && typeof nonce !== 'string')
     throw new Error('Invalid browser script nonce');
-  const integrity: unknown = Reflect.get(hash, 'integrity');
-  if (integrity !== undefined && typeof integrity !== 'boolean')
-    throw new Error('nvScripts integrity must be true or false');
-  return browser.scripts(nonce, { integrity: integrity === true });
+  return browser.scripts(nonce);
 }

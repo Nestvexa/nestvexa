@@ -39,5 +39,26 @@ responsibilities. The [2026-11 internal review](docs/security/internal-review-20
 is an internal engineering review, **not an independent third-party
 assessment**; an independent review, the full release matrix and dependency
 audit remain blocking 1.0 work ([release evidence](docs/release/evidence-formats.md)).
-Published releases carry npm provenance and a CycloneDX SBOM per package.
 Passing selected automated tests is not a guarantee of security.
+
+## Supply chain
+
+- **npm provenance: configured, never exercised.** `.github/workflows/release.yml`
+  publishes through npm trusted publishing (OIDC, `id-token: write`) with
+  `npm publish --provenance`, and generates a CycloneDX SBOM per package
+  (`scripts/sbom.mjs`). No release has been published through that workflow
+  yet, so no published Nestvexa package carries a provenance attestation that
+  anyone has verified. Treat provenance as a release-pipeline setting, not as
+  evidence, until the first release is published and its attestation is
+  checked with `npm audit signatures`.
+- **License audit:** `pnpm audit:licenses` checks the production dependency
+  closure of every public package (plus each declared peer) against an SPDX
+  allowlist of permissive licenses and fails on copyleft, missing or unknown
+  licenses (`scripts/licenses.mjs`).
+- **Secret scanning:** `pnpm secrets:scan` checks every tracked and unignored
+  file for high-confidence credential formats and committed `.env` files
+  (`scripts/secrets.mjs`). CI runs it together with the TruffleHog action,
+  pinned to a commit, over the git history (`supply-chain` job in
+  `.github/workflows/ci.yml`).
+- **Dependency audit:** `pnpm audit --audit-level high` runs weekly
+  (`.github/workflows/security.yml`).

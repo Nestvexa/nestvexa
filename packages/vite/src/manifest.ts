@@ -26,6 +26,11 @@ export interface ViteEntryAssets {
   readonly styles: readonly string[];
   /** Statically imported chunks (`<link rel="modulepreload">`). */
   readonly preloads: readonly string[];
+  /**
+   * Subresource Integrity metadata by URL (`sha384-…`), present when the app
+   * enables `integrity`. Tags then carry `integrity` and `crossorigin`.
+   */
+  readonly integrity?: Readonly<Record<string, string>>;
 }
 
 const MAX_MANIFEST_BYTES = 8 * 1024 * 1024;

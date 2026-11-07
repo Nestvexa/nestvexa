@@ -37,10 +37,13 @@ describe('draftScope', () => {
   it('keeps the browser entry safe to import in Node', async () => {
     const browser = await import('../packages/offline/dist/index.js');
     expect(Object.keys(browser).sort()).toEqual([
+      'OfflineQueueError',
       'announceLogout',
       'attachOfflineDrafts',
+      'attachOfflineQueue',
       'clearAllDrafts',
       'createDraftStore',
+      'createOfflineQueue',
       'createSnapshotCache',
       'listenForLogout',
       'loadRegion',

@@ -79,3 +79,11 @@ resubscription).
   created on one replica continues on the other, and foreign identities are
   rejected on both. Still unrun: load tests and reconnect/deduplication across a
   replica restart in a browser.
+
+## Update (realtime round 3)
+
+- Presence can span replicas through a `PresenceStore` (`RedisPresenceStore`):
+  per-replica entries with expiry, re-validated on read, bounded per query.
+- `auto` clients negotiate transports (`GET <endpoint>/negotiate`) and fall
+  back WebSocket → SSE → polling; disabled transports answer 404, and the
+  WebSocket transport refuses at startup an adapter without upgrade events.

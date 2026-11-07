@@ -17,9 +17,11 @@ behavior, serve its browser module.
 
 ## Install
 
-After owner-authorized publication: `npm install @nestvexa/ui`,
-`pnpm add @nestvexa/ui` or `yarn add @nestvexa/ui`. Before publication, use the
-workspace or packed tarballs. Node `^22.13.0 || ^24.0.0`, ESM only.
+Not published yet. Build local tarballs with `pnpm build && pnpm test:pack`
+(written to `artifacts/packages`) and install the `.tgz` files together. After
+owner-authorized publication the registry syntax will be `npm install
+@nestvexa/ui`, `pnpm add @nestvexa/ui` or `yarn add @nestvexa/ui`. Node
+`^22.13.0 || ^24.0.0`, ESM only.
 
 - Runtime dependency: `@nestvexa/views` (for `SafeHtml`).
 - Optional peers, only for the framework wrappers: `react` `^19`, `vue`
@@ -144,7 +146,7 @@ contain no `\` or control characters, so `javascript:` URLs, `//host` and
 | `{{uiProgress id label [value] [max=100] [valueText]}}`                                                               | `<label for>` plus a native `<progress>`. It is indeterminate when `value` is null or omitted, and `aria-valuetext` is set when `valueText` is given. `0 ≤ value ≤ max`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `{{uiVisuallyHidden "text"}}`                                                                                         | `<span class="nv-visually-hidden">`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
-### Second slice: navigation, overlays, inputs and data tables
+### Navigation, overlays, inputs and data tables
 
 | Helper                                                                                                                                  | Output and ARIA pattern                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -168,6 +170,86 @@ contain no `\` or control characters, so `javascript:` URLs, `//host` and
 identifiers (see [directives](../../docs/reference/directives.md)), so pass one
 action per column, for example `action="sortByName"`, or use `href` links.
 
+### Form fields and charts
+
+| Helper                                                                                                                                                                                                              | Output and ARIA pattern                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `{{uiTextField id label (name \| model) [type=text] [value] [placeholder] [autocomplete] [minLength] [maxLength] [readOnly] [hint] [error \| field] [required] [disabled] [modelModifiers] [describedBy] [class]}}` | `<div class="nv-field">` with `<label for="{id}">`, a hint `<p id="{id}-hint">`, the `<input id="{id}">` and, only while invalid, `<div id="{id}-error" role="alert">` with one `<p>` per message. The input gets `aria-describedby` (`describedBy`, hint, error), `aria-invalid="true"` while invalid, `required` + `aria-required="true"` and an `aria-hidden` asterisk on the label. `type`: text, email, password, search, tel, url, number. |
+| `{{uiTextareaField …same… [rows] [value]}}`                                                                                                                                                                         | The same wiring around a `<textarea>` (`rows` 1–50; `value` is its escaped initial text).                                                                                                                                                                                                                                                                                                                                                        |
+| `{{uiSelectField …same… options [value] [placeholder] [autocomplete]}}`                                                                                                                                             | Native `<select>` of 1–500 `{ value, label, disabled? }` options; `placeholder` adds a first empty option so `required` rejects it. `value` must be one of the options.                                                                                                                                                                                                                                                                          |
+| `{{uiCheckboxField …same… [value] [checked]}}`                                                                                                                                                                      | Checkbox followed by its label, hint and error.                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `{{uiRadioGroupField …same… options [value]}}`                                                                                                                                                                      | `<fieldset role="radiogroup">` named by its `<legend>`; hint and error are on the group (`aria-describedby`, `aria-required`), `aria-invalid` on every radio. The first radio has the field `id` (so a forms error-summary link `#{id}` and Live's focus-first-invalid land on it); the others are `{id}-2`, `{id}-3`, … Up to 100 options.                                                                                                      |
+| `{{uiChart id title categoryLabel labels series [type=bar] [description] [min] [max] [locale] [showTable] [class]}}`                                                                                                | `<figure data-nv-ui-chart>` with a `<figcaption id="{id}-title">`, an optional description `{id}-desc`, an `<svg role="img" aria-labelledby aria-describedby>` and a data table `{id}-data` (caption, column per series, `data-value` per cell) that is visually hidden unless `showTable`. `type`: `bar`, `line`, `sparkline`. A legend (`aria-hidden`, the table carries the names) is drawn for 2+ series.                                    |
+| `{{#uiChart id type="custom" …}}<canvas …>{{/uiChart}}`                                                                                                                                                             | Container `<div id="{id}-canvas" role="img">` around the block body for a third-party chart (the kit ships none), with the same title, description and data table. Only `custom` accepts a body.                                                                                                                                                                                                                                                 |
+
+**Fields** take either `error` (a string or up to 5 strings) or `field`, a
+`@nestvexa/forms` `fieldView(errors, path)` result: its `id`, `errorId` and
+messages are used, so the ids match the forms package's error summary links
+and `aria-describedby` conventions (`{id}-error`). `name` accepts identifiers,
+dotted paths (`address.city`) and bracket paths (`items[0][name]`, `tags[]`).
+`model="address.city"` emits `nv:model="address.city"` for Live, and
+`modelModifiers` (closed vocabulary: `defer`, `live`, `blur`, `change`, `lazy`,
+`number`, `boolean`, `debounce`, `throttle`, `NNNms`) gives
+`nv:model.live.debounce.300ms`; the framework wrappers drop `nv:` attributes.
+
+```hbs
+{{uiTextField
+  id='email'
+  name='email'
+  label=(t 'profile.email')
+  type='email'
+  hint=(t 'profile.emailHint')
+  field=(fieldView errors 'email')
+  required=true
+}}
+{{uiRadioGroupField
+  id='plan'
+  model='plan'
+  label='Plan'
+  options=plans
+  value=plan
+}}
+```
+
+**Charts** are server-rendered SVG with geometry attributes only: no
+`<script>`, no `style=` attribute and no event handler, so they render under
+`default-src 'self'; style-src 'self'`. Colors and dash patterns come from
+classes (`nv-chart__series--1` … `--8`) and the `--nv-chart-1` … `--nv-chart-8`
+theme tokens; series 2–8 also differ by dash pattern, and `forced-colors`
+draws everything in `CanvasText`. Data is validated: 1–200 `labels`
+(≤128 characters each), 1–8 `series` (`[{ name, values }]`, one value per
+label; sparklines take one series), values finite numbers within ±1e15
+(`NaN`, `Infinity`, strings and `null` are rejected), and optional `min`/`max`
+that must contain the data. Bars grow from zero. Axis labels are drawn for up
+to 12 categories and truncated to 16 characters; line markers up to 60 points;
+the table always lists every value, formatted with `Intl.NumberFormat(locale)`.
+
+```hbs
+{{uiChart
+  id='sales'
+  title='Monthly sales'
+  description='Online sales peaked in March.'
+  categoryLabel='Month'
+  labels=months
+  series=sales
+  locale='en-US'
+}}
+{{#uiChart
+  id='visits'
+  type='custom'
+  title='Visits'
+  categoryLabel='Day'
+  labels=days
+  series=visits
+}}
+  <canvas id='visits-chart' width='640' height='320'></canvas>
+{{/uiChart}}
+```
+
+A third-party library draws into the custom chart's container from your own
+script file, reading the values with `chartData(element)` (see the browser
+API) so the data is not duplicated into an inline script.
+
 `uiHelpers({ prefix: 'kit' })` renames every helper (`kitDialog`, …). The
 prefix must be `[a-z][a-zA-Z0-9]{0,15}` and may not be `nv`, because the engine
 reserves the `nv` + uppercase namespace.
@@ -188,6 +270,12 @@ function openDialog(
   opener?: HTMLElement | null,
 ): void;
 function closeDialog(dialog: HTMLDialogElement): void;
+function chartData(root: Element):
+  | {
+      labels: readonly string[];
+      series: readonly { name: string; values: readonly number[] }[];
+    }
+  | undefined;
 function showToast(
   region: Element,
   message: string,
@@ -227,6 +315,11 @@ function showToast(
   region also renders `nestvexa:event` events whose name equals
   `data-nv-ui-event` and whose payload is `{ message: string, tone? }`. Other
   payloads are ignored.
+- **`chartData(root)`** reads a chart's data table (`root` is the figure or an
+  element inside it, such as the custom chart's canvas) back into labels and
+  numeric series from each cell's `data-value`. It returns `undefined` when no
+  well-formed table is found or a value is not finite. Charts need no other
+  browser behavior.
 
 ## Framework wrappers (`/react`, `/vue`, `/svelte`)
 
@@ -243,6 +336,9 @@ helpers print, so markup cannot drift) and call `connectUi(element)` on mount
 | `ToastRegion`                                                                                                                              | handle `show(message, { tone, timeout })` via `ref` / Vue `expose` / `bind:this`            |
 | `DatePicker`                                                                                                                               | `defaultValue` (read once), `onChange(value)`                                               |
 | `DataTable`, `TableSearch`, `TableFilter` (`field` = `key`), `SelectAll`, `SelectRow` (`defaultChecked`), `SortHeader` (`sortKey`, `href`) | table body as children/default slot                                                         |
+| `TextField`, `TextareaField`, `SelectField`, `RadioGroupField`                                                                             | `defaultValue` (read once), `onChange(value)` (Vue `change`, Svelte `onchange`)             |
+| `CheckboxField`                                                                                                                            | `defaultChecked` (read once), `onChange(checked)`                                           |
+| `Chart`                                                                                                                                    | `type="custom"` mount point as children/default slot; `chartData` is re-exported            |
 
 React uses `className`; Vue and Svelte use `class`/`className` as listed in
 their types. Live-only options (`model`, `action`) are not available.
@@ -325,6 +421,11 @@ Plain CSS built on custom properties (`--nv-accent`, `--nv-bg`, …):
   own data properties only. It works under
   `default-src 'self'; script-src 'self'; style-src 'self'`; the test suite
   asserts zero CSP violations.
+- Charts emit no `<script>`, `style=` attribute or event handler; every
+  label, title and series name is escaped text and every value a validated
+  finite number, so chart data from users cannot inject markup. Field `name`,
+  `model` and `modelModifiers` use closed grammars, so they cannot break out
+  of their attribute or add a Live expression.
 - The `<dialog>` tab-trap is a usability feature, not a security boundary.
   Authorization stays on the server.
 
@@ -356,64 +457,6 @@ module is a single small file (no framework); event delegation keeps a constant
 number of listeners per root. Combobox filtering is linear in the option count
 (at most 500).
 
-## Testing
-
-```sh
-pnpm --filter @nestvexa/views build
-pnpm --filter @nestvexa/engine-hbs build
-pnpm --filter @nestvexa/ui build
-pnpm exec vitest run tests/ui-helpers.test.ts tests/ui-primitives.test.ts tests/ui-browser.test.ts tests/ui-primitives-browser.test.ts tests/ui-adapters.test.ts
-# every browser engine for the second slice:
-NV_UI_BROWSERS=chromium,firefox,webkit pnpm exec vitest run tests/ui-primitives-browser.test.ts tests/ui-adapters.test.ts
-```
-
-[`tests/ui-primitives.test.ts`](../../tests/ui-primitives.test.ts) covers the
-second slice's markup, escaping and rejected input;
-[`tests/ui-primitives-browser.test.ts`](../../tests/ui-primitives-browser.test.ts)
-runs keyboard, focus, RTL, no-JavaScript and axe checks under a strict CSP in
-Chromium, Firefox and WebKit, and
-[`tests/browser/admin-ui-kit.spec.ts`](../../tests/browser/admin-ui-kit.spec.ts)
-exercises the primitives in the admin example.
-
-[`tests/ui-adapters.test.ts`](../../tests/ui-adapters.test.ts) bundles React,
-Vue and Svelte fixtures, checks that their SSR output is canonically equal to
-the HBS helpers' markup, hydrates them under a strict CSP and drives the
-dialog, tabs, menu, toasts, date picker and data table from the keyboard with
-axe checks and unmount/remount.
-
-[`tests/ui-helpers.test.ts`](../../tests/ui-helpers.test.ts) renders through a
-real `HbsEngine`: markup contracts, escaping, rejected ids, hrefs and action
-injection. [`tests/ui-browser.test.ts`](../../tests/ui-browser.test.ts) runs
-the built module in real Chromium under a strict CSP: focus trap, inert
-background, return focus, tabs in LTR and RTL, combobox keyboard and events,
-text-only toasts, idempotent init and disposal, mutation-observed insertion,
-theme preferences and axe.
-
-## Caveats and limits
-
-- Not yet provided: chart wrapper and form-field wrappers. Client-side table
-  filtering works on the rendered rows only; use `model` or a GET form for
-  server-side search over paginated data.
-- Menus, popovers and accordions reset to their server state when a Live
-  morph restores `data-nv-ui-collapsed` (the server state wins, as with tabs).
-- The date picker relies on the native date input; browsers without one fall
-  back to a text input that still submits `YYYY-MM-DD` and is validated on the
-  server.
-- Dark mode needs the page surface to use the tokens (for example
-  `body { background: var(--nv-bg); color: var(--nv-text) }`); the theme does
-  not style `body`.
-- The combobox filters options rendered on the server (up to 500). There is
-  no remote search.
-- Tabs use automatic activation. Manual activation is not configurable.
-- The keyboard module is tested in Chromium here, and in Chromium, Firefox and
-  WebKit through the admin example's Playwright suite.
-- The framework wrappers cover dialog/drawer, dialog trigger, tabs, menu,
-  toast region, date picker and the data table pieces. Accordion, popover,
-  tooltip, breadcrumbs, badge, alert, file upload, wizard, combobox,
-  pagination and progress are HBS-only for now.
-- Wrappers are uncontrolled (the keyboard module owns open/selected state);
-  changing their props re-renders the attributes they own.
-
 ## Compatibility
 
 Alpha `0.1.0-alpha.0`. Helper names, hash arguments and the `data-nv-ui-*`
@@ -427,3 +470,95 @@ compatibility policy. Requires the HBS engine's `registerHelpers` API and
 [i18n guide](../../docs/guides/i18n.md) ·
 [Accessibility checklist](../../docs/testing/accessibility-checklist.md) ·
 [Engine](../engine-hbs/README.md) · [Changelog](../../CHANGELOG.md)
+
+Examples: [`examples/admin-i18n`](../../examples/admin-i18n) (HBS/Live pages on
+the helpers) and the `/kit` page of
+[`examples/inertia-react`](../../examples/inertia-react) (React wrappers).
+
+## Status and limits
+
+Status: **Partial**. The HBS/Live helpers, the keyboard module, the theme,
+the form-field and chart wrappers, and the React, Vue and Svelte wrappers for
+the main primitives work and are tested (SSR parity, keyboard, CSP and axe
+checks).
+
+- Charts are bar, line and sparkline only, with two value ticks (min and max,
+  plus zero when the range crosses it), no interactive tooltips and at most
+  200 labels and 8 series; anything else is a `type="custom"` chart drawn by
+  your own library. Bars and lines cannot be mixed in one chart.
+- Field wrappers are single controls: no multi-select, file, date (use
+  `uiDatePicker`) or checkbox-group variant; build those from `uiCheckboxField`
+  inside your own `<fieldset>`.
+- The Vue and Svelte wrappers have no runnable example page; only the React
+  wrappers have one (EXT-020).
+- The framework wrappers cover dialog/drawer, dialog trigger, tabs, menu,
+  toast region, date picker, the data table pieces, the form fields and the
+  chart. Accordion, popover,
+  tooltip, breadcrumbs, badge, alert, file upload, wizard, combobox,
+  pagination and progress are HBS-only for now.
+- Wrappers are uncontrolled (the keyboard module owns open/selected state);
+  changing their props re-renders the attributes they own.
+- Manual screen-reader verification has not been executed (see
+  Accessibility).
+- Client-side table filtering works on the rendered rows only; use `model` or
+  a GET form for server-side search over paginated data.
+- Menus, popovers and accordions reset to their server state when a Live
+  morph restores `data-nv-ui-collapsed` (the server state wins, as with tabs).
+- The date picker relies on the native date input; browsers without one fall
+  back to a text input that still submits `YYYY-MM-DD` and is validated on the
+  server.
+- Dark mode needs the page surface to use the tokens (for example
+  `body { background: var(--nv-bg); color: var(--nv-text) }`); the theme does
+  not style `body`.
+- The combobox filters options rendered on the server (up to 500). There is
+  no remote search.
+- Tabs use automatic activation. Manual activation is not configurable.
+- `tests/ui-browser.test.ts` runs in Chromium only;
+  `tests/ui-primitives-browser.test.ts` and `tests/ui-adapters.test.ts`
+  default to Chromium and cover Firefox and WebKit with `NV_UI_BROWSERS`, and
+  the admin example's Playwright suite runs in all three.
+
+## Testing
+
+```sh
+pnpm --filter @nestvexa/ui test
+```
+
+Runs `tests/ui-helpers.test.ts`, `tests/ui-primitives.test.ts`,
+`tests/ui-browser.test.ts`, `tests/ui-primitives-browser.test.ts` and
+`tests/ui-adapters.test.ts`; the tests import `packages/*/dist`, so run
+`pnpm --filter @nestvexa/ui... build` first. Set
+`NV_UI_BROWSERS=chromium,firefox,webkit` to run the browser tests in every
+engine.
+
+[`tests/ui-primitives.test.ts`](../../tests/ui-primitives.test.ts) covers the
+navigation, overlay, input and data-table helpers' markup, escaping and
+rejected input;
+[`tests/ui-primitives-browser.test.ts`](../../tests/ui-primitives-browser.test.ts)
+runs keyboard, focus, RTL, no-JavaScript and axe checks for them under a strict
+CSP.
+
+[`tests/ui-adapters.test.ts`](../../tests/ui-adapters.test.ts) bundles React,
+Vue and Svelte fixtures, checks that their SSR output is canonically equal to
+the HBS helpers' markup, hydrates them under a strict CSP and drives the
+dialog, tabs, menu, toasts, date picker, data table and form fields from the
+keyboard with axe checks and unmount/remount (charts are checked to stay in
+the SVG namespace after a client-side remount).
+
+[`tests/ui-helpers.test.ts`](../../tests/ui-helpers.test.ts) renders through a
+real `HbsEngine`: markup contracts, escaping, rejected ids, hrefs and action
+injection. [`tests/ui-browser.test.ts`](../../tests/ui-browser.test.ts) runs
+the built module in real Chromium under a strict CSP: focus trap, inert
+background, return focus, tabs in LTR and RTL, combobox keyboard and events,
+text-only toasts, idempotent init and disposal, mutation-observed insertion,
+theme preferences and axe.
+
+Browser specs run separately through Playwright in three browsers:
+[`tests/browser/admin-ui-kit.spec.ts`](../../tests/browser/admin-ui-kit.spec.ts)
+exercises the primitives in the admin example and
+[`tests/browser/inertia-react-ui-kit.spec.ts`](../../tests/browser/inertia-react-ui-kit.spec.ts)
+the React wrappers on the `/kit` page.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

@@ -104,27 +104,24 @@ export class NestvexaAssetsService
       string,
       string
     >;
-    const integrity: Record<string, string> = Object.create(null) as Record<
-      string,
-      string
-    >;
+    const integrity = Object.create(null) as Record<string, string>;
     for (const [name, content] of files) {
       this.assets.set(
         name,
         Object.freeze({ content, etag: assetTag(content) }),
       );
       urls[name] = `${prefix}/${name}`;
-      integrity[name] = assetIntegrity(content);
+      integrity[urls[name]] = assetIntegrity(content);
     }
     this.manifest = Object.freeze({
       version,
       files: Object.freeze(urls),
-      integrity: Object.freeze(integrity),
       entries: Object.freeze({
         live: `${prefix}/index.js`,
         alpine: `${prefix}/alpine.js`,
         alpineAdapter: `${prefix}/alpine-adapter.js`,
       }),
+      integrity: Object.freeze(integrity),
     });
   }
   /** Available after app.init()/listen(). basePath must match the host's actual public prefix. */

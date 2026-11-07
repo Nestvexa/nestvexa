@@ -59,11 +59,12 @@ the devtools panel itself is a separate package that loads only in development.
    specification the dynamic import inherits the importing module's nonce, so
    a nonce-only `script-src` (no `'self'`, no `'strict-dynamic'`) works, as do
    `'self'` and `'strict-dynamic'` policies and Trusted Types (no sink is used).
-   The asset manifest now carries a SHA-384 `integrity` digest per served file.
-   `browser.importMap(nonce?)` renders an inline import map whose `integrity`
-   section pins the entry, every chunk, Alpine and its adapter; `nvScripts`
-   accepts `integrity=true` to emit it before the boot tag. A tampered chunk is
-   then refused by the browser.
+   The asset manifest's SHA-384 `integrity` map (CORE-045) covers the chunks.
+   Module preloads do not cover dynamic imports, so with
+   `browser: { integrity: true }` `{{nvScripts}}` also renders an inline import
+   map whose `integrity` section pins the entry, every chunk, Alpine and its
+   adapter (`browser.importMap(nonce?)` renders it for host-owned layouts). A
+   tampered chunk is then refused by the browser.
 5. **Budgets.** `scripts/size.mjs` gates each file and the worst case, gzip
    level 9, maps excluded, and fails if the entry imports an unbudgeted chunk:
 

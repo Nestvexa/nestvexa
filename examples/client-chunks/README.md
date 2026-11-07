@@ -4,7 +4,7 @@ On-demand Live client feature chunks ([ADR 0036](../../docs/adr/0036-client-feat
 behind the canonical `boot.js`, under a nonce-only script policy
 (`script-src 'nonce-…'`, no `'self'`, no `'strict-dynamic'`) and an import map
 that pins every client module to its SHA-384 digest
-(`{{nvScripts nonce=cspNonce integrity=true}}`).
+(`browser: { integrity: true }` with `{{nvScripts nonce=cspNonce}}`).
 
 - `/` uses ordinary directives: the browser loads only the core `index.js`.
 - `/board` uses `nv:sort`: `live-sort.js` loads when the board is discovered.

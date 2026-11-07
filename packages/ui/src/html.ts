@@ -178,6 +178,19 @@ export function list(
     throw new UiError('ARGUMENT', `${name} must be an array of 1 to ${max}`);
   return value;
 }
+/** Canonical BCP 47 tag, or undefined when absent. */
+export function localeTag(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (typeof value !== 'string' || value.length > 35)
+    throw new UiError('ARGUMENT', 'locale must be a BCP 47 tag');
+  try {
+    const [canonical] = Intl.getCanonicalLocales(value);
+    if (canonical) return canonical;
+  } catch {
+    // Reported below without echoing the value.
+  }
+  throw new UiError('ARGUMENT', 'locale must be a BCP 47 tag');
+}
 export function joinIds(...ids: (string | undefined)[]): string | undefined {
   const present = ids.filter((entry): entry is string => entry !== undefined);
   return present.length ? present.join(' ') : undefined;

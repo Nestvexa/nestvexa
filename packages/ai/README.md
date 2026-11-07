@@ -11,16 +11,22 @@ Alpha software; consult the root release blockers before production use.
 
 ## Install
 
+The package is not published yet. Build local tarballs with
+`pnpm build && pnpm test:pack` and install the packed `.tgz` file. Future
+registry syntax:
+
 ```sh
 npm install @nestvexa/ai
 pnpm add @nestvexa/ai
 yarn add @nestvexa/ai
 ```
 
-Before publication, use the workspace or packed artifacts. Peers:
-`@nestjs/common` 12, `reflect-metadata` 0.2, `rxjs` 7.8. Node 22.13+ or 24, ESM
-only. No runtime dependencies. The `./browser` entry has no peers and imports
-nothing.
+Peers: `@nestjs/common` 12, `reflect-metadata` 0.2, `rxjs` 7.8. Node 22.13+ or
+24, ESM (the `default` export condition lets CommonJS hosts load it through
+`require(esm)`). No runtime dependencies. The `./browser` entry has no peers
+and imports nothing. The stream route uses `createTextStreamResponse` from
+`@nestvexa/live` (part of the `nestvexa` umbrella), which this package does not
+depend on.
 
 ## Architecture role
 
@@ -108,7 +114,7 @@ async stream(@Req() request: SessionRequest, @Res({ passthrough: true }) respons
 }
 ```
 
-`docs/guides/ai.md` walks through the Live component, the markup contract and the
+The [AI guide](../../docs/guides/ai.md) walks through the Live component, the markup contract and the
 browser glue end to end.
 
 ## Public API (`@nestvexa/ai`)
@@ -176,7 +182,7 @@ browser glue end to end.
 | `maxPromptLength`              | 4000                                      | 1–100000                                 |
 | `maxMessages` (sliding window) | 40                                        | 2–1000                                   |
 | `maxConversationsPerIdentity`  | 8 (oldest evicted)                        | 1–1000                                   |
-| `maxIdentities`                | 10000 (oldest evicted)                    |                                          |
+| `maxIdentities`                | 10000 (oldest evicted)                    | 1–10000000                               |
 | assistant text per turn        | 16000 characters (then `failed`/`LENGTH`) | fixed                                    |
 | tool output stored             | 4000 characters                           | fixed                                    |
 
@@ -276,19 +282,23 @@ class HttpChatProvider implements ChatProvider {
 (The non-null assertion and `parseYourProviderStream` are placeholders for your
 own configuration validation and parser.)
 
-## Testing
+## Compatibility and links
 
-```sh
-pnpm --filter @nestvexa/ai build
-pnpm exec vitest run tests/ai-provider.test.ts tests/ai-approval.test.ts tests/ai-stream.test.ts tests/ai-browser.test.ts
-```
+Node 22.13+/24, NestJS 12, ESM. Works with the default HBS + Live setup; the browser
+entry works with any Live client exposing the three methods. See the
+[AI guide](../../docs/guides/ai.md), [text streams](../../docs/guides/text-streams.md),
+[`nv:stream`](../../docs/reference/nv-stream.md) and the
+[`examples/admin-i18n`](../../examples/admin-i18n/README.md) assistant
+(approval-required tool with the test provider).
 
-Tests cover the provider, approval forgery/replay/concurrency/expiry, real Nest
-Express streaming through `createTextStreamResponse` with cancellation and timeout,
-and the browser glue in real Chromium under a strict CSP. No network or keys.
+## Status and limits
 
-## Production caveats
+Status: **Shipped (alpha)**. Provider-neutral streaming, server-enforced tool
+approval, cancellation, timeouts, audit events and the browser glue are
+implemented and tested with the deterministic `TestProvider`.
 
+- No model provider ships; real providers are host-supplied `ChatProvider`
+  implementations and are not tested here.
 - Conversations and approvals live in process memory: a restart loses them, and
   multiple instances need sticky sessions or a shared store (not provided).
 - One pending call per conversation; a second tool call in a turn fails the turn.
@@ -297,10 +307,20 @@ and the browser glue in real Chromium under a strict CSP. No network or keys.
 - Browser cancellation cannot undo server work already done.
 - The text-stream transport has its own limits (30 s, 1 MiB, 4096 records).
 
-## Compatibility and links
+## Testing
 
-Node 22.13+/24, NestJS 12, ESM. Works with the default HBS + Live setup; the browser
-entry works with any Live client exposing the three methods. See the
-[AI guide](../../docs/guides/ai.md), [text streams](../../docs/guides/text-streams.md),
-[`nv:stream`](../../docs/reference/nv-stream.md) and the
-[changelog](../../CHANGELOG.md).
+```sh
+pnpm --filter @nestvexa/ai test
+```
+
+Runs `tests/ai-*.test.ts` (provider, approval forgery/replay/concurrency/expiry,
+real Nest Express streaming through `createTextStreamResponse` with
+cancellation and timeout, and the browser glue in real Chromium under a strict
+CSP; no network or keys); build first with `pnpm --filter @nestvexa/ai... build`
+because the tests import `dist`. The `examples/admin-i18n` browser spec
+`tests/browser/admin-i18n.spec.ts` exercises the assistant through the root
+Playwright config.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

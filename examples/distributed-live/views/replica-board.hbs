@@ -1,10 +1,13 @@
 <section aria-labelledby="board-heading">
   <h2 id="board-heading">Shared board</h2>
-  <p>Rendered by replica <output id="rendered-by">{{renderedBy}}</output></p>
+  <p>
+    Rendered by replica <output id="rendered-by">{{renderedBy}}</output> on
+    <output id="http-adapter">{{httpAdapter}}</output>
+  </p>
   <p>Shared total: <output id="total">{{total}}</output></p>
   <p>Clicks from this component: <output id="clicks">{{clicks}}</output></p>
   <p>
-    Viewers connected to this replica:
+    Viewers connected (all replicas when Redis is configured):
     <output id="viewers">{{viewers}}</output>
   </p>
   <button type="button" nv:click="increment">Increment shared total</button>

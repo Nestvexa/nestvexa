@@ -375,9 +375,8 @@ describe('asset catalog and configuration boundaries', () => {
     expect(new Set(CLIENT_MODULES).size).toBe(CLIENT_MODULES.length);
   });
   it('shares one LiveClientError identity between the entry and a loaded chunk', async () => {
-    const entry = (await import(
-      '../packages/client/dist/index.js'
-    )) as typeof import('../packages/client/dist/index.js');
+    const entry =
+      (await import('../packages/client/dist/index.js')) as typeof import('../packages/client/dist/index.js');
     // The chunk has no declarations of its own; it is the bundled sort module.
     const sort = (await import(
       new URL('../packages/client/dist/live-sort.js', import.meta.url).href
@@ -453,13 +452,13 @@ describe.each(['express', 'fastify'] as const)(
         );
         expect(response.headers['etag'], name).toBe(assetTag(response.body));
         // SRI digest of the exact bytes on the wire.
-        expect(manifest.integrity[name], name).toBe(
+        expect(manifest.integrity[path], name).toBe(
           `sha384-${createHash('sha384').update(Buffer.from(response.body, 'utf8')).digest('base64')}`,
         );
       }
       expect(Object.isFrozen(manifest.integrity)).toBe(true);
       expect(Object.keys(manifest.integrity).sort()).toEqual(
-        Object.keys(manifest.files).sort(),
+        Object.values(manifest.files).sort(),
       );
       // Static and dynamic sibling imports of the entry and every chunk resolve
       // to catalog members under the same content-addressed version.

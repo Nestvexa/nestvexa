@@ -7,6 +7,12 @@ import { NestvexaError } from './errors.js';
 import { FeatureCapabilityRegistry } from './registry.js';
 import type { FeatureCapability } from './registry.js';
 import { SecurityPolicyRegistry } from './security.js';
+import {
+  NESTVEXA_VERSION,
+  assertVersionRange,
+  isSemanticVersion,
+  satisfiesVersion,
+} from './version.js';
 
 /** Registries an extension may use while it registers (startup only). */
 export interface NestvexaExtensionContext {
@@ -16,9 +22,12 @@ export interface NestvexaExtensionContext {
 }
 
 /**
- * Stable extension hooks (CORE-034). Every hook is optional and runs in a
- * defined order:
+ * The public extension model (CORE-034); the legacy `PluginRegistry` is a
+ * deprecated adapter over it (`pluginExtension`). Every hook is optional and
+ * runs in a defined order:
  *
+ * 0. `nestvexa` (a version range) is checked against `NESTVEXA_VERSION` when
+ *    the extension host is created; an excluded version fails startup;
  * 1. `capabilities` are declared in the capability registry (explicit flags,
  *    never inferred from installed packages);
  * 2. `register(context)` runs once at module init, in installation order;
@@ -32,6 +41,10 @@ export interface NestvexaExtensionContext {
 export interface NestvexaExtension {
   /** Unique lowercase name (`a-z0-9._-`, up to 64 characters). */
   readonly name: string;
+  /** The extension's own semantic version, reported for diagnostics. */
+  readonly version?: string;
+  /** Supported Nestvexa range, for example `^0.1.0`; checked at startup. */
+  readonly nestvexa?: string;
   readonly capabilities?: Readonly<Record<string, FeatureCapability>>;
   register?(context: NestvexaExtensionContext): void | Promise<void>;
   contributeContext?: RequestContextContributor;
@@ -54,14 +67,20 @@ export function defineExtension(
   for (const key of Reflect.ownKeys(extension))
     if (
       typeof key !== 'string' ||
-      !['name', 'capabilities', ...hooks].includes(key)
+      !['name', 'version', 'nestvexa', 'capabilities', ...hooks].includes(key)
     )
       throw new NestvexaError(
         'INVALID_CONFIGURATION',
-        'Extensions accept only name, capabilities and the documented hooks',
+        'Extensions accept only name, version, nestvexa, capabilities and the documented hooks',
       );
   if (typeof extension.name !== 'string' || !namePattern.test(extension.name))
     throw new NestvexaError('INVALID_CONFIGURATION', 'Invalid extension name');
+  if (extension.version !== undefined && !isSemanticVersion(extension.version))
+    throw new NestvexaError(
+      'INVALID_CONFIGURATION',
+      `Extension ${extension.name} version must be a semantic version`,
+    );
+  if (extension.nestvexa !== undefined) assertVersionRange(extension.nestvexa);
   for (const hook of hooks)
     if (extension[hook] !== undefined && typeof extension[hook] !== 'function')
       throw new NestvexaError(
@@ -110,6 +129,14 @@ export class NestvexaExtensionHost
           `Duplicate extension ${extension.name}`,
         );
       names.add(extension.name);
+      if (
+        extension.nestvexa !== undefined &&
+        !satisfiesVersion(NESTVEXA_VERSION, extension.nestvexa)
+      )
+        throw new NestvexaError(
+          'UNSUPPORTED_CAPABILITY',
+          `Extension ${extension.name} supports Nestvexa ${extension.nestvexa}, not ${NESTVEXA_VERSION}`,
+        );
     }
     this.#extensions = Object.freeze(list);
   }

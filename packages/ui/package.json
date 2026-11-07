@@ -4,6 +4,12 @@
   "description": "Optional unstyled accessible UI primitives: HBS/Live helpers, React, Vue and Svelte wrappers on one markup contract, a keyboard browser module and an optional theme",
   "license": "MIT",
   "author": "Nestvexa contributors",
+  "maintainers": [
+    {
+      "name": "Nestvexa",
+      "url": "https://github.com/Nestvexa"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Nestvexa/nestvexa.git",
@@ -69,6 +75,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && tsc -p tsconfig.adapters.json",
+    "test": "vitest run --root ../.. tests/ui-",
     "lint": "eslint src"
   },
   "dependencies": {

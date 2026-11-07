@@ -4,6 +4,12 @@
   "description": "Browser-only Nestvexa Live protocol client",
   "license": "MIT",
   "author": "Nestvexa contributors",
+  "maintainers": [
+    {
+      "name": "Nestvexa",
+      "url": "https://github.com/Nestvexa"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Nestvexa/nestvexa.git",
@@ -48,7 +54,7 @@
   "sideEffects": false,
   "scripts": {
     "build": "tsc -p tsconfig.json --emitDeclarationOnly && node ../../scripts/build-client.mjs",
-    "test": "vitest run ../../tests/client.test.ts ../../tests/client-focus.test.ts",
+    "test": "vitest run --root ../.. tests/client.test tests/client-",
     "lint": "eslint src"
   }
 }

@@ -6,6 +6,8 @@ import type { UploadInstrumentation } from './instrumentation.js';
 import { LocalStorage } from './storage.js';
 import type { UploadStorage } from './storage.js';
 import type { UploadScanner } from './scanner.js';
+import { isUploadPolicyRegistry } from './policies.js';
+import type { UploadPolicyRegistry } from './policies.js';
 
 /** Host-resolved identity: the same binding/CSRF contract as Live, plus an optional tenant. */
 export interface UploadIdentity {
@@ -88,6 +90,16 @@ export interface UploadsHostOptions {
    * `nestvexa.upload.finalize` spans with purpose, mode and sizes only.
    */
   readonly instrumentation?: UploadInstrumentation;
+  /**
+   * Kernel security policy registry (structural; for example
+   * `SecurityPolicyRegistry` from @nestvexa/core). Uploads registers its
+   * origin, CSRF, authorization and `upload-quota` policies under
+   * `policyOwner` at startup and asks the registry for every origin,
+   * CSRF-header and authorization decision.
+   */
+  readonly policies?: UploadPolicyRegistry;
+  /** Owner name for `policies` (default `uploads`); a duplicate owner fails startup. */
+  readonly policyOwner?: string;
 }
 
 export interface ResolvedPurpose {
@@ -117,6 +129,8 @@ export interface ResolvedOptions {
   readonly sweepIntervalMs: number;
   readonly quotas: Required<UploadQuotaOptions>;
   readonly instrumentation: UploadInstrumentation | undefined;
+  readonly policies: UploadPolicyRegistry | undefined;
+  readonly policyOwner: string;
 }
 
 export const PURPOSE_PATTERN =
@@ -234,6 +248,8 @@ export function resolveOptions(options: UploadsHostOptions): ResolvedOptions {
     'sweepIntervalMs',
     'quotas',
     'instrumentation',
+    'policies',
+    'policyOwner',
     'endpoint',
     'global',
     'imports',
@@ -416,7 +432,30 @@ export function resolveOptions(options: UploadsHostOptions): ResolvedOptions {
       ),
     }),
     instrumentation: instrumentation(options.instrumentation),
+    policies: policyRegistry(options.policies),
+    policyOwner: policyOwner(options.policyOwner, options.policies),
   });
+}
+
+function policyRegistry(value: unknown): UploadPolicyRegistry | undefined {
+  if (value === undefined) return undefined;
+  if (!isUploadPolicyRegistry(value))
+    throw new Error(
+      'Uploads policies must implement register, originAllowed, verifyCsrf and authorize',
+    );
+  return value;
+}
+function policyOwner(value: unknown, registry: unknown): string {
+  if (value === undefined) return 'uploads';
+  if (
+    registry === undefined ||
+    typeof value !== 'string' ||
+    !/^[a-z][a-z0-9._-]{0,63}$/.test(value)
+  )
+    throw new Error(
+      'Uploads policyOwner must be a lowercase name (a-z0-9._-) used with policies',
+    );
+  return value;
 }
 
 function instrumentation(value: unknown): UploadInstrumentation | undefined {
