@@ -1,4 +1,5 @@
 import fc from 'fast-check';
+import { propertyRuns } from './support/property-runs.js';
 import { describe, expect, it } from 'vitest';
 import {
   DANGEROUS_EXTENSIONS,
@@ -17,7 +18,7 @@ import { decodeFilenameHeader } from '../packages/uploads/src/filename.js';
  * percent-encoded name headers, response filename encoding, HTTP Range and
  * upload references. Every input below is attacker-controlled.
  */
-const runs = { numRuns: 400 };
+const runs = propertyRuns(400);
 const loneSurrogate = fc
   .oneof(
     fc.integer({ min: 0xd800, max: 0xdbff }),
