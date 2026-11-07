@@ -1,9 +1,12 @@
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
+import { promisify } from 'node:util';
+import ts from 'typescript';
 import {
   Controller,
   Get,
@@ -631,16 +634,31 @@ class PackActions {
   ],
 })
 class ActionsApp {}
+// One generation from the packed codegen: the typed base client plus React
+// hooks, Vue composables, Svelte stores and Live element helpers. (Stable,
+// deterministic output is covered by tests/actions-codegen.test.ts.)
+const targets = ['live', 'react', 'svelte', 'vue'] as const;
 const generated = await generateActionClient({
   files: ['consumer.ts'],
-  outDir: 'generated',
-  write: false,
+  outDir: 'bindings',
+  targets: [...targets],
 });
 assert.ok(generated.ok, JSON.stringify(generated.diagnostics));
 assert.ok(
   generated.files[1]?.contents.includes(
     "readonly echo: ActionMethod<{ text: string }, { text: string; subject: string; at: string }, 'text'>;",
   ),
+);
+assert.deepEqual(
+  generated.files.map((file) => basename(file.path)),
+  [
+    'actions-client.js',
+    'actions-client.d.ts',
+    ...targets.flatMap((target) => [
+      `actions-client.${target}.js`,
+      `actions-client.${target}.d.ts`,
+    ]),
+  ],
 );
 const actionsApp = await NestFactory.create(ActionsApp, { logger: false });
 try {
@@ -668,8 +686,36 @@ try {
     (error: unknown) =>
       error instanceof Error && Reflect.get(error, 'code') === 'VALIDATION',
   );
+  // The generated bindings, type-checked with this consumer's compiler
+  // options against the packed declarations only, then run in a child
+  // process against this packed ActionsModule route.
+  await copyFile('bindings-check.ts', 'bindings/check.ts');
+  const config = ts.readConfigFile('tsconfig.json', (path) =>
+    ts.sys.readFile(path),
+  );
+  assert.equal(config.error, undefined);
+  const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, '.');
+  const program = ts.createProgram({
+    rootNames: ['bindings/check.ts'],
+    options: { ...parsed.options, rootDir: 'bindings', outDir: 'bindings' },
+  });
+  const problems = ts.formatDiagnostics(
+    [...ts.getPreEmitDiagnostics(program), ...program.emit().diagnostics],
+    {
+      getCanonicalFileName: (path) => path,
+      getCurrentDirectory: () => ts.sys.getCurrentDirectory(),
+      getNewLine: () => '\n',
+    },
+  );
+  assert.equal(problems, '');
+  const run = await promisify(execFile)(
+    process.execPath,
+    ['bindings/check.js', await actionsApp.getUrl(), csrf, origin],
+    { timeout: 60000 },
+  );
+  assert.match(run.stdout, /react, vue, svelte and live bindings passed/);
   console.log(
-    'Packed actions consumer passed: explicit group route, generated types from the tarball and typed client.',
+    'Packed actions consumer passed: explicit group route, generated types from the tarball, typed client and type-checked React/Vue/Svelte/Live bindings.',
   );
 } finally {
   await actionsApp.close();
