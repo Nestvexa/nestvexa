@@ -29,7 +29,7 @@ declare global {
     nvMirrorEvents: string[];
     nvViolations: string[];
     nvChartData: unknown;
-    nvUi: { chartData(root: Element): unknown };
+    nvUi: typeof import('../packages/ui/dist/browser/index.js');
   }
 }
 
