@@ -51,33 +51,47 @@ Default capacity is 64 sortable lists per mounted controller; manual controller
 configuration accepts `maxLists` from 1 through 256. Server-side limits remain
 independent.
 
-## Pointer and keyboard interaction
+## Pointer, touch and keyboard interaction
 
-Native HTML dragging starts only from a registered handle. Dropping above an
-item's vertical midpoint proposes insertion before it; dropping below proposes
-insertion after it. Cross-list and external drags are ignored. The runtime tracks
+Native HTML dragging starts only from a registered handle. In a single-column
+list, dropping above an item's vertical midpoint proposes insertion before it and
+below proposes insertion after it. When items share rows (a CSS grid or wrapping
+flex layout, detected from the live item geometry at each gesture, so responsive
+layouts keep working) the horizontal midpoint decides, mirrored for
+right-to-left lists. Dropping on a connected list's free area appends to it.
+Drags into unconnected lists and external drags are ignored. The runtime tracks
 the source in memory and never reads identities or HTML from `DataTransfer`.
 An opaque marker enables engines requiring drag data; it grants no permission.
 Escape, drag end, window blur, disposal and ownership/configuration changes cancel
-the current drag. This initial behavior supports vertical lists; it does not
-implement a grid, touch gesture recognizer or cross-list transfers.
+the current drag.
+
+Touch and pen use Pointer Events, because most touch browsers do not start native
+HTML drags (or need a long press). A primary non-mouse pointer pressed on a handle
+and moved more than 8 CSS pixels proposes a drop where it is released; a shorter
+tap stays an ordinary button press. While registered, handles get
+`touch-action: none` through the CSSOM (no inline style attribute is parsed, so
+it is allowed under a strict `style-src`) and the previous value is restored on
+release. `pointercancel` (for example a system gesture) cancels the move.
 
 With focus on a handle:
 
-| Shortcut      | Proposal                   |
-| ------------- | -------------------------- |
-| Alt+ArrowUp   | Move up one position       |
-| Alt+ArrowDown | Move down one position     |
-| Alt+Home      | Move to the first position |
-| Alt+End       | Move to the last position  |
+| Shortcut                    | Proposal                                                                  |
+| --------------------------- | ------------------------------------------------------------------------- |
+| Alt+ArrowUp / Alt+ArrowDown | Up/down one position; in a grid, up/down one row                          |
+| Alt+ArrowLeft / Right       | In a grid, one position in the visual direction                           |
+| Alt+Home / Alt+End          | Move to the first/last position                                           |
+| Alt+Shift+ArrowLeft / Right | Connected lists: same position in the previous/next list (document order) |
 
-Boundary moves are no-ops. Other shortcuts, additional system modifiers,
-composition and key-repeat events do not propose orders. Only the relevant
-handle context captures a supported shortcut. Supply visible instructions because
+In a single-column list Alt+Left/Right are left to the page and assistive
+technology. Boundary moves are no-ops. Other shortcuts, additional system
+modifiers, composition and key-repeat events do not propose orders. Only the
+relevant handle context captures a supported shortcut, and `aria-keyshortcuts`
+lists the shortcuts a handle accepts. Supply visible instructions because
 assistive technology or operating-system shortcuts may conflict; manual screen
 reader acceptance remains necessary.
 
-While a proposal is pending, duplicate sort requests for that list are blocked.
+While a proposal is pending, duplicate sort requests for that list (and, for a
+cross-list move, for both lists) are blocked.
 All handles receive `aria-disabled='true'`; nonfocused handles are also natively
 disabled. The focused handle remains focusable while its handlers refuse new
 requests, preserving keyboard context during the server round trip. A polite,
@@ -93,11 +107,26 @@ running on the server.
 
 ## Server contract and security
 
-The action receives one JSON input object:
+An unconnected list's action receives its proposed order:
 
 ```json
 { "ids": ["task-b", "task-a", "task-c"] }
 ```
+
+Connected lists send the moved item and the proposed order of every list it left
+or entered, keyed by `nv:sort.group` (one key for a move within a list, two for a
+move across lists):
+
+```json
+{
+  "item": "docs",
+  "lists": { "todo": ["tests", "audit"], "done": ["docs", "ship"] }
+}
+```
+
+Treat this as a proposal over the union of the named lists: check that the keys
+are lists the user may change and that the combined IDs are exactly the
+authoritative items of those lists.
 
 Use `@ActionInput()` with an ordinary Nest pipe/DTO to reject unknown keys, invalid
 IDs, duplicates and oversized arrays. Inside the authorized action, compare the
@@ -118,7 +147,14 @@ requires a progressive fallback; the directive supplies no no-JS endpoint.
 
 The [focused Chromium corpus](../../tests/client-sort.test.ts) covers actual native
 dragging, keyboard proposals, focus, pending deduplication, strict semantics,
-external-data rejection, ownership cancellation, cleanup and automated axe checks.
+external-data rejection, ownership cancellation, cleanup and automated axe checks,
+plus grid geometry (left-to-right and right-to-left), connected-list keyboard,
+drag and empty-list drops, and touch/pen pointer gestures.
+[`tests/browser/client-chunks.spec.ts`](../../tests/browser/client-chunks.spec.ts)
+runs connected columns and a photo grid against a real Nest action in Chromium,
+Firefox and WebKit. The sort code loads as an on-demand chunk
+([ADR 0035](../adr/0035-client-feature-chunks.md)): a sortable component
+registers once `live-sort.js` has loaded.
 Its controlled acknowledgement fixture is not a substitute for the real Nest
 integration and cross-browser acceptance tests. Consult the current implementation
 report for executed coverage and remaining Phase 4 gates.

@@ -24,6 +24,7 @@ declare global {
         list: Element;
         action: string;
         ids: readonly string[];
+        input: unknown;
         frozen: boolean;
         resolve(): void;
         reject(error: Error): void;
@@ -188,8 +189,16 @@ describe('sort lifecycle in actual Chromium with controlled server acknowledgeme
               requests.push({
                 list,
                 action,
-                ids: input.ids,
-                frozen: Object.isFrozen(input) && Object.isFrozen(input.ids),
+                ids: 'ids' in input ? input.ids : [],
+                input,
+                frozen:
+                  Object.isFrozen(input) &&
+                  ('ids' in input
+                    ? Object.isFrozen(input.ids)
+                    : Object.isFrozen(input.lists) &&
+                      Object.values(input.lists).every((ids) =>
+                        Object.isFrozen(ids),
+                      )),
                 resolve,
                 reject,
               }),
@@ -586,5 +595,360 @@ describe('sort lifecycle in actual Chromium with controlled server acknowledgeme
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
     await page.locator('#tasks-task-a').press('Alt+ArrowDown');
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  });
+
+  // Two-dimensional (grid) layouts, connected lists and touch gestures.
+  function grid(
+    ids: readonly string[] = ['g1', 'g2', 'g3', 'g4', 'g5', 'g6'],
+    direction: 'ltr' | 'rtl' = 'ltr',
+  ): string {
+    return `<ul id="grid" dir="${direction}" nv:sort="arrange" aria-label="Photo grid" style="display:grid;grid-template-columns:repeat(3,140px);gap:8px;list-style:none;padding:0">${ids.map((key) => `<li nv:sort.item="${key}" style="height:80px"><button id="grid-${key}" type="button" nv:sort.handle aria-label="Move ${key}">${key}</button></li>`).join('')}</ul>`;
+  }
+  function board(
+    lists: Readonly<Record<string, readonly string[]>> = {
+      todo: ['t1', 't2', 't3'],
+      done: ['d1', 'd2'],
+    },
+  ): string {
+    return `<div style="display:flex;gap:24px">${Object.entries(lists)
+      .map(
+        ([key, ids]) =>
+          `<ol id="${key}" nv:sort="move" nv:sort.group="${key}" aria-label="${key} column" style="min-height:120px;width:200px">${ids.map((id) => `<li nv:sort.item="${id}" style="min-height:50px"><button id="${key}-${id}" type="button" nv:sort.handle aria-label="Move ${id}">${id}</button></li>`).join('')}</ol>`,
+      )
+      .join('')}</div>`;
+  }
+  async function inputs(): Promise<unknown[]> {
+    return page.evaluate(() =>
+      window.nvSortSession.requests.map(({ input, list }) => ({
+        input,
+        list: list.id,
+      })),
+    );
+  }
+  /** Stand-in for the authoritative server render of connected lists. */
+  async function replyLists(
+    index: number,
+    lists: Readonly<Record<string, readonly string[]>>,
+  ): Promise<void> {
+    await page.evaluate(
+      ({ index, lists }) => {
+        const request = window.nvSortSession.requests[index];
+        if (!request) throw new Error('Missing sort proposal');
+        for (const [key, ids] of Object.entries(lists)) {
+          const list = document.getElementById(key);
+          for (const id of ids) {
+            const item = document.querySelector(`[nv\\:sort\\.item="${id}"]`);
+            if (list && item) list.append(item);
+          }
+        }
+        window.nvSortSession.controller.refresh(document);
+        request.resolve();
+      },
+      { index, lists },
+    );
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll('[nv\\:sort]')].every(
+        (element) => element.getAttribute('aria-busy') !== 'true',
+      ),
+    );
+  }
+  it('parses connected-list keys with the stable identifier grammar', () => {
+    expect(parseSortDirective('nv:sort.group', 'todo-1')).toEqual({
+      kind: 'sort-group',
+      id: 'todo-1',
+    });
+    for (const value of ['', '__proto__', 'a b', 'a.b', 'x'.repeat(65)])
+      expect(() => parseSortDirective('nv:sort.group', value)).toThrow();
+    expect(() => parseSortDirective('nv:sort.group.once', 'todo')).toThrow();
+  });
+  it.each([
+    ['ArrowRight', 'g1', ['g2', 'g1', 'g3', 'g4', 'g5', 'g6']],
+    ['ArrowLeft', 'g2', ['g2', 'g1', 'g3', 'g4', 'g5', 'g6']],
+    ['ArrowDown', 'g1', ['g2', 'g3', 'g4', 'g1', 'g5', 'g6']],
+    ['ArrowUp', 'g5', ['g1', 'g5', 'g2', 'g3', 'g4', 'g6']],
+  ] as const)(
+    'moves within a grid by layout with Alt+%s on %s',
+    async (key, id, expected) => {
+      await mount(grid());
+      await page.locator(`#grid-${id}`).press(`Alt+${key}`);
+      expect(await proposals()).toEqual([
+        { action: 'arrange', ids: expected, frozen: true, list: 'grid' },
+      ]);
+    },
+  );
+  it('mirrors horizontal grid moves right-to-left and ignores boundary rows', async () => {
+    await mount(grid(undefined, 'rtl'));
+    // In RTL the next item is visually to the left.
+    await page.locator('#grid-g1').press('Alt+ArrowLeft');
+    expect(await proposals()).toEqual([
+      {
+        action: 'arrange',
+        ids: ['g2', 'g1', 'g3', 'g4', 'g5', 'g6'],
+        frozen: true,
+        list: 'grid',
+      },
+    ]);
+    await reply(0);
+    await page.locator('#grid-g2').press('Alt+ArrowUp');
+    await page.locator('#grid-g5').press('Alt+ArrowDown');
+    expect(await proposals()).toHaveLength(1);
+  });
+  it('leaves Alt+Left/Right to the page in a vertical list', async () => {
+    await mount();
+    const prevented = await page.locator('#tasks-task-a').evaluate((handle) => {
+      const event = new KeyboardEvent('keydown', {
+        bubbles: true,
+        cancelable: true,
+        altKey: true,
+        key: 'ArrowRight',
+      });
+      handle.dispatchEvent(event);
+      return event.defaultPrevented;
+    });
+    expect(prevented).toBe(false);
+    expect(await proposals()).toEqual([]);
+  });
+  it('drops by the horizontal midpoint of a grid cell with a real native drag', async () => {
+    await mount(grid());
+    const cell = page.locator('#grid > li').nth(2);
+    const bounds = await cell.boundingBox();
+    if (!bounds) throw new Error('Missing grid geometry');
+    await page.locator('#grid-g1').dragTo(cell, {
+      targetPosition: { x: bounds.width - 4, y: bounds.height / 2 },
+    });
+    expect(await proposals()).toEqual([
+      {
+        action: 'arrange',
+        ids: ['g2', 'g3', 'g1', 'g4', 'g5', 'g6'],
+        frozen: true,
+        list: 'grid',
+      },
+    ]);
+  });
+  it('moves an item to a connected list by keyboard, pending both lists until the server renders', async () => {
+    await mount(board());
+    await page.locator('#todo-t2').press('Alt+Shift+ArrowRight');
+    expect(await inputs()).toEqual([
+      {
+        input: {
+          item: 't2',
+          lists: { todo: ['t1', 't3'], done: ['d1', 't2', 'd2'] },
+        },
+        list: 'done',
+      },
+    ]);
+    expect(await proposals()).toEqual([
+      { action: 'move', ids: [], frozen: true, list: 'done' },
+    ]);
+    expect(await page.locator('#todo').getAttribute('aria-busy')).toBe('true');
+    expect(await page.locator('#done').getAttribute('aria-busy')).toBe('true');
+    expect(await page.locator('#todo-t1').getAttribute('aria-disabled')).toBe(
+      'true',
+    );
+    await expect
+      .poll(() => page.locator('#done + [role="status"]').textContent())
+      .toBe(
+        'Moving Move t2 to position 2 of 3 in done column. Waiting for server.',
+      );
+    // The DOM does not move until the authoritative render.
+    expect(await order('todo')).toEqual(['t1', 't2', 't3']);
+    await replyLists(0, { todo: ['t1', 't3'], done: ['d1', 't2', 'd2'] });
+    expect(await order('done')).toEqual(['d1', 't2', 'd2']);
+    expect(await page.locator('#done + [role="status"]').textContent()).toBe(
+      'Order updated for done column.',
+    );
+    // No list before the first one; a move within a connected list names one list.
+    await page.locator('#todo-t1').press('Alt+Shift+ArrowLeft');
+    await page.locator('#todo-t1').press('Alt+ArrowDown');
+    expect((await inputs()).slice(1)).toEqual([
+      { input: { item: 't1', lists: { todo: ['t3', 't1'] } }, list: 'todo' },
+    ]);
+  });
+  it('drags into a connected list and onto an empty connected list, never into an unconnected one', async () => {
+    await mount(
+      board({ todo: ['t1', 't2'], done: [] }) + list(['task-a'], 'tasks'),
+    );
+    await page.locator('#todo-t1').dragTo(page.locator('#done'), {
+      targetPosition: { x: 100, y: 60 },
+    });
+    expect(await inputs()).toEqual([
+      {
+        input: { item: 't1', lists: { todo: ['t2'], done: ['t1'] } },
+        list: 'done',
+      },
+    ]);
+    await replyLists(0, { done: ['t1'] });
+    await page.locator('#todo-t2').dragTo(page.locator('#done > li').first(), {
+      targetPosition: { x: 20, y: 4 },
+    });
+    expect((await inputs())[1]).toEqual({
+      input: { item: 't2', lists: { todo: [], done: ['t2', 't1'] } },
+      list: 'done',
+    });
+    await replyLists(1, { done: ['t2', 't1'] });
+    // The emptied connected list remains registered and accepts items again
+    // (handle IDs keep the column they were rendered in).
+    await page.locator('#todo-t1').dragTo(page.locator('#todo'), {
+      targetPosition: { x: 100, y: 60 },
+    });
+    expect(await inputs()).toHaveLength(3);
+    await replyLists(2, { todo: ['t1'] });
+    await page.locator('#todo-t1').dragTo(page.locator('#tasks > li').first(), {
+      targetPosition: { x: 100, y: 50 },
+    });
+    expect(await inputs()).toHaveLength(3);
+  });
+  it.each([
+    ['a group outside a list', '<div nv:sort.group="todo"></div>' + list()],
+    ['duplicate keys', board({ todo: ['t1'] }) + board({ todo: ['t2'] })],
+    [
+      'an item ID shared across connected lists',
+      board({ todo: ['same'], done: ['same'] }),
+    ],
+  ])('rejects %s before attaching handlers', async (_name, markup) => {
+    await expect(mount(markup)).rejects.toThrow();
+    expect(await proposals()).toEqual([]);
+  });
+  async function touchGesture(
+    from: string,
+    to: { readonly selector: string; readonly x: number; readonly y: number },
+    pointerType = 'touch',
+  ): Promise<void> {
+    await page.evaluate(
+      ({ from, to, pointerType }) => {
+        const handle = document.querySelector(from);
+        const target = document.querySelector(to.selector);
+        if (!handle || !target) throw new Error('Missing touch fixture');
+        const start = handle.getBoundingClientRect();
+        const end = target.getBoundingClientRect();
+        const init = (x: number, y: number): PointerEventInit => ({
+          bubbles: true,
+          cancelable: true,
+          pointerId: 7,
+          pointerType,
+          isPrimary: true,
+          button: 0,
+          clientX: x,
+          clientY: y,
+        });
+        const x = start.left + start.width / 2;
+        const y = start.top + start.height / 2;
+        handle.dispatchEvent(new PointerEvent('pointerdown', init(x, y)));
+        document.dispatchEvent(
+          new PointerEvent('pointermove', init(x, y + 20)),
+        );
+        const destination = init(end.left + to.x, end.top + to.y);
+        document.dispatchEvent(new PointerEvent('pointermove', destination));
+        handle.dispatchEvent(new PointerEvent('pointerup', destination));
+      },
+      { from, to, pointerType },
+    );
+  }
+  it('reorders and moves across connected lists with touch pointers, ignoring taps, mice and cancelled gestures', async () => {
+    await mount(board());
+    expect(
+      await page
+        .locator('#todo-t1')
+        .evaluate((handle) => handle.style.touchAction),
+    ).toBe('none');
+    await touchGesture('#todo-t1', {
+      selector: '#todo > li:nth-child(3)',
+      x: 10,
+      y: 45,
+    });
+    expect(await inputs()).toEqual([
+      {
+        input: { item: 't1', lists: { todo: ['t2', 't3', 't1'] } },
+        list: 'todo',
+      },
+    ]);
+    await replyLists(0, { todo: ['t2', 't3', 't1'] });
+    await touchGesture(
+      '#todo-t3',
+      { selector: '#done > li:nth-child(1)', x: 10, y: 4 },
+      'pen',
+    );
+    expect((await inputs())[1]).toEqual({
+      input: {
+        item: 't3',
+        lists: { todo: ['t2', 't1'], done: ['t3', 'd1', 'd2'] },
+      },
+      list: 'done',
+    });
+    await replyLists(1, { done: ['t3', 'd1', 'd2'] });
+    // A mouse uses native dragging instead; a tap and a cancelled gesture propose nothing.
+    await touchGesture(
+      '#todo-t2',
+      { selector: '#done > li:nth-child(1)', x: 10, y: 4 },
+      'mouse',
+    );
+    await page.locator('#todo-t2').evaluate((handle) => {
+      const at = handle.getBoundingClientRect();
+      const init: PointerEventInit = {
+        bubbles: true,
+        pointerId: 9,
+        pointerType: 'touch',
+        isPrimary: true,
+        button: 0,
+        clientX: at.left + 4,
+        clientY: at.top + 4,
+      };
+      handle.dispatchEvent(new PointerEvent('pointerdown', init));
+      handle.dispatchEvent(new PointerEvent('pointerup', init));
+      handle.dispatchEvent(new PointerEvent('pointerdown', init));
+      document.dispatchEvent(
+        new PointerEvent('pointermove', { ...init, clientY: at.top + 200 }),
+      );
+      document.dispatchEvent(new PointerEvent('pointercancel', init));
+      document.dispatchEvent(
+        new PointerEvent('pointerup', { ...init, clientY: at.top + 200 }),
+      );
+    });
+    expect(await inputs()).toHaveLength(2);
+    await page.evaluate(() => window.nvSortSession.controller.dispose());
+    expect(
+      await page
+        .locator('#todo-t2')
+        .evaluate((handle) => handle.style.touchAction),
+    ).toBe('');
+  });
+  it('accepts a real Chromium touchscreen drag on a handle', async () => {
+    await mount(board());
+    const cdp = await context.newCDPSession(page);
+    await cdp.send('Emulation.setTouchEmulationEnabled', {
+      enabled: true,
+      maxTouchPoints: 1,
+    });
+    const from = await page.locator('#todo-t1').boundingBox();
+    const to = await page.locator('#done > li').last().boundingBox();
+    if (!from || !to) throw new Error('Missing touch geometry');
+    const point = (x: number, y: number) => [{ x, y, id: 1 }];
+    const x = from.x + from.width / 2;
+    const y = from.y + from.height / 2;
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: point(x, y),
+    });
+    for (let step = 1; step <= 5; step++)
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: point(
+          x + ((to.x + 20 - x) * step) / 5,
+          y + ((to.y + to.height - 5 - y) * step) / 5,
+        ),
+      });
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchEnd',
+      touchPoints: [],
+    });
+    await expect.poll(inputs).toEqual([
+      {
+        input: {
+          item: 't1',
+          lists: { todo: ['t2', 't3'], done: ['d1', 'd2', 't1'] },
+        },
+        list: 'done',
+      },
+    ]);
   });
 });
