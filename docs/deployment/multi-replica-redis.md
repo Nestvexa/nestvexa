@@ -2,37 +2,34 @@
 
 You can run several Nestvexa processes behind one load balancer, but only if
 you know which state each process keeps for itself. The short version: with
-`@nestvexa/realtime-redis`, **Live state and realtime events are shared through
-Redis**, so a Live component mounted on one replica continues on another.
-**Upload sessions stay per process**, so upload routes still need sticky
-sessions or a single upload node.
+[`@nestvexa/realtime-redis`](../../packages/realtime-redis/README.md), Redis
+carries realtime events, Live component state, presence and durable jobs
+between replicas, so Live does not need sticky sessions. **Upload sessions are
+still per process** and need affinity.
 
-`pnpm test:services` ran against Redis 7 on 2026-11-05
-([evidence](../implementation/services-evidence-2026-11-05.json)). It covers
-cross-process publish and resubscription after a Redis restart, `RedisLiveStore`
-continuation, replay and binding rejection, leases and TTLs, and a two-replica
-browser suite. In that suite a publish on replica B refreshes a browser on
-replica A over SSE (and back over WebSocket), Live state created on A continues
-on B, and identities stay isolated on both replicas. The
-[distributed example](../../examples/distributed-live/README.md) runs that
-topology.
+`pnpm test:services` runs four replicas of
+[`examples/distributed-live`](../../examples/distributed-live/README.md)
+(Express and Fastify, SSE and WebSocket) against real Redis in a browser:
+cross-replica refresh, Live state continuing on another replica, cross-identity
+isolation, presence, reconnect after a dropped load balancer and connection-leak
+checks ([production services](../guides/production-services.md)).
 
 > **Known gap:** only a single Redis primary is supported. There is no Sentinel
 > discovery or tested failover, and Redis Cluster is not supported (DATA-004).
-> Cross-replica idempotent replay and identity locks are tested against the
-> in-process RESP test double only (LIVE-007). Load behavior is unverified, and
-> the two-replica suite runs on Express only (REAL-014).
+> Load behavior across replicas is unmeasured (REAL-014), and revocation is not
+> broadcast between replicas (see below).
 
 ## What lives where
 
 | State                                 | Implementation                               | Shareable across replicas?                                                                                                                 |
 | ------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Live component state and snapshots    | `LiveStore` (`MemoryLiveStore` by default)   | **Yes,** with `RedisLiveStore` from `@nestvexa/realtime-redis`. `MemoryLiveStore` stays inside one process.                                |
+| Live component state and snapshots    | `LiveStateStore` (default `MemoryLiveStore`) | **Yes,** with `RedisLiveStore` from `@nestvexa/realtime-redis`. The memory default stays inside one process.                               |
 | Live rate limiting                    | Per process, per binding (default 60/min)    | No. The effective limit is multiplied by the replica count.                                                                                |
 | Upload sessions and pending tokens    | `UploadsService` memory                      | **No.** Temporary chunks are on local disk. Finalized objects can live in shared storage (`S3Storage`).                                    |
 | Realtime events                       | `RealtimeBroker` interface                   | **Yes,** with `RespRealtimeBroker`. The default `MemoryRealtimeBroker` stays inside one process.                                           |
 | Realtime subscription tokens          | HMAC with `RealtimeModule` `secrets`         | Yes, if every replica uses the same `secrets`. Tokens signed on one replica are then valid on another.                                     |
-| Jobs and progress                     | `JobRunner` (in process, lost on restart)    | No. Use a durable queue for real work. No BullMQ adapter ships.                                                                            |
+| Jobs and progress                     | `JobRunner` over a `JobQueue`                | **Yes,** with `RedisJobQueue` (durable, crash recovery by lease). The default `MemoryJobQueue` is per process. No BullMQ adapter ships.    |
+| Presence                              | `PresenceStore` (optional)                   | **Yes,** with `RedisPresenceStore`. Without a store each replica reports its own connections.                                              |
 | Cache                                 | `Cache` + `CacheStore` interface             | `MemoryCacheStore` is per process. Implement `CacheStore` against a shared store yourself and invalidate across replicas through realtime. |
 | Action idempotency                    | `ActionIdempotencyStore` interface           | `MemoryIdempotencyStore` is per process. The interface lets you supply a shared implementation.                                            |
 | Form drafts / no-JS submission ledger | `DraftStore` / `SubmissionLedger` interfaces | The `Memory*` implementations are per process. Supply shared implementations for several replicas.                                         |
@@ -71,12 +68,13 @@ about seven Redis round trips, and replica clocks must be NTP-synchronized. A
 `download` URL created by a replayed action is served only by the replica that
 created it.
 
-## Sticky sessions are still required for uploads (and for the memory store)
+## Sticky sessions: required for uploads, and for Live without a shared store
 
-With `MemoryLiveStore`, a page mounted on replica A whose next action reaches
-replica B gets `410` ("Live state is unavailable; reload the page"). Upload chunk
-and finalize requests behave the same way with any Live store: the session or
-token is unknown on another replica (`404`). So:
+With the default `MemoryLiveStore`, a page mounted on replica A whose next
+action reaches replica B gets `410` ("Live state is unavailable; reload the
+page"); configure `RedisLiveStore` to remove that constraint. Upload chunk and
+finalize requests always behave that way: the session or token is unknown on
+another replica (`404`). So:
 
 - Route each browser session to one replica, for example with a cookie-based
   affinity at the load balancer. IP-hash affinity breaks when client addresses
@@ -88,8 +86,8 @@ token is unknown on another replica (`404`). So:
   can, then send `SIGTERM`.
 
 Affinity does not make a deployment highly available. It only makes it
-consistent. With `RedisLiveStore`, Live state survives the loss of a replica,
-but in-progress uploads do not.
+consistent. With `RedisLiveStore`, Live state survives the loss of a replica
+(ADR 0032), but in-progress uploads do not.
 
 ## Realtime across replicas
 
@@ -140,16 +138,13 @@ periodically (`limits.revalidateMs`, default 30 s). Revalidation resolves the
 identity again and re-authorizes each channel. If your shared session store
 and channel policy reflect the logout or permission change, the connection
 closes within that interval. Until then, a revoked identity can keep a
-connection on another replica. Periodic revalidation is covered by
-`tests/realtime-hub.test.ts` on one hub, not across replicas.
+connection on another replica (revalidation is covered by
+`tests/realtime-hub.test.ts`).
 
-Presence (`RealtimeService.presence`) and the subscribe and publish rate limits
-(`subscribesPerMinute`, `publishesPerMinute`) are enforced per replica.
-
-> **Known gap:** presence counts only members connected to the replica you ask,
-> with no cross-replica aggregation (REAL-009). The transport is chosen per app,
-> not per component, and `auto` falls back from SSE to polling but never tries
-> WebSocket (REAL-004).
+Presence across replicas needs `presence: { store: new RedisPresenceStore(redis) }`;
+a crashed replica's viewers lapse within the presence TTL (default 30 s).
+Publish and subscribe rate limits are per replica. Transport selection is per
+page (`auto` negotiates WebSocket → SSE → polling), not per component.
 
 ## Cache invalidation across replicas
 
@@ -169,11 +164,12 @@ component refresh does not exist yet (ledger row REAL-010). See the
 - [ ] Sticky sessions keyed on the session cookie for upload routes.
 - [ ] Shared HTTP session store, chosen and operated by the host.
 - [ ] Identical `RealtimeModule` `secrets` and `origin` on every replica.
-- [ ] `RespRealtimeBroker` with a unique `prefix`, Redis on a private
-      network, password from the environment.
+- [ ] `RedisRealtimeBroker` (and optionally `RedisPresenceStore`) with a
+      unique `prefix`, Redis on a private network, password from the
+      environment.
 - [ ] `S3Storage` (or another shared `UploadStorage`) for finalized uploads.
       Each replica keeps its own local temporary `directory`.
-- [ ] A durable queue instead of `JobRunner` for work that must survive restarts.
+- [ ] `RedisJobQueue` for jobs that must survive restarts; idempotent handlers.
 - [ ] Shared implementations of `CacheStore`, `ActionIdempotencyStore`,
       `DraftStore` and `SubmissionLedger` where you use those features.
 - [ ] Drain replicas before you stop them, and plan for users reloading after

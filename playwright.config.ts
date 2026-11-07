@@ -76,6 +76,23 @@ export default defineConfig({
       env: { PORT: '3227', REALTIME_TRANSPORT: 'auto' },
       reuseExistingServer: false,
     },
+    // Explicit long-polling, and `auto` negotiating WebSocket on Fastify.
+    {
+      command: 'pnpm --filter @nestvexa/example-distributed-live start',
+      url: 'http://127.0.0.1:3800/api/health',
+      env: { PORT: '3800', REALTIME_TRANSPORT: 'polling' },
+      reuseExistingServer: false,
+    },
+    {
+      command: 'pnpm --filter @nestvexa/example-distributed-live start',
+      url: 'http://127.0.0.1:3801/api/health',
+      env: {
+        PORT: '3801',
+        REALTIME_TRANSPORT: 'auto',
+        HTTP_ADAPTER: 'fastify',
+      },
+      reuseExistingServer: false,
+    },
     // Phase 9-11 frontend adapters (Vite production builds + SSR). The React
     // example renders through the official Inertia SSR server process.
     {

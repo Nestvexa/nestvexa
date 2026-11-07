@@ -74,30 +74,35 @@ Hosts must authorize `$sync` for components that use realtime.
 
 ## Public API
 
-| Export                                                                     | Purpose                                                                                                                 |
-| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `RealtimeModule.forRoot(options)` / `forRootAsync({ inject, useFactory })` | Registers `GET <endpoint>/sse` and `GET <endpoint>/poll` (default `/_nestvexa/realtime`) and a global `RealtimeService` |
-| `RealtimeService.publish(channel, data?, { identity? })`                   | Invalidate subscribers; `data` is JSON ≤16 KiB; `identity` applies `publishesPerMinute`                                 |
-| `RealtimeService.presence(identity, channel)`                              | Distinct members connected to this replica, for an authorized reader                                                    |
-| `RealtimeService.sign(identity, channels)`                                 | Token for authorized channels, or `undefined`                                                                           |
-| `RealtimeService.revoke(binding)` / `closeChannel(channel)`                | Close connections on logout or permission changes                                                                       |
-| `attachRealtimeWebSocket(app)`                                             | Optional `<endpoint>/ws` transport; requires `resolveUpgradeIdentity`                                                   |
-| `MemoryRealtimeBroker`                                                     | Default single-process broker with bounded replay                                                                       |
-| `RespRealtimeBroker({ host, port, password?, prefix })`                    | Cross-replica pub/sub over the Redis protocol (`RedisRealtimeBroker` in `@nestvexa/realtime-redis/realtime`)            |
-| `JobRunner`, `MemoryJobQueue`, `JobQueue`                                  | Owner-bound named jobs with progress, idempotency keys, retries, cancellation and leases over a pluggable queue         |
-| `createTokenSigner`, `RealtimeHub`                                         | Lower-level building blocks                                                                                             |
+| Export                                                                     | Purpose                                                                                                                                    |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `RealtimeModule.forRoot(options)` / `forRootAsync({ inject, useFactory })` | Registers `GET <endpoint>/sse` and `GET <endpoint>/poll` (default `/_nestvexa/realtime`) and a global `RealtimeService`                    |
+| `RealtimeService.publish(channel, data?, { identity? })`                   | Invalidate subscribers; `data` is JSON ≤16 KiB; `identity` applies `publishesPerMinute`                                                    |
+| `RealtimeService.presence(identity, channel)`                              | Distinct members for an authorized reader: this replica's, or every replica's with a `presence` store                                      |
+| `RealtimeService.transports` / `GET <endpoint>/negotiate`                  | Transports offered now, in preference order (WebSocket only once attached); `auto` clients read it                                         |
+| `MemoryPresenceStore`, `PresenceStore`                                     | Shared presence contract (`RedisPresenceStore` in `@nestvexa/realtime-redis/realtime`)                                                     |
+| `RealtimeService.sign(identity, channels)`                                 | Token for authorized channels, or `undefined`                                                                                              |
+| `RealtimeService.revoke(binding)` / `closeChannel(channel)`                | Close connections on logout or permission changes                                                                                          |
+| `attachRealtimeWebSocket(app)`                                             | Optional `<endpoint>/ws` transport; requires `resolveUpgradeIdentity`                                                                      |
+| `MemoryRealtimeBroker`                                                     | Default single-process broker with bounded replay                                                                                          |
+| `RespRealtimeBroker({ host, port, password?, prefix })`                    | Cross-replica pub/sub over the Redis protocol (`RedisRealtimeBroker` in `@nestvexa/realtime-redis/realtime`)                               |
+| `JobRunner`, `MemoryJobQueue`, `JobQueue`                                  | Owner-bound named jobs with progress, idempotency keys, retries, cancellation and leases over a pluggable queue (durable: `RedisJobQueue`) |
+| `createTokenSigner`, `RealtimeHub`                                         | Lower-level building blocks                                                                                                                |
 
 Options: `secrets` (1–8, ≥32 bytes, first signs), `origin` (exact), `resolveIdentity`,
 `authorizeChannel`, `describePresence?`, `resolveUpgradeIdentity?`, `broker?`,
+`presence?` (`{ store, ttlMs? }`, default TTL 30 s), `transports?` (default
+`['websocket', 'sse', 'polling']`; disabled routes answer 404),
 `endpoint?`, `tokenTtlMs?` (default 15 min), `limits?` (`maxConnections` 1000,
 `maxConnectionsPerIdentity` 8, `queueLimit` 64, `heartbeatMs` 15000,
 `revalidateMs` 30000, `subscribesPerMinute` 60, `publishesPerMinute` 120,
 `maxPresenceMembers` 100), `instrumentation?` (structural tracing hook:
 `nestvexa.realtime.publish`, `.subscribe`, `.connection` and `.deliver` spans
 with transports, channel kinds, counts, sizes and rejection codes; never full
-channel names, payloads, tokens or identities). `auto` transport falls back from SSE to long-polling
-at runtime; see the [realtime guide](../../docs/guides/realtime.md) for presence,
-rate limits, jobs (including a BullMQ adapter recipe) and multiple replicas.
+channel names, payloads, tokens or identities). The `auto` browser transport
+negotiates with the server and falls back WebSocket → SSE → polling at runtime;
+see the [realtime guide](../../docs/guides/realtime.md) for presence, rate
+limits, jobs and multiple replicas.
 
 Browser: `createLiveClient({ realtime: { endpoint, transport: 'auto' | 'sse' | 'websocket' | 'polling' } })`
 or the umbrella `browser.realtime` option.
@@ -120,34 +125,49 @@ events per channel (`replaySize`) after reconnect, for at most 10,000 channels
 (`replayChannels`; the least recently published channel's history is evicted
 first, so per-user channel names cannot grow memory without bound); unknown or
 evicted cursors replay nothing and clients refresh. Redis pub/sub is
-fire-and-forget. The default `MemoryJobQueue` keeps jobs in memory only;
-presence and replay windows are per replica.
+fire-and-forget; `RespRealtimeBroker.subscribe` resolves after Redis confirms
+the subscription. The default `MemoryJobQueue` keeps jobs in memory only
+(`RedisJobQueue` is durable); replay windows are per replica, and presence is
+per replica unless a `presence` store is configured. The unit tests use an
+in-process RESP test double; `pnpm test:services`
+([guide](../../docs/guides/production-services.md)) runs the broker, job queue
+and presence store against real Redis (separate OS processes, a SIGKILLed
+worker and replica, a Redis restart) and the multi-replica browser acceptance
+suite of [`examples/distributed-live`](../../examples/distributed-live/README.md)
+on Express and Fastify.
+The in-process hub churn check in `pnpm load` covers single-replica memory;
+distributed load testing is not yet done.
 
 ## Examples
 
 [realtime-dashboard](../../examples/realtime-dashboard/README.md) (channels,
 jobs with progress), [starter-live](../../examples/starter-live/README.md) and
-[distributed-live](../../examples/distributed-live/README.md) (two replicas and
-Redis, presence, SSE and WebSocket).
+[distributed-live](../../examples/distributed-live/README.md) (four replicas on
+Express and Fastify, Redis, presence, SSE and WebSocket).
 
 ## Status and limits
 
-Status: **Partial**. Authorized SSE, long-polling and WebSocket invalidation, presence, rate limits, the memory and Redis-protocol brokers and the job runner are implemented and tested, including a two-replica browser run against Redis 7; the clauses below remain open.
+Status: **Partial**. Authorized SSE, long-polling and WebSocket invalidation, presence, rate limits, the memory and Redis-protocol brokers and the job runner are implemented and tested, including a four-replica Express and Fastify browser run against Redis 7; the clauses below remain open.
 
-- Transport is chosen per app/client, not per component, and `auto` falls back from SSE to polling but never tries WebSocket (REAL-004).
-- Presence counts members connected to one replica; there is no cross-replica aggregation and no dedicated notification/dashboard primitive (REAL-009).
+- Transport is chosen per page, not per component; `auto` negotiates WebSocket → SSE → polling (REAL-004).
+- Presence is shared across replicas only with a configured `presence` store (`RedisPresenceStore`); there is no dedicated notification/dashboard primitive (REAL-009).
 - Events published on a channel before its subscription is established are not replayed (REAL-006).
-- No durable job queue ships: `MemoryJobQueue` loses jobs on restart and BullMQ is a documented recipe only (DATA-010, DATA-011).
+- `MemoryJobQueue` (the default) loses jobs on restart; `RedisJobQueue` is durable. No BullMQ adapter ships; the reasons are in the realtime-redis README (DATA-010, DATA-011).
 - The Redis broker implementation still lives in this package; `@nestvexa/realtime-redis/realtime` re-exports it (REAL-002, ADR 0032).
-- Browser reconnect and deduplication across a replica restart, subscription-leak and slow-client checks are unit-tested at hub level only; the two-replica suite runs on Express only, and distributed load testing is not done (REAL-014).
+- Slow-client handling is tested at hub level only, and distributed load testing is not done (REAL-014).
 
 ## Testing
 
 ```sh
 pnpm --filter @nestvexa/realtime test
+pnpm build && pnpm exec vitest run tests/realtime.test.ts tests/realtime-hub.test.ts \
+  tests/realtime-jobs.test.ts tests/realtime-live.test.ts tests/client-realtime.test.ts \
+  tests/realtime-job-queue.test.ts tests/realtime-distributed.test.ts
+pnpm exec playwright test tests/browser/realtime.spec.ts tests/browser/realtime-transports.spec.ts
+NESTVEXA_REDIS_PORT=6379 pnpm test:services
 ```
 
-Runs `tests/realtime.test.ts` and `tests/realtime-*.test.ts` (hub, jobs, Live integration) with the root Vitest config against an in-process RESP test double; the tests import `packages/*/dist`, so run `pnpm --filter @nestvexa/realtime... build` first. Run separately: the browser controller in `tests/client-realtime.test.ts`, the token property tests (`pnpm test:property`), the browser specs `tests/browser/realtime.spec.ts`, `realtime-transports.spec.ts` and `realtime-dashboard.spec.ts` (`pnpm test:e2e`), and `NESTVEXA_REDIS_PORT=6379 pnpm test:services`, which runs the broker against real Redis (two OS processes, Redis restart) and the two-replica browser suite ([guide](../../docs/guides/production-services.md)). See the [realtime guide](../../docs/guides/realtime.md) and [ADR 0009](../../docs/adr/0009-realtime-backpressure.md). License: MIT.
+Runs `tests/realtime.test.ts` and `tests/realtime-*.test.ts` (hub, jobs, Live integration) with the root Vitest config against an in-process RESP test double; the tests import `packages/*/dist`, so run `pnpm --filter @nestvexa/realtime... build` first. Run separately: the browser controller in `tests/client-realtime.test.ts`, the token property tests (`pnpm test:property`), the browser specs `tests/browser/realtime.spec.ts`, `realtime-transports.spec.ts` and `realtime-dashboard.spec.ts` (`pnpm test:e2e`), and `NESTVEXA_REDIS_PORT=6379 pnpm test:services`, which runs the broker, job queue and presence store against real Redis (separate OS processes, Redis restart) and the four-replica browser suite ([guide](../../docs/guides/production-services.md)). See the [realtime guide](../../docs/guides/realtime.md) and [ADR 0009](../../docs/adr/0009-realtime-backpressure.md). License: MIT.
 
 ## Maintainers
 

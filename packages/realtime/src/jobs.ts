@@ -195,23 +195,33 @@ export class MemoryJobQueue implements JobQueue {
     now: number,
   ): Promise<JobRecord | undefined> {
     if (this.#closed) return undefined;
-    for (const record of this.#jobs.values()) {
-      const lapsed =
+    // Lapsed leases first (their workers died), then the oldest queued job.
+    let lapsed: JobRecord | undefined;
+    let queued: JobRecord | undefined;
+    for (const record of this.#jobs.values())
+      if (
         record.status === 'running' &&
         record.leaseUntil !== null &&
-        record.leaseUntil <= now;
-      if (record.status !== 'queued' && !lapsed) continue;
-      const claimed: JobRecord = Object.freeze({
-        ...record,
-        status: 'running',
-        attempts: record.attempts + 1,
-        leaseOwner: worker,
-        leaseUntil: now + leaseMs,
-      });
-      this.#jobs.set(record.id, claimed);
-      return claimed;
-    }
-    return undefined;
+        record.leaseUntil <= now
+      ) {
+        if (!lapsed || record.leaseUntil < (lapsed.leaseUntil ?? 0))
+          lapsed = record;
+      } else if (
+        record.status === 'queued' &&
+        (!queued || record.createdAt < queued.createdAt)
+      )
+        queued = record;
+    const record = lapsed ?? queued;
+    if (!record) return undefined;
+    const claimed: JobRecord = Object.freeze({
+      ...record,
+      status: 'running',
+      attempts: record.attempts + 1,
+      leaseOwner: worker,
+      leaseUntil: now + leaseMs,
+    });
+    this.#jobs.set(record.id, claimed);
+    return claimed;
   }
   async update(
     id: string,

@@ -9,6 +9,7 @@ export {
 export {
   RealtimeHub,
   RealtimeRejection,
+  type HubHooks,
   type HubLimits,
   type IdentityResolver,
   type PresenceMember,
@@ -25,7 +26,14 @@ export {
   attachRealtimeWebSocket,
   type RealtimeModuleOptions,
   type RealtimeModuleAsyncOptions,
+  type RealtimeTransportName,
 } from './module.js';
+export {
+  MemoryPresenceStore,
+  type PresenceEntry,
+  type PresenceStore,
+  type RealtimePresenceOptions,
+} from './presence.js';
 export {
   type RealtimeInstrumentation,
   type RealtimeSpan,
