@@ -1,4 +1,5 @@
 import fc from 'fast-check';
+import { propertyRuns } from './support/property-runs.js';
 import { describe, expect, it } from 'vitest';
 import { I18nError } from '../packages/i18n/src/errors.js';
 import { canonicalLocale } from '../packages/i18n/src/locale.js';
@@ -17,7 +18,7 @@ import {
  * negotiation. Catalog text is trusted but large and translator-edited;
  * parameters, Accept-Language and cookies are attacker-controlled.
  */
-const runs = { numRuns: 400 };
+const runs = propertyRuns(400);
 const forbidden = ['__proto__', 'constructor', 'prototype'];
 const name = fc
   .stringMatching(/^[A-Za-z_][A-Za-z0-9_]{0,10}$/)
@@ -96,7 +97,7 @@ describe('message parser properties', () => {
           depth <= 8 ? 'ok' : 'MESSAGE',
         );
       }),
-      { numRuns: 40 },
+      propertyRuns(40),
     );
   });
 
@@ -228,7 +229,7 @@ describe('message rendering properties', () => {
           ).toBe('MESSAGE');
         },
       ),
-      { numRuns: 100 },
+      propertyRuns(100),
     );
   });
 });

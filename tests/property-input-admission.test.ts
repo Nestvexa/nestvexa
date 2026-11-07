@@ -1,4 +1,5 @@
 import fc from 'fast-check';
+import { propertyRuns } from './support/property-runs.js';
 import { describe, expect, it } from 'vitest';
 import {
   inspectJsonInput,
@@ -16,7 +17,7 @@ import { redact } from '../packages/observability/src/instrumentation.js';
  * JSON inspection (prototype keys, depth, node budget), action output
  * serialization, idempotency fingerprints, and form hardening/bracket parsing.
  */
-const runs = { numRuns: 300 };
+const runs = propertyRuns(300);
 const forbidden = ['__proto__', 'constructor', 'prototype'];
 const json = fc.jsonValue({ maxDepth: 6 });
 
@@ -125,7 +126,7 @@ describe('server action JSON admission properties', () => {
           ).toEqual({ ok: false, problem: 'DEPTH' });
         },
       ),
-      { numRuns: 20 },
+      propertyRuns(20),
     );
   });
 

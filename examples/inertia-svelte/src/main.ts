@@ -44,6 +44,7 @@ import { fileURLToPath } from 'node:url';
 import { ActionsPageController, NotesModule, noteActions } from './actions.js';
 import { DocumentsController, documentUploads } from './documents.js';
 import { FeaturesController } from './features.js';
+import { hostileLinks, hostilePayloads } from './hostile.js';
 import type { AppPages, User } from './page-types.js';
 
 declare module 'express-session' {
@@ -220,6 +221,14 @@ class PagesController {
   @InertiaPage('Broken')
   broken(): ServerProps<AppPages['Broken']> {
     return { reason: 'This page throws while rendering on purpose.' };
+  }
+
+  /** Test-only page: hostile props for the XSS regression suite (enabled with --test-controls). */
+  @Get('__test/hostile')
+  @InertiaPage('Security/Hostile')
+  hostile(): ServerProps<AppPages['Security/Hostile']> {
+    if (!testControls) throw new NotFoundException();
+    return { payloads: [...hostilePayloads], links: [...hostileLinks] };
   }
 
   /** Test-only control: bumps this session's asset version (enabled with --test-controls). */

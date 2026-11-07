@@ -77,7 +77,17 @@ proxy drops every connection both an SSE and a WebSocket browser reconnect,
 receive new events and never see an event id twice; and that no replica keeps
 a connection after its browsers close. The GitHub
 workflow `.github/workflows/services.yml` runs the same command against a
-`redis:7-alpine` service container. To run only the browser part:
+`redis:7-alpine` service container.
+
+The same configuration also starts [`examples/showcase`](../../examples/showcase/README.md)
+twice (ports 3225 and 3226, each its own origin, sharing Redis and the realtime
+secret) for `tests/services/showcase-redis.spec.ts`: a deployment logged on one
+instance refreshes a dashboard on the other for the same workspace only, a task
+assigned on one instance reaches the assignee's inbox on the other, presence
+stays per instance, and a token signed on one instance is refused on the other
+for another account.
+
+To run only the browser part:
 
 ```sh
 NESTVEXA_REDIS_PORT=6379 pnpm exec playwright test -c playwright.services.config.ts

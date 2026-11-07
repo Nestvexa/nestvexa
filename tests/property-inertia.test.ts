@@ -1,4 +1,5 @@
 import fc from 'fast-check';
+import { propertyRuns } from './support/property-runs.js';
 import { describe, expect, it } from 'vitest';
 import {
   InertiaRedirectError,
@@ -21,7 +22,7 @@ import { safeRedirectPath } from '../packages/live/src/effects.js';
  * Property-based checks for Inertia request headers, every redirect target
  * validator in the workspace, and script-embedded page JSON.
  */
-const runs = { numRuns: 400 };
+const runs = propertyRuns(400);
 const forbidden = ['__proto__', 'prototype', 'constructor'];
 const origin = 'https://app.example';
 const policy = { allowedOrigins: new Set(['https://cdn.example']) };

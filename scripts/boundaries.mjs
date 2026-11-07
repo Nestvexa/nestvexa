@@ -272,7 +272,9 @@ for (const entry of await readdir('packages/ui/src', { withFileTypes: true }))
         `UI server entry imports a component framework: packages/ui/src/${entry.name}`,
       );
     if (
-      ['markup.ts', 'html.ts'].includes(entry.name) &&
+      ['markup.ts', 'html.ts', 'tree.ts', 'fields.ts', 'chart.ts'].includes(
+        entry.name,
+      ) &&
       /from\s+['"](?:node:|@nestvexa\/)/.test(text)
     )
       throw new Error(

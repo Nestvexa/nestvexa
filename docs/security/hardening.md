@@ -12,7 +12,7 @@ Model modifiers use the separate `_sync` route and require explicit `$sync` auth
 
 The lockfile overrides Multer to2.5.0 for GHSA-q7qp-rjg7-q26m. Nest12.2.0's Express platform pins2.4.0, so downstream apps must apply the patched resolution too until upstream updates. Repository overrides do not automatically transfer into a consumer app.
 
-No raw cookies, tokens or private DTOs should be logged. The current packages do not include telemetry. Do not expose development errors publicly. Report security issues privately through an owner-provided channel once configured; see [policy](../../SECURITY.md).
+No raw cookies, tokens or private DTOs should be logged. The packages send no telemetry anywhere: they collect nothing by default, and their observability hooks (spans, redacting logger, request ids, browser timing samples) are opt-in and hand data only to objects the host supplies; see the [telemetry collection and retention policy](telemetry.md). Nestvexa sets no CORS headers; see the [CORS posture](cors.md). Do not expose development errors publicly. Report security issues privately through an owner-provided channel once configured; see [policy](../../SECURITY.md).
 
 ## Optional subsystems (2026-11-01)
 
@@ -34,7 +34,8 @@ No raw cookies, tokens or private DTOs should be logged. The current packages do
   `Cache-Control: no-store` on private pages so history revisits re-authorize.
 - **Cache.** Never cache Live snapshots, CSRF tokens or per-user HTML without a private
   scope and complete `vary` inputs.
-- **Telemetry.** Use the redacting logger and the provided span attributes; never
+- **Telemetry.** Observability is opt-in and nothing is sent anywhere by default
+  ([policy](telemetry.md)). Use the redacting logger and the provided span attributes; never
   register `DevtoolsModule` in production (it refuses) or without host authorization.
 - **CommonJS hosts.** Packages are ESM loaded through `require(esm)` on Node 22.12+;
   older Node versions are unsupported.

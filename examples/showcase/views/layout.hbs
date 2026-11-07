@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{title}} · Nestvexa Showcase</title>
+    {{#if description}}
+    <meta name="description" content="{{description}}" />
+    <meta property="og:title" content="{{title}}" />
+    <meta property="og:description" content="{{description}}" />
+    {{/if}} {{#if canonical}}
+    <link rel="canonical" href="{{canonical}}" />
+    {{/if}}
+    <link rel="stylesheet" href="/assets/app.css" />
+    {{nvScripts}} {{#if islandTags}}{{islandTags}}{{/if}}
+    <script type="module" src="/assets/dialog.js"></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="site-header">
+      <p class="brand">
+        <a href="/">Nestvexa Showcase</a>{{#if workspaceName}} ·
+        {{workspaceName}}{{/if}}
+      </p>
+      {{#if signedIn}}
+      <nav aria-label="Main">
+        {{#each nav}} {{#if current}}
+        <a href="{{href}}" aria-current="page">{{label}}</a>
+        {{else}}
+        <a href="{{href}}">{{label}}</a>
+        {{/if}} {{/each}}
+      </nav>
+      <form method="post" action="/logout" class="signout">
+        <input type="hidden" name="_csrf" value="{{csrf}}" />
+        <span class="who" id="who">{{userName}} ({{role}})</span>
+        <button type="submit">Sign out</button>
+      </form>
+      {{else}}
+      <nav aria-label="Main"><a href="/login">Sign in</a></nav>
+      {{/if}}
+    </header>
+    <main id="main" tabindex="-1">
+      {{#each flash}}
+      <p class="notice flash" role="status">{{this}}</p>
+      {{/each}} {{body}}
+    </main>
+    <footer>
+      <p>
+        Nestvexa Showcase · fictional sample data · instance
+        <span id="instance">{{instance}}</span>
+      </p>
+    </footer>
+  </body>
+</html>

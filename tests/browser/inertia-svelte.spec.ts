@@ -9,6 +9,7 @@ import {
 } from './inertia-feature-tour.js';
 import { defineFrameworkSuite, exampleUrl } from './inertia-framework-suite.js';
 import { defineFormsUploadsSuite } from './inertia-forms-uploads.js';
+import { defineHostilePropsSuite } from './inertia-hostile-props.js';
 
 // examples/inertia-svelte: Vite production build, official @inertiajs/svelte
 // 3.10.0 client with Svelte 5 hydrate()/mount(), SSR in-process from the built
@@ -24,4 +25,9 @@ defineTypedActionsSuite({ framework: 'Svelte', base });
 defineClientOnlySuite({
   framework: 'Svelte',
   base: exampleUrl('SVELTE_CSR', 3212),
+});
+defineHostilePropsSuite({
+  framework: 'Svelte',
+  base,
+  clientOnlyBase: exampleUrl('SVELTE_CSR', 3212),
 });

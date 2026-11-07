@@ -20,6 +20,25 @@ export const InertiaHeader = Object.freeze({
   secPurpose: 'Sec-Purpose',
 } as const);
 
+/**
+ * `Vary` for Inertia JSON page responses: every request header that selects
+ * their content. A shared cache keyed on the URL and `X-Inertia` alone could
+ * otherwise store one visitor's partial reload (only the requested props) and
+ * replay it to every later Inertia visit of that URL (cache poisoning).
+ * Document responses ignore these headers and vary on `X-Inertia` only.
+ */
+export const INERTIA_JSON_VARY = [
+  InertiaHeader.inertia,
+  InertiaHeader.version,
+  InertiaHeader.partialComponent,
+  InertiaHeader.partialData,
+  InertiaHeader.partialExcept,
+  InertiaHeader.reset,
+  InertiaHeader.errorBag,
+  InertiaHeader.infiniteScrollMergeIntent,
+  InertiaHeader.exceptOnceProps,
+].join(', ');
+
 /** Session keys owned by this adapter. The host owns the session itself. */
 export const InertiaSessionKey = Object.freeze({
   errors: 'nestvexa.inertia.errors',

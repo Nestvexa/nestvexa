@@ -497,7 +497,9 @@ describe.each(['express', 'fastify'] as const)(
       });
       expect(visit.status).toBe(200);
       expect(json(visit)['component']).toBe('Signup');
-      expect(header(visit, 'vary')).toBe('Precognition, X-Inertia');
+      expect(header(visit, 'vary')).toMatch(
+        /^Precognition, X-Inertia, X-Inertia-Version, /,
+      );
     });
 
     it('turns InertiaValidationException from a validator into 422', async () => {

@@ -1,0 +1,216 @@
+<div class="wizard">
+  <ol class="steps" aria-label="Profile setup steps">
+    {{#each steps}} {{#if current}}
+    <li aria-current="step" class="step-current">
+      Step {{number}}: {{title}}{{#if done}} (done){{/if}}
+    </li>
+    {{else}}
+    <li>Step {{number}}: {{title}}{{#if done}} (done){{/if}}</li>
+    {{/if}} {{/each}}
+  </ol>
+
+  {{#if completed}}
+  <p id="profile-complete" class="notice" role="status">
+    Your profile is saved. A confirmation email is in your
+    <a href="/app/outbox">mail outbox</a>.
+  </p>
+  {{/if}} {{#if summary.hasErrors}}
+  <div
+    id="profile-summary"
+    class="summary"
+    role="alert"
+    aria-labelledby="profile-summary-title"
+  >
+    <h2 id="profile-summary-title">{{summary.title}}</h2>
+    <ul>
+      {{#each summary.items}}
+      <li>
+        {{#if href}}<a href="{{href}}">{{label}}: {{message}}</a
+        >{{else}}{{message}}{{/if}}
+      </li>
+      {{/each}}
+    </ul>
+  </div>
+  {{/if}}
+
+  <form
+    id="profile-form"
+    method="post"
+    action="/app/profile"
+    nv:submit="{{#if step.last}}finish{{else}}next{{/if}}"
+    novalidate
+  >
+    <input type="hidden" name="_csrf" value="{{csrf}}" />
+    <input
+      type="hidden"
+      name="intent"
+      value="{{#if step.last}}finish{{else}}next{{/if}}"
+    />
+    <h2 id="profile-step-heading">
+      Step {{step.number}} of {{step.count}}: {{step.title}}
+    </h2>
+
+    {{#if onAbout}}
+    <label for="{{fields.displayName.id}}">Display name</label>
+    <input
+      id="{{fields.displayName.id}}"
+      name="displayName"
+      value="{{displayName}}"
+      maxlength="200"
+      autocomplete="nickname"
+      nv:model.live.debounce.300ms="displayName"
+      aria-invalid="{{fields.displayName.ariaInvalid}}"
+      aria-describedby="{{fields.displayName.describedBy}}"
+    />
+    {{#if fields.displayName.invalid}}
+    <p id="{{fields.displayName.errorId}}" class="error">
+      {{fields.displayName.message}}
+    </p>
+    {{/if}}
+    <label for="{{fields.jobTitle.id}}">Job title (optional)</label>
+    <input
+      id="{{fields.jobTitle.id}}"
+      name="jobTitle"
+      value="{{jobTitle}}"
+      maxlength="200"
+      autocomplete="organization-title"
+      nv:model.live.debounce.300ms="jobTitle"
+      aria-invalid="{{fields.jobTitle.ariaInvalid}}"
+      aria-describedby="{{fields.jobTitle.describedBy}}"
+    />
+    {{#if fields.jobTitle.invalid}}
+    <p id="{{fields.jobTitle.errorId}}" class="error">
+      {{fields.jobTitle.message}}
+    </p>
+    {{/if}} {{/if}} {{#if onPreferences}}
+    <label for="{{fields.timezone.id}}">Time zone</label>
+    <select
+      id="{{fields.timezone.id}}"
+      name="timezone"
+      nv:model.change="timezone"
+      aria-invalid="{{fields.timezone.ariaInvalid}}"
+      aria-describedby="{{fields.timezone.describedBy}}"
+    >
+      {{#each timezoneOptions}} {{#if selected}}
+      <option value="{{value}}" selected>{{value}}</option>
+      {{else}}
+      <option value="{{value}}">{{value}}</option>
+      {{/if}} {{/each}}
+    </select>
+    {{#if fields.timezone.invalid}}
+    <p id="{{fields.timezone.errorId}}" class="error">
+      {{fields.timezone.message}}
+    </p>
+    {{/if}}
+    <label for="{{fields.digest.id}}">Email notifications</label>
+    <select
+      id="{{fields.digest.id}}"
+      name="digest"
+      nv:model.change="digest"
+      aria-invalid="{{fields.digest.ariaInvalid}}"
+      aria-describedby="{{fields.digest.describedBy}}"
+    >
+      {{#each digestOptions}} {{#if selected}}
+      <option value="{{value}}" selected>{{value}}</option>
+      {{else}}
+      <option value="{{value}}">{{value}}</option>
+      {{/if}} {{/each}}
+    </select>
+    {{#if fields.digest.invalid}}
+    <p id="{{fields.digest.errorId}}" class="error">
+      {{fields.digest.message}}
+    </p>
+    {{/if}} {{/if}} {{#if onPhoto}}
+    <dl id="profile-review" aria-label="Review">
+      <dt>Display name</dt>
+      <dd>{{displayName}}</dd>
+      <dt>Job title</dt>
+      <dd>{{#if jobTitle}}{{jobTitle}}{{else}}not set{{/if}}</dd>
+      <dt>Time zone</dt>
+      <dd>{{timezone}}</dd>
+      <dt>Email notifications</dt>
+      <dd>{{digest}}</dd>
+    </dl>
+    {{#if hasAvatar}}
+    <p>
+      <img
+        src="/app/profile/avatar"
+        alt="Your current photo"
+        width="64"
+        height="64"
+      />
+    </p>
+    {{/if}}
+    <label for="{{fields.avatar.id}}"
+      >Photo (PNG or JPEG, up to 512 KiB, optional)</label
+    >
+    <input
+      id="{{fields.avatar.id}}"
+      type="file"
+      accept=".png,.jpg,.jpeg"
+      aria-describedby="profile-avatar-status"
+      nv:upload="avatar"
+    />
+    <p
+      id="profile-avatar-status"
+      role="status"
+      aria-live="polite"
+      nv:upload.status="avatar"
+    ></p>
+    <noscript>
+      <p>
+        Uploading a photo needs JavaScript. You can save your profile without
+        one.
+      </p>
+    </noscript>
+    {{#if fields.avatar.invalid}}
+    <p id="{{fields.avatar.errorId}}" class="error">
+      {{fields.avatar.message}}
+    </p>
+    {{/if}} {{/if}}
+
+    <p class="actions">
+      <button type="submit" id="profile-submit" nv:loading.attr="disabled">
+        {{#if step.last}}Save profile{{else}}Continue{{/if}}
+      </button>
+    </p>
+  </form>
+
+  {{#unless step.first}}
+  <form method="post" action="/app/profile" nv:submit="back" class="back">
+    <input type="hidden" name="_csrf" value="{{csrf}}" />
+    <input type="hidden" name="intent" value="back" />
+    <button type="submit" id="profile-back">Back</button>
+  </form>
+  {{/unless}}
+
+  <section aria-labelledby="draft-heading" class="drafts">
+    <h2 id="draft-heading">Drafts</h2>
+    <p>
+      {{#if autosave}}<input
+        type="checkbox"
+        id="profile-autosave"
+        nv:model.change="autosave"
+        checked
+      />{{else}}<input
+        type="checkbox"
+        id="profile-autosave"
+        nv:model.change="autosave"
+      />{{/if}}
+      <label for="profile-autosave" class="inline"
+        >Save drafts of this form to my account while I type</label
+      >
+    </p>
+    <p id="draft-status" role="status" aria-live="polite">{{draftStatus}}</p>
+    {{#if draftVersion}}
+    <button type="button" id="draft-discard" nv:click="discardDraft">
+      Delete my saved draft
+    </button>
+    {{/if}}
+    <noscript
+      ><p>
+        Drafts need JavaScript; your progress is kept between steps.
+      </p></noscript
+    >
+  </section>
+</div>
