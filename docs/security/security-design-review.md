@@ -62,6 +62,14 @@ fixed with regression tests. No P0 or P1 issue was found.
 | SR4-03 | inertia | P3       | **Unbounded SSR responses.** `HttpSsrGateway` buffered the whole `/render` body before checking `maxResponseBytes`, and `/health` read any body size and followed redirects.                                                                                                                                      | Streams are read with a hard limit and cancelled beyond it; `/health` refuses redirects. `tests/ssrf.test.ts`                                                              |
 | SR4-04 | inertia | P3       | The SSR gateway URL accepted embedded credentials, a query or a fragment.                                                                                                                                                                                                                                         | Refused at construction. `tests/ssrf.test.ts`                                                                                                                              |
 
+Fixed separately on `main` during this round (not by this review's branch):
+in `@nestvexa/uploads` (`packages/uploads/src/service.ts`), a truncated
+multipart body made busboy emit `error` twice. The second emission was
+uncaught and crashed the process, so a single request could take the host
+down (DoS). The parser and part-stream error listeners now stay attached, and
+cleanup waits for queued writes. The regression test is part of that change on
+`main`.
+
 ## Release blockers
 
 | Blocker                                                                                                                    | Owner                   |
