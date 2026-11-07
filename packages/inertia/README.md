@@ -175,7 +175,7 @@ returns fluent assertions (`component`, `url`, `version`, `prop`, `has`,
 
 ### Precognition
 
-`@Precognitive(validator, { input? })` makes a route answer the official
+`@Precognitive(validator, { input?, interceptors? })` makes a route answer the official
 client's `Precognition: true` validation requests before pipes and the
 handler run: `204` + `Precognition-Success: true` when the fields named by
 `Precognition-Validate-Only` (or all fields) pass, otherwise `422`
@@ -187,8 +187,19 @@ exported: `PrecognitionHeader`, `isPrecognitionRequest`,
 `parsePrecognitionRequest`, `selectPrecognitionErrors`, and
 `InertiaService.isPrecognitive()/precognition()/precognitionReply()`.
 `InertiaValidationFilter` answers `InertiaValidationException` on any
-precognitive request with the `422` reply. See the
-[guide](../../docs/guides/inertia.md#precognition-live-validation).
+precognitive request with the `422` reply.
+
+Guard rejections (CSRF, auth, throttling) of `@Precognitive` routes keep
+`Precognition: true` and `Vary: Precognition`, so the official client reaches
+`onUnauthorized`/`onForbidden` instead of failing with "Did not receive a
+Precognition response": `InertiaModule` registers `PrecognitionMiddleware`
+(labels `Precognition: true` requests before guards) and a never-rejecting
+global `PrecognitionGuard` (keeps the label on precognitive routes, removes it
+elsewhere). For `validateFiles()` multipart requests, list the route's body
+parser in `interceptors` (for example `FileInterceptor('avatar')`): it runs
+only for Precognition requests, before validation, and the default input
+merges multer's `request.file`/`request.files` under their field names. See
+the [guide](../../docs/guides/inertia.md#precognition-live-validation).
 
 ### SSR contract (Phase 9 supplies renderers)
 

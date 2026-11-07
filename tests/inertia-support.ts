@@ -1,5 +1,10 @@
 import 'reflect-metadata';
-import type { DynamicModule, INestApplication, Type } from '@nestjs/common';
+import type {
+  DynamicModule,
+  INestApplication,
+  Provider,
+  Type,
+} from '@nestjs/common';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
 import { Test } from '@nestjs/testing';
 import session from 'express-session';
@@ -17,6 +22,7 @@ export interface HttpResult {
 export interface SendOptions {
   readonly method?: string;
   readonly headers?: Readonly<Record<string, string>>;
+  /** JSON-encoded unless it is a Buffer, which is sent as is (set content-type). */
   readonly body?: unknown;
 }
 
@@ -27,8 +33,11 @@ export async function send(
   options: SendOptions = {},
 ): Promise<HttpResult> {
   const base = new URL(await app.getUrl());
+  const raw = Buffer.isBuffer(options.body) ? options.body : undefined;
   const text =
-    options.body === undefined ? undefined : JSON.stringify(options.body);
+    options.body === undefined || raw
+      ? undefined
+      : JSON.stringify(options.body);
   return new Promise((resolve, reject) => {
     const outgoing = httpRequest(
       {
@@ -37,6 +46,7 @@ export async function send(
         path,
         method: options.method ?? 'GET',
         headers: {
+          ...(raw ? { 'content-length': String(raw.length) } : {}),
           ...(text === undefined
             ? {}
             : {
@@ -60,7 +70,7 @@ export async function send(
       },
     );
     outgoing.on('error', reject);
-    outgoing.end(text);
+    outgoing.end(raw ?? text);
   });
 }
 
@@ -173,7 +183,12 @@ export async function boot(
   platform: Platform,
   imports: (DynamicModule | Type)[],
   controllers: Type[],
-  options: { expressSession?: boolean; providers?: Type[] } = {},
+  options: {
+    expressSession?: boolean;
+    providers?: Provider[];
+    /** Runs before listen (for example to register Fastify content-type parsers). */
+    configure?: (app: INestApplication) => void | Promise<void>;
+  } = {},
 ): Promise<INestApplication> {
   const module = await Test.createTestingModule({
     imports,
@@ -194,6 +209,7 @@ export async function boot(
       }),
     );
   resources.push(app);
+  await options.configure?.(app);
   await app.listen(0, '127.0.0.1');
   return app;
 }

@@ -3,15 +3,33 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   Post,
   Put,
   Query,
   Req,
+  UnauthorizedException,
+  UseGuards,
+  UseInterceptors,
   UsePipes,
 } from '@nestjs/common';
-import type { PipeTransform } from '@nestjs/common';
+import type {
+  CallHandler,
+  CanActivate,
+  ExecutionContext,
+  NestInterceptor,
+  PipeTransform,
+  Type,
+} from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { NestFastifyApplication } from '@nestjs/platform-fastify';
+import type { IncomingMessage } from 'node:http';
+import { Readable } from 'node:stream';
+import { of } from 'rxjs';
+import type { Observable } from 'rxjs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { customAdapter, zodAdapter } from '../packages/forms/dist/index.js';
@@ -284,6 +302,20 @@ describe('Precognition protocol helpers', () => {
     expect(() =>
       Precognitive(() => undefined, { input: 'body' } as never),
     ).toThrow(/input must be a function/);
+    for (const interceptors of [
+      'FileInterceptor',
+      ['FileInterceptor'],
+      [{ intercept: 'no' }],
+      [null],
+    ])
+      expect(() =>
+        Precognitive(() => undefined, { interceptors } as never),
+      ).toThrow(/interceptors must be interceptor classes or instances/);
+    expect(() =>
+      Precognitive(() => undefined, {
+        interceptors: [class {} as never, { intercept: () => of(null) }],
+      }),
+    ).not.toThrow();
   });
 
   it('exposes the wire names', () => {
@@ -523,6 +555,489 @@ describe.each(['express', 'fastify'] as const)(
         body: { name: 'ok' },
       });
       expect(json(reached)).toStrictEqual({ precognitive: true });
+      expect(header(reached, 'precognition')).toBeUndefined();
+    });
+  },
+);
+
+// ------------------------------------------------- guards and multipart bodies
+
+/** A route guard requiring `x-user: ada` (401 otherwise). */
+class SignedInGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    const request = context
+      .switchToHttp()
+      .getRequest<{ headers: Record<string, unknown> }>();
+    if (request.headers['x-user'] !== 'ada') throw new UnauthorizedException();
+    return true;
+  }
+}
+
+class DenyGuard implements CanActivate {
+  canActivate(): boolean {
+    throw new ForbiddenException('Not allowed.');
+  }
+}
+
+/** An app-wide guard (like the examples' XSRF guard) that `x-gate: closed` trips. */
+class GateGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    const request = context
+      .switchToHttp()
+      .getRequest<{ headers: Record<string, unknown> }>();
+    if (request.headers['x-gate'] === 'closed')
+      throw new ForbiddenException('Gate closed.');
+    return true;
+  }
+}
+
+@Controller('locked')
+@UseGuards(DenyGuard)
+class LockedController {
+  @Post()
+  @Precognitive(signup)
+  store() {
+    ran('locked');
+    return {};
+  }
+}
+
+@Controller()
+class GuardedController {
+  @Post('guarded')
+  @Precognitive(signup)
+  @UseGuards(SignedInGuard)
+  store() {
+    ran('guarded');
+    return {};
+  }
+
+  /** Not precognitive: its guard rejection must not look like a Precognition reply. */
+  @Post('denied')
+  @UseGuards(DenyGuard)
+  denied() {
+    ran('denied');
+    return {};
+  }
+
+  @Post('open')
+  open() {
+    ran('open');
+    return { open: true };
+  }
+}
+
+interface UploadRequest {
+  readonly headers: Record<string, unknown>;
+  readonly raw?: IncomingMessage;
+  body?: unknown;
+  file?: unknown;
+}
+
+/**
+ * A dependency-free multipart parser for Fastify (whose Nest adapter has no
+ * FileInterceptor): it fills `body` and a multer-style `file`, as multer does.
+ */
+class WebFormInterceptor implements NestInterceptor {
+  async intercept(
+    context: ExecutionContext,
+    next: CallHandler,
+  ): Promise<Observable<unknown>> {
+    ran('parser');
+    const request = context.switchToHttp().getRequest<UploadRequest>();
+    const type = request.headers['content-type'];
+    if (typeof type === 'string' && type.startsWith('multipart/form-data')) {
+      const stream = Readable.toWeb(
+        request.raw ?? (request as unknown as IncomingMessage),
+      );
+      const form = await new Response(stream as unknown as BodyInit, {
+        headers: { 'content-type': type },
+      }).formData();
+      const fields: Record<string, string> = {};
+      for (const [name, value] of form)
+        if (typeof value === 'string') fields[name] = value;
+        else
+          request.file = {
+            fieldname: name,
+            originalname: value.name,
+            mimetype: value.type,
+            size: value.size,
+          };
+      request.body = fields;
+    }
+    return next.handle();
+  }
+}
+
+/**
+ * Sets multer's `request.files` the way `array()`/`any()` (a list) or
+ * `fields()` (a record per field) do, picked by the `x-files-shape` header,
+ * including a hostile `__proto__` field name.
+ */
+class FilesFixtureInterceptor implements NestInterceptor {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    const request = context
+      .switchToHttp()
+      .getRequest<UploadRequest & { files?: unknown }>();
+    const file = (fieldname: string, originalname: string) => ({
+      fieldname,
+      originalname,
+      mimetype: 'image/png',
+      size: 3,
+    });
+    request.files =
+      request.headers['x-files-shape'] === 'record'
+        ? {
+            photos: [file('photos', 'a.png'), file('photos', 'b.png')],
+            cover: [file('cover', 'c.png')],
+            ['__proto__']: [file('__proto__', 'x.png')],
+            broken: 'not a list',
+          }
+        : [
+            file('photos', 'a.png'),
+            file('cover', 'c.png'),
+            file('photos', 'b.png'),
+            file('__proto__', 'x.png'),
+            { originalname: 'no-field.png' },
+          ];
+    return next.handle();
+  }
+}
+
+/** Reports what the default input saw: field names and per-field file counts. */
+const galleryRules: PrecognitionValidator = (input) => {
+  const record = input as Record<string, unknown>;
+  const seen = Object.keys(record)
+    .sort()
+    .map((key) => {
+      const value = record[key];
+      return Array.isArray(value) ? `${key}:${value.length}` : key;
+    });
+  return {
+    seen: seen.join(','),
+    base:
+      Object.getPrototypeOf(input) === Object.prototype ? 'plain' : 'changed',
+  };
+};
+
+/** Never calls next.handle(): a misconfiguration the adapter must report. */
+class StuckInterceptor implements NestInterceptor {
+  intercept(): Observable<unknown> {
+    return of('swallowed');
+  }
+}
+
+/** Rules for a titled plain-text document; files arrive as multer-style objects. */
+const documentRules: PrecognitionValidator = (input) => {
+  const { title, document } = input as Record<string, unknown>;
+  const errors: Record<string, string> = {};
+  if (typeof title !== 'string' || title.trim() === '')
+    errors['title'] = 'Enter a title.';
+  const file = document as { mimetype?: unknown; size?: unknown } | undefined;
+  if (typeof file !== 'object' || file === null)
+    errors['document'] = 'Choose a file.';
+  else if (file.mimetype !== 'text/plain')
+    errors['document'] = 'Only plain text files are accepted.';
+  else if (typeof file.size !== 'number' || file.size > 64)
+    errors['document'] = 'The file may not be larger than 64 bytes.';
+  return Object.keys(errors).length > 0 ? errors : undefined;
+};
+
+function uploadController(
+  parser: Type<NestInterceptor> | NestInterceptor,
+  limited: Type<NestInterceptor> | NestInterceptor,
+): Type {
+  @Controller('documents')
+  class DocumentsController {
+    @Post()
+    @Precognitive(documentRules, { interceptors: [parser] })
+    @UseInterceptors(parser)
+    store(@Req() request: UploadRequest) {
+      ran('documents');
+      const file = request.file as { originalname?: unknown } | undefined;
+      return {
+        title: (request.body as Record<string, unknown>)['title'],
+        file: file?.originalname,
+      };
+    }
+
+    @Post('limited')
+    @Precognitive(documentRules, { interceptors: [limited] })
+    limitedStore() {
+      ran('limited');
+      return {};
+    }
+
+    @Post('gallery')
+    @Precognitive(galleryRules, {
+      interceptors: [FilesFixtureInterceptor],
+    })
+    gallery() {
+      ran('gallery');
+      return {};
+    }
+
+    @Post('stuck')
+    @Precognitive(documentRules, { interceptors: [new StuckInterceptor()] })
+    stuck() {
+      ran('stuck');
+      return {};
+    }
+  }
+  return DocumentsController;
+}
+
+/** A multipart/form-data body like the official client's FormData requests. */
+function multipart(
+  parts: readonly (
+    | { readonly name: string; readonly value: string }
+    | {
+        readonly name: string;
+        readonly filename: string;
+        readonly type: string;
+        readonly content: string;
+      }
+  )[],
+): { body: Buffer; type: string } {
+  const boundary = '----nestvexa-precognition-boundary';
+  const chunks = parts.map((part) =>
+    'filename' in part
+      ? `--${boundary}\r\nContent-Disposition: form-data; name="${part.name}"; filename="${part.filename}"\r\nContent-Type: ${part.type}\r\n\r\n${part.content}\r\n`
+      : `--${boundary}\r\nContent-Disposition: form-data; name="${part.name}"\r\n\r\n${part.value}\r\n`,
+  );
+  return {
+    body: Buffer.from(`${chunks.join('')}--${boundary}--\r\n`),
+    type: `multipart/form-data; boundary=${boundary}`,
+  };
+}
+
+describe.each(['express', 'fastify'] as const)(
+  'Precognition guard rejections and multipart validateFiles() on %s',
+  (platform: Platform) => {
+    let app: INestApplication;
+    beforeAll(async () => {
+      const parser =
+        platform === 'express'
+          ? FileInterceptor('document', { limits: { fileSize: 1024 } })
+          : new WebFormInterceptor();
+      const limited =
+        platform === 'express'
+          ? FileInterceptor('document', { limits: { fileSize: 8 } })
+          : new WebFormInterceptor();
+      app = await boot(
+        platform,
+        [InertiaModule.forRoot({ version: 'v1', ...sessionOption(platform) })],
+        [
+          LockedController,
+          GuardedController,
+          uploadController(parser, limited),
+        ],
+        {
+          expressSession: platform === 'express',
+          providers: [{ provide: APP_GUARD, useClass: GateGuard }],
+          configure: (target) => {
+            if (platform !== 'fastify') return;
+            // Leave multipart bodies unparsed for the parser interceptor.
+            (target as NestFastifyApplication)
+              .getHttpAdapter()
+              .getInstance()
+              .addContentTypeParser('multipart/form-data', (_r, _p, done) =>
+                done(null),
+              );
+          },
+        },
+      );
+    });
+    afterAll(closeAll);
+
+    const valid = { name: 'Ada', email: 'ada@example.test' };
+
+    it('keeps Precognition: true on route, controller and app guard rejections of precognitive routes', async () => {
+      const snapshot = { ...runs };
+      const unauthorized = await send(app, '/guarded', {
+        method: 'POST',
+        headers: precognitive,
+        body: valid,
+      });
+      expect(unauthorized.status).toBe(401);
+      expect(header(unauthorized, 'precognition')).toBe('true');
+      expect(header(unauthorized, 'vary')).toBe('Precognition');
+      expect(header(unauthorized, 'precognition-success')).toBeUndefined();
+      const forbidden = await send(app, '/locked', {
+        method: 'POST',
+        headers: precognitive,
+        body: valid,
+      });
+      expect(forbidden.status).toBe(403);
+      expect(header(forbidden, 'precognition')).toBe('true');
+      expect(header(forbidden, 'vary')).toBe('Precognition');
+      // An app-wide guard rejects whether it runs before or after Inertia's.
+      const gated = await send(app, '/guarded', {
+        method: 'POST',
+        headers: { ...precognitive, 'x-user': 'ada', 'x-gate': 'closed' },
+        body: valid,
+      });
+      expect(gated.status).toBe(403);
+      expect(header(gated, 'precognition')).toBe('true');
+      expect(runs).toStrictEqual(snapshot);
+      // Past the guards, the route still answers validation-only.
+      const passed = await send(app, '/guarded', {
+        method: 'POST',
+        headers: { ...precognitive, 'x-user': 'ada' },
+        body: valid,
+      });
+      expect(passed.status).toBe(204);
+      expect(header(passed, 'precognition-success')).toBe('true');
+      expect(header(passed, 'vary')).toBe('Precognition');
+      expect(runs).toStrictEqual(snapshot);
+    });
+
+    it('leaves undeclared routes without Precognition headers, rejected or reached', async () => {
+      const denied = await send(app, '/denied', {
+        method: 'POST',
+        headers: precognitive,
+        body: {},
+      });
+      expect(denied.status).toBe(403);
+      expect(header(denied, 'precognition')).toBeUndefined();
+      expect(header(denied, 'vary')).toBeUndefined();
+      expect(runs['denied']).toBeUndefined();
+      const reached = await send(app, '/open', {
+        method: 'POST',
+        headers: precognitive,
+        body: {},
+      });
+      // The handler ran, so the reply must not pass for a validation-only one.
+      expect(reached.status).toBe(201);
+      expect(json(reached)).toStrictEqual({ open: true });
+      expect(header(reached, 'precognition')).toBeUndefined();
+      expect(header(reached, 'vary')).toBeUndefined();
+      const plain = await send(app, '/open', { method: 'POST', body: {} });
+      expect(header(plain, 'precognition')).toBeUndefined();
+    });
+
+    it('validates uploaded files parsed by the declared interceptors without running the handler', async () => {
+      const snapshot = { ...runs };
+      const html = multipart([
+        { name: 'title', value: 'Notes' },
+        {
+          name: 'document',
+          filename: 'evil.html',
+          type: 'text/html',
+          content: '<script>alert(1)</script>',
+        },
+      ]);
+      const rejected = await send(app, '/documents', {
+        method: 'POST',
+        headers: { ...precognitive, 'content-type': html.type },
+        body: html.body,
+      });
+      expect(rejected.status).toBe(422);
+      expect(header(rejected, 'precognition')).toBe('true');
+      expect(json(rejected)['errors']).toStrictEqual({
+        document: ['Only plain text files are accepted.'],
+      });
+      const text = multipart([
+        { name: 'title', value: 'Notes' },
+        {
+          name: 'document',
+          filename: 'notes.txt',
+          type: 'text/plain',
+          content: 'hello',
+        },
+      ]);
+      const accepted = await send(app, '/documents', {
+        method: 'POST',
+        headers: { ...precognitive, 'content-type': text.type },
+        body: text.body,
+      });
+      expect(accepted.status).toBe(204);
+      expect(header(accepted, 'precognition-success')).toBe('true');
+      // Precognition-Validate-Only still filters the file errors.
+      const titleOnly = await send(app, '/documents', {
+        method: 'POST',
+        headers: {
+          ...precognitive,
+          'precognition-validate-only': 'title',
+          'content-type': html.type,
+        },
+        body: html.body,
+      });
+      expect(titleOnly.status).toBe(204);
+      // Without validateFiles() the client sends JSON without the file.
+      const withoutFile = await send(app, '/documents', {
+        method: 'POST',
+        headers: precognitive,
+        body: { title: '' },
+      });
+      expect(json(withoutFile)['errors']).toStrictEqual({
+        title: ['Enter a title.'],
+        document: ['Choose a file.'],
+      });
+      expect(runs['documents']).toBe(snapshot['documents']);
+      expect((runs['parser'] ?? 0) - (snapshot['parser'] ?? 0)).toBe(
+        platform === 'fastify' ? 4 : 0,
+      );
+      // The real submission goes through the route's own interceptor.
+      const stored = await send(app, '/documents', {
+        method: 'POST',
+        headers: { 'content-type': text.type },
+        body: text.body,
+      });
+      expect(stored.status).toBe(201);
+      expect(json(stored)).toStrictEqual({ title: 'Notes', file: 'notes.txt' });
+      expect(header(stored, 'precognition')).toBeUndefined();
+      expect(runs['documents']).toBe((snapshot['documents'] ?? 0) + 1);
+    });
+
+    // Multer's size limit is an express parser; fastify has its own per-app.
+    if (platform === 'express')
+      it('keeps the Precognition header when the parser rejects an oversized file', async () => {
+        const large = multipart([
+          { name: 'title', value: 'Notes' },
+          {
+            name: 'document',
+            filename: 'large.txt',
+            type: 'text/plain',
+            content: 'more than eight bytes',
+          },
+        ]);
+        const result = await send(app, '/documents/limited', {
+          method: 'POST',
+          headers: { ...precognitive, 'content-type': large.type },
+          body: large.body,
+        });
+        expect(result.status).toBe(413);
+        expect(header(result, 'precognition')).toBe('true');
+        expect(runs['limited']).toBeUndefined();
+      });
+
+    it('merges multer request.files lists and records by field name, never prototype keys', async () => {
+      for (const shape of ['array', 'record']) {
+        const result = await send(app, '/documents/gallery', {
+          method: 'POST',
+          headers: { ...precognitive, 'x-files-shape': shape },
+          body: { title: 'Trip', photos: 'shadowed by the files' },
+        });
+        expect(result.status).toBe(422);
+        expect(json(result)['errors']).toStrictEqual({
+          seen: ['cover:1,photos:2,title'],
+          base: ['plain'],
+        });
+      }
+      expect(runs['gallery']).toBeUndefined();
+    });
+
+    it('reports an interceptor that never calls next.handle() as a server error', async () => {
+      const result = await send(app, '/documents/stuck', {
+        method: 'POST',
+        headers: precognitive,
+        body: { title: 'Notes' },
+      });
+      expect(result.status).toBe(500);
+      expect(header(result, 'precognition')).toBe('true');
+      expect(result.body).not.toContain('swallowed');
+      expect(runs['stuck']).toBeUndefined();
     });
   },
 );
