@@ -71,7 +71,11 @@ function instrument(): void {
   const clearTimer = window.clearTimeout;
   const setRepeat = window.setInterval;
   const clearRepeat = window.clearInterval;
-  window.setTimeout = ((handler: TimerHandler, ms?: number, ...rest) => {
+  window.setTimeout = ((
+    handler: TimerHandler,
+    ms?: number,
+    ...rest: unknown[]
+  ) => {
     const timer: number = setTimer(
       (...args: unknown[]) => {
         timers.delete(timer);
@@ -83,19 +87,23 @@ function instrument(): void {
     timers.add(timer);
     return timer;
   }) as typeof window.setTimeout;
-  window.clearTimeout = (timer?: number) => {
+  window.clearTimeout = ((timer?: number) => {
     if (timer !== undefined) timers.delete(timer);
     clearTimer(timer);
-  };
-  window.setInterval = ((handler: TimerHandler, ms?: number, ...rest) => {
+  }) as typeof window.clearTimeout;
+  window.setInterval = ((
+    handler: TimerHandler,
+    ms?: number,
+    ...rest: unknown[]
+  ) => {
     const timer = setRepeat(handler, ms, ...rest);
     timers.add(timer);
     return timer;
   }) as typeof window.setInterval;
-  window.clearInterval = (timer?: number) => {
+  window.clearInterval = ((timer?: number) => {
     if (timer !== undefined) timers.delete(timer);
     clearRepeat(timer);
-  };
+  }) as typeof window.clearInterval;
   let observing = 0;
   const active = new WeakSet<object>();
   for (const name of [
