@@ -4,6 +4,12 @@
   "description": "Official @inertiajs/vue3 client and SSR entry helpers for Nestvexa Inertia hosts built with Vite",
   "license": "MIT",
   "author": "Nestvexa contributors",
+  "maintainers": [
+    {
+      "name": "Nestvexa",
+      "url": "https://github.com/Nestvexa"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Nestvexa/nestvexa.git",
@@ -42,7 +48,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run ../../tests/vue-adapter.test.ts",
+    "test": "vitest run --root ../.. tests/vue-adapter",
     "lint": "eslint src"
   },
   "dependencies": {
