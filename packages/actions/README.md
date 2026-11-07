@@ -240,6 +240,15 @@ host filters are recorded too. Redaction is by construction: inputs, outputs,
 identities, headers and error messages are never part of spans or records.
 Telemetry failures never affect the response.
 
+With `requestContext` (structural; `RequestContextFactory` from `@nestvexa/core`
+fits, so this package still imports no Nestvexa package), the request ID used in
+the envelope `requestId`, `x-nestvexa-request-id`, spans and call logs is the
+kernel correlation ID (a validated incoming `x-request-id` or the kernel's
+random UUID), so it matches kernel error bodies and logs. IDs outside 8–128 of
+`A-Za-z0-9._:-` and throwing hooks fall back to a random request ID. Pair it
+with `instrumentation: diagnostics.instrumentation()` to record action spans in
+the kernel `DiagnosticsRegistry`.
+
 ### `ActionsModule.register(options)` / `registerAsync(options)`
 
 Static options (needed before DI resolves): `groups`, `prefix`
@@ -269,6 +278,7 @@ Static options (needed before DI resolves): `groups`, `prefix`
 | `logger`                               | none                       | One structured record per call (see Tracing).                   |
 | `jobs.queue` / `channel` / `owner`     | none                       | Job queue, streaming channel mapper, owner binding.             |
 | `jobs.pollAfterMs`                     | 1000                       | Poll hint in tickets (100-60000).                               |
+| `requestContext`                       | none                       | `{ correlationId(request) }`, e.g. `RequestContextFactory`.     |
 
 `authorize` must return exactly `true` (or a promise of it); any other value,
 including truthy objects or strings, is a `403 POLICY`, and a throwing policy

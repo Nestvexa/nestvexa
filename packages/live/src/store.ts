@@ -87,6 +87,11 @@ export interface LiveStateStore {
    * its entries; a shared store closes its connections and keeps shared state.
    */
   close(): Awaitable<void>;
+  /**
+   * Entry lifetime in milliseconds, when fixed. Reported as the snapshot
+   * policy in a kernel security registry (`LiveHostOptions.policies`).
+   */
+  readonly ttlMs?: number;
 }
 const storeMethods = [
   'create',
@@ -188,6 +193,10 @@ export class MemoryLiveStore implements LiveStateStore {
   readonly #now: () => number;
   readonly #token: () => string;
   readonly #id: () => string;
+  /** Entry lifetime in milliseconds. */
+  get ttlMs(): number {
+    return this.#ttlMs;
+  }
   constructor(options: MemoryLiveStoreOptions = {}) {
     this.#ttlMs = options.ttlMs ?? 900_000;
     this.#maxEntries = options.maxEntries ?? 1000;
