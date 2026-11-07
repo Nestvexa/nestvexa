@@ -42,7 +42,7 @@ jobs:
         with:
           ref: refs/tags/${{ inputs.tag }}
           persist-credentials: false
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10.26.1
       - uses: actions/setup-node@v4
@@ -90,7 +90,7 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$(git rev-parse "$TAG^{commit}")"
           node -e "const v=require('./packages/nestvexa/package.json').version; if ('v'+v !== process.env.TAG) { console.error('package version '+v+' != tag '+process.env.TAG); process.exit(1) }"
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10.26.1
       - uses: actions/setup-node@v4
