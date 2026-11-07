@@ -106,6 +106,19 @@ async function packPackages() {
         !contents.includes('package/' + target.replace(/^\.\//, ''))
       )
         throw new Error(tarball + ' missing asset export ' + target);
+    // Svelte component sources (`svelte` condition) are compiled by the
+    // consumer's bundler, not imported by Node; they must still be packed.
+    const bundlerOnly = ([, target]) =>
+      typeof target === 'object' && target !== null && 'svelte' in target;
+    for (const [key, target] of Object.entries(manifest.exports).filter(
+      bundlerOnly,
+    ))
+      for (const file of [target.svelte, target.types])
+        if (
+          typeof file === 'string' &&
+          !contents.includes('package/' + file.replace(/^\.\//, ''))
+        )
+          throw new Error(tarball + ' missing ' + key + ' file ' + file);
     if (
       /^package\/(?:src|tests|node_modules)\/|(?:^|\/)\.env(?:\.|$)/m.test(
         archive.stdout,
@@ -115,10 +128,10 @@ async function packPackages() {
     report.packages.push({
       name: manifest.name,
       version: manifest.version,
-      // Static asset exports (for example @nestvexa/ui/theme.css) are not
-      // JavaScript modules; their presence is checked above via contents.
+      // Static asset exports (for example @nestvexa/ui/theme.css) and Svelte
+      // component sources are not Node modules; their presence is checked above.
       entryPoints: Object.entries(manifest.exports)
-        .filter(([, target]) => typeof target !== 'string')
+        .filter((entry) => typeof entry[1] !== 'string' && !bundlerOnly(entry))
         .map(([key]) =>
           key === '.' ? manifest.name : manifest.name + key.slice(1),
         ),
