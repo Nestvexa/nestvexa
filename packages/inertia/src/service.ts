@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import {
+  INERTIA_JSON_VARY,
   INERTIA_OPTIONS,
   InertiaHeader,
   InertiaSessionKey,
@@ -427,7 +428,7 @@ export class InertiaService {
       headers: {
         [InertiaHeader.location]: this.#path(request),
         [InertiaHeader.version]: current,
-        Vary: InertiaHeader.inertia,
+        Vary: `${InertiaHeader.inertia}, ${InertiaHeader.version}`,
       },
       body: '',
     };
@@ -592,7 +593,7 @@ export class InertiaService {
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
           [InertiaHeader.inertia]: 'true',
-          Vary: InertiaHeader.inertia,
+          Vary: INERTIA_JSON_VARY,
         },
         body: json,
       };

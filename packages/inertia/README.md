@@ -76,7 +76,12 @@ export class AppModule {}
 The initial visit returns a full HTML document containing
 `<script data-page="app" type="application/json">…</script><div id="app"></div>`
 (the element `@inertiajs/core` 3.x reads); `X-Inertia: true` visits return the
-JSON page object with `X-Inertia: true` and `Vary: X-Inertia`.
+JSON page object with `X-Inertia: true`. Documents carry `Vary: X-Inertia`;
+JSON page responses list every header that selects their content (`X-Inertia`,
+`X-Inertia-Version` and the partial-reload, reset, error-bag, merge-intent and
+except-once headers), so a shared cache never replays one visitor's partial
+reload to a full visit. A version mismatch `409` varies on `X-Inertia` and
+`X-Inertia-Version`.
 
 ## Public API
 
@@ -193,9 +198,12 @@ precognitive request with the `422` reply. See the
 ### SSR contract (Phase 9 supplies renderers)
 
 `InertiaSsrRenderer.render(page, pageJson, { request, app })` returns
-`{ head: string[], body: string }`. `HttpSsrGateway({ url, timeoutMs })`
+`{ head: string[], body: string }`. `HttpSsrGateway({ url, timeoutMs, maxResponseBytes })`
 implements the documented SSR HTTP server contract (`POST /render`,
-`GET /health`). In `fallback` mode (default) failures are reported to `onError`
+`GET /health`). The URL comes from host configuration only: it must be
+`http(s)` without credentials, query or fragment; redirects are never followed;
+response bodies are read with a hard limit (default 5 MiB, 4 KiB for `/health`)
+and the stream is cancelled beyond it. In `fallback` mode (default) failures are reported to `onError`
 and the client-rendered document is served; `strict` mode propagates them.
 SSR is never invoked for `X-Inertia` visits.
 
