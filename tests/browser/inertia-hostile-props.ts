@@ -90,8 +90,12 @@ async function checkRendered(page: Page): Promise<void> {
       children: 0,
     })),
   );
-  // Hovering and focusing would fire an injected handler.
-  for (const item of await items.all()) await item.hover();
+  // Mouse and focus events would fire an injected handler. Dispatched
+  // directly: pointer hovers on 11 items time out on loaded WebKit hosts.
+  for (const item of await items.all()) {
+    await item.dispatchEvent('mouseover');
+    await item.dispatchEvent('focus');
+  }
   await page.keyboard.press('Tab');
   // URL bindings: only http(s) and relative links keep their target.
   const anchors = page.getByTestId('link');

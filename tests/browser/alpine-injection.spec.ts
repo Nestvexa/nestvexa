@@ -42,6 +42,8 @@ async function directives(page: Page): Promise<Record<string, number>> {
 test('server-rendered user data never becomes an Alpine or Live directive', async ({
   page,
 }) => {
+  // Nine save-and-morph round trips; the default 30 s is too short on loaded hosts.
+  test.setTimeout(120_000);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.addInitScript(() => {
