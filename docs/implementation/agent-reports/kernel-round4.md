@@ -150,3 +150,24 @@ structural interfaces, as ADR 0030 describes, and the ADR has an amendment).
   truthy non-boolean values now deny. This is noted in the changesets.
 - `CoreModule` extensions with a `nestvexa` range that excludes
   `0.1.0-alpha.0` now fail startup.
+
+## Verification
+
+- `pnpm build` and `pnpm docs:build` pass. So do `pnpm lint` (including
+  `scripts/boundaries.mjs`), `pnpm exec tsc -p tsconfig.tests.json --noEmit`
+  and `pnpm format:check`.
+- `pnpm exec vitest run` passes for all five new files: 36 tests on Express
+  and Fastify, including the Chromium SRI checks.
+- These regression suites pass: `core-plugins`, `core-kernel`, `umbrella-live`,
+  `live`, `devtools-inspector`, `devtools-browser`, `vite-manifest` and
+  `vite-static`. `live-security` and `observability` pass only with
+  `--testTimeout=120000`; at the default 15 s their first, cold-import test
+  timed out on the heavily loaded shared host.
+- `tests/architecture-runtime.test.ts` (the `@nestvexa/live` and kernel-purity
+  cases) hit its hard-coded 60 s child-process timeout. On this host,
+  importing `@nestjs/common` alone took 50–70 s. With Nest already imported,
+  `@nestvexa/live` imported in 2.6 s from this branch and 4.5 s from main's
+  build, so no slowdown was introduced. Re-run on a quiet machine before
+  merging.
+- `pnpm size:check` was not run: no browser client code changed. The
+  integrity tags are generated on the server.
