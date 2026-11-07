@@ -410,11 +410,20 @@ took 5–7 minutes, and parallel suites were killed with exit 134/143). The
   - dry run, wiring, idempotency and a second export;
   - the plugin's import-time marker is absent after `add`;
   - the app compiles, and booting it runs `register()`.
-- Remaining: the kernel round 4 work, which unifies `PluginRegistry` with
-  `NestvexaExtension`, was merged from main before the final checks; see
-  Verification for whether `add plugin` still compiles and boots on it. The
-  manifest has no field naming the export (`--export` covers it), and
-  installation is not recorded in the CLI manifest.
+- Unified extension API (kernel round 4, merged from main): `NestvexaExtension`
+  now carries `version` and a `nestvexa` range that the host checks at
+  startup, and `PluginRegistry` is a deprecated adapter. `add plugin` wires
+  extensions into `CoreModuleRegistration.extensions`, the single runtime path.
+  With `--legacy-plugin`, a deprecated `NestvexaPlugin` export is wrapped with
+  core's `pluginExtension()`. The test boots both an extension (with
+  `version`/`nestvexa`) and a legacy plugin, whose `setup` runs through the
+  extension host.
+- Remaining:
+  - The manifest has no field naming the export (`--export` covers it).
+  - Installation is not recorded in the CLI manifest.
+  - The CLI cannot tell statically whether an export is an extension or a
+    legacy plugin; `--legacy-plugin` is explicit, and `tsc` catches a wrong
+    choice.
 
 ### Verification
 

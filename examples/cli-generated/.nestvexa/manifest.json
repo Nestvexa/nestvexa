@@ -185,7 +185,7 @@
       "feature": "init"
     },
     "src/nestvexa/realtime.config.ts": {
-      "sha256": "1181cacd829555bf60824de03b25c9e652a0ada0336e91c61660bc220e98dda1",
+      "sha256": "f91ca1c8cd87ead93a0677f56c923aa7231f9c5518954cc67ff1d5b16ab1fd72",
       "feature": "add:realtime"
     },
     "src/nestvexa/route-helpers.ts": {
@@ -275,7 +275,7 @@
       "templateVersion": 2
     },
     "src/task/task.controller.spec.ts": {
-      "sha256": "992623d91063ad43d2380dbde8412abde42c6e99ab582c32e059808a1fcc39cb",
+      "sha256": "a81e7c23d890dbaf98be8df05ed1a834e8615a52136ac2859446f34cc401b1f1",
       "feature": "resource:task",
       "template": "resource.test.controller",
       "templateVersion": 1

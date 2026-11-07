@@ -14,7 +14,8 @@
 - Generated files are formatted with the project's own ESLint (`--fix`) and
   Prettier when they are installed (best effort; `--no-format` skips it).
 - `add plugin <package> [--export <name>]` wires a `NestvexaExtension` from an
-  installed package after validating its `nestvexa` manifest statically.
+  installed package after validating its `nestvexa` manifest statically;
+  `--legacy-plugin` adapts a deprecated `NestvexaPlugin` with `pluginExtension()`.
 - Package-manager detection reads the `packageManager` field, `bun.lock` and
   lockfiles of an enclosing workspace. `make:test` adds `@jest/globals` for Jest
   projects. The `make:form` view no longer puts a Handlebars block inside a tag.

@@ -12,7 +12,9 @@ export function realtimeSecrets(): string[] {
   const secret = process.env['REALTIME_SECRET'];
   if (secret !== undefined && Buffer.byteLength(secret) >= 32) return [secret];
   if (process.env['NODE_ENV'] === 'production')
-    throw new Error('REALTIME_SECRET must be set to at least 32 bytes in production');
+    throw new Error(
+      'REALTIME_SECRET must be set to at least 32 bytes in production',
+    );
   return [randomBytes(32).toString('base64url')];
 }
 
@@ -26,5 +28,7 @@ export const realtimeOptions: RealtimeModuleOptions = {
     return { binding: `session:${id}` };
   },
   authorizeChannel: (_identity, channel) =>
-    publicChannels.some((prefix) => channel === prefix || channel.startsWith(`${prefix}:`)),
+    publicChannels.some(
+      (prefix) => channel === prefix || channel.startsWith(`${prefix}:`),
+    ),
 };
