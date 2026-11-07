@@ -27,6 +27,9 @@ export default function FeaturesIndex({
         <Link href="/features/todos">Optimistic todos</Link>
         <Link href="/features/signup">Precognition signup</Link>
         <Link href="/features/large">Large payload</Link>
+        <Link href="/features/long/1">Long pages</Link>
+        <Link href="/features/slow">Slow page</Link>
+        <Link href="/features/actions">Typed actions</Link>
       </nav>
       <h2>Manual visits</h2>
       <div className="stack">
@@ -54,6 +57,14 @@ export default function FeaturesIndex({
         >
           Post with a link
         </Link>
+        <button
+          type="button"
+          onClick={() =>
+            router.visit('/features/slow', { showProgress: false })
+          }
+        >
+          Quiet slow visit
+        </button>
       </div>
     </>
   );

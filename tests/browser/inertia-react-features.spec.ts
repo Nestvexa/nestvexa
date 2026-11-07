@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import type { Page, Request, Route } from '@playwright/test';
+import type { Page, Request } from '@playwright/test';
 import {
   exampleUrl,
   hydrated,
@@ -8,6 +8,11 @@ import {
   observe,
   sameDocument,
 } from './inertia-framework-suite.js';
+import {
+  defineScrollAndProgress,
+  defineTypedActionsSuite,
+  gate,
+} from './inertia-feature-tour.js';
 
 // Client-owned Inertia v3 features driven by the official @inertiajs/react
 // 3.10.0 client against @nestvexa/inertia (examples/inertia-react, Vite
@@ -19,25 +24,6 @@ const wait = expect.configure({ timeout: 15000 });
 function path(request: Request): string {
   const url = new URL(request.url());
   return url.pathname + url.search;
-}
-
-/** Holds matching requests until `release()`, to observe in-flight UI deterministically. */
-async function gate(
-  page: Page,
-  pattern: string,
-  method: string,
-): Promise<{ release: () => void; held: Promise<void> }> {
-  let release = () => {};
-  let markHeld = () => {};
-  const open = new Promise<void>((resolve) => (release = resolve));
-  const held = new Promise<void>((resolve) => (markHeld = resolve));
-  await page.route(pattern, async (route: Route) => {
-    if (route.request().method() !== method) return route.continue();
-    markHeld();
-    await open;
-    await route.continue();
-  });
-  return { release: () => release(), held };
 }
 
 async function open(page: Page, url: string): Promise<void> {
@@ -485,3 +471,6 @@ test.describe('Inertia React client features (official client)', () => {
     expect(await sameDocument(page)).toBe(true);
   });
 });
+
+defineScrollAndProgress({ framework: 'React', base, home: '/features' });
+defineTypedActionsSuite({ framework: 'React', base });

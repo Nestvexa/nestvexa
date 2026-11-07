@@ -41,6 +41,7 @@ import session from 'express-session';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ActionsPageController, NotesModule, noteActions } from './actions.js';
 import { DocumentsController, documentUploads } from './documents.js';
 import { FeaturesController } from './features.js';
 import type { AppPages, User } from './page-types.js';
@@ -71,6 +72,8 @@ const testControls = process.argv.includes('--test-controls');
 // Client-only mode: no SSR at all; the client mounts into an empty root.
 const clientOnly = process.argv.includes('--client-only');
 const port = Number(process.env['PORT'] ?? 3108);
+/** The browser origin that upload and action requests must send. */
+const origin = process.env['ORIGIN'] ?? `http://127.0.0.1:${port}`;
 const logger = new Logger(`Inertia${framework}Example`);
 // The SSR bundle is imported lazily on the first render, so this selects the
 // production builds of the framework runtime it loads (it externalizes them).
@@ -230,7 +233,9 @@ class PagesController {
 
 @Module({
   imports: [
-    documentUploads(process.env['ORIGIN'] ?? `http://127.0.0.1:${port}`),
+    documentUploads(origin),
+    noteActions(origin),
+    NotesModule,
     InertiaModule.forRoot({
       version: (request) =>
         (request as SessionRequest).session.assetVersion ??
@@ -253,7 +258,12 @@ class PagesController {
           }),
     }),
   ],
-  controllers: [PagesController, FeaturesController, DocumentsController],
+  controllers: [
+    PagesController,
+    FeaturesController,
+    DocumentsController,
+    ActionsPageController,
+  ],
   providers: [{ provide: APP_GUARD, useClass: XsrfGuard }],
 })
 class AppModule {}

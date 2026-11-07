@@ -1,8 +1,14 @@
 import { Head, useForm } from '@inertiajs/react';
 import type { AppPages } from '../../../src/page-types';
 
+// useForm(method, url, data) with validateFiles(): choosing a file sends a
+// multipart Precognition request (`Precognition: true`,
+// `Precognition-Validate-Only: document`) that the @Precognitive route parses
+// with its FileInterceptor and answers with 204 or 422 without storing it.
 export default function FilesUpload({ uploads }: AppPages['Files/Upload']) {
-  const form = useForm<{ document: File | null }>({ document: null });
+  const form = useForm<{ document: File | null }>('post', '/uploads', {
+    document: null,
+  }).validateFiles();
   return (
     <>
       <Head title="Uploads" />
@@ -10,7 +16,7 @@ export default function FilesUpload({ uploads }: AppPages['Files/Upload']) {
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          form.post('/uploads', {
+          form.submit({
             forceFormData: true,
             onSuccess: () => form.reset(),
           });
@@ -26,14 +32,20 @@ export default function FilesUpload({ uploads }: AppPages['Files/Upload']) {
           accept="text/plain,image/png"
           aria-invalid={form.errors.document ? 'true' : 'false'}
           aria-describedby={form.errors.document ? 'document-error' : undefined}
-          onChange={(event) =>
-            form.setData('document', event.target.files?.[0] ?? null)
-          }
+          onChange={(event) => {
+            const file = event.target.files?.[0] ?? null;
+            // setData updates the form synchronously, so validate sees the file.
+            form.setData('document', file);
+            if (file) form.validate('document');
+          }}
         />
         {form.errors.document ? (
           <p id="document-error" className="field-error" role="alert">
             {form.errors.document}
           </p>
+        ) : null}
+        {form.valid('document') ? (
+          <p data-testid="document-valid">File accepted</p>
         ) : null}
         {form.progress ? (
           <progress value={form.progress.percentage ?? 0} max={100}>

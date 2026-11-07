@@ -65,4 +65,51 @@ test.describe('Inertia React example extras', () => {
     ).toBeVisible();
     expect(await sameDocument(page)).toBe(true);
   });
+  test('validateFiles() sends multipart Precognition requests that the FileInterceptor parses', async ({
+    page,
+  }) => {
+    await page.goto(`${base}/uploads`);
+    await hydrated(page);
+    await markDocument(page);
+    const stored = page
+      .getByRole('list', { name: 'Uploaded files' })
+      .getByRole('listitem');
+    const before = await stored.count();
+    const validation = () =>
+      page.waitForResponse(
+        (response) =>
+          response.request().headers()['precognition'] === 'true' &&
+          new URL(response.url()).pathname === '/uploads',
+      );
+    let reply = validation();
+    await page.getByLabel(/Document/).setInputFiles({
+      name: 'evil.html',
+      mimeType: 'text/html',
+      buffer: Buffer.from('<script>alert(1)</script>'),
+    });
+    let response = await reply;
+    expect(response.status()).toBe(422);
+    expect(response.headers()['precognition']).toBe('true');
+    const sent = response.request().headers();
+    expect(sent['content-type']).toContain('multipart/form-data');
+    expect(sent['precognition-validate-only']).toBe('document');
+    expect(sent['x-xsrf-token']).toBeTruthy();
+    await expect(page.getByRole('alert')).toHaveText(
+      'Only plain text and PNG files are accepted.',
+    );
+    reply = validation();
+    await page.getByLabel(/Document/).setInputFiles({
+      name: 'notes.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('validated, not stored'),
+    });
+    response = await reply;
+    expect(response.status()).toBe(204);
+    expect(response.headers()['precognition-success']).toBe('true');
+    await expect(page.getByTestId('document-valid')).toBeVisible();
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    // Validation-only requests never reached the handler.
+    await expect(stored).toHaveCount(before);
+    expect(await sameDocument(page)).toBe(true);
+  });
 });
