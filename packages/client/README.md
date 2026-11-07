@@ -110,4 +110,4 @@ A queued `$sync` folds into a request of the same component that has not started
 
 ## Navigation and optimistic updates
 
-`nv:navigate` links swap same-origin documents with full-load fallback ([reference](../../docs/reference/nv-navigate.md)); `client.navigate(url)` visits programmatically. `nv:optimistic.toggle|set|increment|decrement` projects display bindings until an action settles and emits `nestvexa:rollback` on failure ([reference](../../docs/reference/nv-optimistic.md)). Responses with `download` trigger a single-use attachment.
+`nv:navigate` links swap same-origin documents with full-load fallback, scroll restoration on Back and Forward, title/metadata updates, dirty-draft confirmation and explicit hover prefetch that committed Live requests invalidate ([reference](../../docs/reference/nv-navigate.md)); `client.navigate(url)` visits programmatically. `nv:optimistic.toggle|set|increment|decrement` projects display bindings until an action settles and emits `nestvexa:rollback` on failure ([reference](../../docs/reference/nv-optimistic.md)). Responses with `download` trigger a single-use attachment.

@@ -1547,6 +1547,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           presentation?.refresh(item.root);
       }
       applied = true;
+      // A committed request may have changed what prefetched pages show.
+      navigation?.invalidate();
       state.root.dispatchEvent(
         new window.CustomEvent('nestvexa:updated', {
           bubbles: true,
@@ -2507,6 +2509,9 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           onNavigated: () => {
             // A swapped document starts a fresh URL-state history scope.
             urlHistory = false;
+            // Register the new components synchronously: Alpine's mutation
+            // observer predates ours and initializes `$live` reads first.
+            discover();
           },
         });
       dispatcher = createEventDispatcher({

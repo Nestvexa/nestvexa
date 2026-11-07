@@ -32,10 +32,14 @@ export interface NavigationOptions {
 export interface NavigationController {
   /** Visit a same-origin path through a document swap, or fall back to a full load. */
   visit(url: string, options?: { readonly replace?: boolean }): Promise<void>;
+  /** Drop prefetched documents, for example after a committed mutation. */
+  invalidate(): void;
   dispose(): void;
 }
 
 const historyMarker = 'nestvexaNavigate';
+const historyKey = 'nestvexaKey';
+const maxScrollEntries = 64;
 const prefetchLifetime = 10_000;
 const maxPrefetch = 8;
 
@@ -79,8 +83,33 @@ export function createNavigationController(
       !url.password
     );
   }
-  function full(url: string): void {
-    window.location.assign(url);
+  // Scroll positions by history entry, so Forward restores too (a popped
+  // entry's own state can no longer be updated once the browser left it).
+  const scrolls = new Map<string, { x: number; y: number }>();
+  function keyOf(state: unknown): string {
+    const key: unknown =
+      state && typeof state === 'object' ? Reflect.get(state, historyKey) : '';
+    return typeof key === 'string' ? key : '';
+  }
+  let entry = keyOf(window.history.state);
+  // Traversals restore scroll after the swap, not on the outgoing content.
+  const restoration = window.history.scrollRestoration;
+  window.history.scrollRestoration = 'manual';
+  function saveScroll(): void {
+    if (!entry) return;
+    scrolls.delete(entry);
+    scrolls.set(entry, { x: window.scrollX, y: window.scrollY });
+    for (const key of scrolls.keys())
+      if (scrolls.size > maxScrollEntries) scrolls.delete(key);
+  }
+  function stamp(): Record<string, unknown> {
+    entry = window.crypto.randomUUID();
+    return { [historyMarker]: true, [historyKey]: entry };
+  }
+  // A history traversal replaces the current entry instead of adding one.
+  function full(url: string, mode?: 'push' | 'replace' | 'pop'): void {
+    if (mode && mode !== 'push') window.location.replace(url);
+    else window.location.assign(url);
   }
   async function load(
     url: string,
@@ -94,6 +123,9 @@ export function createNavigationController(
       ...(signal ? { signal } : {}),
     });
     const final = new URL(response.url || url, window.location.href);
+    // Fetch never exposes fragments; like a browser navigation, the requested
+    // fragment survives redirects (a Location fragment is not observable).
+    final.hash = new URL(url).hash;
     const type = response.headers.get('content-type') ?? '';
     if (
       !response.ok ||
@@ -113,10 +145,12 @@ export function createNavigationController(
       state && typeof state === 'object' && !Array.isArray(state)
         ? (state as Record<string, unknown>)
         : {};
+    saveScroll();
     window.history.replaceState(
       {
         ...base,
         [historyMarker]: true,
+        [historyKey]: entry || stamp()[historyKey],
         scrollX: window.scrollX,
         scrollY: window.scrollY,
       },
@@ -143,18 +177,18 @@ export function createNavigationController(
     window.dispatchEvent(
       new window.CustomEvent('nestvexa:navigate', { detail: { url } }),
     );
-    if (mode === 'push')
-      window.history.pushState({ [historyMarker]: true }, '', url);
-    else if (mode === 'replace')
-      window.history.replaceState({ [historyMarker]: true }, '', url);
+    if (mode === 'push') window.history.pushState(stamp(), '', url);
+    else if (mode === 'replace') window.history.replaceState(stamp(), '', url);
     doc.title = incoming.title;
-    const description = incoming.querySelector('meta[name="description"]');
-    const current = doc.querySelector('meta[name="description"]');
-    if (description && current)
-      current.setAttribute(
-        'content',
-        description.getAttribute('content') ?? '',
-      );
+    // Named and Open Graph metadata follow the incoming document (viewport
+    // stays with the shell). Only inert <meta> elements are adopted.
+    const metadata = 'meta[name]:not([name="viewport"]), meta[property]';
+    for (const meta of doc.head.querySelectorAll(metadata)) meta.remove();
+    doc.head.append(
+      ...[...incoming.head.querySelectorAll(metadata)].map((meta) =>
+        doc.adoptNode(meta),
+      ),
+    );
     for (const attribute of [...doc.body.attributes])
       doc.body.removeAttribute(attribute.name);
     for (const attribute of body.attributes)
@@ -210,7 +244,7 @@ export function createNavigationController(
           : await load(target.href, abort.signal);
       if (abort.signal.aborted || disposed) return;
       if (!loaded) {
-        full(target.href);
+        full(target.href, mode);
         return;
       }
       const incoming = new window.DOMParser().parseFromString(
@@ -218,11 +252,11 @@ export function createNavigationController(
         'text/html',
       );
       if (mode !== 'pop') remember();
-      if (!swap(incoming, loaded.url, mode, scroll)) full(loaded.url);
+      if (!swap(incoming, loaded.url, mode, scroll)) full(loaded.url, mode);
     } catch (error) {
       if (abort.signal.aborted) return;
       options.onError(error);
-      full(target.href);
+      full(target.href, mode);
     } finally {
       if (active === abort) {
         active = undefined;
@@ -280,7 +314,12 @@ export function createNavigationController(
       const anchor = link(event);
       if (!anchor?.hasAttribute('nv:navigate.hover')) return;
       const url = new URL(anchor.href, window.location.href);
-      if (!sameOrigin(url) || prefetched.has(url.href)) return;
+      if (
+        !sameOrigin(url) ||
+        prefetched.has(url.href) ||
+        url.href === window.location.href
+      )
+        return;
       for (const [key, entry] of prefetched)
         if (Date.now() - entry.at >= prefetchLifetime) prefetched.delete(key);
       if (prefetched.size >= maxPrefetch) return;
@@ -300,8 +339,11 @@ export function createNavigationController(
       Reflect.get(state, historyMarker) !== true
     )
       return;
-    const x = Number(Reflect.get(state, 'scrollX') ?? 0);
-    const y = Number(Reflect.get(state, 'scrollY') ?? 0);
+    saveScroll();
+    entry = keyOf(state);
+    const saved = scrolls.get(entry);
+    const x = Number(saved?.x ?? Reflect.get(state, 'scrollX') ?? 0);
+    const y = Number(saved?.y ?? Reflect.get(state, 'scrollY') ?? 0);
     void visit(window.location.href, 'pop', {
       x: Number.isFinite(x) ? x : 0,
       y: Number.isFinite(y) ? y : 0,
@@ -314,8 +356,10 @@ export function createNavigationController(
   return {
     visit: (url, visitOptions = {}) =>
       visit(url, visitOptions.replace ? 'replace' : 'push'),
+    invalidate: () => prefetched.clear(),
     dispose(): void {
       disposed = true;
+      window.history.scrollRestoration = restoration;
       active?.abort();
       prefetched.clear();
       doc.removeEventListener('click', click);
