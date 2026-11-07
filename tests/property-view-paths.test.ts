@@ -1,4 +1,5 @@
 import fc from 'fast-check';
+import { propertyRuns } from './support/property-runs.js';
 import fs from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -21,7 +22,7 @@ import { ViewError } from '../packages/views/dist/index.js';
  * target or template-authored include may ever render it.
  */
 const marker = 'SECRET-MARKER';
-const runs = { numRuns: 120 };
+const runs = propertyRuns(120);
 const segment = fc.oneof(
   fc.constantFrom(
     '..',
@@ -209,7 +210,7 @@ describe('view identifier properties', () => {
         const resolved = path.resolve(root, id);
         expect(resolved.startsWith(root + path.sep)).toBe(true);
       }),
-      { numRuns: 1000 },
+      propertyRuns(1000),
     );
   });
 
@@ -233,7 +234,7 @@ describe('view identifier properties', () => {
           expect(id.split('/')).not.toContain('..');
         },
       ),
-      { numRuns: 1000 },
+      propertyRuns(1000),
     );
   });
 });
