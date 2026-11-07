@@ -36,21 +36,30 @@ function installPlugin(
   writeFileSync(
     join(directory, 'index.js'),
     `import { writeFileSync } from 'node:fs';
-import { defineExtension } from 'nestvexa';
+import { defineExtension, definePlugin } from 'nestvexa';
 
 writeFileSync('plugin-imported.txt', 'imported');
 export const extension = defineExtension({
   name: 'acme-audit',
+  version: '1.2.0',
+  nestvexa: '^0.1.0-alpha.0',
   register() {
     writeFileSync('plugin-registered.txt', 'registered');
   },
 });
 export const second = defineExtension({ name: 'acme-second' });
+// The deprecated plugin contract, adapted with pluginExtension().
+export const legacy = definePlugin({
+  manifest: { name: '${name}', version: '${version}', nestvexa: '^0.1.0-alpha.0', capabilities: ['instrumentation'] },
+  setup() {
+    writeFileSync('plugin-legacy.txt', 'setup');
+  },
+});
 `,
   );
   writeFileSync(
     join(directory, 'index.d.ts'),
-    "import type { NestvexaExtension } from 'nestvexa';\nexport declare const extension: NestvexaExtension;\nexport declare const second: NestvexaExtension;\n",
+    "import type { NestvexaExtension, NestvexaPlugin } from 'nestvexa';\nexport declare const extension: NestvexaExtension;\nexport declare const second: NestvexaExtension;\nexport declare const legacy: NestvexaPlugin;\n",
   );
 }
 const manifest = {
@@ -158,16 +167,23 @@ describe('nestvexa add plugin', { timeout: 300_000 }, () => {
       'Installed @acme/nestvexa-audit@1.2.0 (instrumentation; supports Nestvexa ^0.1.0-alpha.0) as acmeNestvexaAuditExtension',
     );
     ok(run(['add', 'plugin', plugin, '--export', 'second'], root));
+    ok(
+      run(
+        ['add', 'plugin', plugin, '--export', 'legacy', '--legacy-plugin'],
+        root,
+      ),
+    );
     expect(json(run(['add', 'plugin', plugin, '--json'], root))).toMatchObject({
       ok: true,
       changes: [],
     });
     const extensions = read(root, 'src/nestvexa/extensions.ts');
     expect(extensions).toContain(
-      "import { extension as acmeNestvexaAuditExtension, second as acmeNestvexaAuditSecond } from '@acme/nestvexa-audit';",
+      "import { extension as acmeNestvexaAuditExtension, second as acmeNestvexaAuditSecond, legacy as acmeNestvexaAuditLegacy } from '@acme/nestvexa-audit';",
     );
+    expect(extensions).toContain("import { pluginExtension } from 'nestvexa';");
     expect(extensions).toMatch(
-      /acmeNestvexaAuditExtension,\n\s+acmeNestvexaAuditSecond,\n\s+\/\/ nestvexa:extensions/,
+      /acmeNestvexaAuditExtension,\n\s+acmeNestvexaAuditSecond,\n\s+pluginExtension\(acmeNestvexaAuditLegacy\),\n\s+\/\/ nestvexa:extensions/,
     );
     const module = read(root, 'src/app.module.ts');
     expect(module).toContain(
@@ -184,6 +200,8 @@ describe('nestvexa add plugin', { timeout: 300_000 }, () => {
     app = await boot(root, port);
     expect(existsSync(join(root, 'plugin-imported.txt'))).toBe(true);
     expect(read(root, 'plugin-registered.txt')).toBe('registered');
+    // The legacy plugin's setup ran through the unified extension host.
+    expect(read(root, 'plugin-legacy.txt')).toBe('setup');
     expect((await fetch(`${app.origin}/nestvexa`)).status).toBe(200);
   });
 });

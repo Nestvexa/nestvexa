@@ -34,7 +34,7 @@ Commands:
   add engine <hbs|ejs|pug|nunjucks>
   add <react|vue|svelte|inertia>        Inertia root with its own Vite build
   add <islands|forms|actions|realtime|redis|uploads|i18n|devtools|cache>
-  add plugin <package> [--export <name>]  Wire an installed NestvexaExtension
+  add plugin <package> [--export <name>] [--legacy-plugin]  Wire an installed NestvexaExtension
   remove <feature>             Remove unmodified generated files (e.g. component:counter)
   make:component <Name> [--view hbs] [--module <dir>]
   make:page <Name> [--renderer hbs|ejs|pug|nunjucks|react|vue|svelte]
@@ -123,6 +123,7 @@ const known = new Set([
   'production',
   'check',
   'no-format',
+  'legacy-plugin',
 ]);
 
 export interface RunOutput {

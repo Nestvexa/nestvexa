@@ -947,7 +947,8 @@ describe('${pascal} (HTTP)', () => {
     } finally {
       await app.close();
     }
-  });
+    // Booting AppModule takes a few seconds on a cold or loaded machine.
+  }, 60_000);
 });
 `;
 }

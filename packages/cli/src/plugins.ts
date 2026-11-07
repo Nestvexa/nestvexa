@@ -301,10 +301,13 @@ export function addPlugin(
   let next = hasNamedImport(text, name, local)
     ? text
     : ensureImport(text, name, [`${binding} as ${local}`]);
+  // A deprecated NestvexaPlugin export is adapted with the core helper.
+  const legacy = context.options['legacy-plugin'] === true;
+  if (legacy) next = ensureImport(next, 'nestvexa', ['pluginExtension']);
   next = addArrayElement(
     next,
     'nestvexaExtensions',
-    local,
+    legacy ? `pluginExtension(${local})` : local,
     local,
     'extensions',
   );

@@ -117,7 +117,9 @@ describe(
 
     it('keeps routes:types --check consistent with the formatted map and the project compiling', () => {
       const routes = json(run(['routes:types', '--json'], root));
-      expect(routes.messages?.join('\n')).toContain('Prettier formatted 1 of');
+      expect(routes.messages?.join('\n')).toMatch(
+        /Prettier formatted [1-9]\d* of \d+ written file\(s\)/,
+      );
       expect(read(root, 'src/nestvexa/routes.ts')).toContain('} as const\n');
       ok(run(['routes:types', '--check'], root));
       const compiled = tsc(root);

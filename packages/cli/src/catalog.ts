@@ -359,7 +359,7 @@ export const catalog: Readonly<Record<string, TemplateDefinition>> =
         ),
     },
     'test.smoke': {
-      version: 1,
+      version: 2,
       description: 'HTTP smoke test booting AppModule',
       path: paths.smoke,
       render: (n, p) =>
