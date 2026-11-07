@@ -127,17 +127,18 @@ sampled flag.
 
 ## API
 
-| Export                                                                                     | Purpose                                                                                                                         |
-| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| `openTelemetryInstrumentation(tracer)`                                                     | Bridge to any OpenTelemetry-shaped `Tracer` (structural; no dependency)                                                         |
-| `MemoryInstrumentation(capacity?, now?)`                                                   | Bounded recorder with `records` and `summary()` (count, errors, p50, p95, max)                                                  |
-| `combineInstrumentation(...targets)`                                                       | Fan out spans                                                                                                                   |
-| `redact(value)` / `createLogger(sink?)`                                                    | Redacted JSON-lines logging (passwords, tokens, cookies, sessions, CSRF, snapshots, bindings, API keys)                         |
-| `DevtoolsModule.register({ instrumentation, inspector?, authorize, path?, environment? })` | Development panel, `data.json` and `spans.json` at `/_nestvexa/devtools`                                                        |
-| `DevtoolsInspector(options?)`                                                              | Live `inspector` hook: component catalog and redacted public state of recent renders                                            |
-| `devtoolsSnapshot(instrumentation, inspector?)` / `DEVTOOLS_SCHEMA`                        | The versioned `data.json` contract (`nestvexa-devtools/1`, [ADR 0034](../../docs/adr/0034-devtools-browser-extension-scope.md)) |
-| `requestTracingMiddleware(instrumentation?, { trustRequestId?, responseHeader? })`         | Request ids (`X-Request-Id`, `currentRequestId()`) and `nestvexa.request` spans                                                 |
-| `traceGuard(guard, instrumentation, name?)`                                                | Wrap a host guard as `nestvexa.guard` spans                                                                                     |
+| Export                                                                                              | Purpose                                                                                                                         |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `openTelemetryInstrumentation(tracer)`                                                              | Bridge to any OpenTelemetry-shaped `Tracer` (structural; no dependency)                                                         |
+| `MemoryInstrumentation(capacity?, now?)`                                                            | Bounded recorder with `records` and `summary()` (count, errors, p50, p95, max)                                                  |
+| `combineInstrumentation(...targets)`                                                                | Fan out spans                                                                                                                   |
+| `redact(value)` / `createLogger(sink?)`                                                             | Redacted JSON-lines logging (passwords, tokens, cookies, sessions, CSRF, snapshots, bindings, API keys)                         |
+| `DevtoolsModule.register({ instrumentation, inspector?, authorize, path?, environment?, kernel? })` | Development panel, `data.json` and `spans.json` at `/_nestvexa/devtools`                                                        |
+| `DevtoolsModule.registerAsync({ path?, environment?, imports?, inject?, useFactory })`              | The same with injected recorders and kernel registries                                                                          |
+| `DevtoolsInspector(options?)`                                                                       | Live `inspector` hook: component catalog and redacted public state of recent renders                                            |
+| `devtoolsSnapshot(instrumentation, inspector?)` / `DEVTOOLS_SCHEMA`                                 | The versioned `data.json` contract (`nestvexa-devtools/1`, [ADR 0034](../../docs/adr/0034-devtools-browser-extension-scope.md)) |
+| `requestTracingMiddleware(instrumentation?, { trustRequestId?, responseHeader? })`                  | Request ids (`X-Request-Id`, `currentRequestId()`) and `nestvexa.request` spans                                                 |
+| `traceGuard(guard, instrumentation, name?)`                                                         | Wrap a host guard as `nestvexa.guard` spans                                                                                     |
 
 ## Development panel
 
@@ -180,6 +181,32 @@ the stable contract recorded in [ADR 0034](../../docs/adr/0034-devtools-browser-
 browser extension as out of scope for v1). Not shown: browser-side morph
 timing and network batching (use the browser's developer tools and the client
 `onDiagnostic` option), cache hit/miss and prop resolution (no hook yet).
+
+**Kernel section** (`kernel` option, structural): pass the `@nestvexa/core`
+`DiagnosticsRegistry`, `SecurityPolicyRegistry` and `FeatureCapabilityRegistry`
+(any objects with `recent()` / `report()` fit) to add **Security policies**
+(owner, kind and configuration such as upload quotas; functions are never
+listed), **Capabilities** and **Kernel diagnostics** (recent events, metrics and
+spans, newest first) to the panel and `data.json` (`kernel.policies`,
+`kernel.capabilities`, `kernel.diagnostics`; empty without `kernel`):
+
+```ts
+DevtoolsModule.registerAsync({
+  inject: [
+    DiagnosticsRegistry,
+    SecurityPolicyRegistry,
+    FeatureCapabilityRegistry,
+  ],
+  useFactory: (diagnostics, security, capabilities) => ({
+    instrumentation: devtools,
+    authorize: isDeveloper,
+    kernel: { diagnostics, security, capabilities },
+  }),
+}); // register the kernel with { global: true } so these tokens resolve
+```
+
+The panel works on Express and Fastify (unknown paths under the panel prefix
+answer the platform's normal 404).
 
 ## Devtools safety
 

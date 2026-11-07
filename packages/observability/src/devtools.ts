@@ -9,7 +9,12 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import type { DynamicModule } from '@nestjs/common';
+import type {
+  DynamicModule,
+  InjectionToken,
+  ModuleMetadata,
+  OptionalFactoryDependency,
+} from '@nestjs/common';
 import type {
   MemoryInstrumentation,
   MetricSummary,
@@ -34,6 +39,51 @@ export interface DevtoolsOptions {
   readonly path?: string;
   /** Defaults to `process.env.NODE_ENV`; the module refuses to register in production. */
   readonly environment?: string;
+  /**
+   * Kernel registries (structural; `DiagnosticsRegistry`,
+   * `SecurityPolicyRegistry` and `FeatureCapabilityRegistry` from
+   * @nestvexa/core fit). Adds the registered security policies (data only,
+   * never functions), declared capabilities and recent kernel diagnostics to
+   * the panel and `data.json`. Use `registerAsync` to inject them.
+   */
+  readonly kernel?: DevtoolsKernelSource;
+}
+
+/** A kernel diagnostic record (event, metric or span) as the panel shows it. */
+export interface DevtoolsDiagnostic {
+  readonly kind: 'event' | 'metric' | 'span';
+  readonly name: string;
+  readonly at: number;
+  readonly attributes: Readonly<Record<string, string | number | boolean>>;
+  readonly value?: number;
+  readonly durationMs?: number;
+  readonly outcome?: 'ok' | 'error';
+}
+export interface DevtoolsCapability {
+  readonly supported: boolean;
+  readonly degraded?: string;
+  readonly reason?: string;
+}
+/** Owner → policy kind → configuration (kinds an owner did not register are absent). */
+export type DevtoolsPolicyReport = Readonly<
+  Record<
+    string,
+    Readonly<Record<string, Readonly<Record<string, unknown>> | undefined>>
+  >
+>;
+export interface DevtoolsKernelSource {
+  readonly diagnostics?: { recent(): readonly DevtoolsDiagnostic[] };
+  readonly security?: { report(): DevtoolsPolicyReport };
+  readonly capabilities?: {
+    report(): Readonly<Record<string, DevtoolsCapability>>;
+  };
+}
+/** The kernel section of the devtools data contract (empty without `kernel`). */
+export interface DevtoolsKernelSnapshot {
+  readonly policies: DevtoolsPolicyReport;
+  readonly capabilities: Readonly<Record<string, DevtoolsCapability>>;
+  /** Recent kernel diagnostics, newest first. */
+  readonly diagnostics: readonly DevtoolsDiagnostic[];
 }
 
 /** Version of the `data.json` contract (see docs/adr/0034-devtools-browser-extension-scope.md). */
@@ -66,6 +116,7 @@ export interface DevtoolsSnapshot {
     readonly renderer: DevtoolsRenderer;
     readonly count: number;
   }[];
+  readonly kernel: DevtoolsKernelSnapshot;
 }
 
 const spanLimit = 200;
@@ -80,11 +131,54 @@ function rendererOf(record: SpanRecord): DevtoolsRenderer | undefined {
   return undefined;
 }
 
+/** Copy only primitive, documented fields; a failing registry yields an empty section. */
+function kernelSnapshot(
+  source: DevtoolsKernelSource | undefined,
+): DevtoolsKernelSnapshot {
+  const read = <T>(work: (() => T) | undefined, fallback: T): T => {
+    if (!work) return fallback;
+    try {
+      return work();
+    } catch {
+      return fallback;
+    }
+  };
+  const diagnostics = read(
+    source?.diagnostics && (() => source.diagnostics?.recent() ?? []),
+    [],
+  );
+  return {
+    policies: read(
+      source?.security && (() => source.security?.report() ?? {}),
+      {},
+    ),
+    capabilities: read(
+      source?.capabilities && (() => source.capabilities?.report() ?? {}),
+      {},
+    ),
+    diagnostics: [...diagnostics]
+      .slice(-groupLimit * 2)
+      .reverse()
+      .map((record) => ({
+        kind: record.kind,
+        name: record.name,
+        at: record.at,
+        attributes: { ...record.attributes },
+        ...(record.value === undefined ? {} : { value: record.value }),
+        ...(record.durationMs === undefined
+          ? {}
+          : { durationMs: record.durationMs }),
+        ...(record.outcome === undefined ? {} : { outcome: record.outcome }),
+      })),
+  };
+}
+
 /** Build the devtools data contract from the recorders. */
 export function devtoolsSnapshot(
   instrumentation: MemoryInstrumentation,
   inspector?: DevtoolsInspector,
   now: () => Date = () => new Date(),
+  kernel?: DevtoolsKernelSource,
 ): DevtoolsSnapshot {
   const spans = instrumentation.records.slice(-spanLimit).reverse();
   const group = (test: (record: SpanRecord) => boolean) =>
@@ -113,6 +207,7 @@ export function devtoolsSnapshot(
     jobs: group((record) => record.name.startsWith('nestvexa.job.')),
     assets: group((record) => record.name === 'nestvexa.asset.serve'),
     renderers: [...counts].map(([renderer, count]) => ({ renderer, count })),
+    kernel: kernelSnapshot(kernel),
   };
 }
 
@@ -355,6 +450,42 @@ export function renderDevtools(
     ]),
     'No spans recorded yet.',
   );
+  const policies = table(
+    'policies',
+    'Security policies',
+    'Kernel security policies by owner (configuration only, never functions)',
+    ['Owner', 'Kind', 'Configuration'],
+    Object.entries(snapshot.kernel.policies).flatMap(([owner, kinds]) =>
+      Object.entries(kinds).flatMap(([kind, value]) =>
+        value === undefined
+          ? []
+          : `<tr><th scope="row"><code>${escape(owner)}</code></th><td><code>${escape(kind)}</code></td><td><code>${escape(JSON.stringify(value))}</code></td></tr>`,
+      ),
+    ),
+    'No kernel security registry configured.',
+  );
+  const capabilities = table(
+    'capabilities',
+    'Capabilities',
+    'Declared feature capabilities',
+    ['Capability', 'Supported', 'Note'],
+    Object.entries(snapshot.kernel.capabilities).map(
+      ([name, capability]) =>
+        `<tr><th scope="row"><code>${escape(name)}</code></th><td>${capability.supported ? 'yes' : 'no'}</td><td>${escape(capability.degraded ?? capability.reason ?? '')}</td></tr>`,
+    ),
+    'No capabilities declared.',
+  );
+  const diagnostics = table(
+    'diagnostics',
+    'Kernel diagnostics',
+    'Recent kernel events, metrics and spans, newest first',
+    ['Time', 'Kind', 'Name', 'Value or duration', 'Attributes'],
+    snapshot.kernel.diagnostics.map(
+      (record) =>
+        `<tr class="${record.outcome === 'error' ? 'nv-error' : ''}"><td>${time(record.at)}</td><td>${escape(record.kind)}</td><td><code>${escape(record.name)}</code></td><td>${record.value === undefined ? (record.durationMs === undefined ? '' : ms(record.durationMs)) : escape(String(record.value))}</td><td><code>${escape(JSON.stringify(record.attributes))}</code></td></tr>`,
+    ),
+    'No kernel diagnostics recorded.',
+  );
   const sections: readonly [string, string][] = [
     ['components', 'Components'],
     ['renders', 'Renders'],
@@ -367,6 +498,9 @@ export function renderDevtools(
     ['renderers', 'Renderers'],
     ['timings', 'Timings'],
     ['spans', 'Spans'],
+    ['policies', 'Policies'],
+    ['capabilities', 'Capabilities'],
+    ['diagnostics', 'Diagnostics'],
   ];
   const refresh =
     options.refresh === undefined
@@ -376,7 +510,7 @@ export function renderDevtools(
     .map(([id, label]) => `<li><a href="#${id}">${label}</a></li>`)
     .join(
       '',
-    )}</ul></nav></header><main>${components}${renders}${actions}${errors}${requests}${hooks}${realtime}${jobs}${renderers}${summary}${recent}</main></body></html>`;
+    )}</ul></nav></header><main>${components}${renders}${actions}${errors}${requests}${hooks}${realtime}${jobs}${renderers}${summary}${recent}${policies}${capabilities}${diagnostics}</main></body></html>`;
 }
 
 /** The panel stylesheet (served from the panel path so the CSP needs no inline styles). */
@@ -393,6 +527,111 @@ code,pre{font-family:ui-monospace,monospace;font-size:12px}pre{white-space:pre-w
 @media (forced-colors:active){.nv-error{color:Mark}}
 `;
 
+/** Static settings checked at registration, before any factory runs. */
+function devtoolsSettings(options: {
+  readonly environment?: string | undefined;
+  readonly path?: string | undefined;
+}): { readonly path: string; readonly explicit: boolean } {
+  const environment =
+    options.environment ?? process.env['NODE_ENV'] ?? 'development';
+  if (environment === 'production')
+    throw new Error('Nestvexa devtools must not be registered in production');
+  const path = options.path ?? '/_nestvexa/devtools';
+  if (!/^\/[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/.test(path))
+    throw new Error('Invalid devtools path');
+  return { path, explicit: options.environment !== undefined };
+}
+function checkedOptions(options: DevtoolsOptions): DevtoolsOptions {
+  if (typeof options?.authorize !== 'function')
+    throw new Error('Nestvexa devtools requires an authorize(request) policy');
+  return options;
+}
+
+export interface DevtoolsModuleAsyncOptions<
+  Dependencies extends unknown[] = unknown[],
+> {
+  readonly path?: string;
+  readonly environment?: string;
+  readonly imports?: ModuleMetadata['imports'];
+  readonly inject?: (InjectionToken | OptionalFactoryDependency)[];
+  readonly useFactory: (
+    ...dependencies: Dependencies
+  ) =>
+    | Omit<DevtoolsOptions, 'path' | 'environment'>
+    | Promise<Omit<DevtoolsOptions, 'path' | 'environment'>>;
+}
+
+function devtoolsController(path: string, explicit: boolean) {
+  @Controller(path)
+  class DevtoolsController {
+    constructor(
+      @Inject(DEVTOOLS_OPTIONS) private readonly devtools: DevtoolsOptions,
+    ) {}
+    async #check(request: object): Promise<void> {
+      // A process switched to production after registration serves nothing.
+      if (!explicit && process.env['NODE_ENV'] === 'production')
+        throw new NotFoundException();
+      if (!(await this.devtools.authorize(request)))
+        throw new ForbiddenException();
+    }
+    #snapshot(): DevtoolsSnapshot {
+      return devtoolsSnapshot(
+        this.devtools.instrumentation,
+        this.devtools.inspector,
+        undefined,
+        this.devtools.kernel,
+      );
+    }
+    @Get()
+    @Header('Cache-Control', 'no-store')
+    @Header('Content-Type', 'text/html; charset=utf-8')
+    @Header(
+      'Content-Security-Policy',
+      "default-src 'none'; style-src 'self'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    )
+    @Header('X-Content-Type-Options', 'nosniff')
+    @Header('Referrer-Policy', 'no-referrer')
+    async page(
+      @Req() request: object,
+      @Query('refresh') refresh: unknown,
+    ): Promise<string> {
+      await this.#check(request);
+      const seconds = typeof refresh === 'string' ? Number(refresh) : NaN;
+      return renderDevtools(this.#snapshot(), {
+        path,
+        ...(Number.isInteger(seconds) && seconds >= 2 && seconds <= 60
+          ? { refresh: seconds }
+          : {}),
+      });
+    }
+    @Get('devtools.css')
+    @Header('Cache-Control', 'no-store')
+    @Header('Content-Type', 'text/css; charset=utf-8')
+    @Header('X-Content-Type-Options', 'nosniff')
+    async stylesheet(@Req() request: object): Promise<string> {
+      await this.#check(request);
+      return devtoolsStylesheet;
+    }
+    @Get('data.json')
+    @Header('Cache-Control', 'no-store')
+    @Header('X-Content-Type-Options', 'nosniff')
+    async data(@Req() request: object): Promise<DevtoolsSnapshot> {
+      await this.#check(request);
+      return this.#snapshot();
+    }
+    @Get('spans.json')
+    @Header('Cache-Control', 'no-store')
+    async json(@Req() request: object) {
+      await this.#check(request);
+      return {
+        summary: this.devtools.instrumentation.summary(),
+        recent: this.devtools.instrumentation.records.slice(-200),
+      };
+    }
+  }
+  return DevtoolsController;
+}
+
 /**
  * Development-only panel: registered Live components, redacted public state,
  * re-render causes, actions, lifecycle hooks, errors, requests, realtime,
@@ -404,91 +643,38 @@ code,pre{font-family:ui-monospace,monospace;font-size:12px}pre{white-space:pre-w
 @Module({})
 export class DevtoolsModule {
   static register(options: DevtoolsOptions): DynamicModule {
-    const environment =
-      options.environment ?? process.env['NODE_ENV'] ?? 'development';
-    if (environment === 'production')
-      throw new Error('Nestvexa devtools must not be registered in production');
-    if (typeof options.authorize !== 'function')
-      throw new Error(
-        'Nestvexa devtools requires an authorize(request) policy',
-      );
-    const path = options.path ?? '/_nestvexa/devtools';
-    if (!/^\/[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/.test(path))
-      throw new Error('Invalid devtools path');
-    const explicit = options.environment !== undefined;
-    @Controller(path)
-    class DevtoolsController {
-      constructor(
-        @Inject(DEVTOOLS_OPTIONS) private readonly devtools: DevtoolsOptions,
-      ) {}
-      async #check(request: object): Promise<void> {
-        // A process switched to production after registration serves nothing.
-        if (!explicit && process.env['NODE_ENV'] === 'production')
-          throw new NotFoundException();
-        if (!(await this.devtools.authorize(request)))
-          throw new ForbiddenException();
-      }
-      #snapshot(): DevtoolsSnapshot {
-        return devtoolsSnapshot(
-          this.devtools.instrumentation,
-          this.devtools.inspector,
-        );
-      }
-      @Get()
-      @Header('Cache-Control', 'no-store')
-      @Header('Content-Type', 'text/html; charset=utf-8')
-      @Header(
-        'Content-Security-Policy',
-        "default-src 'none'; style-src 'self'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
-      )
-      @Header('X-Content-Type-Options', 'nosniff')
-      @Header('Referrer-Policy', 'no-referrer')
-      async page(
-        @Req() request: object,
-        @Query('refresh') refresh: unknown,
-      ): Promise<string> {
-        await this.#check(request);
-        const seconds = typeof refresh === 'string' ? Number(refresh) : NaN;
-        return renderDevtools(this.#snapshot(), {
-          path,
-          ...(Number.isInteger(seconds) && seconds >= 2 && seconds <= 60
-            ? { refresh: seconds }
-            : {}),
-        });
-      }
-      @Get('devtools.css')
-      @Header('Cache-Control', 'no-store')
-      @Header('Content-Type', 'text/css; charset=utf-8')
-      @Header('X-Content-Type-Options', 'nosniff')
-      async stylesheet(@Req() request: object): Promise<string> {
-        await this.#check(request);
-        return devtoolsStylesheet;
-      }
-      @Get('data.json')
-      @Header('Cache-Control', 'no-store')
-      @Header('X-Content-Type-Options', 'nosniff')
-      async data(@Req() request: object): Promise<DevtoolsSnapshot> {
-        await this.#check(request);
-        return this.#snapshot();
-      }
-      @Get('spans.json')
-      @Header('Cache-Control', 'no-store')
-      async json(@Req() request: object) {
-        await this.#check(request);
-        return {
-          summary: this.devtools.instrumentation.summary(),
-          recent: this.devtools.instrumentation.records.slice(-200),
-        };
-      }
-      @Get('*rest')
-      missing(): never {
-        throw new NotFoundException();
-      }
-    }
+    const { path, explicit } = devtoolsSettings(options);
     return {
       module: DevtoolsModule,
-      controllers: [DevtoolsController],
-      providers: [{ provide: DEVTOOLS_OPTIONS, useValue: options }],
+      controllers: [devtoolsController(path, explicit)],
+      providers: [
+        { provide: DEVTOOLS_OPTIONS, useValue: checkedOptions(options) },
+      ],
+    };
+  }
+  /** Inject the recorder, inspector and kernel registries (for example from @nestvexa/core). */
+  static registerAsync<Dependencies extends unknown[]>(
+    options: DevtoolsModuleAsyncOptions<Dependencies>,
+  ): DynamicModule {
+    const { path, explicit } = devtoolsSettings(options);
+    const useFactory = options.useFactory;
+    if (typeof useFactory !== 'function')
+      throw new Error('Nestvexa devtools registerAsync requires useFactory');
+    return {
+      module: DevtoolsModule,
+      imports: [...(options.imports ?? [])],
+      controllers: [devtoolsController(path, explicit)],
+      providers: [
+        {
+          provide: DEVTOOLS_OPTIONS,
+          inject: [...(options.inject ?? [])],
+          useFactory: async (...dependencies: Dependencies) =>
+            checkedOptions({
+              ...(await useFactory(...dependencies)),
+              path,
+            }),
+        },
+      ],
     };
   }
 }
