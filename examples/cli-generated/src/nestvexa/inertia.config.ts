@@ -1,5 +1,8 @@
 import type { INestApplication } from '@nestjs/common';
-import type { InertiaAppOptions, InertiaModuleOptions } from '@nestvexa/inertia';
+import type {
+  InertiaAppOptions,
+  InertiaModuleOptions,
+} from '@nestvexa/inertia';
 import {
   ViteAssets,
   moduleSsrRenderer,
@@ -22,9 +25,17 @@ export interface InertiaFramework {
  * manifest and asset version. `nestvexa add react|vue|svelte` appends here.
  */
 export const inertiaFrameworks: Record<string, InertiaFramework> = {
-  react: { entry: 'client/react/app.tsx', ssr: 'client/react/ssr.tsx', devPort: 5173 },
+  react: {
+    entry: 'client/react/app.tsx',
+    ssr: 'client/react/ssr.tsx',
+    devPort: 5173,
+  },
   vue: { entry: 'client/vue/app.ts', ssr: 'client/vue/ssr.ts', devPort: 5174 },
-  svelte: { entry: 'client/svelte/app.ts', ssr: 'client/svelte/ssr.ts', devPort: 5175 },
+  svelte: {
+    entry: 'client/svelte/app.ts',
+    ssr: 'client/svelte/ssr.ts',
+    devPort: 5175,
+  },
   // nestvexa:inertia-apps
 };
 
@@ -34,9 +45,13 @@ const root = process.cwd();
  * NESTVEXA_ASSETS=build (end-to-end tests without Vite dev servers).
  */
 const built =
-  process.env['NODE_ENV'] === 'production' || process.env['NESTVEXA_ASSETS'] === 'build';
+  process.env['NODE_ENV'] === 'production' ||
+  process.env['NESTVEXA_ASSETS'] === 'build';
 
-function inertiaApp(key: string, framework: InertiaFramework): InertiaAppOptions {
+function inertiaApp(
+  key: string,
+  framework: InertiaFramework,
+): InertiaAppOptions {
   // Production reads dist/<key>/client/.vite/manifest.json at startup and fails
   // fast when the build is missing; development points at the Vite dev server.
   const assets = new ViteAssets({
@@ -65,18 +80,26 @@ function inertiaApp(key: string, framework: InertiaFramework): InertiaAppOptions
 function ssrOptions(key: string): NonNullable<InertiaAppOptions['ssr']> {
   const bundle = join(root, `dist/${key}/ssr/ssr.mjs`);
   if (!existsSync(bundle))
-    throw new Error(`${bundle} is missing; run the ${key} build before starting`);
+    throw new Error(
+      `${bundle} is missing; run the ${key} build before starting`,
+    );
   return {
     renderer: moduleSsrRenderer(bundle, { timeoutMs: 3000 }),
     mode: 'fallback',
-    onError: (error) => console.warn(`${key} SSR failed: ${error instanceof Error ? error.message : 'unknown error'}`),
+    onError: (error) =>
+      console.warn(
+        `${key} SSR failed: ${error instanceof Error ? error.message : 'unknown error'}`,
+      ),
   };
 }
 
 /** Options for `InertiaModule.forRoot`. Pages select their root with `@InertiaPage(name, { app })`. */
 export function inertiaOptions(): InertiaModuleOptions {
   const apps = Object.fromEntries(
-    Object.entries(inertiaFrameworks).map(([key, framework]) => [key, inertiaApp(key, framework)]),
+    Object.entries(inertiaFrameworks).map(([key, framework]) => [
+      key,
+      inertiaApp(key, framework),
+    ]),
   );
   const [first] = Object.keys(apps);
   return {
@@ -88,5 +111,10 @@ export function inertiaOptions(): InertiaModuleOptions {
 export function configureInertia(app: INestApplication): void {
   if (!built) return;
   for (const key of Object.keys(inertiaFrameworks))
-    app.use(viteStaticMiddleware({ root: join(root, `dist/${key}/client`), prefix: `/build/${key}/` }));
+    app.use(
+      viteStaticMiddleware({
+        root: join(root, `dist/${key}/client`),
+        prefix: `/build/${key}/`,
+      }),
+    );
 }

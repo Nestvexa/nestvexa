@@ -11,6 +11,7 @@ import { configureInertia } from './nestvexa/inertia.config.js';
 import { configureIslands } from './nestvexa/islands.serve.js';
 import { configureUploads } from '@nestvexa/uploads';
 import { configureI18n } from './nestvexa/i18n.config.js';
+import { configureRouteHelpers } from './nestvexa/route-helpers.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { logger: ['error', 'warn'] });
@@ -24,6 +25,7 @@ async function bootstrap() {
     }),
   );
   configureI18n(app);
+  configureRouteHelpers(app);
   await configureNestvexa(app);
   await registerEjsEngine(app);
   await registerPugEngine(app);

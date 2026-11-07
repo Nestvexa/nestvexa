@@ -18,6 +18,8 @@ export const nunjucksEngine = new NunjucksEngine({
  * Registers the `.njk` view engine on Express or Fastify. Call before
  * `app.listen()`; dispose the engine on shutdown if you create it per test.
  */
-export async function registerNunjucksEngine(app: INestApplication): Promise<void> {
+export async function registerNunjucksEngine(
+  app: INestApplication,
+): Promise<void> {
   await registerViewEngine(app, 'njk', nunjucksEngine);
 }

@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { ActionContext, ActionGroup, ActionInput, ServerAction } from '@nestvexa/actions';
+import {
+  ActionContext,
+  ActionGroup,
+  ActionInput,
+  ServerAction,
+} from '@nestvexa/actions';
 
 export interface GreeterGreetInput {
   readonly name: string;
@@ -10,7 +15,9 @@ export interface GreeterGreetResult {
 function isGreetInput(value: unknown): value is GreeterGreetInput {
   if (typeof value !== 'object' || value === null) return false;
   const name: unknown = Reflect.get(value, 'name');
-  return typeof name === 'string' && name.trim().length > 0 && name.length <= 100;
+  return (
+    typeof name === 'string' && name.trim().length > 0 && name.length <= 100
+  );
 }
 
 /**
@@ -28,6 +35,8 @@ export class GreeterActions {
   ): GreeterGreetResult {
     if (!isGreetInput(input)) throw new TypeError('Expected { name: string }');
     // Identity comes from the host policy, never from the body.
-    return { message: `Hello ${input.name.trim()} (${context.identity.subject})` };
+    return {
+      message: `Hello ${input.name.trim()} (${context.identity.subject})`,
+    };
   }
 }

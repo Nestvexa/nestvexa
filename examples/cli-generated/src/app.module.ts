@@ -27,8 +27,30 @@ import { i18nOptions } from './nestvexa/i18n.config.js';
 import { I18nModule } from '@nestvexa/i18n';
 
 @Module({
-  imports: [NestvexaModule.forRoot(nestvexaOptions, nestvexaLive), InertiaModule.forRoot(inertiaOptions()), ActionsModule.register(actionsOptions), TaskModule, RealtimeModule.forRoot(realtimeOptions), UploadsModule.register(uploadsOptions), I18nModule.forRootAsync({ global: true, useFactory: i18nOptions })],
-  controllers: [AppController, ShowcaseController, NestvexaWelcomeController, HomeController, ReportEjsController, ReportPugController, ReportNunjucksController, ReactWelcomeController, ReactDashboardController, VueWelcomeController, VueDashboardController, SvelteWelcomeController, SvelteDashboardController],
+  imports: [
+    NestvexaModule.forRoot(nestvexaOptions, nestvexaLive),
+    InertiaModule.forRoot(inertiaOptions()),
+    ActionsModule.register(actionsOptions),
+    TaskModule,
+    RealtimeModule.forRoot(realtimeOptions),
+    UploadsModule.register(uploadsOptions),
+    I18nModule.forRootAsync({ global: true, useFactory: i18nOptions }),
+  ],
+  controllers: [
+    AppController,
+    ShowcaseController,
+    NestvexaWelcomeController,
+    HomeController,
+    ReportEjsController,
+    ReportPugController,
+    ReportNunjucksController,
+    ReactWelcomeController,
+    ReactDashboardController,
+    VueWelcomeController,
+    VueDashboardController,
+    SvelteWelcomeController,
+    SvelteDashboardController,
+  ],
   providers: [],
 })
 export class AppModule {}

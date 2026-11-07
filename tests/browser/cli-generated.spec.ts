@@ -133,27 +133,51 @@ test('make:form, make:resource and make:island work together on one page (access
   const task = `Write docs (${test.info().project.name})`;
   await tasks.getByLabel('Name').fill(task);
   await tasks.getByRole('button', { name: 'Add' }).click();
-  await expect(
-    tasks.getByRole('listitem').filter({ hasText: task }),
-  ).toHaveCount(1);
+  // Search narrows the server-side page to this project's task.
+  await tasks.getByLabel('Search').fill(task);
+  await expect(tasks.getByRole('listitem')).toHaveText([task]);
+  await expect(tasks.getByText(/Page 1 of 1 \(1 total\)/)).toBeVisible();
   await tasks.getByLabel('Name').fill('x');
   await tasks.getByRole('button', { name: 'Add' }).click();
   await expect(tasks.getByRole('alert')).toHaveText(
     'Enter at least 2 characters.',
   );
+  await expect(tasks.getByLabel('Name')).toHaveAttribute(
+    'aria-invalid',
+    'true',
+  );
 
-  // Generated React island, mounted by the generated islands bundle.
-  const island = page.getByRole('button', { name: /^Clicks: \d+$/ });
-  await expect(island).toHaveText('Clicks: 0');
-  await island.click();
-  await expect(island).toHaveText('Clicks: 1');
+  // Generated React, Vue and Svelte islands, mounted by the generated islands bundle.
+  for (const label of ['Clicks', 'Feed', 'Status']) {
+    const island = page.getByRole('button', {
+      name: new RegExp(`^${label}: \\d+$`),
+    });
+    await expect(island).toHaveText(`${label}: 0`);
+    await island.click();
+    await expect(island).toHaveText(`${label}: 1`);
+  }
 
-  // The REST controller of make:resource --crud shares the service.
-  const listed = await page.evaluate(async (url) => {
-    const response = await fetch(url);
-    return (await response.json()) as { name: string }[];
+  // The validated REST controller of make:resource --crud shares the service.
+  const listed = await page.evaluate(
+    async (url) => {
+      const response = await fetch(url);
+      return (await response.json()) as {
+        items: { name: string }[];
+        total: number;
+      };
+    },
+    `${origin}/task?q=${encodeURIComponent(task)}`,
+  );
+  expect(listed).toMatchObject({ total: 1, items: [{ name: task }] });
+  const invalid = await page.evaluate(async (url) => {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'x', admin: true }),
+    });
+    return response.status;
   }, `${origin}/task`);
-  expect(listed.map((item) => item.name)).toContain(task);
+  expect(invalid).toBe(400);
   await axe(page);
   expect(errors).toEqual([]);
 });

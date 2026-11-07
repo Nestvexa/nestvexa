@@ -43,11 +43,14 @@ export const steps = [
   ['make:form', 'Contact'],
   ['make:action', 'Greeter'],
   ['make:island', 'Clicker', '--renderer', 'react'],
+  ['make:island', 'Feed', '--renderer', 'vue'],
+  ['make:island', 'Status', '--renderer', 'svelte'],
   ['make:resource', 'Task', '--crud'],
   ['make:policy', 'Owner'],
   ['add', 'realtime'],
   ['add', 'uploads'],
   ['add', 'i18n'],
+  ['routes:types'],
   ['migrate'],
 ];
 /** Hand-written on top of the CLI output (see README): one page mounting the generated components. */
@@ -77,6 +80,8 @@ export class ShowcaseController {
       contact: await this.live.mount(ContactForm, request),
       tasks: await this.live.mount(TaskTableComponent, request),
       clicker: islands.render('clicker', { label: 'Clicks' }, { key: 'clicker', label: 'Click counter' }),
+      feed: islands.render('feed', { label: 'Feed' }, { key: 'feed', label: 'Vue counter' }),
+      status: islands.render('status', { label: 'Status' }, { key: 'status', label: 'Svelte counter' }),
     };
   }
 }
@@ -93,6 +98,14 @@ const showcaseView = `<h1>{{t "welcome"}} · {{title}}</h1>
 <section aria-labelledby="island-heading">
   <h2 id="island-heading">React island (make:island)</h2>
   {{clicker}}
+</section>
+<section aria-labelledby="vue-island-heading">
+  <h2 id="vue-island-heading">Vue island (make:island --renderer vue)</h2>
+  {{feed}}
+</section>
+<section aria-labelledby="svelte-island-heading">
+  <h2 id="svelte-island-heading">Svelte island (make:island --renderer svelte)</h2>
+  {{status}}
 </section>
 `;
 
@@ -123,7 +136,8 @@ write(
         'reflect-metadata': '0.2.2',
         rxjs: '7.8.2',
       },
-      devDependencies: { typescript: '6.0.3' },
+      // Like `nest new`, the app declares Prettier; the CLI formats with it.
+      devDependencies: { prettier: '3.9.10', typescript: '6.0.3' },
     },
     null,
     2,
@@ -194,6 +208,24 @@ export class AppController {
 `,
 );
 
+// Like `nest new` output, the starting app is Prettier-formatted, so the CLI
+// keeps the files it patches formatted.
+const prettier = await import('prettier');
+async function formatFiles(files) {
+  for (const file of files) {
+    const path = join(out, file);
+    const options = { ...(await prettier.resolveConfig(path)), filepath: path };
+    writeFileSync(path, await prettier.format(readFileSync(path, 'utf8'), options));
+  }
+}
+await formatFiles([
+  'package.json',
+  'tsconfig.json',
+  'src/main.ts',
+  'src/app.module.ts',
+  'src/app.controller.ts',
+]);
+
 for (const step of steps) {
   const result = run([...step, '--quiet'], out);
   if (result.exitCode !== 0) {
@@ -224,9 +256,10 @@ const appModule = readFileSync(modulePath, 'utf8')
     "import { AppController } from './app.controller.js';",
     "import { AppController } from './app.controller.js';\nimport { ShowcaseController } from './showcase.controller.js';",
   )
+  // The CLI formatted the module with Prettier: keep the array layout.
   .replace(
-    'controllers: [AppController,',
-    'controllers: [AppController, ShowcaseController,',
+    /controllers: \[(\s*)AppController,/,
+    'controllers: [$1AppController,$1ShowcaseController,',
   );
 if (!appModule.includes('ShowcaseController,')) {
   console.error('Could not register ShowcaseController in src/app.module.ts');
@@ -248,10 +281,13 @@ the smallest Nest (Express) app (\`src/main.ts\`, \`src/app.module.ts\`,
 ${steps.map((step) => `nestvexa ${step.join(' ')}`).join('\n')}
 \`\`\`
 
+The app declares Prettier, so the CLI formats every file it writes with the
+repository's Prettier configuration (\`pnpm format:check\` covers this directory).
+
 Post-processing (the only hand-written parts): the \`^0.1.0-alpha.0\` Nestvexa
 ranges become \`workspace:*\`, \`build\`/\`start\` scripts are added, and
 \`src/showcase.controller.ts\` + \`views/showcase.hbs\` (registered in
-\`AppModule\`) mount the generated form, table and island on \`/showcase\`, as an
+\`AppModule\`) mount the generated form, table and islands on \`/showcase\`, as an
 application would in its own controllers.
 
 Check it after \`pnpm install\` with \`nestvexa doctor\` (development) and
@@ -274,14 +310,44 @@ roots in development (no Vite dev servers). Alternatively run
 | \`/home\` | \`make:page Home\` (Handlebars) |
 | \`/report-ejs\`, \`/report-pug\`, \`/report-nunjucks\` | \`make:page --renderer ejs\\|pug\\|nunjucks\` |
 | \`/react-dashboard\`, \`/vue-dashboard\`, \`/svelte-dashboard\` | \`make:page --renderer react\\|vue\\|svelte\` (Inertia, SSR) |
-| \`/showcase\` | Contact form (\`make:form\`), Task table (\`make:resource\`), Clicker island (\`make:island\`), \`{{t}}\` (\`add i18n\`) |
-| \`/task\` | \`make:resource Task --crud\` (REST) |
+| \`/showcase\` | Contact form (\`make:form\`), Task table with search and pages (\`make:resource\`), React, Vue and Svelte islands (\`make:island\`), \`{{t}}\` (\`add i18n\`) |
+| \`/task\`, \`/task/:id\` | \`make:resource Task --crud\` (validated REST: list with \`q\`/\`page\`/\`size\`, show, create, update, delete) |
 | \`POST /_nestvexa/actions/greeter/greet\` | \`make:action Greeter\` |
 
 \`tests/browser/cli-generated.spec.ts\` drives these pages in a real browser
 (root Playwright suite, port 3126) and runs axe on them.
 `,
 );
+// The hand-written parts get the same Prettier formatting the CLI applied.
+await formatFiles([
+  'package.json',
+  'README.md',
+  'src/app.module.ts',
+  'src/showcase.controller.ts',
+  'views/showcase.hbs',
+]);
+// Everything else was formatted by the CLI itself; refuse drift instead of hiding it.
+const unformatted = [];
+const walk = async (directory) => {
+  for (const entry of readdirSync(join(out, directory), { withFileTypes: true })) {
+    const path = directory ? `${directory}/${entry.name}` : entry.name;
+    if (keep.has(entry.name) || entry.name === '.nestvexa') continue;
+    if (entry.isDirectory()) await walk(path);
+    else {
+      const absolute = join(out, path);
+      const info = await prettier.getFileInfo(absolute);
+      if (!info.inferredParser) continue;
+      const options = { ...(await prettier.resolveConfig(absolute)), filepath: absolute };
+      if (!(await prettier.check(readFileSync(absolute, 'utf8'), options)))
+        unformatted.push(path);
+    }
+  }
+};
+await walk('');
+if (unformatted.length) {
+  console.error(`Not formatted by the CLI: ${unformatted.join(', ')}`);
+  process.exit(1);
+}
 if (!existsSync(join(out, '.nestvexa', 'manifest.json'))) {
   console.error('The CLI manifest is missing');
   process.exit(1);

@@ -1,11 +1,41 @@
 <section aria-label="Task">
   <form nv:submit="create">
     <label for="task-draft">Name</label>
-    <input id="task-draft" nv:model="draft" value="{{draft}}" maxlength="80" />
+    <input
+      id="task-draft"
+      nv:model="draft"
+      value="{{draft}}"
+      maxlength="80"
+      aria-invalid="{{#if error}}true{{else}}false{{/if}}"
+      aria-describedby="task-error"
+    />
     <button type="submit">Add</button>
-    {{#if error}}<p role="alert">{{error}}</p>{{/if}}
+    <p id="task-error" role="alert">{{error}}</p>
   </form>
+  <label for="task-search">Search</label>
+  <input
+    id="task-search"
+    type="search"
+    nv:model.live.debounce.300ms="search"
+    value="{{search}}"
+    maxlength="80"
+  />
   <ul>
-    {{#each rows}}<li data-nv-key="task-{{id}}">{{name}}</li>{{else}}<li>No items yet.</li>{{/each}}
+    {{#each rows}}
+    <li data-nv-key="task-{{id}}">{{name}}</li>
+    {{else}}
+    <li>No items yet.</li>
+    {{/each}}
   </ul>
+  <nav aria-label="Task pages">
+    {{#if summary.previous}}<button type="button" nv:click="previous">
+      Previous</button
+    >{{else}}<button type="button" disabled>Previous</button>{{/if}}
+    <span
+      >Page {{summary.page}} of {{summary.pages}} ({{summary.total}}
+      total)</span
+    >
+    {{#if summary.next}}<button type="button" nv:click="next">Next</button
+    >{{else}}<button type="button" disabled>Next</button>{{/if}}
+  </nav>
 </section>
