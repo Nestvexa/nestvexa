@@ -73,7 +73,9 @@ app.use(
 | `readViteManifest(path)`                                         | Reads (≤ 8 MiB) and validates a manifest; returns `{ path, manifest, hash }`.                                                                                                                                                      |
 | `parseViteManifest(json \| object)`                              | Validation: every `file`/`css`/`assets` entry must be a normalized relative path (no `..`, scheme, backslash, query or quote) and every import must exist.                                                                         |
 | `resolveEntryAssets(manifest, entries, base?)`                   | Entry scripts, CSS of the entry and its static imports, and static-import preloads. Dynamic imports (code-split pages) are **not** preloaded.                                                                                      |
-| `renderAssetTags(assets, { nonce?, crossOrigin? })`              | Tag rendering used by `ViteAssets`.                                                                                                                                                                                                |
+| `renderAssetTags(assets, { nonce?, crossOrigin? })`              | Tag rendering used by `ViteAssets`; URLs listed in `assets.integrity` get `integrity` and `crossorigin` (`anonymous` unless set).                                                                                                  |
+| `subresourceIntegrity(bytes, algorithm?)`                        | `sha384-…` (or `sha256`/`sha512`) Subresource Integrity metadata for exact bytes.                                                                                                                                                  |
+| `verifySubresourceIntegrity(bytes, integrity)`                   | Browser-equivalent check: the strongest listed algorithm must match; malformed metadata fails closed.                                                                                                                              |
 | `normalizeBase`, `isSafeOutputPath`, `escapeHtml`, `assertNonce` | Validation helpers. Nonces must be base64/base64url, 8–256 characters.                                                                                                                                                             |
 
 ### Static files
@@ -149,6 +151,32 @@ Unknown names reject with `PageNotFoundError`; keys outside `base`, unsafe
 names (`[A-Za-z0-9_-]` segments only) and duplicates throw `PageRegistryError`.
 Also exports `isPageName` and the shared types `InertiaPageLike`,
 `SsrRenderResult`, `SsrRender`, `ProgressOptionsLike`.
+
+### Subresource Integrity
+
+```ts
+new ViteAssets({
+  apps: {
+    web: {
+      entries: ['client/app.tsx'],
+      manifest: resolve('dist/client/.vite/manifest.json'),
+      base: 'https://cdn.example/app/',
+      integrity: true, // or 'sha256' | 'sha384' | 'sha512'
+      // outDir: resolve('dist/client'), // default: the folder containing .vite/
+    },
+  },
+});
+```
+
+With `integrity`, every entry script, stylesheet and module preload is hashed
+from the built files once, when the manifest is read at startup (a missing file
+fails startup), and `tags()` renders `integrity="sha384-…"` plus
+`crossorigin="anonymous"` (or the configured `crossOrigin`). A browser then
+refuses a script or stylesheet whose bytes changed after the build, for example
+on a compromised CDN or proxy. Development mode emits no integrity. Limits:
+chunks Vite loads later through dynamic `import()` or its CSS preload helper are
+not covered by tag attributes; serve those from the same trusted origin or use a
+build plugin that injects integrity into the import map.
 
 ## Security and performance
 
