@@ -3,6 +3,9 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './tests/browser',
   workers: 2,
+  // Shared CI runners are slow; a test that passes on retry is still reported as "flaky".
+  retries: process.env.CI ? 2 : 0,
+  forbidOnly: Boolean(process.env.CI),
   reporter: [
     ['list'],
     ['json', { outputFile: 'artifacts/reports/playwright.json' }],
@@ -71,6 +74,23 @@ export default defineConfig({
       command: 'pnpm --filter @nestvexa/example-distributed-live start',
       url: 'http://127.0.0.1:3227/api/health',
       env: { PORT: '3227', REALTIME_TRANSPORT: 'auto' },
+      reuseExistingServer: false,
+    },
+    // Explicit long-polling, and `auto` negotiating WebSocket on Fastify.
+    {
+      command: 'pnpm --filter @nestvexa/example-distributed-live start',
+      url: 'http://127.0.0.1:3800/api/health',
+      env: { PORT: '3800', REALTIME_TRANSPORT: 'polling' },
+      reuseExistingServer: false,
+    },
+    {
+      command: 'pnpm --filter @nestvexa/example-distributed-live start',
+      url: 'http://127.0.0.1:3801/api/health',
+      env: {
+        PORT: '3801',
+        REALTIME_TRANSPORT: 'auto',
+        HTTP_ADAPTER: 'fastify',
+      },
       reuseExistingServer: false,
     },
     // Phase 9-11 frontend adapters (Vite production builds + SSR). The React

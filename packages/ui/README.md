@@ -17,9 +17,11 @@ behavior, serve its browser module.
 
 ## Install
 
-After owner-authorized publication: `npm install @nestvexa/ui`,
-`pnpm add @nestvexa/ui` or `yarn add @nestvexa/ui`. Before publication, use the
-workspace or packed tarballs. Node `^22.13.0 || ^24.0.0`, ESM only.
+Not published yet. Build local tarballs with `pnpm build && pnpm test:pack`
+(written to `artifacts/packages`) and install the `.tgz` files together. After
+owner-authorized publication the registry syntax will be `npm install
+@nestvexa/ui`, `pnpm add @nestvexa/ui` or `yarn add @nestvexa/ui`. Node
+`^22.13.0 || ^24.0.0`, ESM only.
 
 - Runtime dependency: `@nestvexa/views` (for `SafeHtml`).
 - Optional peers, only for the framework wrappers: `react` `^19`, `vue`
@@ -144,7 +146,7 @@ contain no `\` or control characters, so `javascript:` URLs, `//host` and
 | `{{uiProgress id label [value] [max=100] [valueText]}}`                                                               | `<label for>` plus a native `<progress>`. It is indeterminate when `value` is null or omitted, and `aria-valuetext` is set when `valueText` is given. `0 ≤ value ≤ max`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `{{uiVisuallyHidden "text"}}`                                                                                         | `<span class="nv-visually-hidden">`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
-### Second slice: navigation, overlays, inputs and data tables
+### Navigation, overlays, inputs and data tables
 
 | Helper                                                                                                                                  | Output and ARIA pattern                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -356,24 +358,78 @@ module is a single small file (no framework); event delegation keeps a constant
 number of listeners per root. Combobox filtering is linear in the option count
 (at most 500).
 
+## Compatibility
+
+Alpha `0.1.0-alpha.0`. Helper names, hash arguments and the `data-nv-ui-*`
+attribute conventions are the public contract and follow the repository's
+compatibility policy. Requires the HBS engine's `registerHelpers` API and
+`this` forwarding for block helpers.
+
+## Links
+
+[UI kit guide](../../docs/guides/ui-kit.md) ·
+[i18n guide](../../docs/guides/i18n.md) ·
+[Accessibility checklist](../../docs/testing/accessibility-checklist.md) ·
+[Engine](../engine-hbs/README.md) · [Changelog](../../CHANGELOG.md)
+
+Examples: [`examples/admin-i18n`](../../examples/admin-i18n) (HBS/Live pages on
+the helpers) and the `/kit` page of
+[`examples/inertia-react`](../../examples/inertia-react) (React wrappers).
+
+## Status and limits
+
+Status: **Partial**. The HBS/Live helpers, the keyboard module, the theme and
+the React, Vue and Svelte wrappers for the main primitives work and are tested
+(SSR parity, keyboard, CSP and axe checks).
+
+- Not yet provided: chart wrapper and form-field wrappers (EXT-017).
+- The Vue and Svelte wrappers have no runnable example page; only the React
+  wrappers have one (EXT-020).
+- The framework wrappers cover dialog/drawer, dialog trigger, tabs, menu,
+  toast region, date picker and the data table pieces. Accordion, popover,
+  tooltip, breadcrumbs, badge, alert, file upload, wizard, combobox,
+  pagination and progress are HBS-only for now.
+- Wrappers are uncontrolled (the keyboard module owns open/selected state);
+  changing their props re-renders the attributes they own.
+- Manual screen-reader verification has not been executed (see
+  Accessibility).
+- Client-side table filtering works on the rendered rows only; use `model` or
+  a GET form for server-side search over paginated data.
+- Menus, popovers and accordions reset to their server state when a Live
+  morph restores `data-nv-ui-collapsed` (the server state wins, as with tabs).
+- The date picker relies on the native date input; browsers without one fall
+  back to a text input that still submits `YYYY-MM-DD` and is validated on the
+  server.
+- Dark mode needs the page surface to use the tokens (for example
+  `body { background: var(--nv-bg); color: var(--nv-text) }`); the theme does
+  not style `body`.
+- The combobox filters options rendered on the server (up to 500). There is
+  no remote search.
+- Tabs use automatic activation. Manual activation is not configurable.
+- `tests/ui-browser.test.ts` runs in Chromium only;
+  `tests/ui-primitives-browser.test.ts` and `tests/ui-adapters.test.ts`
+  default to Chromium and cover Firefox and WebKit with `NV_UI_BROWSERS`, and
+  the admin example's Playwright suite runs in all three.
+
 ## Testing
 
 ```sh
-pnpm --filter @nestvexa/views build
-pnpm --filter @nestvexa/engine-hbs build
-pnpm --filter @nestvexa/ui build
-pnpm exec vitest run tests/ui-helpers.test.ts tests/ui-primitives.test.ts tests/ui-browser.test.ts tests/ui-primitives-browser.test.ts tests/ui-adapters.test.ts
-# every browser engine for the second slice:
-NV_UI_BROWSERS=chromium,firefox,webkit pnpm exec vitest run tests/ui-primitives-browser.test.ts tests/ui-adapters.test.ts
+pnpm --filter @nestvexa/ui test
 ```
 
+Runs `tests/ui-helpers.test.ts`, `tests/ui-primitives.test.ts`,
+`tests/ui-browser.test.ts`, `tests/ui-primitives-browser.test.ts` and
+`tests/ui-adapters.test.ts`; the tests import `packages/*/dist`, so run
+`pnpm --filter @nestvexa/ui... build` first. Set
+`NV_UI_BROWSERS=chromium,firefox,webkit` to run the browser tests in every
+engine.
+
 [`tests/ui-primitives.test.ts`](../../tests/ui-primitives.test.ts) covers the
-second slice's markup, escaping and rejected input;
+navigation, overlay, input and data-table helpers' markup, escaping and
+rejected input;
 [`tests/ui-primitives-browser.test.ts`](../../tests/ui-primitives-browser.test.ts)
-runs keyboard, focus, RTL, no-JavaScript and axe checks under a strict CSP in
-Chromium, Firefox and WebKit, and
-[`tests/browser/admin-ui-kit.spec.ts`](../../tests/browser/admin-ui-kit.spec.ts)
-exercises the primitives in the admin example.
+runs keyboard, focus, RTL, no-JavaScript and axe checks for them under a strict
+CSP.
 
 [`tests/ui-adapters.test.ts`](../../tests/ui-adapters.test.ts) bundles React,
 Vue and Svelte fixtures, checks that their SSR output is canonically equal to
@@ -389,41 +445,12 @@ background, return focus, tabs in LTR and RTL, combobox keyboard and events,
 text-only toasts, idempotent init and disposal, mutation-observed insertion,
 theme preferences and axe.
 
-## Caveats and limits
+Browser specs run separately through Playwright in three browsers:
+[`tests/browser/admin-ui-kit.spec.ts`](../../tests/browser/admin-ui-kit.spec.ts)
+exercises the primitives in the admin example and
+[`tests/browser/inertia-react-ui-kit.spec.ts`](../../tests/browser/inertia-react-ui-kit.spec.ts)
+the React wrappers on the `/kit` page.
 
-- Not yet provided: chart wrapper and form-field wrappers. Client-side table
-  filtering works on the rendered rows only; use `model` or a GET form for
-  server-side search over paginated data.
-- Menus, popovers and accordions reset to their server state when a Live
-  morph restores `data-nv-ui-collapsed` (the server state wins, as with tabs).
-- The date picker relies on the native date input; browsers without one fall
-  back to a text input that still submits `YYYY-MM-DD` and is validated on the
-  server.
-- Dark mode needs the page surface to use the tokens (for example
-  `body { background: var(--nv-bg); color: var(--nv-text) }`); the theme does
-  not style `body`.
-- The combobox filters options rendered on the server (up to 500). There is
-  no remote search.
-- Tabs use automatic activation. Manual activation is not configurable.
-- The keyboard module is tested in Chromium here, and in Chromium, Firefox and
-  WebKit through the admin example's Playwright suite.
-- The framework wrappers cover dialog/drawer, dialog trigger, tabs, menu,
-  toast region, date picker and the data table pieces. Accordion, popover,
-  tooltip, breadcrumbs, badge, alert, file upload, wizard, combobox,
-  pagination and progress are HBS-only for now.
-- Wrappers are uncontrolled (the keyboard module owns open/selected state);
-  changing their props re-renders the attributes they own.
+## Maintainers
 
-## Compatibility
-
-Alpha `0.1.0-alpha.0`. Helper names, hash arguments and the `data-nv-ui-*`
-attribute conventions are the public contract and follow the repository's
-compatibility policy. Requires the HBS engine's `registerHelpers` API and
-`this` forwarding for block helpers.
-
-## Links
-
-[UI kit guide](../../docs/guides/ui-kit.md) ·
-[i18n guide](../../docs/guides/i18n.md) ·
-[Accessibility checklist](../../docs/testing/accessibility-checklist.md) ·
-[Engine](../engine-hbs/README.md) · [Changelog](../../CHANGELOG.md)
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

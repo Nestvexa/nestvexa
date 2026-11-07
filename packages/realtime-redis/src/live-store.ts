@@ -140,6 +140,10 @@ export class RedisLiveStore implements LiveStateStore, LiveActionCoordination {
   readonly #token: () => string;
   readonly #id: () => string;
   #inFlight = 0;
+  /** Entry lifetime in milliseconds. */
+  get ttlMs(): number {
+    return this.#ttlMs;
+  }
   constructor(options: RedisLiveStoreOptions = {}) {
     this.#prefix = options.prefix ?? 'nestvexa:live:';
     if (!/^[a-z0-9:._-]{0,64}$/.test(this.#prefix))

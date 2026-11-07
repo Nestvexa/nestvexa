@@ -40,6 +40,7 @@ prove it. Proposing a new one is described in [governance](../../GOVERNANCE.md#d
 | [0032](0032-distributed-state-and-redis.md)               | Pluggable Live state, Redis adapters and distributed realtime               |
 | [0033](0033-ui-kit-framework-wrappers.md)                 | UI kit framework wrappers on one markup contract                            |
 | [0034](0034-devtools-browser-extension-scope.md)          | In-app devtools panel; browser extension out of scope for v1                |
+| [0035](0035-live-layout-isolation-and-transitions.md)     | No Live layout, isolation or transition options                             |
 
 ## Writing an ADR
 

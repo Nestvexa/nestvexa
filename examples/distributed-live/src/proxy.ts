@@ -1,28 +1,50 @@
 import { createServer, request as httpRequest } from 'node:http';
 import type { IncomingHttpHeaders } from 'node:http';
 import { connect } from 'node:net';
+import type { Duplex } from 'node:stream';
 
 /*
- * Development stand-in for a load balancer in front of two replicas (use
+ * Development stand-in for a load balancer in front of the replicas (use
  * nginx, HAProxy or a cloud load balancer in production). Requests go to
- * replica A unless the `nv_replica=b` cookie selects B, so tests can pin or
- * move a browser between replicas. SSE streams and WebSocket upgrades are
- * proxied; responses carry `x-nestvexa-replica`.
+ * replica a unless the `nv_replica` cookie selects b, c or d (configured with
+ * TARGET_B..TARGET_D), so tests can pin or move a browser between replicas.
+ * SSE streams and WebSocket upgrades are proxied; responses carry
+ * `x-nestvexa-replica`. `POST /__proxy/drop` cuts every open upstream
+ * connection, like a load balancer restart, so tests can exercise reconnects.
  */
 const port = Number(process.env['PROXY_PORT'] ?? 3222);
-const targets: Record<string, URL> = {
-  a: new URL(process.env['TARGET_A'] ?? 'http://127.0.0.1:3220'),
-  b: new URL(process.env['TARGET_B'] ?? 'http://127.0.0.1:3221'),
-};
+const targets = new Map<string, URL>();
+for (const name of ['a', 'b', 'c', 'd']) {
+  const fallback = { a: 'http://127.0.0.1:3220', b: 'http://127.0.0.1:3221' }[
+    name
+  ];
+  const value = process.env[`TARGET_${name.toUpperCase()}`] ?? fallback;
+  if (value) targets.set(name, new URL(value));
+}
 function pick(headers: IncomingHttpHeaders): { name: string; url: URL } {
   const cookie = headers.cookie ?? '';
-  const name = /(?:^|;\s*)nv_replica=b(?:;|$)/.test(cookie) ? 'b' : 'a';
-  const url = targets[name];
+  const chosen = /(?:^|;\s*)nv_replica=([a-d])(?:;|$)/.exec(cookie)?.[1];
+  const name = chosen && targets.has(chosen) ? chosen : 'a';
+  const url = targets.get(name);
   if (!url) throw new Error('Unknown replica');
   return { name, url };
 }
+/** Open client connections (streams and sockets) that `drop` cuts. */
+const open = new Set<Duplex>();
+function track(socket: Duplex): void {
+  open.add(socket);
+  socket.once('close', () => open.delete(socket));
+}
 
 const server = createServer((request, response) => {
+  if (request.method === 'POST' && request.url === '/__proxy/drop') {
+    const dropped = open.size;
+    for (const socket of open) if (socket !== request.socket) socket.destroy();
+    response.writeHead(200, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({ dropped }));
+    return;
+  }
+  track(request.socket);
   const target = pick(request.headers);
   const upstream = httpRequest(
     {
@@ -49,6 +71,7 @@ const server = createServer((request, response) => {
   request.pipe(upstream);
 });
 server.on('upgrade', (request, socket, head) => {
+  track(socket);
   const target = pick(request.headers);
   const upstream = connect(Number(target.url.port), target.url.hostname, () => {
     const lines = [`${request.method ?? 'GET'} ${request.url ?? '/'} HTTP/1.1`];
@@ -71,7 +94,9 @@ server.on('upgrade', (request, socket, head) => {
   socket.on('close', close);
 });
 server.listen(port, '127.0.0.1', () => {
-  console.log(`Replica proxy: http://127.0.0.1:${port} -> a, b`);
+  console.log(
+    `Replica proxy: http://127.0.0.1:${port} -> ${[...targets.keys()].join(', ')}`,
+  );
 });
 for (const signal of ['SIGINT', 'SIGTERM'] as const)
   process.on(signal, () => server.close(() => process.exit(0)));

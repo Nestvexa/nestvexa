@@ -7,13 +7,18 @@ code safely.
 
 ## Install
 
+Not published yet: build local tarballs with `pnpm build && pnpm test:pack` and
+install the packed `.tgz` file as a dev dependency. Future registry syntax:
+
 ```sh
-npm install --save-dev @nestvexa/cli
+npm install --save-dev @nestvexa/cli    # or: pnpm add -D / yarn add -D
 npx nestvexa --help
 ```
 
-Node 22.13+ or 24. The CLI depends on `typescript` for AST-based source edits.
-It never prompts; every command is scriptable and supports `--dry-run`.
+Node 22.13+ or 24, ESM. The CLI depends on `typescript` (pinned) for AST-based
+source edits and has no peers. The `nestvexa` umbrella declares it as a peer and
+its own `nestvexa` bin delegates to it. The CLI never prompts; every command is
+scriptable and supports `--dry-run`.
 
 ## Commands
 
@@ -176,31 +181,43 @@ lockfile (`pnpm-lock.yaml`/`pnpm-workspace.yaml`, `yarn.lock`, `bun.lock`/`bun.l
 the repository's `.git`, at most eight levels), else npm. It is used for install
 hints, `--install`, `build` and generated `build:client` scripts.
 
-## Limits
+Full reference: [docs/reference/cli.md](../../docs/reference/cli.md). License: MIT.
 
-Live components keep the umbrella HBS renderer (`make:component --view`
-accepts only `hbs`). `make:resource --orm` supports `memory` and `typeorm` (no Prisma or Drizzle
-generator: implement `<Name>Repository` yourself); the TypeORM variant expects your
-`TypeOrmModule.forRoot(...)` DataSource and never creates or runs migrations.
-`routes:types` reads controllers statically: routes registered at runtime, global
-prefixes and versions are not in the map, and patterns `RouteTable` cannot
-reverse (regular expressions) are skipped. `add plugin` wires `NestvexaExtension`
-exports only; the plugin manifest format may change while the core extension API
-is unified.
-The generated session/identity
-policies are guest starters and must be replaced for production. `inspect:*`
-reads source statically and cannot see routes registered dynamically.
-Jest projects must run Jest in ESM mode (Nestvexa packages are ESM only);
-`tests/cli-jest.test.ts` proves the generated Jest tests with
-`--experimental-vm-modules` on compiled output, not with `ts-jest`.
+## Status and limits
+
+Status: **Partial**. Every listed command is implemented on Express and Fastify
+hosts and covered by generator, boot and browser tests; the clauses below are
+missing.
+
+- `make:resource --orm` supports `memory` and `typeorm`; there is no Prisma or
+  Drizzle generator (implement `<Name>Repository` yourself). The TypeORM variant
+  expects your `TypeOrmModule.forRoot(...)` DataSource and never creates or runs
+  migrations.
+- `routes:types` reads controllers statically: routes registered at runtime,
+  global prefixes and versions are not in the map, and patterns `RouteTable`
+  cannot reverse (regular expressions) are skipped. Only Handlebars gets the
+  `{{route}}` helper automatically.
+- `add plugin` wires `NestvexaExtension` exports only (`--export` names them).
+- Live components keep the umbrella HBS renderer (`make:component --view`
+  accepts only `hbs`).
+- The generated session/identity policies are guest starters and must be
+  replaced for production.
+- `inspect:*` reads source statically and cannot see routes registered
+  dynamically.
+- Jest projects must run Jest in ESM mode (Nestvexa packages are ESM only);
+  `tests/cli-jest.test.ts` runs the generated Jest tests with
+  `--experimental-vm-modules` on compiled output, not with `ts-jest`.
+- Formatting is best effort and limited to the project's own Prettier and ESLint
+  (and their plugins).
 
 ## Testing
 
 ```sh
-pnpm --filter @nestvexa/cli... build
-pnpm exec vitest run tests/cli.test.ts tests/cli-generators.test.ts tests/cli-fastify.test.ts tests/cli-inertia-ssr.test.ts tests/cli-example.test.ts tests/dev-errors.test.ts \n  tests/cli-doctor.test.ts tests/cli-routes.test.ts tests/cli-resource.test.ts tests/cli-format.test.ts \n  tests/cli-jest.test.ts tests/cli-plugins.test.ts
+pnpm --filter @nestvexa/cli test
 ```
 
+Runs `tests/cli.test.ts` and `tests/cli-*.test.ts` (build first with
+`pnpm --filter @nestvexa/cli... build`, since the tests use workspace `dist`).
 `tests/cli.test.ts` runs `init` and generators on a fresh CommonJS Nest app,
 compiles, boots it and executes a Live action. `tests/cli-generators.test.ts`
 runs every `add` (idempotency and dry run) and generator on a strict ESM app,
@@ -211,15 +228,20 @@ templates, output modes, Windows paths, `build` and the migration framework.
 `tests/cli-fastify.test.ts` does the same on a Fastify app (sessions, engines,
 Inertia, islands, uploads, realtime and redis against a RESP test double).
 `tests/cli-inertia-ssr.test.ts` builds the three generated roots with Vite and
-checks production SSR. `tests/cli-doctor.test.ts` covers package-manager detection
-and every doctor check on synthetic projects. `tests/cli-routes.test.ts` generates
-the route map, type-checks route names, parameters and the Inertia links with
-`tsc`, `vue-tsc` and `svelte-check`, compares `route()` with `RouteTable` and
-renders `{{route}}` in the running app. `tests/cli-resource.test.ts` compiles both
-ORM variants, runs their generated tests and serves CRUD through TypeORM on
+checks production SSR, and `tests/cli-example.test.ts` regenerates
+`examples/cli-generated`. `tests/cli-doctor.test.ts` covers package-manager
+detection and every doctor check on synthetic projects. `tests/cli-routes.test.ts`
+generates the route map, type-checks route names, parameters and the Inertia links
+with `tsc`, `vue-tsc` and `svelte-check`, compares `route()` with `RouteTable`
+and renders `{{route}}` in the running app. `tests/cli-resource.test.ts` compiles
+both ORM variants, runs their generated tests and serves CRUD through TypeORM on
 sql.js. `tests/cli-format.test.ts` runs a project's Prettier and ESLint
 configuration and the failure paths. `tests/cli-jest.test.ts` runs the generated
 Jest tests with Jest. `tests/cli-plugins.test.ts` wires and boots an installed
-extension and refuses untrusted specifiers and invalid manifests.
+extension and refuses untrusted specifiers and invalid manifests. The development
+error page is covered by `tests/dev-errors.test.ts`, and
+`tests/browser/cli-generated.spec.ts` runs through the root Playwright config.
 
-Full reference: [docs/reference/cli.md](../../docs/reference/cli.md). License: MIT.
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

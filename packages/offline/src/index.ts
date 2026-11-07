@@ -1,6 +1,7 @@
 /**
  * @nestvexa/offline browser module: identity-scoped, opt-in form drafts, inert
- * read-only HTML snapshots and a reconnect flow that never replays actions.
+ * read-only HTML snapshots, a reconnect flow that never replays draft forms,
+ * and an opt-in queue that replays only server-allowlisted idempotent actions.
  *
  * This file is intentionally self-contained (no relative imports) so a host
  * can serve `dist/index.js` directly under `script-src 'self'`. It touches no
@@ -63,6 +64,8 @@ export interface LogoutOptions {
   readonly snapshotStorage?: Storage;
   /** Snapshot prefix; default `nv-snapshot`. */
   readonly snapshotPrefix?: string;
+  /** Offline action queue prefix in `storage`; default `nv-queue`. */
+  readonly queuePrefix?: string;
   /** BroadcastChannel name; default `nestvexa-logout`. */
   readonly channel?: string;
 }
@@ -818,6 +821,7 @@ function logoutSettings(options: LogoutOptions = {}) {
     prefix,
     snapshotStorage: options.snapshotStorage ?? storageOf('sessionStorage'),
     snapshotPrefix: checkPrefix(options.snapshotPrefix, 'nv-snapshot'),
+    queuePrefix: checkPrefix(options.queuePrefix, 'nv-queue'),
     channel,
     signal: `${prefix}:logout-signal`,
   };
@@ -826,6 +830,11 @@ function clearLocal(settings: ReturnType<typeof logoutSettings>): number {
   let removed = 0;
   try {
     removed += removeMatching(settings.storage, settings.prefix);
+  } catch {
+    /* Blocked storage holds nothing to clear. */
+  }
+  try {
+    removed += removeMatching(settings.storage, settings.queuePrefix);
   } catch {
     /* Blocked storage holds nothing to clear. */
   }
@@ -846,7 +855,7 @@ function randomId(win: Window): string {
 }
 
 /**
- * Clear every draft and snapshot in this tab, notify other tabs of the same
+ * Clear every draft, queued offline action and snapshot in this tab, notify other tabs of the same
  * origin and dispatch `nestvexa:logout` on the window. Returns removed entries.
  */
 export function announceLogout(options: LogoutOptions = {}): number {
@@ -876,7 +885,7 @@ export function announceLogout(options: LogoutOptions = {}): number {
   return removed;
 }
 
-/** Clear drafts and snapshots when another tab announces logout. Returns an unsubscribe function. */
+/** Clear drafts, queued actions and snapshots when another tab announces logout. Returns an unsubscribe function. */
 export function listenForLogout(options: LogoutOptions = {}): () => void {
   const settings = logoutSettings(options);
   const seen = new Set<string>();
@@ -1191,4 +1200,1162 @@ export async function loadRegion(
   target.replaceChildren(fragment);
   options.cache.remember(options.key, target);
   return 'network';
+}
+
+/* ------------------------------------------------------------------------ */
+/* Offline action queue                                                     */
+/* ------------------------------------------------------------------------ */
+
+export type QueueValue = string | number | boolean | null | readonly string[];
+export type QueueFields = Readonly<Record<string, QueueValue>>;
+/** A server-declared queueable operation (see `offlineActionAllowlist` in `./server`). */
+export interface QueuedAction {
+  readonly id: string;
+  readonly method: 'POST' | 'PUT' | 'PATCH';
+  readonly path: string;
+  readonly encoding: 'form' | 'action';
+  readonly label?: string;
+  /** Entries without a literal `true` are ignored: only idempotent operations are queueable. */
+  readonly idempotent: true;
+}
+export type QueueEntryState = 'pending' | 'sending' | 'retrying' | 'failed';
+export interface QueueEntry {
+  /** Request ID, sent as `Idempotency-Key` on every attempt. */
+  readonly id: string;
+  readonly action: string;
+  /** Server-provided label, or the action id. Plain text. */
+  readonly label: string;
+  readonly state: QueueEntryState;
+  readonly createdAt: number;
+  readonly expiresAt: number;
+  readonly attempts: number;
+  /** Last HTTP status of a failed entry. */
+  readonly status?: number;
+  /** Failure code of a failed entry (server error code, `HTTP_<status>` or `REDIRECT`). */
+  readonly code?: string;
+}
+export type QueueEvent =
+  | { readonly type: 'change' }
+  | { readonly type: 'queued'; readonly entry: QueueEntry }
+  | { readonly type: 'sent'; readonly entry: QueueEntry }
+  | { readonly type: 'failed'; readonly entry: QueueEntry }
+  | { readonly type: 'expired'; readonly entries: readonly QueueEntry[] }
+  | { readonly type: 'discarded'; readonly entry: QueueEntry };
+export type OfflineQueueErrorCode =
+  | 'NOT_ALLOWLISTED'
+  | 'SENSITIVE_FIELD'
+  | 'INVALID_FIELDS'
+  | 'TOO_LARGE'
+  | 'QUEUE_FULL'
+  | 'STORAGE'
+  | 'CLOSED';
+export class OfflineQueueError extends Error {
+  readonly code: OfflineQueueErrorCode;
+  constructor(code: OfflineQueueErrorCode, message: string) {
+    super(message);
+    this.name = 'OfflineQueueError';
+    this.code = code;
+  }
+}
+export interface OfflineQueueOptions {
+  /** Opaque identity hash (`draftScope` in `./server`), shared with drafts. */
+  readonly scope: string;
+  /**
+   * The server allowlist: `<meta name="nv-offline-actions">` content (JSON) or
+   * parsed actions. Default: that meta element in `document.head`.
+   */
+  readonly actions?: string | readonly QueuedAction[];
+  readonly window?: Window;
+  /** Defaults to `window.localStorage`. */
+  readonly storage?: Storage;
+  /** Storage key prefix; default `nv-queue`. */
+  readonly prefix?: string;
+  /** Entry lifetime; default 1 hour, maximum 24 hours. Expired entries are never sent. */
+  readonly ttlMs?: number;
+  /** Maximum queued entries per identity; default 20, maximum 100. */
+  readonly maxEntries?: number;
+  /** Serialized bytes per entry; default 16 KiB, maximum 256 KiB. */
+  readonly maxBytes?: number;
+  /** Current CSRF token, read at each send. Default: `<meta name="nestvexa-csrf" content>`. */
+  readonly csrf?: () => string | null | undefined;
+  /** Default `x-nestvexa-csrf`. */
+  readonly csrfHeader?: string;
+  /** Exponential backoff for network errors and transient statuses. */
+  readonly retry?: { readonly baseMs?: number; readonly maxMs?: number };
+  /** Per-attempt timeout; default 30 seconds. A timeout is retried. */
+  readonly timeoutMs?: number;
+  /** Send pending entries on creation; default `true`. */
+  readonly autoReplay?: boolean;
+  readonly fetch?: typeof fetch;
+  readonly now?: () => number;
+  readonly onError?: (error: unknown) => void;
+}
+export interface OfflineQueue {
+  readonly actions: readonly QueuedAction[];
+  canQueue(action: string): boolean;
+  /** Persist one call; throws {@link OfflineQueueError}. Call `replay()` to send. */
+  enqueue(action: string, fields: QueueFields): QueueEntry;
+  list(): readonly QueueEntry[];
+  /** Remove a pending or failed entry; an entry being sent cannot be discarded. */
+  discard(id: string): boolean;
+  /** Return a failed entry to pending (same request ID) and replay. */
+  retry(id: string): boolean;
+  /** Send pending entries in order with their original request IDs. */
+  replay(): Promise<void>;
+  /** Remove every entry of this identity. */
+  clear(): number;
+  subscribe(listener: (event: QueueEvent) => void): () => void;
+  dispose(): void;
+}
+
+interface QueueRecord {
+  readonly id: string;
+  readonly action: string;
+  readonly order: number;
+  readonly createdAt: number;
+  readonly expiresAt: number;
+  readonly attempts: number;
+  readonly state: 'pending' | 'failed';
+  readonly status?: number;
+  readonly code?: string;
+  readonly fields: QueueFields;
+}
+
+const queueIdPattern = /^[0-9a-f]{32}$/;
+const actionIdPattern = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/;
+const actionPathPattern = /^\/(?!\/)[A-Za-z0-9\-._~!$&'()*+,;=:@%/]*$/;
+const codePattern = /^[A-Z][A-Z0-9_]{0,63}$/;
+const secretWords = new Set([
+  'password',
+  'passwd',
+  'passphrase',
+  'pwd',
+  'pass',
+  'secret',
+  'token',
+  'csrf',
+  'xsrf',
+  'otp',
+  'totp',
+  'pin',
+  'cvc',
+  'cvv',
+  'ssn',
+  'iban',
+  'card',
+  'cardnumber',
+  'auth',
+  'authorization',
+  'bearer',
+  'jwt',
+  'session',
+  'cookie',
+  'nonce',
+  'credential',
+  'credentials',
+  'apikey',
+  'signature',
+]);
+const transientStatuses = new Set([408, 425, 429, 502, 503, 504]);
+
+function nameWords(name: string): string[] {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
+/** Field names that look like credentials, tokens or payment data. */
+function secretName(name: string): boolean {
+  const parts = nameWords(name);
+  return (
+    parts.some((part) => secretWords.has(part)) ||
+    /apikey|privatekey|accesskey|secretkey|clientsecret/.test(parts.join(''))
+  );
+}
+function csrfName(name: string): boolean {
+  const parts = nameWords(name);
+  return (
+    parts.includes('csrf') ||
+    parts.includes('xsrf') ||
+    name === '_token' ||
+    name === 'authenticity_token'
+  );
+}
+function queueValue(value: unknown): QueueValue | undefined {
+  if (typeof value === 'string' || typeof value === 'boolean' || value === null)
+    return value;
+  if (typeof value === 'number')
+    return Number.isFinite(value) ? value : undefined;
+  if (
+    Array.isArray(value) &&
+    value.length <= maxArray &&
+    value.every((item) => typeof item === 'string')
+  )
+    return Object.freeze([...(value as string[])]);
+  return undefined;
+}
+/** Validated, frozen copy; throws for secret-looking names or invalid values. */
+function copyQueueFields(value: unknown): QueueFields {
+  const source = plainObject(value);
+  if (!source)
+    throw new OfflineQueueError(
+      'INVALID_FIELDS',
+      'Fields must be a plain object',
+    );
+  const keys = Object.keys(source);
+  if (keys.length > maxFields)
+    throw new OfflineQueueError('INVALID_FIELDS', 'Too many fields');
+  const output = Object.create(null) as Record<string, QueueValue>;
+  for (const key of keys) {
+    if (!fieldPattern.test(key) || forbiddenNames.has(key))
+      throw new OfflineQueueError('INVALID_FIELDS', 'Invalid field name');
+    if (secretName(key))
+      throw new OfflineQueueError(
+        'SENSITIVE_FIELD',
+        'Passwords, tokens, CSRF values and payment data are never queued',
+      );
+    const item = queueValue(source[key]);
+    if (item === undefined)
+      throw new OfflineQueueError('INVALID_FIELDS', 'Invalid field value');
+    output[key] = item;
+  }
+  return Object.freeze(output);
+}
+function parseQueuedActions(
+  source: string | readonly QueuedAction[] | null | undefined,
+): ReadonlyMap<string, QueuedAction> {
+  let list: unknown = source;
+  if (typeof source === 'string') {
+    try {
+      const parsed = plainObject(JSON.parse(source));
+      list = parsed?.['v'] === 1 ? parsed['actions'] : undefined;
+    } catch {
+      list = undefined;
+    }
+  }
+  const actions = new Map<string, QueuedAction>();
+  if (!Array.isArray(list)) return actions;
+  for (const item of list.slice(0, 64) as unknown[]) {
+    const record = plainObject(item);
+    // Only operations the server declared idempotent are queueable.
+    if (!record || record['idempotent'] !== true) continue;
+    const id = record['id'];
+    const path = record['path'];
+    const method = record['method'] ?? 'POST';
+    const encoding = record['encoding'] ?? 'form';
+    const label = record['label'];
+    if (
+      typeof id !== 'string' ||
+      id.length > 64 ||
+      !actionIdPattern.test(id) ||
+      actions.has(id) ||
+      typeof path !== 'string' ||
+      path.length > 2048 ||
+      !actionPathPattern.test(path) ||
+      (method !== 'POST' && method !== 'PUT' && method !== 'PATCH') ||
+      (encoding !== 'form' && encoding !== 'action') ||
+      (label !== undefined &&
+        (typeof label !== 'string' || label.length === 0 || label.length > 200))
+    )
+      continue;
+    actions.set(
+      id,
+      Object.freeze({
+        id,
+        path,
+        method,
+        encoding,
+        ...(label === undefined ? {} : { label }),
+        idempotent: true as const,
+      }),
+    );
+  }
+  return actions;
+}
+function requestId(win: Window): string {
+  const bytes = new Uint8Array(16);
+  win.crypto.getRandomValues(bytes);
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+/** Bounded read of a failure body's machine code (`error.code` / `error.reason`). */
+async function failureCode(
+  response: Response,
+): Promise<{ code?: string; reason?: string }> {
+  try {
+    const text = await response.text();
+    if (text.length > 65_536) return {};
+    const body = plainObject(JSON.parse(text));
+    const error = plainObject(body?.['error']);
+    const code = error?.['code'];
+    const reason = error?.['reason'];
+    return {
+      ...(typeof code === 'string' && codePattern.test(code) ? { code } : {}),
+      ...(typeof reason === 'string' && codePattern.test(reason)
+        ? { reason }
+        : {}),
+    };
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Identity-scoped, bounded, expiring queue of server-allowlisted idempotent
+ * operations. Entries replay in order with their original request ID; the
+ * first non-retryable failure halts the queue until the user discards or
+ * retries it. CSRF tokens are never stored: the current one is read per send.
+ */
+export function createOfflineQueue(options: OfflineQueueOptions): OfflineQueue {
+  const scope = checkScope(options.scope);
+  const win = resolveWindow(undefined, options.window);
+  const prefix = checkPrefix(options.prefix, 'nv-queue');
+  const ttl = bounded(options.ttlMs, hour, 1_000, 24 * hour, 'ttlMs');
+  const maxEntries = bounded(options.maxEntries, 20, 1, 100, 'maxEntries');
+  const maxBytes = bounded(options.maxBytes, 16_384, 256, 262_144, 'maxBytes');
+  const baseMs = bounded(
+    options.retry?.baseMs,
+    1_000,
+    10,
+    60_000,
+    'retry.baseMs',
+  );
+  const maxMs = bounded(
+    options.retry?.maxMs,
+    Math.max(60_000, baseMs),
+    baseMs,
+    600_000,
+    'retry.maxMs',
+  );
+  const timeoutMs = bounded(
+    options.timeoutMs,
+    30_000,
+    1_000,
+    120_000,
+    'timeoutMs',
+  );
+  const csrfHeader = options.csrfHeader ?? 'x-nestvexa-csrf';
+  if (!/^[A-Za-z][A-Za-z0-9-]{0,63}$/.test(csrfHeader))
+    fail('Invalid CSRF header name');
+  const now = options.now ?? Date.now;
+  const report = (error: unknown): void => {
+    try {
+      options.onError?.(error);
+    } catch {
+      /* Error observers never break the queue. */
+    }
+  };
+  const storage = options.storage ?? defaultStorage('localStorage', report);
+  const actions = parseQueuedActions(
+    options.actions ??
+      win.document.head
+        .querySelector('meta[name="nv-offline-actions"]')
+        ?.getAttribute('content'),
+  );
+  const request = options.fetch ?? win.fetch.bind(win);
+  const readCsrf =
+    options.csrf ??
+    (() =>
+      win.document
+        .querySelector('meta[name="nestvexa-csrf"]')
+        ?.getAttribute('content'));
+  const own = `${prefix}:v1:${scope}:`;
+  const listeners = new Set<(event: QueueEvent) => void>();
+  const transient = new Map<string, 'sending' | 'retrying'>();
+  const nextAttempt = new Map<string, number>();
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  let expiryTimer: ReturnType<typeof setTimeout> | undefined;
+  let running: Promise<void> | undefined;
+  let rerun = false;
+  let closed = false;
+
+  function emit(event: QueueEvent): void {
+    for (const listener of [...listeners])
+      try {
+        listener(event);
+      } catch (error) {
+        report(error);
+      }
+  }
+  function entryOf(record: QueueRecord): QueueEntry {
+    return Object.freeze({
+      id: record.id,
+      action: record.action,
+      label: actions.get(record.action)?.label ?? record.action,
+      state: transient.get(record.id) ?? record.state,
+      createdAt: record.createdAt,
+      expiresAt: record.expiresAt,
+      attempts: record.attempts,
+      ...(record.status === undefined ? {} : { status: record.status }),
+      ...(record.code === undefined ? {} : { code: record.code }),
+    });
+  }
+  function serialize(record: QueueRecord): string {
+    return JSON.stringify({ v: 1, scope, ...record });
+  }
+  /** Storage is not a trusted channel: every field is revalidated on read. */
+  function parse(id: string, raw: string): QueueRecord | null {
+    if (byteLength(raw) > maxBytes) return null;
+    let value: unknown;
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+    const record = plainObject(value);
+    if (!record || record['v'] !== 1 || record['scope'] !== scope) return null;
+    const action = record['action'];
+    const order = record['order'];
+    const createdAt = record['createdAt'];
+    const expiresAt = record['expiresAt'];
+    const attempts = record['attempts'];
+    const state = record['state'];
+    const status = record['status'];
+    const code = record['code'];
+    if (
+      record['id'] !== id ||
+      typeof action !== 'string' ||
+      !actionIdPattern.test(action) ||
+      typeof order !== 'number' ||
+      !Number.isSafeInteger(order) ||
+      typeof createdAt !== 'number' ||
+      typeof expiresAt !== 'number' ||
+      !Number.isFinite(createdAt) ||
+      !Number.isFinite(expiresAt) ||
+      expiresAt - createdAt > 24 * hour ||
+      createdAt > now() + 60_000 ||
+      typeof attempts !== 'number' ||
+      !Number.isSafeInteger(attempts) ||
+      attempts < 0 ||
+      (state !== 'pending' && state !== 'failed') ||
+      (status !== undefined &&
+        (typeof status !== 'number' || !Number.isSafeInteger(status))) ||
+      (code !== undefined &&
+        (typeof code !== 'string' || !codePattern.test(code)))
+    )
+      return null;
+    let fields: QueueFields;
+    try {
+      fields = copyQueueFields(record['fields']);
+    } catch {
+      return null;
+    }
+    return Object.freeze({
+      id,
+      action,
+      order,
+      createdAt,
+      expiresAt,
+      attempts,
+      state,
+      ...(status === undefined ? {} : { status }),
+      ...(code === undefined ? {} : { code }),
+      fields,
+    });
+  }
+  function load(): QueueRecord[] {
+    if (!storage) return [];
+    const records: QueueRecord[] = [];
+    const expired: QueueRecord[] = [];
+    try {
+      for (const key of storageKeys(storage)) {
+        if (!key.startsWith(own)) continue;
+        const id = key.slice(own.length);
+        const raw = storage.getItem(key);
+        if (raw === null) continue;
+        const record = queueIdPattern.test(id) ? parse(id, raw) : null;
+        if (!record) storage.removeItem(key);
+        else if (record.expiresAt <= now()) {
+          storage.removeItem(key);
+          expired.push(record);
+        } else records.push(record);
+      }
+    } catch (error) {
+      report(error);
+    }
+    records.sort(
+      (a, b) =>
+        a.order - b.order ||
+        a.createdAt - b.createdAt ||
+        (a.id < b.id ? -1 : 1),
+    );
+    for (const record of expired) {
+      transient.delete(record.id);
+      nextAttempt.delete(record.id);
+    }
+    if (expired.length)
+      emit({ type: 'expired', entries: Object.freeze(expired.map(entryOf)) });
+    armExpiry(records);
+    return records;
+  }
+  function armExpiry(records: readonly QueueRecord[]): void {
+    if (expiryTimer !== undefined) win.clearTimeout(expiryTimer);
+    expiryTimer = undefined;
+    if (closed || !records.length) return;
+    const earliest = Math.min(...records.map((record) => record.expiresAt));
+    expiryTimer = win.setTimeout(
+      () => {
+        expiryTimer = undefined;
+        if (!closed) load();
+      },
+      Math.min(Math.max(earliest - now(), 0) + 5, 2_147_483_647),
+    );
+  }
+  function find(id: string): QueueRecord | undefined {
+    return load().find((record) => record.id === id);
+  }
+  function write(record: QueueRecord): void {
+    try {
+      storage?.setItem(`${own}${record.id}`, serialize(record));
+    } catch (error) {
+      report(error);
+    }
+  }
+  function remove(id: string): void {
+    try {
+      storage?.removeItem(`${own}${id}`);
+    } catch (error) {
+      report(error);
+    }
+    transient.delete(id);
+    nextAttempt.delete(id);
+  }
+  function schedule(delay: number): void {
+    if (retryTimer !== undefined) win.clearTimeout(retryTimer);
+    retryTimer = win.setTimeout(() => {
+      retryTimer = undefined;
+      void replay();
+    }, delay);
+  }
+  async function send(
+    record: QueueRecord,
+    action: QueuedAction,
+  ): Promise<{
+    readonly kind: 'sent' | 'retry' | 'failed';
+    readonly status?: number;
+    readonly code: string;
+  }> {
+    const headers = new Headers({
+      Accept: 'application/json',
+      'Idempotency-Key': record.id,
+      'X-Nestvexa-Offline-Scope': scope,
+    });
+    let token: string | null | undefined;
+    try {
+      token = readCsrf();
+    } catch (error) {
+      report(error);
+    }
+    if (typeof token === 'string' && token) headers.set(csrfHeader, token);
+    let body: string;
+    if (action.encoding === 'form') {
+      const params = new URLSearchParams();
+      for (const [name, value] of Object.entries(record.fields)) {
+        if (value === null) continue;
+        if (Array.isArray(value))
+          for (const item of value as readonly string[])
+            params.append(name, item);
+        else params.append(name, String(value));
+      }
+      body = params.toString();
+      headers.set(
+        'Content-Type',
+        'application/x-www-form-urlencoded;charset=UTF-8',
+      );
+    } else {
+      body = JSON.stringify({ input: record.fields });
+      headers.set('Content-Type', 'application/json');
+    }
+    const controller = new AbortController();
+    const timer = win.setTimeout(() => controller.abort(), timeoutMs);
+    let response: Response;
+    try {
+      response = await request(new URL(action.path, win.location.origin).href, {
+        method: action.method,
+        headers,
+        body,
+        credentials: 'same-origin',
+        redirect: 'manual',
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+    } catch {
+      return { kind: 'retry', code: 'NETWORK' };
+    } finally {
+      win.clearTimeout(timer);
+    }
+    const status = response.status;
+    // Redirects (for example to a login page) are never taken as success.
+    if (response.type === 'opaqueredirect')
+      return { kind: 'failed', code: 'REDIRECT' };
+    if (status >= 300 && status < 400)
+      return { kind: 'failed', status, code: 'REDIRECT' };
+    if (response.ok) return { kind: 'sent', status, code: 'SENT' };
+    const failure = await failureCode(response);
+    const inProgress =
+      status === 409 &&
+      (failure.code === 'OFFLINE_IN_PROGRESS' ||
+        failure.reason === 'IDEMPOTENCY_IN_PROGRESS');
+    return {
+      kind: transientStatuses.has(status) || inProgress ? 'retry' : 'failed',
+      status,
+      code: failure.code ?? `HTTP_${String(status)}`,
+    };
+  }
+  async function drain(): Promise<void> {
+    while (!closed) {
+      const head = load()[0];
+      if (!head || head.state === 'failed') return;
+      // Unknown on this page: keep it and keep the order; never guess a route.
+      const action = actions.get(head.action);
+      if (!action) return;
+      const wait = (nextAttempt.get(head.id) ?? 0) - now();
+      if (wait > 0) {
+        schedule(wait);
+        return;
+      }
+      if (win.navigator.onLine === false) return;
+      transient.set(head.id, 'sending');
+      emit({ type: 'change' });
+      const result = await send(head, action);
+      transient.delete(head.id);
+      if (closed) return;
+      const current = find(head.id);
+      if (result.kind === 'sent') {
+        remove(head.id);
+        emit({ type: 'sent', entry: entryOf(current ?? head) });
+        continue;
+      }
+      if (!current) continue;
+      if (result.kind === 'retry') {
+        const attempts = current.attempts + 1;
+        write({ ...current, attempts });
+        const delay = Math.min(maxMs, baseMs * 2 ** Math.min(attempts - 1, 20));
+        nextAttempt.set(head.id, now() + delay);
+        transient.set(head.id, 'retrying');
+        emit({ type: 'change' });
+        schedule(delay);
+        return;
+      }
+      const failed: QueueRecord = {
+        ...current,
+        attempts: current.attempts + 1,
+        state: 'failed',
+        ...(result.status === undefined ? {} : { status: result.status }),
+        code: result.code,
+      };
+      write(failed);
+      nextAttempt.delete(head.id);
+      emit({ type: 'failed', entry: entryOf(failed) });
+      return;
+    }
+  }
+  async function locked(run: () => Promise<void>): Promise<void> {
+    const locks = Reflect.get(win.navigator, 'locks') as
+      LockManager | undefined;
+    if (!locks || typeof locks.request !== 'function') return run();
+    // One tab replays at a time; the server dedupes request IDs regardless.
+    let acquired = false;
+    await locks.request(
+      `${prefix}:replay:${scope}`,
+      { ifAvailable: true },
+      async (lock) => {
+        if (!lock) return;
+        acquired = true;
+        await run();
+      },
+    );
+    if (!acquired && !closed) schedule(baseMs);
+  }
+  function replay(): Promise<void> {
+    if (closed) return Promise.resolve();
+    if (running) {
+      rerun = true;
+      return running;
+    }
+    running = (async () => {
+      try {
+        do {
+          rerun = false;
+          await locked(drain);
+        } while (rerun && !closed);
+      } catch (error) {
+        report(error);
+      } finally {
+        running = undefined;
+      }
+    })();
+    return running;
+  }
+  function stop(): void {
+    closed = true;
+    if (retryTimer !== undefined) win.clearTimeout(retryTimer);
+    if (expiryTimer !== undefined) win.clearTimeout(expiryTimer);
+    retryTimer = undefined;
+    expiryTimer = undefined;
+    transient.clear();
+    nextAttempt.clear();
+    win.removeEventListener('online', onOnline);
+    win.removeEventListener('storage', onStorage);
+    win.removeEventListener('nestvexa:logout', onLogout);
+  }
+  function clearOwn(): number {
+    if (!storage) return 0;
+    try {
+      return removeMatching(storage, prefix, (key) => key.startsWith(own));
+    } catch (error) {
+      report(error);
+      return 0;
+    }
+  }
+  const onOnline = (): void => {
+    nextAttempt.clear();
+    transient.clear();
+    void replay();
+  };
+  const onStorage = (event: StorageEvent): void => {
+    if (event.key === null || event.key.startsWith(own))
+      emit({ type: 'change' });
+  };
+  const onLogout = (): void => {
+    clearOwn();
+    stop();
+    emit({ type: 'change' });
+  };
+  win.addEventListener('online', onOnline);
+  win.addEventListener('storage', onStorage);
+  win.addEventListener('nestvexa:logout', onLogout);
+  // Another identity's entries on this device are never sent: purge them.
+  if (storage)
+    try {
+      removeMatching(storage, prefix, (key) => !key.startsWith(own));
+    } catch (error) {
+      report(error);
+    }
+  load();
+  const queue: OfflineQueue = Object.freeze({
+    actions: Object.freeze([...actions.values()]),
+    canQueue: (action: string) => !closed && actions.has(action),
+    enqueue(action: string, fields: QueueFields): QueueEntry {
+      if (closed)
+        throw new OfflineQueueError('CLOSED', 'The offline queue is closed');
+      if (typeof action !== 'string' || !actions.has(action))
+        throw new OfflineQueueError(
+          'NOT_ALLOWLISTED',
+          'Only operations the server declared idempotent can be queued',
+        );
+      const copy = copyQueueFields(fields);
+      if (!storage)
+        throw new OfflineQueueError('STORAGE', 'Storage is unavailable');
+      const records = load();
+      if (records.length >= maxEntries)
+        throw new OfflineQueueError('QUEUE_FULL', 'The offline queue is full');
+      const createdAt = now();
+      const record: QueueRecord = Object.freeze({
+        id: requestId(win),
+        action,
+        order: records.reduce((max, item) => Math.max(max, item.order), 0) + 1,
+        createdAt,
+        expiresAt: createdAt + ttl,
+        attempts: 0,
+        state: 'pending',
+        fields: copy,
+      });
+      const serialized = serialize(record);
+      if (byteLength(serialized) > maxBytes)
+        throw new OfflineQueueError(
+          'TOO_LARGE',
+          'The entry exceeds the configured size limit',
+        );
+      try {
+        storage.setItem(`${own}${record.id}`, serialized);
+      } catch (error) {
+        report(error);
+        throw new OfflineQueueError('STORAGE', 'The entry could not be stored');
+      }
+      armExpiry([...records, record]);
+      const entry = entryOf(record);
+      emit({ type: 'queued', entry });
+      return entry;
+    },
+    list: () => Object.freeze(load().map(entryOf)),
+    discard(id: string): boolean {
+      if (transient.get(id) === 'sending') return false;
+      const record = find(id);
+      if (!record) return false;
+      remove(id);
+      emit({ type: 'discarded', entry: entryOf(record) });
+      void replay();
+      return true;
+    },
+    retry(id: string): boolean {
+      const record = find(id);
+      if (!record || record.state !== 'failed' || closed) return false;
+      write({
+        id: record.id,
+        action: record.action,
+        order: record.order,
+        createdAt: record.createdAt,
+        expiresAt: record.expiresAt,
+        attempts: 0,
+        state: 'pending',
+        fields: record.fields,
+      });
+      emit({ type: 'change' });
+      void replay();
+      return true;
+    },
+    replay,
+    clear(): number {
+      const removed = clearOwn();
+      transient.clear();
+      nextAttempt.clear();
+      emit({ type: 'change' });
+      return removed;
+    },
+    subscribe(listener: (event: QueueEvent) => void): () => void {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    dispose(): void {
+      stop();
+      listeners.clear();
+    },
+  });
+  if (options.autoReplay !== false) void replay();
+  return queue;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Queue status region and list                                             */
+/* ------------------------------------------------------------------------ */
+
+export interface QueueMessages {
+  readonly pending?: string;
+  readonly sending?: string;
+  readonly failed?: string;
+  readonly sent?: string;
+  readonly expired?: string;
+  readonly refused?: string;
+  readonly discarded?: string;
+}
+export interface QueueLabels {
+  readonly pending?: string;
+  readonly sending?: string;
+  readonly retrying?: string;
+  readonly failed?: string;
+  readonly discard?: string;
+  readonly retry?: string;
+}
+export interface AttachQueueOptions {
+  readonly queue: OfflineQueue;
+  readonly messages?: QueueMessages;
+  readonly labels?: QueueLabels;
+}
+const defaultQueueMessages = Object.freeze({
+  pending: 'Saved on this device and waiting to be sent: {count}.',
+  sending: 'Sending saved changes: {count} left.',
+  failed:
+    'A saved change could not be sent and the rest are on hold. Review it below.',
+  sent: 'All saved changes were sent.',
+  expired: 'Unsent changes expired and were removed from this device: {count}.',
+  refused:
+    'This form cannot be saved on this device for later, so it was submitted directly.',
+  discarded: 'The saved change was discarded and will not be sent.',
+});
+const defaultQueueLabels = Object.freeze({
+  pending: 'Waiting',
+  sending: 'Sending',
+  retrying: 'Waiting to retry',
+  failed: 'Not sent',
+  discard: 'Discard',
+  retry: 'Try again',
+});
+
+/**
+ * Form values for the queue. CSRF fields and `data-nv-queue-never` fields are
+ * dropped (the current token is sent at replay time); a password, file,
+ * payment, one-time-code, secret-named or `data-nv-sensitive` field with a
+ * value refuses the whole form, because sending it without that field would
+ * change its meaning.
+ */
+function queueFormFields(
+  form: HTMLFormElement,
+): Record<string, string | string[]> | null {
+  const values = new Map<string, string[]>();
+  for (const element of form.elements) {
+    if (!isField(element) || !element.name || element.disabled) continue;
+    if (
+      element instanceof HTMLInputElement &&
+      ['submit', 'button', 'reset', 'image'].includes(element.type)
+    )
+      continue;
+    const name = element.name;
+    if (csrfName(name) || element.hasAttribute('data-nv-queue-never')) continue;
+    let collected: string[];
+    let filled: boolean;
+    if (element instanceof HTMLSelectElement) {
+      collected = [...element.selectedOptions].map((option) => option.value);
+      filled = collected.length > 0;
+    } else if (
+      element instanceof HTMLInputElement &&
+      (element.type === 'checkbox' || element.type === 'radio')
+    ) {
+      collected = element.checked ? [element.value] : [];
+      filled = element.checked;
+    } else if (element instanceof HTMLInputElement && element.type === 'file') {
+      collected = [];
+      filled = (element.files?.length ?? 0) > 0;
+    } else {
+      collected = [element.value];
+      filled = element.value !== '';
+    }
+    const sensitive =
+      (element instanceof HTMLInputElement &&
+        (element.type === 'password' || element.type === 'file')) ||
+      element.hasAttribute('data-nv-sensitive') ||
+      sensitiveAutocomplete.test(element.getAttribute('autocomplete') ?? '') ||
+      secretName(name);
+    if (sensitive) {
+      if (filled) return null;
+      continue;
+    }
+    if (!fieldPattern.test(name) || forbiddenNames.has(name)) return null;
+    const existing = values.get(name);
+    if (existing) existing.push(...collected);
+    else if (collected.length) values.set(name, collected);
+  }
+  const fields = Object.create(null) as Record<string, string | string[]>;
+  for (const [name, list] of values)
+    fields[name] = list.length === 1 ? (list[0] ?? '') : list;
+  return fields;
+}
+
+/**
+ * Wire `form[data-nv-queue="<action>"]` submits into the queue and render the
+ * queue into `[data-nv-queue-status]` (text only) and `[data-nv-queue-list]`
+ * (one item per entry with a Discard button, and Try again when failed).
+ */
+export function attachOfflineQueue(
+  root: Element | Document,
+  options: AttachQueueOptions,
+): OfflineController {
+  const win = resolveWindow(root, undefined);
+  const doc = root instanceof Document ? root : root.ownerDocument;
+  const queue = options.queue;
+  let notice: {
+    kind: keyof typeof defaultQueueMessages;
+    count: number;
+  } | null = null;
+  let disposed = false;
+  const inRoot = (node: Node): boolean =>
+    node.isConnected && (node === root || root.contains(node));
+
+  function text(
+    element: Element,
+    kind: keyof typeof defaultQueueMessages,
+    count: number,
+  ): string {
+    const template =
+      (count === 1
+        ? element.getAttribute(`data-nv-queue-message-${kind}-one`)
+        : null) ??
+      element.getAttribute(`data-nv-queue-message-${kind}`) ??
+      options.messages?.[kind] ??
+      defaultQueueMessages[kind];
+    return template.replaceAll('{count}', String(count));
+  }
+  function label(
+    element: Element,
+    kind: keyof typeof defaultQueueLabels,
+  ): string {
+    return (
+      element.getAttribute(`data-nv-queue-label-${kind}`) ??
+      options.labels?.[kind] ??
+      defaultQueueLabels[kind]
+    );
+  }
+  function button(
+    list: Element,
+    kind: 'discard' | 'retry',
+    entry: QueueEntry,
+  ): HTMLButtonElement {
+    const control = doc.createElement('button');
+    control.type = 'button';
+    control.setAttribute(`data-nv-queue-${kind}`, entry.id);
+    const visible = label(list, kind);
+    control.textContent = visible;
+    // Starts with the visible text (WCAG 2.5.3) and names the entry.
+    control.setAttribute('aria-label', `${visible}: ${entry.label}`);
+    if (entry.state === 'sending') control.disabled = true;
+    return control;
+  }
+  function renderList(list: Element, entries: readonly QueueEntry[]): void {
+    const active = doc.activeElement;
+    const focusKind =
+      active && list.contains(active)
+        ? active.hasAttribute('data-nv-queue-retry')
+          ? 'retry'
+          : 'discard'
+        : undefined;
+    const focusId =
+      focusKind && active
+        ? active.getAttribute(`data-nv-queue-${focusKind}`)
+        : null;
+    const focusIndex = [...list.children].findIndex(
+      (item) => active !== null && item.contains(active),
+    );
+    const items = entries.map((entry) => {
+      const item = doc.createElement('li');
+      item.setAttribute('data-nv-queue-entry', entry.id);
+      item.setAttribute('data-nv-queue-entry-state', entry.state);
+      if (entry.code !== undefined)
+        item.setAttribute('data-nv-queue-entry-code', entry.code);
+      const name = doc.createElement('span');
+      name.setAttribute('data-nv-queue-entry-label', '');
+      name.textContent = entry.label;
+      const state = doc.createElement('span');
+      state.setAttribute('data-nv-queue-entry-status', '');
+      state.textContent = label(list, entry.state);
+      const created = new Date(entry.createdAt);
+      const time = doc.createElement('time');
+      time.dateTime = created.toISOString();
+      time.textContent = created.toLocaleTimeString(
+        doc.documentElement.lang || [],
+      );
+      item.append(name, ' ', state, ' ', time, ' ');
+      if (entry.state === 'failed')
+        item.append(button(list, 'retry', entry), ' ');
+      item.append(button(list, 'discard', entry));
+      return item;
+    });
+    list.replaceChildren(...items);
+    if (focusKind === undefined) return;
+    // Keep keyboard focus in the list across re-renders and removals.
+    const same =
+      focusId === null
+        ? null
+        : list.querySelector(`[data-nv-queue-${focusKind}="${focusId}"]`);
+    const fallback =
+      items[Math.min(Math.max(focusIndex, 0), items.length - 1)]?.querySelector(
+        '[data-nv-queue-discard]',
+      ) ?? null;
+    const target = same ?? fallback;
+    if (target instanceof HTMLElement) target.focus();
+    else if (list instanceof HTMLElement) {
+      if (!list.hasAttribute('tabindex')) list.setAttribute('tabindex', '-1');
+      list.focus();
+    }
+  }
+  function render(): void {
+    if (disposed) return;
+    const entries = queue.list();
+    const failed = entries.some((entry) => entry.state === 'failed');
+    const sending = entries.some((entry) => entry.state === 'sending');
+    const state = failed
+      ? 'failed'
+      : sending
+        ? 'sending'
+        : entries.length
+          ? 'pending'
+          : 'idle';
+    for (const status of root.querySelectorAll('[data-nv-queue-status]')) {
+      if (!status.hasAttribute('role') && !status.hasAttribute('aria-live'))
+        status.setAttribute('role', 'status');
+      const parts: string[] = [];
+      if (notice) parts.push(text(status, notice.kind, notice.count));
+      if (state !== 'idle') parts.push(text(status, state, entries.length));
+      const next = parts.join(' ');
+      // Rewriting identical text would make some screen readers repeat it.
+      if (status.textContent !== next) status.textContent = next;
+      status.setAttribute('data-nv-queue-state', state);
+      status.setAttribute('data-nv-queue-count', String(entries.length));
+    }
+    for (const list of root.querySelectorAll('[data-nv-queue-list]'))
+      renderList(list, entries);
+  }
+  const unsubscribe = queue.subscribe((event) => {
+    if (event.type === 'expired')
+      notice = { kind: 'expired', count: event.entries.length };
+    else if (event.type === 'discarded')
+      notice = { kind: 'discarded', count: 1 };
+    else if (event.type === 'sent')
+      notice = queue.list().length ? null : { kind: 'sent', count: 0 };
+    else if (event.type === 'queued') notice = null;
+    render();
+  });
+  function refuse(form: HTMLFormElement): void {
+    form.setAttribute('data-nv-queue-state', 'refused');
+    notice = { kind: 'refused', count: 0 };
+    render();
+  }
+  const onSubmit = (event: Event): void => {
+    const form = event.target;
+    if (
+      disposed ||
+      !(form instanceof HTMLFormElement) ||
+      !form.hasAttribute('data-nv-queue') ||
+      !inRoot(form)
+    )
+      return;
+    const id = form.getAttribute('data-nv-queue') ?? '';
+    const action = queue.actions.find((item) => item.id === id);
+    // Anything the server did not allowlist submits natively, never queued.
+    if (!action || !queue.canQueue(id)) {
+      refuse(form);
+      return;
+    }
+    // `form.action` can be shadowed by a field named "action"; read the attribute.
+    const target = form.getAttribute('action');
+    if (
+      target !== null &&
+      new URL(target, win.location.href).pathname !== action.path
+    ) {
+      refuse(form);
+      return;
+    }
+    const fields = queueFormFields(form);
+    if (!fields) {
+      refuse(form);
+      return;
+    }
+    try {
+      queue.enqueue(id, fields);
+    } catch {
+      refuse(form);
+      return;
+    }
+    event.preventDefault();
+    form.reset();
+    form.setAttribute('data-nv-queue-state', 'queued');
+    void queue.replay();
+  };
+  const onClick = (event: Event): void => {
+    const target = event.target;
+    if (disposed || !(target instanceof Element)) return;
+    const control = target.closest(
+      '[data-nv-queue-discard], [data-nv-queue-retry]',
+    );
+    if (!control || !inRoot(control)) return;
+    const discard = control.getAttribute('data-nv-queue-discard');
+    const retry = control.getAttribute('data-nv-queue-retry');
+    if (discard !== null) queue.discard(discard);
+    else if (retry !== null) {
+      notice = null;
+      queue.retry(retry);
+    }
+  };
+  root.addEventListener('submit', onSubmit, true);
+  root.addEventListener('click', onClick);
+  render();
+  return Object.freeze({
+    refresh: render,
+    dispose(): void {
+      if (disposed) return;
+      disposed = true;
+      unsubscribe();
+      root.removeEventListener('submit', onSubmit, true);
+      root.removeEventListener('click', onClick);
+    },
+  });
 }

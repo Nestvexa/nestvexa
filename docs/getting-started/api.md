@@ -138,8 +138,13 @@ validation with pipes or Zod-like schemas, results (`redirectTo`,
 `withNotifications`) and error envelopes are covered in the
 [server actions guide](../guides/server-actions.md).
 
+Long-running actions can answer `202` with a job ticket, and every call gets a
+tracing span and a structured log entry. Codegen with `--targets react,vue,svelte`
+also emits React hooks, Vue composables and Svelte stores
+([server actions guide](../guides/server-actions.md)).
+
 > **Known gap:** GraphQL resolvers and Nest microservice transports are expected
 > to coexist because Nestvexa registers no global middleware, but no test or
-> example exercises them. Server actions have no streaming or `202` job-ticket
-> results, no structured per-call logs or tracing spans, and no React/Vue/Svelte
-> hooks yet; use the framework-neutral client.
+> example exercises them. Action results are a single JSON envelope or a job
+> ticket; there is no incremental streaming of a return value. The idempotency
+> store, rate limiter and serial locks are process-local.

@@ -29,3 +29,31 @@ export const clearSiteDataHeader: {
   readonly name: 'Clear-Site-Data';
   readonly value: '"storage"';
 } = Object.freeze({ name: 'Clear-Site-Data', value: '"storage"' });
+
+export {
+  MemoryOfflineReplayStore,
+  createOfflineReplayGuard,
+  offlineActionAllowlist,
+  offlineKeyHeader,
+  offlineReplayedHeader,
+  offlineScopeHeader,
+  offlineServerAction,
+} from './queue.js';
+export type {
+  OfflineAction,
+  OfflineActionAllowlist,
+  OfflineActionDefinition,
+  OfflineActionEncoding,
+  OfflineActionMethod,
+  OfflineReplayBegin,
+  OfflineReplayError,
+  OfflineReplayErrorCode,
+  OfflineReplayGuard,
+  OfflineReplayGuardOptions,
+  OfflineReplayOutcome,
+  OfflineReplayRejection,
+  OfflineReplayRequest,
+  OfflineReplayResult,
+  OfflineReplayStore,
+  ServerActionDescriptor,
+} from './queue.js';

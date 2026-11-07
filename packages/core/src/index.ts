@@ -90,11 +90,13 @@ export {
   type RouteDefinition,
   type RouteParam,
 } from './routes.js';
+export { NESTVEXA_VERSION, isSemanticVersion } from './version.js';
 export {
   PLUGIN_CAPABILITIES,
   PluginRegistry,
   definePlugin,
   parsePluginManifest,
+  pluginExtension,
   satisfiesVersion,
   type NestvexaPlugin,
   type NestvexaPluginManifest,

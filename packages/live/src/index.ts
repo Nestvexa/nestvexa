@@ -12,6 +12,12 @@ export {
   type LiveComponentDescription,
   type LiveRenderInspection,
 } from './runtime.js';
+export {
+  liveSecurityPolicies,
+  type LivePolicyKind,
+  type LivePolicyRegistry,
+  type LiveSecurityPolicies,
+} from './security-policies.js';
 export type {
   LiveLifecycleHooks,
   LiveUpdateContext,

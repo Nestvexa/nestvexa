@@ -198,7 +198,9 @@ Jest projects must run Jest in ESM mode (Nestvexa packages are ESM only);
 
 ```sh
 pnpm --filter @nestvexa/cli... build
-pnpm exec vitest run tests/cli.test.ts tests/cli-generators.test.ts tests/cli-fastify.test.ts tests/cli-inertia-ssr.test.ts tests/cli-example.test.ts tests/dev-errors.test.ts \n  tests/cli-doctor.test.ts tests/cli-routes.test.ts tests/cli-resource.test.ts tests/cli-format.test.ts \n  tests/cli-jest.test.ts tests/cli-plugins.test.ts
+pnpm exec vitest run tests/cli.test.ts tests/cli-generators.test.ts tests/cli-fastify.test.ts tests/cli-inertia-ssr.test.ts tests/cli-example.test.ts tests/dev-errors.test.ts \
+  tests/cli-doctor.test.ts tests/cli-routes.test.ts tests/cli-resource.test.ts tests/cli-format.test.ts \
+  tests/cli-jest.test.ts tests/cli-plugins.test.ts
 ```
 
 `tests/cli.test.ts` runs `init` and generators on a fresh CommonJS Nest app,

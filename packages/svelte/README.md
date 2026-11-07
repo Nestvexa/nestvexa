@@ -13,13 +13,29 @@ Status: `0.1.0-alpha.0`, experimental. Verified with `@inertiajs/svelte` and
 
 ## Install
 
+Not published yet. Build local tarballs with `pnpm build && pnpm test:pack`
+(written to `artifacts/packages`) and install the `.tgz` files together. After
+owner-authorized publication the registry syntax will be:
+
 ```sh
 pnpm add @nestvexa/svelte @nestvexa/inertia @nestvexa/vite @inertiajs/svelte svelte
 pnpm add -D vite @sveltejs/vite-plugin-svelte svelte-check
 ```
 
+(`npm install` and `yarn add` take the same package names.)
+
 Peer dependencies: `@inertiajs/svelte` `^3.10.0`, `svelte` `^5`;
 `@inertiajs/core` optional (types). Node `^22.13 || ^24`, ESM only.
+
+## Architecture and dependencies
+
+The browser half of an Inertia host: `@nestvexa/inertia` builds the page
+objects on the server, `@nestvexa/vite` supplies the page registry
+(`@nestvexa/vite/pages`), manifest tags and the official SSR server launcher,
+and this package wires them into `@inertiajs/svelte`. Its only runtime dependency is
+`@nestvexa/vite`. It is optional and **not** included in the `nestvexa`
+umbrella. `nestvexa add svelte` (CLI) scaffolds a client root with browser and
+SSR entries using this package (`tests/cli-generators.test.ts`).
 
 ## Why `createInertiaApp` is passed in
 
@@ -85,14 +101,42 @@ client-rendered document, where the boundary shows the fallback.
   `<h1>` node is adopted (same DOM node after hydration) — verified to fail on a
   deliberate structural mismatch.
 
-## Testing
-
-`tests/svelte-adapter.test.ts`, `tests/browser/inertia-svelte.spec.ts` (shared
-suite, three browsers), `tests/browser/inertia-mixed.spec.ts`.
-
-## Caveats and compatibility
+## Compatibility
 
 - `@inertiajs/svelte` 3.10.0 `Render.svelte.d.ts` fails type-checking with
   `skipLibCheck: false` (TS2440). The example's `svelte-check` config sets
   `skipLibCheck: true`; this package types the injected `createInertiaApp`
   structurally (mirroring the 3.10.0 declaration) instead of importing it.
+- Examples: [`examples/inertia-svelte`](../../examples/inertia-svelte) and
+  [`examples/inertia-mixed`](../../examples/inertia-mixed).
+
+## Status and limits
+
+Status: **Partial**. Mount, hydration, page registry and SSR (in-process or the
+official server) work and are tested in Chromium, Firefox and WebKit.
+
+- This package ships no server-action utilities. Typed Svelte stores
+  (`createActionStores`) come from `@nestvexa/actions` codegen with
+  `--targets svelte`; Inertia forms use the official `useForm`/router (SPA-003).
+- No adapter-level error boundary (use `<svelte:boundary>`, see above) and no
+  framework upload helper.
+- The `@nestvexa/ui/svelte` wrappers are tested but have no runnable example
+  page (EXT-020).
+- CLI-scaffolded roots render client-side in development (standalone Vite dev
+  server); SSR applies to production builds.
+
+## Testing
+
+```sh
+pnpm --filter @nestvexa/svelte test
+```
+
+Runs `tests/svelte-adapter.test.ts`; the tests import `packages/*/dist`, so run
+`pnpm --filter @nestvexa/svelte... build` first. Browser coverage runs
+separately through Playwright: `tests/browser/inertia-svelte.spec.ts` (shared
+framework suite plus forms and uploads), `tests/browser/inertia-hmr.spec.ts`
+(dev-mode HMR) and `tests/browser/inertia-mixed.spec.ts`, in three browsers.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).
