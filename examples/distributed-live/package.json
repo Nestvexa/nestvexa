@@ -18,6 +18,6 @@
     "nestvexa": "workspace:*",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
-    "ws": "8.22.0"
+    "ws": "8.22.1"
   }
 }
