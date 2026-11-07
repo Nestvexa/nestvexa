@@ -261,7 +261,7 @@ if (env.NESTVEXA_REDIS_PORT && env.NESTVEXA_SERVICES_BROWSER !== '0')
       );
     const passed = /(\d+) passed/.exec(run.stdout ?? '')?.[1] ?? '?';
     step(
-      `${passed} browser tests passed: replica B publish refreshes a browser on replica A (SSE) and back (WebSocket); Live state created on A continues on B; cross-identity isolation on both replicas`,
+      `${passed} browser tests passed: replica B publish refreshes a browser on replica A (SSE) and back (WebSocket); Live state created on A continues on B; cross-identity isolation on both replicas; showcase on two instances (cross-instance dashboard refresh and notifications, workspace isolation)`,
     );
   });
 

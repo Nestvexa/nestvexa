@@ -61,7 +61,17 @@ a Live component whose state was created on A continues on B (and a replayed
 revision is rejected on A), and that another identity's stolen subscription
 token, snapshot or forged cookie is rejected on both replicas. The GitHub
 workflow `.github/workflows/services.yml` runs the same command against a
-`redis:7-alpine` service container. To run only the browser part:
+`redis:7-alpine` service container.
+
+The same configuration also starts [`examples/showcase`](../../examples/showcase/README.md)
+twice (ports 3223 and 3224, each its own origin, sharing Redis and the realtime
+secret) for `tests/services/showcase-redis.spec.ts`: a deployment logged on one
+instance refreshes a dashboard on the other for the same workspace only, a task
+assigned on one instance reaches the assignee's inbox on the other, presence
+stays per instance, and a token signed on one instance is refused on the other
+for another account.
+
+To run only the browser part:
 
 ```sh
 NESTVEXA_REDIS_PORT=6379 pnpm exec playwright test -c playwright.services.config.ts

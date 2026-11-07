@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 import { randomBytes } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 /*
  * Two-replica acceptance test against a real Redis (see
@@ -75,5 +77,23 @@ export default defineConfig({
         TARGET_B: 'http://127.0.0.1:3221',
       },
     ),
+    // examples/showcase as two instances on the same Redis
+    // (tests/services/showcase-redis.spec.ts); each is its own origin.
+    ...(['a', 'b'] as const).map((name, index) => {
+      const port = String(3223 + index);
+      return server(
+        'pnpm --filter @nestvexa/example-showcase start',
+        `http://127.0.0.1:${port}/api/health`,
+        {
+          PORT: port,
+          PUBLIC_ORIGIN: `http://127.0.0.1:${port}`,
+          SHOWCASE_INSTANCE: `showcase-${name}`,
+          SHOWCASE_DATA_DIR: join(
+            tmpdir(),
+            `nestvexa-showcase-services-${port}`,
+          ),
+        },
+      );
+    }),
   ],
 });
