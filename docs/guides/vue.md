@@ -79,12 +79,58 @@ and `examples/inertia-mixed`).
 official Vue client: hover prefetch reused on click, `usePoll` partial
 reloads, `<WhenVisible>` over an `optional()` prop and `<InfiniteScroll>` over
 a `scroll()` prop (`defineFeatureSmoke` in
-`tests/browser/inertia-feature-smoke.ts`; the React example covers the full
-tour). `pnpm start:csr` serves the same build with SSR disabled; the
+`tests/browser/inertia-feature-smoke.ts`). `/features/tour` covers the rest of
+the client-owned features with the official Vue client
+(`defineFeatureTour` and `defineScrollAndProgress` in
+`tests/browser/inertia-feature-tour.ts`): instant visits
+(`component="Features/Slow"` renders before the server answers),
+`router.visit`/`router.post` and a `method="post"` link, view transitions,
+`useRemember` and a remembered `useForm`, `once()` props reused with
+`X-Inertia-Except-Once-Props`, `optimistic` visits with rollback, scroll reset,
+`preserveScroll`, back/forward restore of the window and `scroll-region`
+elements, `#hash` anchors, and the progress bar (hidden with
+`showProgress: false`). `pnpm start:csr` serves the same build with SSR disabled; the
 client-only browser test checks the empty root mounts, navigates and
 round-trips validation. `tests/vite-builds.test.ts` checks the production build
 for source maps, duplicate modules/runtimes and browser-only code in the SSR
 bundle.
+
+## Typed server actions
+
+`@nestvexa/actions` generates Vue composables (`createActionComposables`) from the server's `@ActionGroup`
+classes. The example runs the codegen before its build
+(`scripts/codegen.mjs`, `targets: ['vue']`, output in the git-ignored
+`client/generated/`) and `/features/actions` calls `notes.add`
+(`src/actions.ts`) from an Inertia page:
+
+```ts
+// client/actions.ts
+export const actionComposables = createActionComposables(
+  createActions(createActionsClient({ csrf: xsrfToken })),
+);
+
+// client/pages/Features/Actions.vue (<script setup>)
+const add = actionComposables.useNotesAdd({
+  initialData: props.board,
+  optimistic: (current, input) => ({
+    total: (current?.total ?? 0) + 1,
+    latest: [input.text, ...(current?.latest ?? [])].slice(0, 5),
+  }),
+});
+// add.state is a shallow ref, disposed with the component scope:
+// <button :disabled="add.state.value.pending" @click="add.run({ text })">
+```
+
+Input, output and the validation-issue field union come from the server
+method's signature; the page props are the initial data, the optimistic value
+shows while the call is pending and is rolled back when the server answers
+with a validation error. The CSRF token is the session's `XSRF-TOKEN` cookie
+(the one the official client echoes), sent as `x-nestvexa-csrf`
+(`client/actions.ts`); identity is the host session. The browser test
+(`defineTypedActionsSuite` in `tests/browser/inertia-feature-tour.ts`) checks
+the request, the optimistic and rolled-back states, the server-rendered
+result after a reload, and that calls without the token or from another origin
+get `403`. See the [server actions guide](server-actions.md).
 
 ## UI kit components
 

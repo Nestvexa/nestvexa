@@ -173,6 +173,15 @@ switches scroll props to `prependProps`. Top-level dotted keys
   `{ validate(input) }` schema returning `{ ok, value | errors }` (all
   `@nestvexa/forms` adapters) and throws `InertiaValidationException`; use the
   same schema with `@Precognitive`.
+- `@Precognitive(validator, { input?, interceptors? })`: guard rejections
+  (CSRF, auth, throttling) of precognitive routes keep `Precognition: true`
+  and `Vary: Precognition` (`InertiaModule` registers `PrecognitionMiddleware`
+  and a never-rejecting global `PrecognitionGuard`), so the official client
+  reaches `onUnauthorized`/`onForbidden`. For `validateFiles()` multipart
+  requests, list the route's body parser in `interceptors` (for example
+  `FileInterceptor('avatar')`); the default input merges multer's
+  `request.file`/`request.files` under their field names. See the
+  [guide](../../docs/guides/inertia.md#files-validatefiles).
 - `back()` resolves the same-host `Referer`, then the session's previous URL
   (`InertiaService.previousUrl(request)`), then the fallback.
 
@@ -243,8 +252,6 @@ official React, Vue and Svelte clients; the two parity rows below are missing.
 
 - Not implemented: `shareOnce` sugar (use `once()` in `share`) and error-page
   rendering helpers (use a Nest filter with `InertiaService.render`).
-- Scroll management and the progress indicator are client-owned and not
-  separately asserted.
 - Empty-response handling only treats a handler result of `undefined` as
   empty; handlers that inject `@Res()`/`@Next()` or declare `@HttpCode`,
   `@Redirect`, `@Render` or `@Sse` are never redirected.

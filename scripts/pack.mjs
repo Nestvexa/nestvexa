@@ -201,13 +201,23 @@ async function consume(manager, profile) {
     '@nestjs/platform-express': '12.2.0',
     'reflect-metadata': '0.2.2',
     rxjs: '7.8.2',
+    // The generated React hooks and Vue composables run in the full consumer.
+    ...(profile === 'full'
+      ? { react: '19.3.1', 'react-dom': '19.3.1', vue: '3.5.44' }
+      : {}),
   };
   const manifest = {
     name: 'nestvexa-' + manager + '-' + profile + '-pack-consumer',
     private: true,
     type: 'module',
     dependencies,
-    devDependencies: { typescript: '6.0.3', '@types/node': '24.19.2' },
+    devDependencies: {
+      typescript: '6.0.3',
+      '@types/node': '24.19.2',
+      ...(profile === 'full'
+        ? { '@types/react': '19.3.0', '@types/react-dom': '19.3.0' }
+        : {}),
+    },
     ...(manager === 'pnpm'
       ? { pnpm: { overrides: { ...localPackages, multer: '2.5.0' } } }
       : {
@@ -238,6 +248,12 @@ async function consume(manager, profile) {
     join(root, 'tests/pack-consumers/tsconfig.json'),
     join(consumer, 'tsconfig.json'),
   );
+  // Type-checked and run by consumer.ts next to the generated action bindings.
+  if (profile === 'full')
+    await copyFile(
+      join(root, 'tests/pack-consumers/bindings-check.ts'),
+      join(consumer, 'bindings-check.ts'),
+    );
   await mkdir(join(consumer, 'views'));
   await writeFile(
     join(consumer, 'views/home.hbs'),
@@ -292,11 +308,14 @@ async function consume(manager, profile) {
         '\n' +
         compilation.stderr,
     );
-  // Generous limits: loaded CI/dev hosts must not turn slowness into false failures.
+  // Generous limits: loaded CI/dev hosts must not turn slowness into false
+  // failures. The full smoke also runs the actions codegen and type-checks the
+  // generated framework bindings (two TypeScript programs); a heavily loaded
+  // Windows host needed about 19 minutes for it.
   const smoke = spawnSync(process.execPath, ['dist/consumer.js'], {
     cwd: consumer,
     encoding: 'utf8',
-    timeout: 120000,
+    timeout: profile === 'full' ? 900000 : 120000,
   });
   entry.commands.push({
     command: 'node dist/consumer.js',

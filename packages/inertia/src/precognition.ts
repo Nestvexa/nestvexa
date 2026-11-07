@@ -1,3 +1,4 @@
+import type { NestInterceptor, Type } from '@nestjs/common';
 import { FORBIDDEN_KEYS } from './constants.js';
 import { InertiaConfigurationError, InertiaRequestError } from './errors.js';
 import type { InertiaHeaderLimits } from './request.js';
@@ -43,18 +44,35 @@ export type PrecognitionCheck = (
 
 export type PrecognitionValidator = PrecognitionSchema | PrecognitionCheck;
 
+/** A Nest interceptor class (created through the module injector) or instance. */
+export type PrecognitionInterceptor = Type<NestInterceptor> | NestInterceptor;
+
 export interface PrecognitiveOptions {
   /**
    * Reads the data to validate. Default: the query for GET/HEAD/DELETE (where
-   * the official client sends it) and the parsed body otherwise.
+   * the official client sends it) and the parsed body otherwise, with
+   * multer-style uploaded files (`request.file`, `request.files`) merged in
+   * under their field names.
    */
   readonly input?: (request: object) => unknown;
+  /**
+   * Interceptors that prepare a Precognition request before it is validated,
+   * in order. Route interceptors run after the Inertia interceptor, so a
+   * multipart body is not parsed yet when Precognition answers; pass the
+   * route's body parser here (for example `FileInterceptor('avatar')` from
+   * `@nestjs/platform-express`) to validate the files the official client
+   * sends after `validateFiles()`. They run only for Precognition requests
+   * and must call `next.handle()`; ordinary submissions use the route's own
+   * interceptors.
+   */
+  readonly interceptors?: readonly PrecognitionInterceptor[];
 }
 
 /** @internal Route metadata written by `@Precognitive`. */
 export interface PrecognitionMetadata {
   readonly validator: PrecognitionValidator;
   readonly input: ((request: object) => unknown) | undefined;
+  readonly interceptors: readonly PrecognitionInterceptor[];
 }
 
 /** Parsed Precognition request headers. */
@@ -172,7 +190,51 @@ export async function runPrecognitionValidator(
   );
 }
 
-/** @internal Default input: query for bodiless methods, body otherwise. */
+/** True for a multer-style uploaded file (`fieldname` plus file metadata). */
+function isUploadedFile(
+  value: unknown,
+): value is { readonly fieldname: string } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { fieldname?: unknown }).fieldname === 'string'
+  );
+}
+
+/**
+ * Uploaded files by field name, from multer's `request.file` (one file),
+ * `request.files` as an array (`array()`/`any()`: a list per field) or as a
+ * record (`fields()`). Prototype keys are never produced.
+ */
+function uploadedFiles(request: object): Record<string, unknown> | undefined {
+  const { file, files } = request as { file?: unknown; files?: unknown };
+  const result: Record<string, unknown> = {};
+  let found = false;
+  const put = (field: string, value: unknown) => {
+    if (FORBIDDEN_KEYS.has(field)) return;
+    result[field] = value;
+    found = true;
+  };
+  if (Array.isArray(files)) {
+    const grouped = new Map<string, unknown[]>();
+    for (const entry of files as unknown[])
+      if (isUploadedFile(entry))
+        grouped.set(entry.fieldname, [
+          ...(grouped.get(entry.fieldname) ?? []),
+          entry,
+        ]);
+    for (const [field, list] of grouped) put(field, list);
+  } else if (typeof files === 'object' && files !== null)
+    for (const [field, list] of Object.entries(files))
+      if (Array.isArray(list)) put(field, list);
+  if (isUploadedFile(file)) put(file.fieldname, file);
+  return found ? result : undefined;
+}
+
+/**
+ * @internal Default input: query for bodiless methods, body otherwise, with
+ * uploaded files merged in by field name (a file wins over a same-named field).
+ */
 export function defaultPrecognitionInput(request: object): unknown {
   const { method, query, body } = request as {
     method?: unknown;
@@ -180,6 +242,73 @@ export function defaultPrecognitionInput(request: object): unknown {
     body?: unknown;
   };
   const verb = typeof method === 'string' ? method.toUpperCase() : 'GET';
-  const value = ['GET', 'HEAD', 'DELETE'].includes(verb) ? query : body;
-  return value ?? {};
+  if (['GET', 'HEAD', 'DELETE'].includes(verb)) return query ?? {};
+  const files = uploadedFiles(request);
+  if (!files) return body ?? {};
+  const fields =
+    typeof body === 'object' && body !== null && !Array.isArray(body)
+      ? body
+      : {};
+  return { ...fields, ...files };
+}
+
+/** Raw Node response behind an Express response or a Fastify reply. */
+interface RawResponse {
+  getHeader(name: string): unknown;
+  setHeader(name: string, value: string): unknown;
+  removeHeader(name: string): unknown;
+  readonly headersSent?: boolean;
+}
+
+function rawResponse(response: object): RawResponse | undefined {
+  const raw: unknown = (response as { raw?: unknown }).raw ?? response;
+  return typeof raw === 'object' &&
+    raw !== null &&
+    typeof (raw as Partial<RawResponse>).setHeader === 'function' &&
+    typeof (raw as Partial<RawResponse>).getHeader === 'function' &&
+    typeof (raw as Partial<RawResponse>).removeHeader === 'function'
+    ? (raw as RawResponse)
+    : undefined;
+}
+
+function varyTokens(value: unknown): string[] {
+  const text = Array.isArray(value)
+    ? value.join(',')
+    : typeof value === 'string'
+      ? value
+      : '';
+  return text
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+/**
+ * @internal Labels a response as a Precognition reply (`Precognition: true`,
+ * `Vary: Precognition` merged) directly on the raw Node response, so the
+ * headers survive replies produced by middleware, guards and exception
+ * filters as well as the adapter's own.
+ */
+export function markPrecognitionResponse(response: object): void {
+  const raw = rawResponse(response);
+  if (!raw || raw.headersSent === true) return;
+  raw.setHeader(PrecognitionHeader.precognition, 'true');
+  const vary = varyTokens(raw.getHeader('Vary'));
+  if (!vary.some((token) => token.toLowerCase() === 'precognition'))
+    raw.setHeader(
+      'Vary',
+      [...vary, PrecognitionHeader.precognition].join(', '),
+    );
+}
+
+/** @internal Removes the labels again when the route is not precognitive. */
+export function unmarkPrecognitionResponse(response: object): void {
+  const raw = rawResponse(response);
+  if (!raw || raw.headersSent === true) return;
+  raw.removeHeader(PrecognitionHeader.precognition);
+  const vary = varyTokens(raw.getHeader('Vary')).filter(
+    (token) => token.toLowerCase() !== 'precognition',
+  );
+  if (vary.length === 0) raw.removeHeader('Vary');
+  else raw.setHeader('Vary', vary.join(', '));
 }

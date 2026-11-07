@@ -16,6 +16,7 @@
     Prefetched page
   </Link>
   <Link href="/features/scroll">Infinite scroll</Link>
+  <Link href="/features/tour">Feature tour</Link>
 </nav>
 <p data-testid="tick">Tick {tick}</p>
 <p data-testid="polling">{poll.polling ? 'Polling' : 'Stopped'}</p>
