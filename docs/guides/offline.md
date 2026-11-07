@@ -147,8 +147,17 @@ if (scope) {
 
    In every case the server validates the new request like any other. If an
    earlier request did commit, its revision makes the retry fail with
-   `409 STALE_REVISION` (the component then suspends) instead of running the
-   action twice.
+   `409 STALE_REVISION` instead of running the action twice.
+
+   That reply carries `x-nestvexa-recovery: resync`. Nothing ran on the
+   server, so instead of suspending, the client sends one fresh resync: a
+   `$sync` marked `x-nestvexa-resync: 1`, with no field updates. The server
+   accepts it only without updates and only for the caller's own snapshot,
+   and re-renders the current state at its current revision. The refused call
+   still rejects, so the user repeats the intent; it is never replayed.
+   Local drafts stay local and go with the next request. If the resync itself
+   comes back `STALE_REVISION`, the component suspends rather than loop.
+   Stale requests queued behind the first one share the same resync.
 
 There is no offline action queue. Purchases, payments and deletes are never
 replayed on reconnect.

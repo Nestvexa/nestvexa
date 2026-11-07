@@ -222,6 +222,51 @@ test('network loss shows offline state, sends nothing and recovers cleanly', asy
   expect(errors).toEqual([]);
 });
 
+test('a committed $sync whose reply was lost is reconciled by one resync on STALE_REVISION', async ({
+  page,
+}) => {
+  const errors = await openLab(page);
+  await errorCodes(page);
+  // A proxy drops the reply after the server committed the synchronization.
+  let dropped = false;
+  await page.route(live('lab-counter', '_sync'), async (route) => {
+    if (dropped) {
+      await route.continue();
+      return;
+    }
+    dropped = true;
+    await route.fetch();
+    await route.abort('connectionreset');
+  });
+  const syncs = liveRequests(page, '_sync');
+  const increments = liveRequests(page, 'increment');
+  await page.locator('#echo').fill('committed once');
+  await expect.poll(() => reportedCodes(page)).toEqual(['NETWORK']);
+  // A $sync without a reply leaves the component usable but one revision behind.
+  await expect(page.locator('#echo-server')).toHaveText('');
+
+  // The next action carries the old revision: the server refuses it with
+  // STALE_REVISION and the resync hint, and the client resyncs once.
+  await page.locator('#increment').click();
+  await expect.poll(() => reportedCodes(page)).toEqual(['NETWORK', 'HTTP']);
+  await expect(page.locator('#echo-server')).toHaveText('committed once');
+  await expect(page.locator('[data-nv-component]')).not.toHaveAttribute(
+    'data-nv-suspended',
+  );
+  expect(
+    syncs.map((request) => request.headers()['x-nestvexa-resync']),
+  ).toEqual([undefined, '1']);
+  // The refused increment is not replayed; the user repeats the intent.
+  await expect(page.locator('#count')).toHaveText('0');
+  expect(increments).toHaveLength(1);
+  await page.locator('#increment').click();
+  await expect(page.locator('#count')).toHaveText('1');
+  expect(increments).toHaveLength(2);
+  expect(syncs).toHaveLength(2);
+  expect(await sameDocument(page)).toBe(true);
+  expect(errors).toEqual([]);
+});
+
 test('a failed Live request suspends the component and its no-JS form takes over without a resend', async ({
   page,
 }) => {

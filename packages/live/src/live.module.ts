@@ -12,19 +12,27 @@ import {
   Scope,
 } from '@nestjs/common';
 import type {
+  CallHandler,
   CanActivate,
   DynamicModule,
   ExecutionContext,
   InjectionToken,
   ModuleMetadata,
+  NestInterceptor,
   OnModuleInit,
   OptionalFactoryDependency,
   Provider,
   Type,
 } from '@nestjs/common';
+import { catchError, throwError } from 'rxjs';
+import type { Observable } from 'rxjs';
 import { DiscoveryModule, HttpAdapterHost, ModuleRef } from '@nestjs/core';
 import { LiveEvents } from './domain-events.js';
-import { GUARDS_METADATA, ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
+import {
+  GUARDS_METADATA,
+  INTERCEPTORS_METADATA,
+  ROUTE_ARGS_METADATA,
+} from '@nestjs/common/constants';
 import {
   definition,
   INTERNAL_SYNC_ACTION,
@@ -88,6 +96,33 @@ class LiveAdmissionGuard implements CanActivate {
       throw error;
     }
     return true;
+  }
+}
+/**
+ * Error bodies are never parsed by the browser, so a `STALE_REVISION` reply
+ * carries its documented recovery as `x-nestvexa-recovery: resync`. The client
+ * answers with one fresh resynchronization instead of suspending.
+ */
+@Injectable()
+class LiveRecoveryInterceptor implements NestInterceptor {
+  constructor(
+    @Inject(HttpAdapterHost) private readonly adapter: HttpAdapterHost,
+  ) {}
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    return next.handle().pipe(
+      catchError((error: unknown) => {
+        if (
+          error instanceof HttpException &&
+          Reflect.get(Object(error.getResponse()), 'code') === 'STALE_REVISION'
+        )
+          this.adapter.httpAdapter.setHeader(
+            context.switchToHttp().getResponse<object>(),
+            'x-nestvexa-recovery',
+            'resync',
+          );
+        return throwError(() => error);
+      }),
+    );
   }
 }
 export interface LiveModuleOptions extends LiveHostOptions {
@@ -305,6 +340,7 @@ function providers(
     LiveRuntime,
     LiveEvents,
     LiveAdmissionGuard,
+    LiveRecoveryInterceptor,
     LiveRouteConflictCheck,
     ...definitions.map((component) => ({
       provide: component.type,
@@ -345,6 +381,13 @@ function generatedController(
   Reflect.defineMetadata(
     GUARDS_METADATA,
     [LiveAdmissionGuard, ...existingGuards],
+    LiveController,
+  );
+  const existingInterceptors: unknown[] =
+    Reflect.getMetadata(INTERCEPTORS_METADATA, LiveController) ?? [];
+  Reflect.defineMetadata(
+    INTERCEPTORS_METADATA,
+    [LiveRecoveryInterceptor, ...existingInterceptors],
     LiveController,
   );
   for (const [action, entry] of component.actions) {

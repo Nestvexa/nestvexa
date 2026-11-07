@@ -66,6 +66,12 @@ class LabCounter {
   })
   note = '';
   @State() saved = '';
+  /** Synchronized while typing (`$sync`), for the stale-revision resync check. */
+  @State({
+    writable: true,
+    validate: (value) => typeof value === 'string' && value.length <= 80,
+  })
+  echo = '';
   @Action() increment(): void {
     this.count++;
   }

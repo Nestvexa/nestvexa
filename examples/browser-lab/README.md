@@ -16,18 +16,18 @@ pnpm --filter @nestvexa/example-browser-lab... build
 PORT=3860 pnpm --filter @nestvexa/example-browser-lab start
 ```
 
-| Route                    | Purpose                                                                                          |
-| ------------------------ | ------------------------------------------------------------------------------------------------ |
-| `/`                      | Counter with a deferred `nv:model` draft and a no-JS `POST /note` form equivalent                |
-| `/long`                  | Tall page with a `#section-b` fragment and a `robots` meta tag                                   |
-| `/prefetch`              | Target of the `nv:navigate.hover` link; shows its per-session render number                      |
-| `/alpine`                | `$live.state`, `$live.dispatch`, `$live.on` and `$live.entangle` against an `@OnEvent` component |
-| `/ticker`                | `nv:poll.1s` and an `nv:offline` banner                                                          |
-| `/many?count=N`          | N (1–40) components, each with a poll timer, an intersection observer and an Alpine subtree      |
-| `/assets-differ`, `/rtl` | Different asset identity or document direction: navigation falls back to a full load             |
-| `/plain.txt`, `/missing` | Non-HTML and 404 responses: full load                                                            |
-| `/to-long`               | Same-origin redirect to `/long`                                                                  |
-| `/api/served`            | Per-session render counts, used by the tests to tell swaps, prefetch reuse and reloads apart     |
+| Route                    | Purpose                                                                                            |
+| ------------------------ | -------------------------------------------------------------------------------------------------- |
+| `/`                      | Counter with a deferred `nv:model` draft, a live-synced `echo` field and a no-JS `POST /note` form |
+| `/long`                  | Tall page with a `#section-b` fragment and a `robots` meta tag                                     |
+| `/prefetch`              | Target of the `nv:navigate.hover` link; shows its per-session render number                        |
+| `/alpine`                | `$live.state`, `$live.dispatch`, `$live.on` and `$live.entangle` against an `@OnEvent` component   |
+| `/ticker`                | `nv:poll.1s` and an `nv:offline` banner                                                            |
+| `/many?count=N`          | N (1–40) components, each with a poll timer, an intersection observer and an Alpine subtree        |
+| `/assets-differ`, `/rtl` | Different asset identity or document direction: navigation falls back to a full load               |
+| `/plain.txt`, `/missing` | Non-HTML and 404 responses: full load                                                              |
+| `/to-long`               | Same-origin redirect to `/long`                                                                    |
+| `/api/served`            | Per-session render counts, used by the tests to tell swaps, prefetch reuse and reloads apart       |
 
 Callbacks for `$live.on` are registered in `/lab-alpine.js` with `Alpine.data`
 on the `nestvexa:alpine:init` event, because the CSP build cannot evaluate

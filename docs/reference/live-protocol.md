@@ -44,6 +44,11 @@ configured origin, `x-nestvexa-csrf` equal to the identity CSRF token.
 - `snapshot`: the opaque server-state reference from `data-nv-snapshot`. It is a bearer
   capability bound to the identity; it is not signed browser state.
 - `revision`: the revision the client rendered; any other value is `409 STALE_REVISION`.
+  That reply carries `x-nestvexa-recovery: resync` (browsers never parse error bodies).
+  The recovery is a `$sync` with the header `x-nestvexa-resync: 1` and empty `updates`.
+  It skips the revision comparison for the caller's own snapshot and re-renders the
+  current state at the current revision. With any other header value, any update, or
+  on an action route, it is rejected with `400 INVALID_REQUEST`. No action runs.
 - `updates`: top-level writable `@State` fields only. Without a synthesizer a value must
   keep its JSON kind; with one, the synthesizer decides (see [synthesizers](#typed-state)).
   For a field declared `@State({ writable: ['city', 'geo.lat'] })` the value is the whole

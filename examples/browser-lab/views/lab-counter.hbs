@@ -1,6 +1,17 @@
 <section aria-label="Lab counter">
   <p>Count: <output id="count" aria-live="polite">{{count}}</output></p>
   <button type="button" id="increment" nv:click="increment">Increment</button>
+  <p>
+    <label
+      >Echo
+      <input
+        id="echo"
+        nv:model.live.debounce.50ms="echo"
+        maxlength="80"
+        value="{{echo}}"
+    /></label>
+    Server echo: <output id="echo-server">{{echo}}</output>
+  </p>
   <form nv:submit="save" action="/note" method="post">
     <label
       >Note
