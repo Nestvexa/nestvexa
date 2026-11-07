@@ -832,6 +832,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         child.failure = error;
         child.request?.abort();
         busy(child);
+        // Styling hook for a reload affordance (`[data-nv-suspended] …`).
+        child.root.setAttribute('data-nv-suspended', '');
       }
     report(error, state.root);
   }
@@ -1816,9 +1818,17 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     binding: { element: Element; directive: EventDirective },
   ): void {
     if (handledEvents.has(event)) return;
-    if (event.type === 'submit') event.preventDefault();
     const state = registeredScope(binding.element);
-    if (state && failureFor(state)) return;
+    const failed = state && failureFor(state);
+    // A suspended component hands a form with an explicit host `action` back
+    // to the browser: that full-page request is this interaction's first
+    // attempt, never a resend of the failed Live request.
+    if (
+      event.type === 'submit' &&
+      !(failed && binding.element.hasAttribute('action'))
+    )
+      event.preventDefault();
+    if (failed) return;
     if (dispatcher?.handle(event, binding.element, binding.directive))
       handledEvents.add(event);
   }
