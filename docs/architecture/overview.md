@@ -216,18 +216,18 @@ root: Live and Alpine never patch inside it and Live morphs keep island roots in
 
 ## Extensibility
 
-| Extension point  | Contract                                                                                                                |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| View engine      | `@nestvexa/views` engine adapter contract ([template engines](../guides/template-engines.md), `examples/custom-engine`) |
-| Live state store | `LiveModule` `store` option (memory implementation shipped)                                                             |
-| Action policies  | Host `resolveIdentity`/`authorize` callbacks and Nest guards                                                            |
-| Upload storage   | Storage adapter interface; local and S3 SigV4 shipped                                                                   |
-| Cache store      | `CacheStore` interface; memory implementation shipped                                                                   |
-| Realtime broker  | Broker interface; in-memory and Redis-protocol (`RespRealtimeBroker`) shipped                                           |
-| Island renderers | `@nestvexa/islands` React/Vue/Svelte mounters                                                                           |
-| Instrumentation  | `@nestvexa/observability` spans, metrics and redacted logging hooks                                                     |
-| CLI generators   | Built-in only                                                                                                           |
-| Kernel hooks     | `@nestvexa/core` `NestvexaExtension` (capabilities, `register`, `contributeContext`, `shutdown`)                        |
+| Extension point  | Contract                                                                                                                                                                                 |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| View engine      | `@nestvexa/views` engine adapter contract ([template engines](../guides/template-engines.md), `examples/custom-engine`)                                                                  |
+| Live state store | `LiveModule` `store` option (memory implementation shipped)                                                                                                                              |
+| Action policies  | Host `resolveIdentity`/`authorize` callbacks and Nest guards                                                                                                                             |
+| Upload storage   | Storage adapter interface; local and S3 SigV4 shipped                                                                                                                                    |
+| Cache store      | `CacheStore` interface; memory implementation shipped                                                                                                                                    |
+| Realtime broker  | Broker interface; in-memory and Redis-protocol (`RespRealtimeBroker`) shipped                                                                                                            |
+| Island renderers | `@nestvexa/islands` React/Vue/Svelte mounters                                                                                                                                            |
+| Instrumentation  | `@nestvexa/observability` spans, metrics and redacted logging hooks                                                                                                                      |
+| CLI generators   | Built-in only                                                                                                                                                                            |
+| Kernel hooks     | `@nestvexa/core` `NestvexaExtension` (version range, capabilities, `register`, `contributeContext`, `shutdown`); the legacy `PluginRegistry` is a deprecated adapter (`pluginExtension`) |
 
 `@nestvexa/core` also provides the kernel services of specification section 5.2:
 `RequestContextFactory` (tenant/session/principal/correlation/CSP nonce with a public
@@ -235,6 +235,11 @@ subset), `SecurityPolicyRegistry` (CSRF, origin, snapshot, action authorization,
 quotas; fail-closed evaluation), `DiagnosticsRegistry` (typed events, metrics and spans
 for tests and devtools) and `NestvexaExceptionFilter` (error envelope with correlation
 IDs and redacted logging). See the [core README](../../packages/core/README.md#kernel-services).
+The registries are the single source of the security policies: Live and uploads register
+their origin, CSRF, authorization, snapshot and upload-quota policies there and ask the
+registry for each decision through structural interfaces (no package imports core,
+[ADR 0030](../adr/0030-live-kernel-boundary.md)); the `nestvexa` umbrella wires Live,
+views (`nvRequest`), and exposes the registries to actions, uploads and devtools.
 
 > **Known gap:** section 29.1 of the specification asks for a stable, versioned plugin
 > SDK with a third-party example package consumed from tarballs. Extensions declare
