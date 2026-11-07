@@ -1201,6 +1201,8 @@ export class UploadsService
     >;
     let csrfVerified = false;
     let fileCount = 0;
+    // Queued part writes; settled before cleanup so no late write recreates a temp file.
+    let pending = Promise.resolve();
     const parser = busboy({
       headers: raw.headers,
       defParamCharset: 'utf8',
@@ -1219,7 +1221,6 @@ export class UploadsService
     try {
       await new Promise<void>((resolve, reject) => {
         let failed = false;
-        let pending = Promise.resolve();
         const abort = (error: unknown): void => {
           if (failed) return;
           failed = true;
@@ -1255,6 +1256,10 @@ export class UploadsService
           fields[name] = value;
         });
         parser.on('file', (field, stream, info) => {
+          // A part stream may error ("Unexpected end of file") before its queued write starts.
+          stream.on('error', () =>
+            abort(new UploadError(400, 'UPLOAD_INTERRUPTED')),
+          );
           if (failed) {
             stream.resume();
             return;
@@ -1336,7 +1341,9 @@ export class UploadsService
         parser.on('partsLimit', () =>
           abort(new UploadError(413, 'INVALID_REQUEST')),
         );
-        parser.once('error', () =>
+        // A truncated body can make busboy emit `error` more than once (part, then form);
+        // keep the listener so a later emission never escapes as an uncaught exception.
+        parser.on('error', () =>
           abort(new UploadError(400, 'INVALID_REQUEST')),
         );
         parser.once('close', () => {
@@ -1381,6 +1388,8 @@ export class UploadsService
         files: Object.freeze(files),
       });
     } catch (error) {
+      // Aborting signals in-flight writes; wait for them so disposal sees every temp file.
+      await pending;
       for (const entry of created) {
         this.#records.delete(entry.key);
         await this.dispose(entry.record);
