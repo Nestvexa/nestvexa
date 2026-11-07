@@ -22,6 +22,10 @@ derived client hints are conveniences and the browser is never trusted.
 
 ## Install
 
+The package is not published yet: build local tarballs with
+`pnpm build && pnpm test:pack` and install the packed `.tgz` file. Future
+registry syntax:
+
 ```sh
 pnpm add @nestvexa/forms
 # then the optional peer(s) you use
@@ -274,19 +278,26 @@ obsolete validation cannot overwrite newer input; stale requests get `409`.
 - Authentication, authorization and rate limiting stay host-owned. See the
   [auth example](../../examples/auth-forms/README.md) for an illustrative policy.
 
-## Testing
+See the [forms guide](../../docs/guides/forms.md),
+[ADR 0022](../../docs/adr/0022-forms-and-validation.md) and the
+[`examples/auth-forms`](../../examples/auth-forms/README.md) app (Live and no-JS
+forms, PRG, autofill and history behavior).
 
-```sh
-pnpm build
-pnpm exec vitest run tests/forms-adapters.test.ts tests/forms-hardening.test.ts tests/forms-state.test.ts tests/forms-state-object.test.ts tests/forms-actions.test.ts tests/forms-progressive.test.ts tests/forms-live.test.ts tests/client-form-focus.test.ts
-pnpm exec playwright test tests/browser/forms.spec.ts tests/browser/forms-history.spec.ts
-```
+## Status and limits
 
-## Caveats
+Status: **Partial**. Adapters, hardening, Live validation, view helpers, the
+form state object, wizard, drafts, the actions bridge, client hints and the
+no-JS fallback are implemented and tested; framework-adapter portability is
+incomplete.
 
-- Live `nv:model` binds top-level fields only (a deliberate client security
-  rule), so Live repeaters need actions or child components; nested paths are
-  fully supported for no-JS bodies and adapters.
+- Form view helpers are not tested from EJS, Pug or Nunjucks templates; only
+  HBS/Live and Inertia (`inertiaValidate` in `@nestvexa/inertia`) use them in
+  tests (FORM-012).
+- Live `nv:model` accepts dotted object paths (allowlisted with
+  `@State({ writable: [...] })`) but rejects array-index paths by design, so Live
+  repeaters need actions or child components; nested array paths are fully
+  supported for no-JS bodies and adapters.
+- Live does not observe values a browser sets without an `input`/`change` event.
 - Wizard and draft helpers are server primitives; the example does not ship a
   wizard UI.
 - The default `MemorySubmissionLedger`, `MemoryDraftStore` and the example
@@ -296,5 +307,20 @@ pnpm exec playwright test tests/browser/forms.spec.ts tests/browser/forms-histor
 - Zod regex patterns become hints only with `patterns: true` (Zod's JSON
   Schema drops regex flags).
 
-See the [forms guide](../../docs/guides/forms.md) and
-[ADR 0022](../../docs/adr/0022-forms-and-validation.md).
+## Testing
+
+```sh
+pnpm --filter @nestvexa/forms test
+```
+
+Runs `tests/forms-*.test.ts` (adapters, hardening, state helpers, the form state
+object and hints, the actions bridge on Express and Fastify, the no-JS fallback
+and Live validation); build first with `pnpm --filter @nestvexa/forms... build`
+because the tests import `dist`. Focus after an invalid `nv:submit` is covered by
+`tests/client-form-focus.test.ts` in the client suite, and
+`tests/browser/forms.spec.ts` and `tests/browser/forms-history.spec.ts` run
+through the root Playwright config.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

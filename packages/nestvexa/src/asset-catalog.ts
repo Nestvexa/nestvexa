@@ -26,6 +26,11 @@ export interface ClientAssetManifest {
     readonly alpine: string;
     readonly alpineAdapter: string;
   };
+  /**
+   * Subresource Integrity metadata (`sha384-…`) by URL, computed from the
+   * snapshotted bytes when the catalog is built: every `files` URL has one.
+   */
+  readonly integrity: Readonly<Record<string, string>>;
 }
 export function normalizeAssetOptions(input: unknown): AssetOptions {
   const invalid = (): never => {
@@ -71,6 +76,10 @@ export function catalogVersion(files: ReadonlyMap<string, string>): string {
     hash.update(content);
   }
   return hash.digest('hex');
+}
+/** SHA-384 Subresource Integrity metadata for exact served UTF-8 content. */
+export function assetIntegrity(content: string): string {
+  return `sha384-${createHash('sha384').update(content).digest('base64')}`;
 }
 export function assetTag(content: string): string {
   return `"${createHash('sha256').update(content).digest('hex')}"`;

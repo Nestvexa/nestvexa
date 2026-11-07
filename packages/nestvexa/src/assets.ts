@@ -22,6 +22,7 @@ import { HttpAdapterHost } from '@nestjs/core';
 import { readFile } from 'node:fs/promises';
 import {
   CLIENT_MODULES,
+  assetIntegrity,
   assetTag,
   catalogVersion,
   matchesAssetTag,
@@ -103,12 +104,14 @@ export class NestvexaAssetsService
       string,
       string
     >;
+    const integrity = Object.create(null) as Record<string, string>;
     for (const [name, content] of files) {
       this.assets.set(
         name,
         Object.freeze({ content, etag: assetTag(content) }),
       );
       urls[name] = `${prefix}/${name}`;
+      integrity[urls[name]] = assetIntegrity(content);
     }
     this.manifest = Object.freeze({
       version,
@@ -118,6 +121,7 @@ export class NestvexaAssetsService
         alpine: `${prefix}/alpine.js`,
         alpineAdapter: `${prefix}/alpine-adapter.js`,
       }),
+      integrity: Object.freeze(integrity),
     });
   }
   /** Available after app.init()/listen(). basePath must match the host's actual public prefix. */

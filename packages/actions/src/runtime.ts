@@ -29,7 +29,7 @@ import type {
 import { ActionsApplicationRegistry } from './registration.js';
 import { ActionResult } from './results.js';
 import { runSchema } from './schema.js';
-import { admissionFor, admit, requestIdFor } from './state.js';
+import { admissionFor, admit, adoptRequestId, requestIdFor } from './state.js';
 import type { ActionIdentity } from './state.js';
 import {
   inspectJsonInput,
@@ -323,6 +323,7 @@ export class ActionsRuntime
     readonly identity: ActionIdentity;
     readonly input: unknown;
   }> {
+    this.#correlate(request);
     const requestId = requestIdFor(request);
     this.setHeader(response, REQUEST_ID_HEADER, requestId);
     this.setHeader(response, 'cache-control', 'no-store');
@@ -656,6 +657,19 @@ export class ActionsRuntime
     );
   }
 
+  /** Adopt the host correlation ID (when configured and well formed) as the request ID. */
+  #correlate(request: object): void {
+    const context = this.options.requestContext;
+    if (!context) return;
+    try {
+      const id: unknown = context.correlationId(request);
+      if (typeof id === 'string' && /^[A-Za-z0-9._:-]{8,128}$/.test(id))
+        adoptRequestId(request, id);
+    } catch {
+      // A failing correlation hook falls back to a random request ID.
+    }
+  }
+
   #observe(
     request: object,
     response: unknown,
@@ -663,6 +677,7 @@ export class ActionsRuntime
   ): void {
     const { instrumentation, logger } = this.options;
     if ((!instrumentation && !logger) || observations.has(request)) return;
+    this.#correlate(request);
     const requestId = requestIdFor(request);
     const attributes: ActionSpanAttributes = {
       'nestvexa.action.group': descriptor.group,

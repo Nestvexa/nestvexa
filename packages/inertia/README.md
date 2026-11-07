@@ -11,17 +11,26 @@ Status: `0.1.0-alpha.0`, experimental. Verified against Inertia docs v3 (fetched
 2026-11-01), `@inertiajs/core`/`@inertiajs/react` **3.10.0** and the reference
 `inertia-laravel` **v3.6.0** source. See the [protocol guide and parity
 matrix](../../docs/guides/inertia.md) and [ADR 0018](../../docs/adr/0018-inertia-server-adapter.md).
-Framework packages with Vite and SSR builds (`@nestvexa/react`, `vue`, `svelte`)
-come in later phases.
+Browser boot and SSR entry helpers live in `@nestvexa/react`, `@nestvexa/vue`
+and `@nestvexa/svelte`; Vite manifests and in-process SSR renderers live in
+`@nestvexa/vite`. This package is optional: the `nestvexa` umbrella does not
+include it, and `nestvexa add inertia` (or `add react|vue|svelte`) adds and
+wires it.
 
 ## Install
 
+The package is not published yet: build local tarballs with
+`pnpm build && pnpm test:pack` and install the packed `.tgz` file. Future
+registry syntax:
+
 ```sh
-pnpm add @nestvexa/inertia
+pnpm add @nestvexa/inertia   # or: npm install / yarn add
 ```
 
 Peer dependencies: `@nestjs/common` and `@nestjs/core` `^12`, `reflect-metadata`
-`^0.2.2`, `rxjs` `^7.8.2`. Node `^22.13 || ^24`. ESM only. Session-backed
+`^0.2.2`, `rxjs` `^7.8.2`. The only dependency is `@nestvexa/views` (for
+`SafeHtml` and `viewRootView`). Node `^22.13 || ^24`. ESM (the `default` export condition lets
+CommonJS hosts load it through `require(esm)`). Session-backed
 features (validation errors, flash data across redirects, `clearHistory` and
 `preserveFragment` across redirects) need a **host-owned** session such as
 `express-session` or `@fastify/session`; the adapter never creates one.
@@ -159,105 +168,36 @@ switches scroll props to `prependProps`. Top-level dotted keys
   `{ validate(input) }` schema returning `{ ok, value | errors }` (all
   `@nestvexa/forms` adapters) and throws `InertiaValidationException`; use the
   same schema with `@Precognitive`.
+- `@Precognitive(validator, { input?, interceptors? })`: guard rejections
+  (CSRF, auth, throttling) of precognitive routes keep `Precognition: true`
+  and `Vary: Precognition` (`InertiaModule` registers `PrecognitionMiddleware`
+  and a never-rejecting global `PrecognitionGuard`), so the official client
+  reaches `onUnauthorized`/`onForbidden`. For `validateFiles()` multipart
+  requests, list the route's body parser in `interceptors` (for example
+  `FileInterceptor('avatar')`); the default input merges multer's
+  `request.file`/`request.files` under their field names. See the
+  [guide](../../docs/guides/inertia.md#files-validatefiles).
 - `back()` resolves the same-host `Referer`, then the session's previous URL
   (`InertiaService.previousUrl(request)`), then the fallback.
 
-### Testing helpers (`@nestvexa/inertia/testing`)
+### Examples and compatibility
 
-Node-only and test-runner neutral: `inertiaHeaders({ version?, partial?,
-reset?, errorBag?, exceptOnceProps?, prefetch? })` builds official-client
-request headers; `readInertiaPage(response, { id? })` extracts the page object
-from a JSON reply or an HTML document; `assertInertia(response, component?)`
-returns fluent assertions (`component`, `url`, `version`, `prop`, `has`,
-`missing`, `where`, `hasErrors`, `hasNoErrors`, `flash`, `deferred`) that throw
-`InertiaAssertionError`. See the
-[guide](../../docs/guides/inertia.md#testing-inertia-responses).
+[`examples/inertia-basic`](../../examples/inertia-basic/README.md) (official
+React client),
+[`examples/inertia-react`](../../examples/inertia-react/README.md) (client-owned
+features, forms and uploads with `useForm`), the Vue and Svelte equivalents, and
+[`examples/inertia-mixed`](../../examples/inertia-mixed/README.md) (HBS, React,
+Vue and Svelte roots in one host). Inertia protocol v3 only (clients 3.x;
+verified with 3.10.0). Nest 12 on Express and Fastify. No Inertia v1/v2
+compatibility mode.
 
-### Precognition
+## Status and limits
 
-`@Precognitive(validator, { input?, interceptors? })` makes a route answer the official
-client's `Precognition: true` validation requests before pipes and the
-handler run: `204` + `Precognition-Success: true` when the fields named by
-`Precognition-Validate-Only` (or all fields) pass, otherwise `422`
-`{ message, errors }` with message arrays. Every response of the route gets
-`Vary: Precognition`. `validator` is a function `(input, request) => errors |
-undefined` or any `{ validate(input) }` schema returning `{ ok, errors }`, so
-`@nestvexa/forms` adapters work without a dependency on that package. Also
-exported: `PrecognitionHeader`, `isPrecognitionRequest`,
-`parsePrecognitionRequest`, `selectPrecognitionErrors`, and
-`InertiaService.isPrecognitive()/precognition()/precognitionReply()`.
-`InertiaValidationFilter` answers `InertiaValidationException` on any
-precognitive request with the `422` reply.
+Status: **Partial**. The protocol, props, validation, flash, redirects,
+Precognition, SSR contract, empty-response `back()`, previous URL and testing
+helpers are implemented and tested over Express and Fastify and with the
+official React, Vue and Svelte clients; the two parity rows below are missing.
 
-Guard rejections (CSRF, auth, throttling) of `@Precognitive` routes keep
-`Precognition: true` and `Vary: Precognition`, so the official client reaches
-`onUnauthorized`/`onForbidden` instead of failing with "Did not receive a
-Precognition response": `InertiaModule` registers `PrecognitionMiddleware`
-(labels `Precognition: true` requests before guards) and a never-rejecting
-global `PrecognitionGuard` (keeps the label on precognitive routes, removes it
-elsewhere). For `validateFiles()` multipart requests, list the route's body
-parser in `interceptors` (for example `FileInterceptor('avatar')`): it runs
-only for Precognition requests, before validation, and the default input
-merges multer's `request.file`/`request.files` under their field names. See
-the [guide](../../docs/guides/inertia.md#precognition-live-validation).
-
-### SSR contract (Phase 9 supplies renderers)
-
-`InertiaSsrRenderer.render(page, pageJson, { request, app })` returns
-`{ head: string[], body: string }`. `HttpSsrGateway({ url, timeoutMs })`
-implements the documented SSR HTTP server contract (`POST /render`,
-`GET /health`). In `fallback` mode (default) failures are reported to `onError`
-and the client-rendered document is served; `strict` mode propagates them.
-SSR is never invoked for `X-Inertia` visits.
-
-## Security and performance notes
-
-- Page JSON in the initial document escapes `/` (as the protocol requires), `<`,
-  `>`, `&`, U+2028 and U+2029; HTML entities are never used inside the script.
-- Serialization is strict: functions, symbols, non-finite numbers, invalid
-  dates, Maps/Sets, Promises, cycles, own `__proto__` keys, excessive depth and
-  (unless enabled) `bigint` fail with `InertiaSerializationError` (500) instead
-  of degrading silently. Error messages name the path, never the value.
-- Malformed `X-Inertia-*` headers (repeated/non-string, oversized, too many
-  entries, prototype segments, control characters, unknown merge intent) are
-  rejected with 400 before the handler runs. Only `X-Inertia: true` marks an
-  Inertia request; partial headers are ignored on full page loads.
-- Redirect targets must be a single-slash relative path or an allowlisted
-  absolute http(s) origin. `back()` only follows a same-host `Referer` (and
-  returns it as a relative path) or an allowlisted origin; otherwise it uses
-  the fallback. Version-mismatch `X-Inertia-Location` is the request path,
-  never derived from the `Host` header.
-- `errors` is adapter-owned: shared or page props named `errors` are rejected.
-- Per-request data lives in a request-keyed `WeakMap` or the host session.
-  Shared props are resolved for every page response.
-- CSRF is host-owned. The official client sends the `XSRF-TOKEN` cookie value
-  in `X-XSRF-TOKEN`; verify it with a guard (see the guide and
-  `examples/inertia-basic`).
-- History encryption is performed by the official client with `crypto.subtle`
-  (secure contexts: HTTPS or localhost); the server only emits
-  `encryptHistory`/`clearHistory`. The React browser tour verifies the client
-  stores an encrypted `ArrayBuffer` in `history.state` and refetches old
-  entries after `clearHistory`. Nothing stops a user with access to the
-  browser profile while the tab's session key exists.
-- Precognition requests never reach the handler on `@Precognitive` routes;
-  malformed `Precognition-Validate-Only` headers are a 400 and validator
-  failures are a 500 without details.
-- Partial reloads evaluate only requested props; deferred and optional props
-  are never evaluated on a full visit (tested with call counters).
-
-## Testing
-
-`pnpm build`, then `pnpm vitest run tests/inertia-golden.test.ts tests/inertia-http.test.ts tests/inertia-security.test.ts tests/inertia-protocol.test.ts tests/inertia-precognition.test.ts tests/inertia-testing.test.ts`
-and `pnpm exec playwright test tests/browser/inertia.spec.ts` (official
-`@inertiajs/react` client against `examples/inertia-basic`); client-owned
-features are verified in `tests/browser/inertia-react-features.spec.ts` and
-`tests/browser/inertia-feature-smoke.ts`. Golden vectors in
-`tests/fixtures/inertia/` cite the upstream document or test they come from.
-
-## Caveats and compatibility
-
-- Inertia protocol v3 only (clients 3.x; verified with 3.10.0). Nest 12 on
-  Express and Fastify. No Inertia v1/v2 compatibility mode.
 - Not implemented: `shareOnce` sugar (use `once()` in `share`) and error-page
   rendering helpers (use a Nest filter with `InertiaService.render`).
 - Empty-response handling only treats a handler result of `undefined` as
@@ -269,3 +209,24 @@ features are verified in `tests/browser/inertia-react-features.spec.ts` and
   count.
 - Multiple roots get namespaced versions (`react:<version>`) so an XHR visit
   across roots always forces a full page load.
+
+## Testing
+
+```sh
+pnpm --filter @nestvexa/inertia test
+```
+
+Runs `tests/inertia-*.test.ts` (protocol, golden vectors, HTTP on Express and
+Fastify, security, Precognition, testing helpers) and
+`tests/property-inertia.test.ts`; build first with
+`pnpm --filter @nestvexa/inertia... build` because the tests import `dist`.
+Golden vectors in `tests/fixtures/inertia/` cite the upstream document or test
+they come from. Through the root Playwright config,
+`tests/browser/inertia.spec.ts` drives the official `@inertiajs/react` client
+against `examples/inertia-basic`, and client-owned features are verified in
+`tests/browser/inertia-react-features.spec.ts`, `inertia-vue.spec.ts` and
+`inertia-svelte.spec.ts`.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

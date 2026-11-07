@@ -5,6 +5,7 @@ import type {
   OnApplicationShutdown,
   Provider,
 } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { CoreModule, NestvexaConfigService } from '@nestvexa/core';
 import { HbsEngine } from '@nestvexa/engine-hbs';
 import { resolve } from 'node:path';
@@ -13,6 +14,7 @@ import {
   NestvexaBrowserService,
   documentScripts,
 } from './browser.module.js';
+import { NestvexaViewContextInterceptor } from './view-context.js';
 
 function engineProvider(withLive: boolean): Provider {
   return {
@@ -67,7 +69,12 @@ export class NestvexaRendererModule {
     return {
       module: NestvexaRendererModule,
       imports: [core, ...(browser ? [browser] : [])],
-      providers: [engineProvider(browser !== undefined), NestvexaRuntime],
+      providers: [
+        engineProvider(browser !== undefined),
+        NestvexaRuntime,
+        // Rendered views read the kernel request context (CSP nonce, correlation ID).
+        { provide: APP_INTERCEPTOR, useClass: NestvexaViewContextInterceptor },
+      ],
       exports: [
         CoreModule,
         HbsEngine,

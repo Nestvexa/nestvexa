@@ -7,6 +7,9 @@ import {
 } from './manifest.js';
 import type { LoadedViteManifest, ViteEntryAssets } from './manifest.js';
 import { renderAssetTags } from './tags.js';
+import { integrityForFiles, isIntegrityAlgorithm } from './integrity.js';
+import type { IntegrityAlgorithm } from './integrity.js';
+import { basename, dirname, isAbsolute } from 'node:path';
 import type { ViteTagOptions } from './tags.js';
 
 /** Assets of one frontend root (one Vite build with its own manifest). */
@@ -19,6 +22,19 @@ export interface ViteAppOptions {
   readonly base?: string;
   /** `crossorigin` for module tags (set it for a CDN `base`). */
   readonly crossOrigin?: 'anonymous' | 'use-credentials';
+  /**
+   * Subresource Integrity for production tags: `true` (SHA-384) or an
+   * algorithm. Each script, stylesheet and preload is hashed once from the
+   * built files when the manifest is read; tags then carry `integrity` and
+   * `crossorigin`, so a tampered CDN or proxy copy is refused by the browser.
+   * Ignored in development mode.
+   */
+  readonly integrity?: boolean | IntegrityAlgorithm;
+  /**
+   * Absolute build output directory for `integrity` (Vite `build.outDir`).
+   * Default: the directory containing `.vite/manifest.json`.
+   */
+  readonly outDir?: string;
 }
 
 export interface ViteAssetsOptions {
@@ -44,6 +60,47 @@ interface ResolvedViteApp {
 }
 
 const keyPattern = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
+
+/** Integrity metadata for every resolved URL, computed from the built files. */
+function withIntegrity(
+  assets: ViteEntryAssets,
+  base: string,
+  app: ViteAppOptions,
+  key: string,
+): ViteEntryAssets {
+  const option = app.integrity ?? false;
+  if (option === false) return assets;
+  const algorithm: IntegrityAlgorithm = option === true ? 'sha384' : option;
+  if (!isIntegrityAlgorithm(algorithm))
+    throw new ViteConfigurationError(
+      `Vite app ${key} integrity must be true, false, sha256, sha384 or sha512`,
+    );
+  let outDir = app.outDir;
+  if (outDir === undefined) {
+    const manifestDirectory = dirname(app.manifest ?? '');
+    if (basename(manifestDirectory) !== '.vite')
+      throw new ViteConfigurationError(
+        `Vite app ${key} needs outDir for integrity (manifest is not in .vite/)`,
+      );
+    outDir = dirname(manifestDirectory);
+  }
+  if (typeof outDir !== 'string' || !isAbsolute(outDir))
+    throw new ViteConfigurationError(
+      `Vite app ${key} outDir must be an absolute path`,
+    );
+  const urls = [...assets.scripts, ...assets.styles, ...assets.preloads];
+  const hashes = integrityForFiles(
+    outDir,
+    urls.map((url) => url.slice(base.length)),
+    algorithm,
+  );
+  const integrity = Object.create(null) as Record<string, string>;
+  for (const url of urls) {
+    const hash = hashes.get(url.slice(base.length));
+    if (hash !== undefined) integrity[url] = hash;
+  }
+  return Object.freeze({ ...assets, integrity: Object.freeze(integrity) });
+}
 
 function devOrigin(value: string | undefined): string {
   if (value === undefined || value === '') return '';
@@ -99,7 +156,12 @@ export class ViteAssets {
             `Vite app ${key} needs a manifest path in production mode`,
           );
         loaded = readViteManifest(app.manifest);
-        assets = resolveEntryAssets(loaded.manifest, entries, base);
+        assets = withIntegrity(
+          resolveEntryAssets(loaded.manifest, entries, base),
+          base,
+          app,
+          key,
+        );
       } else {
         const prefix = origin + base;
         assets = Object.freeze({

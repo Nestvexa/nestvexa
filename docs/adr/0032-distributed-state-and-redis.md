@@ -83,13 +83,28 @@ on another.
    locks, needs Lua-capable Redis that the unit suite cannot exercise without a
    real server, and would add a large optional dependency for a thin mapping.
 
+   _Amendment (realtime round 3):_ the durable queue ships as `RedisJobQueue` in
+   `@nestvexa/realtime-redis/realtime` (RESP, no client library): sorted-set
+   indexes for queued/running/done, `WATCH`/`MULTI`/`EXEC` compare-and-set on
+   every state change, lapsed-lease reclaim for crashed workers, owner-scoped
+   idempotency keys and validated records. The BullMQ decision stands for a
+   sharper reason: `JobQueue` is a storage contract (lease-conditional writes,
+   a cancel flag visible to the running worker), which BullMQ's worker model
+   cannot satisfy without bypassing it. Presence across replicas uses a
+   `PresenceStore` (`RedisPresenceStore`): per-replica entries with `PX`
+   expiry, so a crashed replica disappears within one TTL. The browser `auto`
+   transport negotiates (`GET <endpoint>/negotiate`) and falls back
+   WebSocket → SSE → polling.
+
 ## Consequences
 
 Multi-replica Live and realtime work with one Redis primary; the acceptance test
 `tests/services/distributed.spec.ts` (run by `pnpm test:services` and the
 `services` GitHub workflow) proves a browser on replica A refreshes from an event
-published on replica B and a component created on A continues on B. Costs: every
+published on replica B and a component created on A continues on B, now with
+Express and Fastify replicas side by side, shared presence, reconnects after a
+dropped load balancer and connection-leak checks. Costs: every
 Live request now costs Redis round trips with the shared store (peek + lease +
 re-read + WATCH commit, about seven); an action longer than the lease fails
-closed. Redis Cluster, durable event replay across replicas and a shipped
-BullMQ adapter remain open.
+closed. Redis Cluster and durable event replay across replicas remain open; a
+BullMQ adapter is declined (see 6).

@@ -6,7 +6,7 @@ validation, short-lived identity-bound temporary tokens, resumable chunked
 uploads, local and S3-compatible storage (presigned direct uploads), a malware
 scanner hook, a no-JavaScript multipart fallback and safe Range downloads.
 
-Status: experimental `0.1.0-alpha.0`, not published. See [caveats](#production-caveats).
+Status: experimental `0.1.0-alpha.0`, not published. See [status and limits](#status-and-limits).
 
 ## Install
 
@@ -114,8 +114,11 @@ class Attachments {
 
 Enable the client with `NestvexaModule.forRoot(..., { browser: { uploads: { endpoint: '/_nestvexa/uploads' } }, ... })`
 or `createLiveClient({ uploads: { endpoint } })`. Full walkthrough:
-[uploads guide](../../docs/guides/uploads.md); runnable app:
-[examples/uploads](../../examples/uploads/README.md).
+[uploads guide](../../docs/guides/uploads.md); runnable apps:
+[examples/uploads](../../examples/uploads/README.md) (local storage, Live and
+no-JS form) and [examples/upload-to-s3](../../examples/upload-to-s3/README.md)
+(presigned direct uploads); the `inertia-react`, `inertia-vue` and
+`inertia-svelte` examples upload through `@nestvexa/uploads/browser`.
 
 ## Public API
 
@@ -176,6 +179,31 @@ All need the host identity and `x-nestvexa-csrf`; non-GET routes need the exact
 | `storage`                                       | `LocalStorage(<directory>/objects)`                                                                 |                 |
 | `scanner`                                       | none (`scan: 'not-configured'`)                                                                     |                 |
 | `instrumentation`                               | none (`nestvexa.upload.receive` / `.finalize` spans: mode, purpose, bytes, file count; never names) |                 |
+| `policies` / `policyOwner`                      | none / `uploads` (kernel policy registry, see below)                                                |                 |
+
+## Kernel policy registry
+
+`policies` accepts any object shaped like `SecurityPolicyRegistry` from
+`@nestvexa/core` (structural; this package imports no Nestvexa package). At startup
+uploads registers, under `policyOwner` (default `uploads`): `origin` (the exact origin),
+`csrf` (constant-time `x-nestvexa-csrf` check), `action-authorization` (your
+`authorize`, purpose as resource, operation as action) and `upload-quota`
+(`maxFileBytes` = the largest purpose `maxFileSize`, `maxFiles` =
+`quotas.identityFiles`, `maxTotalBytes` = `quotas.identityBytes`). Every origin,
+CSRF-header and authorization decision then goes through the registry. The form
+route's CSRF field is compared with the identity token directly (it is a body field,
+not a header proof).
+
+```ts
+UploadsModule.registerAsync({
+  inject: [SecurityPolicyRegistry, DiagnosticsRegistry], // kernel registered with { global: true }
+  useFactory: (policies, diagnostics) => ({
+    ...hostOptions,
+    policies,
+    instrumentation: diagnostics.instrumentation(),
+  }),
+});
+```
 
 ## Security model
 
@@ -214,13 +242,56 @@ All need the host identity and `x-nestvexa-csrf`; non-GET routes need the exact
 …/chunks/*`, and of `maxFileSize` on `POST /files` and your form route.
 - Call `app.enableShutdownHooks()` so temporary files are removed on SIGTERM.
 
+## Forms
+
+`@nestvexa/forms` `defineForm({ files })` holds upload references in form
+state and `finalizeFileField` maps `UploadError` codes to field errors; see the
+[uploads guide](../../docs/guides/uploads.md#forms-integration).
+
+## Compatibility
+
+Express and Fastify (Nest 12) are tested over real HTTP. Browser client tested in
+Chromium, Firefox and WebKit. Design:
+[ADR 0023](../../docs/adr/0023-uploads-and-storage.md).
+
+## Status and limits
+
+Status: **Shipped (alpha)**. Direct, chunked and form uploads, validation,
+quotas (identity, tenant, process), Live finalization, forms file fields, the SPA
+browser uploader, local and S3 storage, the clamd scanner and Range downloads
+with backpressure and idle timeouts work and are tested on Express and Fastify.
+
+- Pending tokens and sessions are kept in process memory: no cross-process
+  coordination; use sticky sessions or a single upload node, and pending
+  uploads are lost on restart.
+- Resumable uploads resume within the page lifetime; neither the Live client nor
+  `@nestvexa/uploads/browser` persists sessions across reloads (the `GET` status
+  API supports it).
+- `@nestvexa/uploads/browser` is framework-neutral (no React/Vue/Svelte
+  hooks); SPA pages keep progress in their own state as the Inertia examples
+  do.
+- Polyglot files (valid image headers carrying other data) cannot be ruled out by
+  signature checks; downloads are therefore served as sandboxed attachments.
+- Direct (S3) uploads are re-read in full on completion and finalization.
+- Real AWS S3 has not been exercised; only an S3-compatible server (SeaweedFS)
+  and the in-process test double.
+
 ## Testing
 
 ```sh
-pnpm build
-pnpm exec vitest run tests/uploads-validation.test.ts tests/uploads-http.test.ts tests/uploads-limits.test.ts tests/uploads-s3.test.ts tests/client-upload.test.ts tests/uploads-browser.test.ts
-pnpm exec playwright test tests/browser/uploads.spec.ts
+pnpm --filter @nestvexa/uploads test
 ```
+
+Runs `tests/uploads-*.test.ts` (validation, HTTP on Express and Fastify,
+limits, S3, the browser uploader in Chromium) and
+`tests/property-uploads*.test.ts` with the root Vitest config; the tests import
+`packages/*/dist`, so run
+`pnpm --filter @nestvexa/uploads... --filter @nestvexa/forms... build` first.
+Run separately: the Live client upload suite
+(`pnpm exec vitest run tests/client-upload.test.ts`), the Playwright specs
+`tests/browser/uploads.spec.ts`, `tests/browser/upload-to-s3.spec.ts` and the
+Inertia forms/uploads suite (in `tests/browser/inertia-react.spec.ts`, `-vue`
+and `-svelte`), and `pnpm test:services` for real S3 and clamd.
 
 The S3 suite verifies SigV4 against AWS published vectors and runs against an
 in-process S3-compatible **test double** (`tests/support/fake-s3.ts`).
@@ -238,26 +309,6 @@ finalize), drives `sendDownload` with a non-reading client, a client stalled
 past the idle timeout and a hanging source, and finalizes uploads through
 `@nestvexa/forms` file fields.
 
-## Forms
+## Maintainers
 
-`@nestvexa/forms` `defineForm({ files })` holds upload references in form
-state and `finalizeFileField` maps `UploadError` codes to field errors; see the
-[uploads guide](../../docs/guides/uploads.md#forms-integration).
-
-## Production caveats
-
-- In-memory token/session store; no cross-process coordination yet.
-- Resumable uploads resume within the page lifetime; the client does not persist
-  sessions across reloads (the `GET` status API supports it).
-- Polyglot files (valid image headers carrying other data) cannot be ruled out by
-  signature checks; downloads are therefore served as sandboxed attachments.
-- Direct (S3) uploads are re-read in full on completion and finalization.
-- `@nestvexa/uploads/browser` is framework-neutral (no React/Vue/Svelte
-  hooks); SPA pages keep progress in their own state as the Inertia examples
-  do. It does not persist resumable sessions across reloads either.
-
-## Compatibility
-
-Express and Fastify (Nest 12) are tested over real HTTP. Browser client tested in
-Chromium, Firefox and WebKit. Changelog: [CHANGELOG](../../CHANGELOG.md); design:
-[ADR 0023](../../docs/adr/0023-uploads-and-storage.md).
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

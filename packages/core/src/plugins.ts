@@ -1,11 +1,25 @@
 import { NestvexaError } from './errors.js';
+import { defineExtension } from './extensions.js';
+import type { NestvexaExtension } from './extensions.js';
+import type { FeatureCapability } from './registry.js';
+import {
+  NESTVEXA_VERSION,
+  assertVersionRange,
+  isSemanticVersion,
+  satisfiesVersion,
+} from './version.js';
+
+export { satisfiesVersion } from './version.js';
 
 /**
- * Minimal plugin contract (master plan 16.5 and 20.4): a plugin is an object
- * the application imports and installs explicitly. The registry never
- * resolves package names, paths or URLs, never downloads or evaluates code,
- * and rejects plugins whose declared framework range does not include the
- * running version.
+ * Legacy plugin contract (master plan 16.5 and 20.4), kept as a thin adapter
+ * over the one public extension model, `NestvexaExtension`: a plugin is an
+ * object the application imports and installs explicitly. Nothing here
+ * resolves package names, paths or URLs, downloads or evaluates code; a
+ * plugin whose declared framework range excludes the running version is
+ * rejected. New code should define an extension (`defineExtension`) and pass
+ * it to `CoreModule.forRoot(options, { extensions })`; `pluginExtension`
+ * converts an existing plugin.
  */
 export const PLUGIN_CAPABILITIES = [
   'view-engine',
@@ -44,108 +58,6 @@ export interface PluginSetupContext {
 
 const packageName =
   /^(?:@[a-z0-9][a-z0-9._-]{0,63}\/)?[a-z0-9][a-z0-9._-]{0,127}$/;
-const semverPattern =
-  /^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
-
-interface Version {
-  readonly major: number;
-  readonly minor: number;
-  readonly patch: number;
-  readonly prerelease: readonly string[];
-}
-function version(value: string): Version | undefined {
-  const match = semverPattern.exec(value);
-  if (!match) return undefined;
-  return {
-    major: Number(match[1]),
-    minor: Number(match[2]),
-    patch: Number(match[3]),
-    prerelease: match[4] ? match[4].split('.') : [],
-  };
-}
-function compare(a: Version, b: Version): number {
-  for (const key of ['major', 'minor', 'patch'] as const)
-    if (a[key] !== b[key]) return a[key] < b[key] ? -1 : 1;
-  // A prerelease sorts before its release (semver 11).
-  if (a.prerelease.length === 0 || b.prerelease.length === 0)
-    return b.prerelease.length - a.prerelease.length;
-  for (
-    let index = 0;
-    index < Math.max(a.prerelease.length, b.prerelease.length);
-    index++
-  ) {
-    const left = a.prerelease[index];
-    const right = b.prerelease[index];
-    if (left === undefined) return -1;
-    if (right === undefined) return 1;
-    if (left === right) continue;
-    const numeric = /^\d+$/.test(left) && /^\d+$/.test(right);
-    if (numeric) return Number(left) < Number(right) ? -1 : 1;
-    return left < right ? -1 : 1;
-  }
-  return 0;
-}
-type Comparator = (candidate: Version) => boolean;
-function comparator(token: string): Comparator[] {
-  const operator = /^(\^|~|>=|<=|>|<|=)?(.+)$/.exec(token);
-  const base = operator?.[2] ? version(operator[2]) : undefined;
-  if (!operator || !base)
-    throw new NestvexaError('INVALID_CONFIGURATION', 'Invalid version range');
-  const op = operator[1] ?? '=';
-  const at = (major: number, minor: number, patch: number): Version => ({
-    major,
-    minor,
-    patch,
-    prerelease: ['0'],
-  });
-  const gte: Comparator = (v) => compare(v, base) >= 0;
-  switch (op) {
-    case '^': {
-      const upper =
-        base.major > 0
-          ? at(base.major + 1, 0, 0)
-          : base.minor > 0
-            ? at(0, base.minor + 1, 0)
-            : at(0, 0, base.patch + 1);
-      return [gte, (v) => compare(v, upper) < 0];
-    }
-    case '~': {
-      const upper = at(base.major, base.minor + 1, 0);
-      return [gte, (v) => compare(v, upper) < 0];
-    }
-    case '>=':
-      return [gte];
-    case '>':
-      return [(v) => compare(v, base) > 0];
-    case '<=':
-      return [(v) => compare(v, base) <= 0];
-    case '<':
-      return [(v) => compare(v, base) < 0];
-    default:
-      return [(v) => compare(v, base) === 0];
-  }
-}
-/**
- * Whether `candidate` satisfies `range` (`||` alternatives of space-separated
- * comparators: `=`, `>`, `>=`, `<`, `<=`, `^`, `~`). Prereleases are compared
- * by semver precedence, so `^0.1.0-alpha.0` accepts `0.1.0-alpha.3`.
- */
-export function satisfiesVersion(candidate: string, range: string): boolean {
-  const parsed = version(candidate);
-  if (!parsed)
-    throw new NestvexaError('INVALID_CONFIGURATION', 'Invalid version');
-  if (typeof range !== 'string' || range.length === 0 || range.length > 256)
-    throw new NestvexaError('INVALID_CONFIGURATION', 'Invalid version range');
-  // Parse every alternative first so a malformed tail is never skipped.
-  const alternatives = range.split('||').map((alternative) => {
-    const tokens = alternative.trim().split(/\s+/).filter(Boolean);
-    if (tokens.length === 0)
-      throw new NestvexaError('INVALID_CONFIGURATION', 'Invalid version range');
-    return tokens.flatMap(comparator);
-  });
-  return alternatives.some((tests) => tests.every((test) => test(parsed)));
-}
-
 function own(source: object, key: string): unknown {
   const descriptor = Object.getOwnPropertyDescriptor(source, key);
   return descriptor && 'value' in descriptor ? descriptor.value : undefined;
@@ -178,10 +90,9 @@ export function parsePluginManifest(input: unknown): NestvexaPluginManifest {
   const capabilities = own(input, 'capabilities');
   const description = own(input, 'description');
   if (typeof name !== 'string' || !packageName.test(name)) fail('name');
-  if (typeof pluginVersion !== 'string' || !version(pluginVersion))
-    fail('version');
+  if (!isSemanticVersion(pluginVersion)) fail('version');
   if (typeof range !== 'string') fail('nestvexa range');
-  satisfiesVersion('0.0.0', range);
+  assertVersionRange(range);
   if (
     !Array.isArray(capabilities) ||
     capabilities.length === 0 ||
@@ -207,7 +118,7 @@ export function parsePluginManifest(input: unknown): NestvexaPluginManifest {
   });
 }
 
-/** Validate and freeze a plugin definition. */
+/** Validate and freeze a plugin definition. @deprecated Use `defineExtension`. */
 export function definePlugin(plugin: NestvexaPlugin): NestvexaPlugin {
   if (plugin === null || typeof plugin !== 'object')
     throw new NestvexaError(
@@ -232,21 +143,101 @@ export function definePlugin(plugin: NestvexaPlugin): NestvexaPlugin {
   });
 }
 
+/** Capability names a converted plugin declares: `<capability>:<extension name>`. */
+function capabilityName(capability: PluginCapability, owner: string): string {
+  return `${capability}:${owner}`;
+}
+/** `@scope/name` → `scope.name`; other npm names are kept when they are valid extension names. */
+function extensionName(packageName: string): string {
+  const name = packageName.startsWith('@')
+    ? packageName.slice(1).replace('/', '.')
+    : packageName;
+  if (!/^[a-z][a-z0-9._-]{0,63}$/.test(name))
+    throw new NestvexaError(
+      'INVALID_CONFIGURATION',
+      `Plugin ${packageName} has no valid extension name; pass { name }`,
+    );
+  return name;
+}
+function provided(
+  names: readonly string[],
+  owner: string,
+): ReadonlySet<PluginCapability> {
+  const result = new Set<PluginCapability>();
+  for (const name of names)
+    for (const capability of PLUGIN_CAPABILITIES)
+      if (
+        name.startsWith(`${capability}:`) &&
+        name !== capabilityName(capability, owner)
+      )
+        result.add(capability);
+  return result;
+}
+
+/**
+ * Convert a legacy plugin into a `NestvexaExtension` (the migration path):
+ * the extension keeps the plugin's version and `nestvexa` range (checked at
+ * startup), declares each manifest capability as `<capability>:<name>`, and
+ * runs `setup` from its `register` hook with the capabilities other
+ * extensions declared. `@scope/name` becomes the extension name
+ * `scope.name` unless `options.name` is given.
+ */
+export function pluginExtension(
+  plugin: NestvexaPlugin,
+  options: { readonly name?: string } = {},
+): NestvexaExtension {
+  const defined = definePlugin(plugin);
+  return convert(defined, options.name, true);
+}
+function convert(
+  plugin: NestvexaPlugin,
+  name: string | undefined,
+  runSetup: boolean,
+): NestvexaExtension {
+  const { manifest, setup } = plugin;
+  const owner = name ?? extensionName(manifest.name);
+  const capabilities: Record<string, FeatureCapability> = {};
+  for (const capability of manifest.capabilities)
+    capabilities[capabilityName(capability, owner)] = { supported: true };
+  return defineExtension({
+    name: owner,
+    version: manifest.version,
+    nestvexa: manifest.nestvexa,
+    capabilities,
+    ...(runSetup && setup
+      ? {
+          register: (context) => {
+            setup({
+              frameworkVersion: NESTVEXA_VERSION,
+              provided: provided(context.capabilities.names(), owner),
+            });
+          },
+        }
+      : {}),
+  });
+}
+
 /**
  * Explicit, trusted installation only. Install plugins at startup from
  * modules you imported yourself, then `seal()` before serving requests.
+ *
+ * @deprecated Kept for existing callers as an adapter over the extension
+ * model: pass `registry.extensions()` (or `pluginExtension(plugin)` for each
+ * plugin) to `CoreModule.forRoot(options, { extensions })` so plugins join
+ * the capability, security and diagnostics registries.
  */
 export class PluginRegistry {
   readonly #plugins = new Map<string, NestvexaPlugin>();
   readonly #frameworkVersion: string;
   #sealed = false;
-  constructor(options: { readonly frameworkVersion: string }) {
-    if (!version(options.frameworkVersion))
+  constructor(options: { readonly frameworkVersion?: string } = {}) {
+    const frameworkVersion = options.frameworkVersion ?? NESTVEXA_VERSION;
+    if (!isSemanticVersion(frameworkVersion))
       throw new NestvexaError(
         'INVALID_CONFIGURATION',
         'Invalid framework version',
       );
-    this.#frameworkVersion = options.frameworkVersion;
+    this.#frameworkVersion = frameworkVersion;
   }
   install(input: NestvexaPlugin): NestvexaPlugin {
     if (this.#sealed)
@@ -291,6 +282,17 @@ export class PluginRegistry {
   ): readonly NestvexaPluginManifest[] {
     return this.list().filter((manifest) =>
       manifest.capabilities.includes(capability),
+    );
+  }
+  /**
+   * The installed plugins as extensions, in installation order. `setup`
+   * already ran at `install`, so the extensions do not run it again.
+   */
+  extensions(): readonly NestvexaExtension[] {
+    return Object.freeze(
+      [...this.#plugins.values()].map((plugin) =>
+        convert(plugin, undefined, false),
+      ),
     );
   }
   seal(): void {

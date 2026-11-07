@@ -7,11 +7,18 @@ not part of the default `nestvexa` install. No runtime dependencies.
 
 ## Install
 
+Not published yet: build local tarballs with `pnpm build && pnpm test:pack` and
+install the packed `.tgz` file. Future registry syntax:
+
 ```sh
 npm install @nestvexa/cache
+pnpm add @nestvexa/cache
+yarn add @nestvexa/cache
 ```
 
-Node 22.13+ or 24. Works in any Node process; no Nest dependency.
+Node 22.13+ or 24, ESM. No peers and no Nest dependency; it works in any Node
+process. It does not depend on `@nestvexa/realtime`; the `onInvalidate` hook is
+where you connect a realtime publisher.
 
 ## Usage
 
@@ -44,11 +51,12 @@ refreshes when that tag is invalidated (see `@nestvexa/realtime`).
 | Export                                                                 | Purpose                                                 |
 | ---------------------------------------------------------------------- | ------------------------------------------------------- |
 | `cacheKey({ scope, namespace, vary })`                                 | Deterministic key; private scopes hash binding + tenant |
+| `new Cache(store?, now?, onInvalidate?)`                               | Defaults: `MemoryCacheStore`, `Date.now`, no hook       |
 | `Cache#get(parts, { ttlMs, staleWhileRevalidateMs?, tags? }, compute)` | Read-through with single flight; values must be JSON    |
 | `Cache#invalidate(tags)`                                               | Delete tagged entries and call the `onInvalidate` hook  |
 | `Cache#metrics`                                                        | Hits, misses, stale serves, coalesced computations      |
-| `MemoryCacheStore(maxEntries, now?)`                                   | Bounded LRU store with a tag index (single process)     |
-| `CacheStore`                                                           | Interface for custom stores (for example Redis)         |
+| `MemoryCacheStore(maxEntries = 1000, now?)`                            | Bounded LRU store with a tag index (single process)     |
+| `CacheStore`                                                           | Synchronous interface for custom stores                 |
 | `tagChannel(tag)`                                                      | Realtime channel name for a data tag                    |
 
 ## Security and correctness
@@ -58,16 +66,41 @@ refreshes when that tag is invalidated (see `@nestvexa/realtime`).
 - Include everything the output depends on in `vary` (locale, permission set,
   renderer, asset version, component revision). Missing vary inputs cause wrong
   content, so prefer short TTLs and do not cache per-user HTML unless required.
-- Stale-while-revalidate is rejected for private entries.
+- Stale-while-revalidate is rejected for private entries; `ttlMs` must be 1 ms
+  to 24 hours.
 - Values are cloned through JSON on write and read; callers cannot mutate entries.
 - Never cache signed Live snapshots or CSRF tokens.
 - `MemoryCacheStore` is per process; multiple replicas need a shared store and
   cross-replica invalidation (for example realtime with `RespRealtimeBroker`).
 
+See the [realtime guide](../../docs/guides/realtime.md) for the tag-to-channel
+bridge. MIT licensed.
+
+## Status and limits
+
+Status: **Partial**. The keyed, tagged, single-flight cache with public-only
+stale-while-revalidate works and is unit-tested.
+
+- It is a library, not wired into the HBS, Live or Inertia render pipeline;
+  renderer, locale, permission scope, asset version and component revision enter
+  the key only when the caller passes them in `vary` (DATA-006).
+- No runnable example demonstrates it yet, and there is no telemetry beyond the
+  in-process `metrics` counters (DATA-007).
+- `CacheStore` is synchronous, so a network store such as Redis cannot implement
+  it directly; no shared store ships.
+- Dependency tracking is explicit tags only; there is no automatic dependency
+  detection.
+
 ## Testing
 
 ```sh
-pnpm --filter @nestvexa/cache build && pnpm vitest run tests/cache.test.ts
+pnpm --filter @nestvexa/cache test
 ```
 
-License: MIT.
+Runs `tests/cache.test.ts` (scope isolation, coalescing, expiry, stale serves,
+tag invalidation and LRU eviction); build first with
+`pnpm --filter @nestvexa/cache... build` because the tests import `dist`.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

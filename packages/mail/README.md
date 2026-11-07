@@ -6,9 +6,14 @@ the message, and hand it to the mail integration you already run. It is **not**
 part of the default `nestvexa` install and it is **not** a mail provider: it never
 opens SMTP connections or holds credentials.
 
-Alpha software; consult the root release blockers before production use.
+Alpha software; consult the root release blockers before production use. See the
+[email and notifications guide](../../docs/guides/mail.md) for a full recipe.
 
 ## Install
+
+Not published yet. Build local tarballs with `pnpm build && pnpm test:pack`
+(written to `artifacts/packages`) and install the `.tgz` file. After
+owner-authorized publication the registry syntax will be:
 
 ```sh
 npm install @nestvexa/mail
@@ -17,8 +22,9 @@ yarn add @nestvexa/mail
 ```
 
 Peers: `@nestjs/common` 12, `reflect-metadata` 0.2, `rxjs` 7.8. Node 22.13+ or 24,
-ESM (with a `default` export condition for CommonJS hosts). No runtime
-dependencies; the view engine and the delivery library are supplied by the host.
+ESM only (CommonJS `require` is untested). No runtime dependencies, including
+no Nestvexa packages: the view engine and the delivery library are supplied by
+the host, and the realtime channel takes any object with `publish`.
 
 ## Templates
 
@@ -156,19 +162,40 @@ channel authorization stays in the realtime module. Channels run independently a
 report `delivered`, `skipped` or `failed` (with a closed code) per channel, so a
 mail outage does not drop the realtime update.
 
-## Caveats
+## Status and limits
+
+Status: **Shipped (alpha)**. Template rendering, message validation, the
+module, all listed transports and the notification bridge work and are tested
+(19 tests); there is no stability promise before 1.0.
 
 - No attachments, inline images or calendar parts yet; send those through your
-  provider directly.
+  provider directly (EXT-029).
 - Queueing and retries belong to your job system (`JobRunner` in
   `@nestvexa/realtime`, BullMQ, ...): call `Mailer.send` from the job.
 - The address check is deliberately stricter than RFC 5322; internationalized
   (non-ASCII) addresses are rejected.
+- `nodemailerTransport` and `nestMailerTransport` are tested against structural
+  stand-ins, not real nodemailer or `@nestjs-modules/mailer` instances or a
+  live SMTP server.
+- No runnable example application uses this package yet.
 
 ## Testing
+
+```sh
+pnpm --filter @nestvexa/mail test
+```
+
+Runs `tests/mail.test.ts` and `tests/mail-security.test.ts` with the root
+Vitest config; the tests import `packages/*/dist` (including the HBS engine
+and `@nestvexa/i18n`), so run `pnpm --filter @nestvexa/mail...
+--filter @nestvexa/engine-hbs... --filter @nestvexa/i18n... build` first.
 
 `tests/mail.test.ts` renders real HBS templates (escaping, layouts, derived text,
 Arabic and English with `@nestvexa/i18n` helpers), wires `MailModule` with
 `@nestjs/testing`, and covers the transports and the notification bridge.
 `tests/mail-security.test.ts` covers header injection, reserved headers, address
 validation, limits and the production refusal of non-delivering transports.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

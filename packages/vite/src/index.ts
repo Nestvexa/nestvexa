@@ -19,6 +19,11 @@ export type {
   ViteManifestChunk,
 } from './manifest.js';
 export { renderAssetTags } from './tags.js';
+export {
+  subresourceIntegrity,
+  verifySubresourceIntegrity,
+} from './integrity.js';
+export type { IntegrityAlgorithm } from './integrity.js';
 export type { ViteTagOptions } from './tags.js';
 export { ViteAssets } from './assets.js';
 export type { ViteAppOptions, ViteAssetsOptions } from './assets.js';

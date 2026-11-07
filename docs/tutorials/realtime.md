@@ -130,24 +130,36 @@ close instead of waiting for token expiry (default TTL 15 minutes).
 
 Session middleware does not run on HTTP upgrades, so the WebSocket transport needs
 `resolveUpgradeIdentity(request)` in the module options. Then call
-`await attachRealtimeWebSocket(app)` after creating the app and choose
-`transport: 'websocket'` (or `'auto'`, `'sse'`, `'polling'`) in the browser
-realtime options. Upgrades require the exact configured `Origin`.
+`await attachRealtimeWebSocket(app)` after creating the app. With the default
+`transport: 'auto'` the browser asks `GET /_nestvexa/realtime/negotiate` which
+transports the server offers and uses WebSocket once it is attached, falling
+back to SSE and then long-polling if a proxy blocks it. Choose `'websocket'`,
+`'sse'` or `'polling'` to pin one. Upgrades require the exact configured
+`Origin`.
 
 ## 8. More than one replica
 
-Pass `broker: new RespRealtimeBroker({ host, port, password, prefix })` so a
-publish on one replica reaches subscribers on the others. Redis pub/sub is
+Pass `broker: new RedisRealtimeBroker({ host, port, password, prefix })`
+(from `@nestvexa/realtime-redis/realtime`) so a publish on one replica reaches
+subscribers on the others. Add `presence: { store: new RedisPresenceStore(redis) }`
+so `presence()` counts viewers on every replica, and give the job runner
+`queue: new RedisJobQueue(redis)` so jobs survive restarts and a job whose
+worker crashed is picked up by another (handlers may run twice: make them
+idempotent). Live component state needs `store: new RedisLiveStore(redis)` in
+the Live options so actions can land on any replica. Redis pub/sub is
 fire-and-forget: events published while a replica is disconnected are lost and
 browsers refresh after reconnecting. The broker speaks plain TCP (no TLS), so
 keep Redis on a private network. See
 [multi-replica deployment with Redis](../deployment/multi-replica-redis.md) and
 [production services](../guides/production-services.md).
 
-> **Known gap:** two Nest replicas serving one browser through Redis has not been
-> executed (REAL-014). `pnpm test:services` verified broker delivery between two
-> OS processes and resubscription after a Redis restart on 2026-11-02. Live
-> component state itself is still per process, so replicas need sticky sessions.
+`pnpm test:services` runs four replicas (Express and Fastify, SSE and WebSocket)
+of [`examples/distributed-live`](../../examples/distributed-live/README.md)
+against real Redis and checks cross-replica refresh, Live state continuation,
+presence, reconnects and isolation in a browser.
+
+> **Known gap:** load testing across replicas has not been done, and
+> slow-consumer handling is tested at hub level only (REAL-014).
 
 ## 9. Test it
 
@@ -173,9 +185,8 @@ reaches only its owner.
 
 ## Limits
 
-> **Known gap:** transport selection is per app, not per component; `'auto'`
-> picks SSE or polling once at startup with no runtime fallback, and the
-> WebSocket and polling paths have no browser test (REAL-004). Presence tracking
-> is not implemented (REAL-009). `JobRunner` is in memory only, with no durable
-> queue or BullMQ adapter (DATA-010, DATA-011). There are no publish rate limits
-> beyond connection caps and per-connection queue limits (REAL-011).
+> **Known gap:** transport selection is per page, not per component (one
+> multiplexed connection serves every component; REAL-004). Delivery is
+> at-most-once: events published on a channel before the browser's subscription
+> is established are not replayed (REAL-006). No BullMQ adapter ships; use
+> `RedisJobQueue` or BullMQ directly (DATA-010, see the realtime guide).

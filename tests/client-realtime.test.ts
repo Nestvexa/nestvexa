@@ -136,6 +136,22 @@ function controller(
   });
   return { instance, win, http, messages, expired: () => expired };
 }
+/** Answer the `auto` negotiation request and wait for the first connection. */
+async function negotiate(
+  f: ReturnType<typeof controller>,
+  answer: number | readonly string[],
+) {
+  const request = f.http.polls[0];
+  expect(request?.url).toBe('/_nestvexa/realtime/negotiate');
+  const opened = () =>
+    FakeEventSource.instances.length +
+    FakeWebSocket.instances.length +
+    f.http.polls.length;
+  const before = opened();
+  if (typeof answer === 'number') request?.respond(answer, {});
+  else request?.respond(200, { transports: answer });
+  await vi.waitFor(() => expect(opened()).toBeGreaterThan(before));
+}
 const flush = async () => {
   for (let index = 0; index < 5; index++) await Promise.resolve();
 };
@@ -286,15 +302,17 @@ describe('browser realtime controller', () => {
   it('auto falls back from SSE to long-polling when SSE never becomes ready', async () => {
     const f = controller('auto');
     f.instance.update([token(['orders'])]);
+    // An older server without negotiation: SSE first, then polling.
+    await negotiate(f, 404);
     expect(f.instance.transport).toBe('sse');
     FakeEventSource.instances[0]?.fail(false);
     expect(f.instance.transport).toBe('sse');
     FakeEventSource.instances[0]?.fail(false);
     expect(f.instance.transport).toBe('polling');
     expect(FakeEventSource.instances[0]?.closed).toBe(true);
-    expect(f.http.polls).toHaveLength(1);
-    expect(f.http.polls[0]?.url).toMatch(/^\/_nestvexa\/realtime\/poll\?t=/);
-    f.http.polls[0]?.respond(200, {
+    expect(f.http.polls).toHaveLength(2);
+    expect(f.http.polls[1]?.url).toMatch(/^\/_nestvexa\/realtime\/poll\?t=/);
+    f.http.polls[1]?.respond(200, {
       events: [{ channel: 'orders', id: '7', data: null }],
       cursor: 'x',
     });
@@ -303,39 +321,45 @@ describe('browser realtime controller', () => {
       expect(f.messages).toEqual([{ channel: 'orders', id: '7', data: null }]),
     );
     // The next long-poll carries the cursor of delivered events.
-    await vi.waitFor(() => expect(f.http.polls[1]?.url).toContain('&cursor='));
+    await vi.waitFor(() => expect(f.http.polls[2]?.url).toContain('&cursor='));
     // Later token changes stay on polling.
     f.instance.update([token(['other'])]);
     expect(FakeEventSource.instances).toHaveLength(1);
-    expect(f.http.polls[1]?.signal?.aborted).toBe(true);
+    expect(f.http.polls[2]?.signal?.aborted).toBe(true);
     f.instance.dispose();
   });
 
-  it('auto falls back when an SSE stream stays silent (buffering proxy), but not once ready', () => {
+  it('auto falls back when a stream stays silent (buffering proxy), but not once ready', async () => {
     const silent = controller('auto');
     silent.instance.update([token(['orders'])]);
+    await negotiate(silent, ['sse', 'polling']);
     vi.advanceTimersByTime(10_000);
     expect(silent.instance.transport).toBe('polling');
     silent.instance.dispose();
     const healthy = controller(undefined);
     healthy.instance.update([token(['orders'])]);
+    await negotiate(healthy, ['sse', 'polling']);
     FakeEventSource.instances.at(-1)?.ready();
     vi.advanceTimersByTime(20_000);
     FakeEventSource.instances.at(-1)?.fail(false);
     FakeEventSource.instances.at(-1)?.fail(false);
     expect(healthy.instance.transport).toBe('sse');
-    // Explicit SSE never falls back.
+    // Explicit SSE never negotiates or falls back.
     const explicit = controller('sse');
     explicit.instance.update([token(['orders'])]);
     vi.advanceTimersByTime(20_000);
     expect(explicit.instance.transport).toBe('sse');
+    expect(explicit.http.polls).toHaveLength(0);
   });
 
   it('uses polling when EventSource is unavailable and treats 403 as expiry', async () => {
     const f = controller('auto', { eventSource: false });
     expect(f.instance.transport).toBe('polling');
     f.instance.update([token(['orders'])]);
-    f.http.polls[0]?.respond(403);
+    // SSE is offered but unsupported here: only polling remains.
+    await negotiate(f, ['sse', 'polling']);
+    expect(f.instance.transport).toBe('polling');
+    f.http.polls[1]?.respond(403);
     await vi.waitFor(() => expect(f.expired()).toBe(1));
     const failing = controller('polling');
     failing.instance.update([token(['orders'])]);
@@ -344,6 +368,81 @@ describe('browser realtime controller', () => {
     expect(failing.http.polls).toHaveLength(1);
     vi.advanceTimersByTime(1000);
     expect(failing.http.polls).toHaveLength(2);
+  });
+
+  it('auto negotiates WebSocket and falls back WebSocket -> SSE -> polling', async () => {
+    const f = controller('auto');
+    f.instance.update([token(['orders'])]);
+    expect(f.http.polls[0]?.url).toBe('/_nestvexa/realtime/negotiate');
+    // Unknown names are ignored; the server's order is kept.
+    await negotiate(f, ['carrier-pigeon', 'websocket', 'sse', 'polling']);
+    expect(f.instance.transport).toBe('websocket');
+    // The upgrade is refused twice before any ready notice.
+    FakeWebSocket.instances[0]?.emit('close', { code: 1006, reason: '' });
+    expect(f.instance.transport).toBe('websocket');
+    vi.advanceTimersByTime(1000);
+    FakeWebSocket.instances[1]?.emit('close', { code: 1006, reason: '' });
+    expect(f.instance.transport).toBe('sse');
+    expect(FakeEventSource.instances).toHaveLength(1);
+    FakeEventSource.instances[0]?.fail(false);
+    FakeEventSource.instances[0]?.fail(false);
+    expect(f.instance.transport).toBe('polling');
+    expect(f.http.polls.at(-1)?.url).toMatch(/\/poll\?t=/);
+    f.instance.dispose();
+  });
+
+  it('auto keeps a working WebSocket: rejections and post-ready drops do not fall back', async () => {
+    const f = controller('auto');
+    f.instance.update([token(['orders'])]);
+    await negotiate(f, ['websocket', 'sse', 'polling']);
+    // The server rejected the subscription (4003): the transport works.
+    FakeWebSocket.instances[0]?.emit('close', {
+      code: 4003,
+      reason: 'CHANNEL_FORBIDDEN',
+    });
+    vi.advanceTimersByTime(1000);
+    FakeWebSocket.instances[1]?.emit('close', {
+      code: 4003,
+      reason: 'CHANNEL_FORBIDDEN',
+    });
+    vi.advanceTimersByTime(2000);
+    expect(f.instance.transport).toBe('websocket');
+    const socket = FakeWebSocket.instances.at(-1);
+    socket?.emit('open');
+    socket?.message({ type: 'ready' });
+    // After ready, the ten-second silence timer no longer applies.
+    vi.advanceTimersByTime(20_000);
+    socket?.emit('close', { code: 1006, reason: '' });
+    vi.advanceTimersByTime(1000);
+    FakeWebSocket.instances.at(-1)?.emit('close', { code: 1006, reason: '' });
+    expect(f.instance.transport).toBe('websocket');
+    // A socket that opens but never acknowledges falls back after 10 s.
+    vi.advanceTimersByTime(2000);
+    vi.advanceTimersByTime(10_000);
+    expect(f.instance.transport).toBe('sse');
+    expect(FakeWebSocket.instances.at(-1)?.closed).toBe(true);
+    f.instance.dispose();
+  });
+
+  it('auto keeps the default order when negotiation fails or returns nothing usable', async () => {
+    const broken = controller('auto');
+    broken.instance.update([token(['orders'])]);
+    broken.http.polls[0]?.fail();
+    await vi.waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+    expect(broken.instance.transport).toBe('sse');
+    broken.instance.dispose();
+    const empty = controller('auto');
+    empty.instance.update([token(['orders'])]);
+    await negotiate(empty, ['carrier-pigeon']);
+    expect(empty.instance.transport).toBe('sse');
+    // Disposed before negotiation settles: nothing connects.
+    const disposed = controller('auto');
+    disposed.instance.update([token(['orders'])]);
+    disposed.instance.dispose();
+    disposed.http.polls[0]?.respond(200, { transports: ['websocket'] });
+    await flush();
+    await new Promise((resolve) => queueMicrotask(() => resolve(undefined)));
+    expect(FakeWebSocket.instances).toHaveLength(0);
   });
 
   it('subscribes over WebSocket with tokens and cursor, delivers and deduplicates', () => {

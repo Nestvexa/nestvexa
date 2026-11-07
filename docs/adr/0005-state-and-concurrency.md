@@ -21,3 +21,19 @@ An in-memory store is appropriate only for development/single-process deployment
 ## Required evidence
 
 [Current native request-isolation tests](../../tests/integration.test.ts) and [cache-isolation tests](../../tests/lifecycle.test.ts) are relevant foundations, not proof of this model. Required new tests include same-instance overlap, two users/tenants, expired references, repeated action requests, failed action after an observable effect, failed render after mutation, timeout/abort, server restart and stale browser response. Per-action idempotency remains an unmet feature until separately implemented.
+
+## Status update (2026-11-07)
+
+The model is implemented in `@nestvexa/live`. Owner-bound references,
+revisions, failure invalidation and the store interface are covered by
+`tests/live-security.test.ts`, `tests/live-protocol.test.ts`,
+`tests/live-instance-scope.test.ts` and the shared
+`tests/live-store-contract.test.ts`. Per-action idempotency and action
+concurrency modes shipped as opt-in `@Action({ idempotent, concurrency })`
+([ADR 0031](0031-live-protocol-evolution-and-action-replay.md),
+`tests/live-action-options.test.ts`). The Redis store meets the atomic revision
+requirement above through the same contract suite
+([ADR 0032](0032-distributed-state-and-redis.md)).
+
+Still open: fault tests for lock expiry and replica loss against real Redis,
+and replay of `download` URLs on a replica other than the one that created them.

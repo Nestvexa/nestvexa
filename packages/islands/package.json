@@ -4,6 +4,12 @@
   "description": "Allowlisted React/Vue/Svelte islands in Nestvexa HBS and Live pages with explicit DOM ownership",
   "license": "MIT",
   "author": "Nestvexa contributors",
+  "maintainers": [
+    {
+      "name": "Nestvexa",
+      "url": "https://github.com/Nestvexa"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Nestvexa/nestvexa.git",
@@ -77,6 +83,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "test": "vitest run --root ../.. tests/islands",
     "lint": "eslint src"
   },
   "dependencies": {

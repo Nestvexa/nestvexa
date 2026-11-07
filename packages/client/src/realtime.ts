@@ -21,14 +21,18 @@ export interface RealtimeControllerOptions extends RealtimeEndpoint {
 export interface RealtimeController {
   /** Replace the subscription token set; reconnects only when it changed. */
   update(tokens: readonly string[]): void;
-  /** The transport in use; `auto` resolves to `sse` and may fall back to `polling`. */
+  /**
+   * The transport in use. `auto` resolves to the first transport the server
+   * offers (`GET <endpoint>/negotiate`) and may fall back along that list.
+   */
   readonly transport: Exclude<RealtimeTransport, 'auto'>;
   dispose(): void;
 }
-/** `auto`: SSE failures before the first `ready` that switch to long-polling. */
+/** `auto`: failures before the first `ready` that move to the next transport. */
 const autoFallbackFailures = 2;
-/** `auto`: an SSE stream silent this long (for example a buffering proxy) falls back. */
+/** `auto`: a connection silent this long (for example a buffering proxy) falls back. */
 const autoReadyTimeoutMs = 10_000;
+type Transport = Exclude<RealtimeTransport, 'auto'>;
 /** Consecutive failed reconnects before the circuit opens (long cool-down). */
 const circuitThreshold = 10;
 const circuitCooldownMs = 300_000;
@@ -68,8 +72,9 @@ function message(value: unknown): RealtimeMessage | undefined {
  * exponential backoff and jitter (1 s doubling to 30 s, ×0.5–1), pauses while
  * offline, drops duplicate event ids and, after ten consecutive failures,
  * opens a circuit: one probe every five minutes until a connection succeeds or
- * the browser comes back online. `auto` starts with SSE and falls back to
- * long-polling for the controller lifetime when SSE never becomes ready.
+ * the browser comes back online. `auto` asks the server which transports it
+ * offers (WebSocket, SSE, polling, in its order) and moves down that list for
+ * the controller lifetime when a transport never becomes ready.
  */
 export function createRealtimeController(
   options: RealtimeControllerOptions,
@@ -87,13 +92,26 @@ export function createRealtimeController(
     );
   const base = endpoint.pathname.replace(/\/$/, '');
   const auto = options.transport === undefined || options.transport === 'auto';
-  let transport: Exclude<RealtimeTransport, 'auto'> =
-    options.transport === 'websocket' && window.WebSocket
-      ? 'websocket'
-      : options.transport === 'polling' || !window.EventSource
-        ? 'polling'
-        : 'sse';
-  let sseFailures = 0;
+  const supported = (name: unknown): name is Transport =>
+    name === 'websocket'
+      ? !!window.WebSocket
+      : name === 'sse'
+        ? !!window.EventSource
+        : name === 'polling';
+  // Before negotiation (or against a server without it): SSE, then polling.
+  let candidates: Transport[] = auto
+    ? (['sse', 'polling'] as const).filter(supported)
+    : [
+        options.transport === 'websocket' && window.WebSocket
+          ? 'websocket'
+          : options.transport === 'polling' || !window.EventSource
+            ? 'polling'
+            : 'sse',
+      ];
+  let transport: Transport = candidates[0] ?? 'polling';
+  /** undefined: not started; false: in flight; true: settled. */
+  let negotiated: boolean | undefined = auto ? undefined : true;
+  let failures = 0;
   let tokens: string[] = [];
   let attempt = 0;
   let timer: number | undefined;
@@ -145,29 +163,66 @@ export function createRealtimeController(
     }
     retry();
   }
+  /** Ask the server which transports it offers; keep the defaults on failure. */
+  function negotiate(): void {
+    negotiated = false;
+    void options
+      .fetch(`${base}/negotiate`, {
+        credentials: 'same-origin',
+        headers: { accept: 'application/json' },
+      })
+      .then((response) => (response.ok ? response.json() : undefined))
+      .then((body: unknown) => {
+        const list: unknown =
+          body && typeof body === 'object'
+            ? Reflect.get(body, 'transports')
+            : undefined;
+        const offered = Array.isArray(list)
+          ? [...new Set(list.slice(0, 8).filter(supported))]
+          : [];
+        if (offered.length) candidates = offered;
+      })
+      .catch(() => undefined)
+      .then(() => {
+        negotiated = true;
+        transport = candidates[0] ?? 'polling';
+        connect();
+      });
+  }
+  /** `auto`: move to the next offered transport. False when none is left. */
+  function fallBack(): boolean {
+    const next = candidates[candidates.indexOf(transport) + 1];
+    if (!auto || !next) return false;
+    close?.();
+    close = undefined;
+    transport = next;
+    failures = 0;
+    attempt = 0;
+    connect();
+    return true;
+  }
   function connect(): void {
     timer = undefined;
     close?.();
     close = undefined;
     if (disposed || !tokens.length) return;
+    if (negotiated !== true) {
+      if (negotiated === undefined) negotiate();
+      return;
+    }
+    let ready = false;
+    let readyTimer: number | undefined;
+    const isReady = (): void => {
+      ready = true;
+      failures = 0;
+      attempt = 0;
+      window.clearTimeout(readyTimer);
+    };
+    if (auto && transport !== 'polling')
+      readyTimer = window.setTimeout(fallBack, autoReadyTimeoutMs);
     if (transport === 'sse') {
       const source = new window.EventSource(`${base}/sse?${query()}`);
-      let ready = false;
-      let readyTimer: number | undefined;
-      const fallBack = (): void => {
-        window.clearTimeout(readyTimer);
-        source.close();
-        transport = 'polling';
-        attempt = 0;
-        connect();
-      };
-      if (auto) readyTimer = window.setTimeout(fallBack, autoReadyTimeoutMs);
-      source.addEventListener('ready', () => {
-        ready = true;
-        sseFailures = 0;
-        attempt = 0;
-        window.clearTimeout(readyTimer);
-      });
+      source.addEventListener('ready', isReady);
       source.addEventListener('invalidate', (event) => {
         const item = message(JSON.parse((event as MessageEvent<string>).data));
         if (item) deliver(item);
@@ -181,11 +236,8 @@ export function createRealtimeController(
       });
       source.addEventListener('error', () => {
         // Under `auto`, SSE that never becomes ready (blocked, unsupported by
-        // a proxy, rejected) is replaced by long-polling.
-        if (auto && !ready && ++sseFailures >= autoFallbackFailures) {
-          fallBack();
-          return;
-        }
+        // a proxy, rejected) is replaced by the next offered transport.
+        if (!ready && ++failures >= autoFallbackFailures && fallBack()) return;
         ready = false;
         // EventSource reconnects transient failures itself; a closed source
         // (HTTP rejection) needs the bounded backoff instead.
@@ -201,6 +253,11 @@ export function createRealtimeController(
       const url = new URL(`${base}/ws`, window.location.href);
       url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
       const socket = new window.WebSocket(url.href);
+      close = () => {
+        close = undefined;
+        window.clearTimeout(readyTimer);
+        socket.close();
+      };
       socket.addEventListener('open', () =>
         socket.send(JSON.stringify({ tokens, cursor: encodedCursor() })),
       );
@@ -211,7 +268,7 @@ export function createRealtimeController(
           typeof data === 'object' &&
           Reflect.get(data, 'type') === 'ready'
         )
-          attempt = 0;
+          isReady();
         else if (
           data &&
           typeof data === 'object' &&
@@ -224,12 +281,20 @@ export function createRealtimeController(
       socket.addEventListener('close', (event) => {
         if (close === undefined) return;
         close = undefined;
+        window.clearTimeout(readyTimer);
+        // A socket that never reached `ready` (upgrade refused, proxy
+        // without WebSocket support) counts toward the `auto` fallback; a
+        // server rejection (4003) or expiry (4000) means the transport works.
+        if (
+          !ready &&
+          event.code !== 4000 &&
+          event.code !== 4003 &&
+          ++failures >= autoFallbackFailures &&
+          fallBack()
+        )
+          return;
         closed(event.code === 4000 ? event.reason : '');
       });
-      close = () => {
-        close = undefined;
-        socket.close();
-      };
       return;
     }
     const abort = new AbortController();

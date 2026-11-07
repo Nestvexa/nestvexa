@@ -4,6 +4,12 @@
   "description": "Optional provider-neutral email and notification bridge: templates through Nestvexa view engines, Nest module, console/test transports",
   "license": "MIT",
   "author": "Nestvexa contributors",
+  "maintainers": [
+    {
+      "name": "Nestvexa",
+      "url": "https://github.com/Nestvexa"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Nestvexa/nestvexa.git",
@@ -37,6 +43,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "test": "vitest run --root ../.. tests/mail",
     "lint": "eslint src"
   },
   "peerDependencies": {

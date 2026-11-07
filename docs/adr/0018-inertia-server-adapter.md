@@ -70,3 +70,12 @@ Only protocol v3 (clients 3.x) is supported; there is no v1/v2 mode. The public
 API is `0.1.0-alpha.0` and may change before a stable release. Precognition,
 automatic empty-response redirects, previous-URL storage and testing helpers
 were added later (see the [guide](../guides/inertia.md#parity-matrix)).
+
+## Status update (2026-11-07)
+
+The Phase 9–11 work named in the status line has shipped. `@nestvexa/react`,
+`@nestvexa/vue` and `@nestvexa/svelte` boot and hydrate the official clients.
+`@nestvexa/vite` provides manifests, the dev server and in-process or
+official-server SSR. All of this is recorded in
+[ADR 0024](0024-frontend-adapters-and-ssr.md) and covered by
+`tests/vite-ssr.test.ts` and the `tests/browser/inertia-*.spec.ts` suites.

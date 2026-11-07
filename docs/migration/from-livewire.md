@@ -75,7 +75,10 @@ Start with [Live components](../getting-started/live.md).
 
 > **Known gap:** There is no `Livewire::test()`-style component testing API,
 > no Volt/single-file components, no Livewire 4 `@island` partial-render blocks,
-> no full `$wire` entanglement, no server-originated domain events pushed into
-> `@OnEvent` handlers (use `@nestvexa/realtime` invalidation instead), no
-> `@Action({ concurrency, idempotent })` options and no shared Live state store
-> for multi-replica deployments (use sticky sessions).
+> no full `$wire` entanglement, and no full-page components with
+> `#[Layout]`, `#[Isolate]` or `#[Transition]` (mount components from a host
+> route, every component is already its own request, and use `nv:transition`;
+> see [ADR 0035](../adr/0035-live-layout-isolation-and-transitions.md)).
+> Server-pushed `@OnEvent` domain events (`LiveEvents`), `@Action({ concurrency,
+idempotent })` and the shared `RedisLiveStore` for several replicas are
+> available.

@@ -4,6 +4,12 @@
   "description": "Authorization-first NestJS server actions with explicit registration and a generated typed browser client",
   "license": "MIT",
   "author": "Nestvexa contributors",
+  "maintainers": [
+    {
+      "name": "Nestvexa",
+      "url": "https://github.com/Nestvexa"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Nestvexa/nestvexa.git",
@@ -50,7 +56,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run ../../tests/actions-metadata.test.ts ../../tests/actions-runtime.test.ts ../../tests/actions-http.test.ts ../../tests/actions-client.test.ts ../../tests/actions-codegen.test.ts",
+    "test": "vitest run --root ../.. tests/actions-",
     "lint": "eslint src"
   },
   "peerDependencies": {

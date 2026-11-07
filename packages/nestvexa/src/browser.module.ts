@@ -11,7 +11,7 @@ import {
 import type { DynamicModule, OnApplicationShutdown } from '@nestjs/common';
 import { SafeHtml } from '@nestvexa/views';
 import { NestvexaAssetsModule, NestvexaAssetsService } from './assets.js';
-import { normalizeAssetOptions } from './asset-catalog.js';
+import { assetIntegrity, normalizeAssetOptions } from './asset-catalog.js';
 
 /** Automatic bundled Alpine, or explicit host-owned browser startup. */
 export interface NestvexaBrowserOptions {
@@ -30,6 +30,14 @@ export interface NestvexaBrowserOptions {
   };
   /** Public prefix of the opt-in @nestvexa/uploads routes, including any host prefix. */
   readonly uploads?: { readonly endpoint: string };
+  /**
+   * Subresource Integrity for `{{nvScripts}}`: the boot module tag carries
+   * `integrity` (SHA-384 of the generated boot module) and
+   * `crossorigin="anonymous"`, preceded by integrity-checked
+   * `<link rel="modulepreload">` tags for the client, Alpine and the adapter.
+   * Default false.
+   */
+  readonly integrity?: boolean;
 }
 interface BrowserOptions {
   readonly mode: 'alpine' | 'manual';
@@ -41,6 +49,7 @@ interface BrowserOptions {
     readonly transport: 'auto' | 'sse' | 'websocket' | 'polling';
   };
   readonly uploads: { readonly endpoint: string } | undefined;
+  readonly integrity: boolean;
 }
 const BROWSER_OPTIONS = Symbol('nv:browser-options');
 function normalizeStreams(value: unknown): BrowserOptions['streams'] {
@@ -149,8 +158,21 @@ export class NestvexaBrowserService implements OnApplicationShutdown {
     )
       throw new Error('Invalid browser script nonce');
     const url = this.getBootUrl();
+    const nonceAttribute =
+      nonce === undefined ? '' : ` nonce="${attribute(nonce)}"`;
+    if (!this.options.integrity)
+      return SafeHtml.trusted(
+        `<script type="module" src="${attribute(url)}"${nonceAttribute}></script>`,
+      );
+    const { entries, integrity } = this.assets.getManifest();
+    const preloads = [entries.live, entries.alpine, entries.alpineAdapter]
+      .map(
+        (href) =>
+          `<link rel="modulepreload" href="${attribute(href)}" integrity="${attribute(integrity[href] ?? '')}" crossorigin="anonymous"${nonceAttribute}>`,
+      )
+      .join('');
     return SafeHtml.trusted(
-      `<script type="module" src="${attribute(url)}"${nonce === undefined ? '' : ` nonce="${attribute(nonce)}"`}></script>`,
+      `${preloads}<script type="module" src="${attribute(url)}" integrity="${attribute(assetIntegrity(this.boot()))}" crossorigin="anonymous"${nonceAttribute}></script>`,
     );
   }
   /** Generated trusted module imports only the current installed allowlist; no inline application code. */
@@ -230,6 +252,7 @@ export class NestvexaBrowserModule {
           'streams',
           'realtime',
           'uploads',
+          'integrity',
         ].includes(String(key)) ||
         typeof key !== 'string' ||
         !descriptor ||
@@ -274,6 +297,13 @@ export class NestvexaBrowserModule {
         'Configure streams on the host-owned client in manual browser mode',
       );
     const uploads = normalizeUploads(read('uploads'));
+    const integrity = read('integrity') ?? false;
+    if (typeof integrity !== 'boolean')
+      throw new Error('Browser integrity option must be a boolean');
+    if (mode === 'manual' && integrity)
+      throw new Error(
+        'Browser integrity covers the bundled boot module; add integrity to host-owned tags in manual mode',
+      );
     if (mode === 'manual' && uploads)
       throw new Error(
         'Configure uploads on the host-owned client in manual browser mode',
@@ -309,6 +339,7 @@ export class NestvexaBrowserModule {
             mode,
             streams,
             uploads,
+            integrity,
             ...(realtime === undefined ? {} : { realtime }),
           }),
         },

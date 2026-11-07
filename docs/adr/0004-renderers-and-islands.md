@@ -60,3 +60,26 @@ The multiple-select amendment uses bounded unique scalar arrays with ordered equ
 The [self-ignore lifecycle cases](../../tests/client-ignore-self.test.ts), [mixed sibling permutation invariant](../../tests/client-replace.test.ts), [closed parser cases](../../tests/client.test.ts) and [real Nest self-ignore scenarios](../../tests/browser/ignore-self.spec.ts) exercise the wrapper contract. The [wrapper guide](../guides/ignore-self.md) documents unsupported native/editor placements, including a non-editable wrapper below an editable ancestor. Scope and executed outcomes belong to the implementation checkpoint; these fixtures do not establish official framework or complete external-widget lifecycle parity.
 
 [MVC browser tests](../../tests/browser/mvc.spec.ts), [Live browser fixtures](../../tests/browser/live.spec.ts), [model lifecycle tests](../../tests/client-model-lifecycle.test.ts), [loading tests](../../tests/client-loading.test.ts), [replacement tests](../../tests/client-replace.test.ts), [rendering lifecycle tests](../../tests/client-rendering-lifecycle.test.ts) and [loading/replacement browser scenarios](../../tests/browser/replacement-loading.spec.ts) define the initial boundaries. Controlled transport fixtures prove client behavior rather than server protocol conformance. Execution results must be recorded in the implementation checkpoint before acceptance; source/test presence is not a passed gate. All-framework coexistence, official island removal/reinsertion, complete nested-server behavior, SSR hydration and heterogeneous enhanced navigation remain unmet. No package README may list those systems as shipped.
+
+## Status update (2026-11-07)
+
+The ownership rules are unchanged. Two systems the previous paragraph listed as
+unmet now ship as experimental alpha packages. Their README status lines are
+therefore accurate:
+
+- Framework islands: `@nestvexa/islands` mounts React, Vue and Svelte islands
+  beside Live components, with SSR and hydration
+  ([ADR 0024](0024-frontend-adapters-and-ssr.md)). `tests/browser/islands.spec.ts`
+  covers independent mounting across Live updates, removal and reinsertion
+  (cleanup and exactly one remount), failure isolation, hydration mismatch
+  reports and navigation cleanup. `tests/browser/islands-vite.spec.ts` covers
+  the Vite path.
+- Inertia: `@nestvexa/inertia` with the React, Vue and Svelte adapters
+  ([ADR 0018](0018-inertia-server-adapter.md)). `tests/browser/inertia-mixed.spec.ts`
+  checks that roots of different frameworks load only their own bundles and
+  that cross-root navigation is a full page load.
+- Mixed pages: `tests/browser/integration-matrix.spec.ts` (VISION-035) mounts
+  islands of all three frameworks beside a Live widget on one page.
+
+Still open: heterogeneous enhanced navigation (Live and Inertia sharing one
+client-side navigation) and complete external-widget lifecycle parity.

@@ -78,6 +78,11 @@ To work from this repository instead, run `pnpm install --frozen-lockfile` and
   [Livewire](../migration/from-livewire.md) or
   [Inertia with Laravel](../migration/from-inertia-laravel.md).
 
-> **Known gap:** The CLI cannot scaffold React, Vue or Svelte projects yet
-> (`make:page --renderer react` exits with code 2), and `nestvexa init` rejects
-> Fastify hosts. Use the examples as templates for those setups.
+The CLI scaffolds every mode on Express and Fastify hosts: `nestvexa init` for MVC
+and Live, `nestvexa add react|vue|svelte` for Inertia roots, `nestvexa add islands`
+for hybrid pages, and `make:page --renderer <hbs|ejs|pug|nunjucks|react|vue|svelte>`
+for pages ([CLI reference](../reference/cli.md)).
+
+> **Known gap:** `make:resource` generates only an in-memory service, and
+> `make:component` supports HBS views only. The generated session and identity
+> policies are guest starters, so replace them before production.

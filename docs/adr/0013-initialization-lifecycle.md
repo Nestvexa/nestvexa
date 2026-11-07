@@ -54,3 +54,11 @@ Contracts live in [the parser](../../packages/client/src/protocol.ts) and
 [real Nest browser flows](../../tests/browser/initialization.spec.ts) and the
 [directive reference](../reference/nv-init.md).
 This additive alpha feature changes no wire fields or dependency requirements.
+
+## Status update (2026-11-07)
+
+Lazy components now exist: `@LiveComponent({ lazy: true | 'visible', placeholder })`
+renders a placeholder view at mount and the body on the first client refresh.
+This is covered by `tests/live-nesting.test.ts` and in a browser by
+`tests/browser/nesting.spec.ts`. The `nv:init` decision above is unchanged and
+still runs once per registration.
