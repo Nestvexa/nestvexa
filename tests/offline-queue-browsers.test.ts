@@ -46,7 +46,9 @@ describe.each<FixtureBrowser>(['chromium', 'firefox', 'webkit'])(
       await attach(page);
       await context.setOffline(true);
       await page.fill('#title', `Offline note (${browserName})`);
-      await page.click('#save');
+      // Implicit submission: a real key press that, unlike click(), does not
+      // wait on WebKit's animation-frame stability check under load.
+      await page.press('#title', 'Enter');
       await expect
         .poll(() => page.textContent('#status'))
         .toBe('Saved on this device and waiting to be sent: 1.');

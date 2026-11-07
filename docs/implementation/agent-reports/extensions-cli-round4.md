@@ -118,6 +118,14 @@ a CSRF check.
 Commands (worktree, after `pnpm --filter @nestvexa/offline... build`):
 `pnpm exec vitest run tests/offline-queue-server.test.ts tests/offline-queue-security.test.ts tests/offline-queue.test.ts tests/offline-queue-browsers.test.ts tests/offline-drafts.test.ts tests/offline-server.test.ts tests/offline-snapshot.test.ts`.
 
+Result: 7 files, 60 tests passed (Chromium, Firefox and WebKit for
+`offline-queue-browsers`). The same files run in parallel once timed out WebKit
+`page.click('#save')` while waiting for the stability check. That step now uses
+implicit submission (`press('Enter')`); the rerun passed in all three browsers.
+Also run: `pnpm lint`, `pnpm exec tsc -p tsconfig.tests.json --noEmit` (after a
+full `pnpm build`), `pnpm docs:build` and prettier on the changed files, all
+clean. `pnpm size:check` was not run because `packages/client` is unchanged.
+
 ### Docs
 
 - `packages/offline/README.md`: the queue and server API, the markup contract,
