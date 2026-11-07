@@ -11,6 +11,7 @@ export default function Layout({ children }: { readonly children: ReactNode }) {
       <nav aria-label="Roots">
         <Link href="/react">React home</Link>{' '}
         <Link href="/react/about">React about</Link>{' '}
+        <Link href="/react/live">React live</Link>{' '}
         <Link href="/vue">Vue root</Link>{' '}
         <Link href="/svelte">Svelte root</Link> <a href="/">HBS index</a>
       </nav>
