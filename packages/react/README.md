@@ -14,15 +14,31 @@ Status: `0.1.0-alpha.0`, experimental. Verified with `@inertiajs/react` and
 
 ## Install
 
+Not published yet. Build local tarballs with `pnpm build && pnpm test:pack`
+(written to `artifacts/packages`) and install the `.tgz` files together. After
+owner-authorized publication the registry syntax will be:
+
 ```sh
 pnpm add @nestvexa/react @nestvexa/inertia @nestvexa/vite @inertiajs/react react react-dom
 pnpm add -D vite @vitejs/plugin-react @types/react @types/react-dom
 ```
 
+(`npm install` and `yarn add` take the same package names.)
+
 Peer dependencies: `@inertiajs/react` `^3.10.0`, `react` and `react-dom`
 `^19`; `@inertiajs/core` `^3.10.0` is an optional (types-only) peer. React is
 never bundled into this package, so an application always has one copy.
 Node `^22.13 || ^24`, ESM only.
+
+## Architecture and dependencies
+
+The browser half of an Inertia host: `@nestvexa/inertia` builds the page
+objects on the server, `@nestvexa/vite` supplies the page registry
+(`@nestvexa/vite/pages`), manifest tags and the official SSR server launcher,
+and this package wires them into `@inertiajs/react`. Its only runtime
+dependency is `@nestvexa/vite`. It is optional and **not** included in the
+`nestvexa` umbrella. `nestvexa add react` (CLI) scaffolds a client root with
+browser and SSR entries using this package (`tests/cli-generators.test.ts`).
 
 ## Usage
 
@@ -90,18 +106,50 @@ process) or `moduleSsrRenderer(join(root, 'dist/ssr/ssr.js'))` from
   fallback.
 - Run the SSR process with `NODE_ENV=production`.
 
-## Testing
-
-`tests/react-adapter.test.ts` (resolver, real SSR bundle, official SSR process
-behind `HttpSsrGateway`, fallback/strict), `tests/browser/inertia-react.spec.ts`
-plus the shared suite (SSR markup, hydration without mismatch or CSP
-violations, XHR navigation, persistent nested layouts, validation, uploads,
-partial reloads, deferred props, version 409, error boundary, axe) in three
-browsers.
-
-## Caveats and compatibility
+## Compatibility
 
 - The public declarations do not reference upstream types, because
   `@inertiajs/*` 3.10.0 declarations require `moduleResolution: "bundler"`.
   Applications use upstream types directly in their components.
-- No universal-action hook yet (Phase 12).
+- Examples: [`examples/inertia-react`](../../examples/inertia-react) (including
+  the `/kit` page on the `@nestvexa/ui/react` wrappers) and
+  [`examples/inertia-mixed`](../../examples/inertia-mixed) (React next to Vue,
+  Svelte and a Live page).
+
+## Status and limits
+
+Status: **Partial**. Boot, hydration, error boundary, page registry and
+in-process or official-server SSR work and are tested in Chromium, Firefox and
+WebKit.
+
+- No typed server-action or state hooks wrapping `@nestvexa/actions` yet
+  (SPA-003); pages use the official `useForm`/router directly.
+- No framework upload hook: pages keep `@nestvexa/uploads/browser` progress in
+  their own state.
+- React error boundaries do not run during SSR (see above); SSR failures are
+  handled by the `@nestvexa/inertia` `fallback`/`strict` mode.
+- CLI-scaffolded roots render client-side in development (standalone Vite dev
+  server); SSR applies to production builds.
+
+## Testing
+
+```sh
+pnpm --filter @nestvexa/react test
+```
+
+Runs `tests/react-adapter.test.ts` (resolver, real SSR bundle, official SSR
+process behind `HttpSsrGateway`, fallback/strict); the tests import
+`packages/*/dist`, so run `pnpm --filter @nestvexa/react... build` first.
+Browser coverage runs separately through Playwright:
+`tests/browser/inertia-react.spec.ts` with the shared framework suite (SSR
+markup, hydration without mismatch or CSP violations, XHR navigation,
+persistent nested layouts, validation, forms and uploads, partial reloads,
+deferred props, version 409, error boundary, axe),
+`tests/browser/inertia-react-features.spec.ts`,
+`tests/browser/inertia-react-ui-kit.spec.ts`,
+`tests/browser/inertia-hmr.spec.ts` (dev-mode HMR) and
+`tests/browser/inertia-mixed.spec.ts`, in three browsers.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

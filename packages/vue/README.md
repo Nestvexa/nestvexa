@@ -15,13 +15,29 @@ Status: `0.1.0-alpha.0`, experimental. Verified with `@inertiajs/vue3` and
 
 ## Install
 
+Not published yet. Build local tarballs with `pnpm build && pnpm test:pack`
+(written to `artifacts/packages`) and install the `.tgz` files together. After
+owner-authorized publication the registry syntax will be:
+
 ```sh
 pnpm add @nestvexa/vue @nestvexa/inertia @nestvexa/vite @inertiajs/vue3 vue
 pnpm add -D vite @vitejs/plugin-vue vue-tsc
 ```
 
+(`npm install` and `yarn add` take the same package names.)
+
 Peer dependencies: `@inertiajs/vue3` `^3.10.0`, `vue` `^3.5`;
 `@inertiajs/core` `^3.10.0` optional (types). Node `^22.13 || ^24`, ESM only.
+
+## Architecture and dependencies
+
+The browser half of an Inertia host: `@nestvexa/inertia` builds the page
+objects on the server, `@nestvexa/vite` supplies the page registry
+(`@nestvexa/vite/pages`), manifest tags and the official SSR server launcher,
+and this package wires them into `@inertiajs/vue3`. Its only runtime dependency is
+`@nestvexa/vite`. It is optional and **not** included in the `nestvexa`
+umbrella. `nestvexa add vue` (CLI) scaffolds a client root with browser and
+SSR entries using this package (`tests/cli-generators.test.ts`).
 
 ## Usage
 
@@ -81,13 +97,41 @@ loopback default), `isMainModule`.
 - Run hosts with `NODE_ENV=production` so the externalized Vue runtime uses its
   production build during SSR.
 
-## Testing
-
-`tests/vue-adapter.test.ts` and `tests/browser/inertia-vue.spec.ts` (shared
-suite, three browsers); `tests/browser/inertia-mixed.spec.ts` runs Vue next to
-React and Svelte roots.
-
-## Caveats and compatibility
+## Compatibility
 
 - Public declarations avoid upstream types (bundler-only declarations upstream).
 - The boundary's `resetKey` is a string.
+- Examples: [`examples/inertia-vue`](../../examples/inertia-vue) and
+  [`examples/inertia-mixed`](../../examples/inertia-mixed).
+
+## Status and limits
+
+Status: **Partial**. Boot, hydration, error boundary, page registry and SSR
+(in-process or the official server) work and are tested in Chromium, Firefox
+and WebKit.
+
+- No typed server-action or state composables wrapping `@nestvexa/actions` yet
+  (SPA-003); pages use the official `useForm`/router directly.
+- No framework upload composable: pages keep `@nestvexa/uploads/browser`
+  progress in their own state.
+- The `@nestvexa/ui/vue` wrappers are tested but have no runnable example page
+  (EXT-020).
+- CLI-scaffolded roots render client-side in development (standalone Vite dev
+  server); SSR applies to production builds.
+
+## Testing
+
+```sh
+pnpm --filter @nestvexa/vue test
+```
+
+Runs `tests/vue-adapter.test.ts`; the tests import `packages/*/dist`, so run
+`pnpm --filter @nestvexa/vue... build` first. Browser coverage runs separately
+through Playwright: `tests/browser/inertia-vue.spec.ts` (shared framework suite
+plus forms and uploads), `tests/browser/inertia-hmr.spec.ts` (dev-mode HMR) and
+`tests/browser/inertia-mixed.spec.ts` (Vue next to React and Svelte roots), in
+three browsers.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).

@@ -7,13 +7,17 @@ client library dependency. Not part of the default `nestvexa` install.
 
 ## Install
 
+Not published yet: install the tarballs produced by `pnpm build && pnpm test:pack`.
+The future registry syntax, after owner-authorized publication, is:
+
 ```sh
-npm install @nestvexa/realtime-redis
+npm install @nestvexa/realtime-redis   # or: pnpm add / yarn add
 ```
 
 Peers: `@nestvexa/live` (required) and `@nestvexa/realtime` (optional, for the
 `/realtime` entry point). Node 22.13+ or 24. Server: Redis 6.2+ (tested with
-Redis 7) as a single primary — standalone or Sentinel-managed. **Redis Cluster
+Redis 7 standalone) as a single primary. There is no Sentinel discovery: point
+`host` at the current primary; failover behavior is untested. **Redis Cluster
 is not supported** (commits span hash slots).
 
 ## Usage
@@ -44,8 +48,16 @@ NestvexaModule.forRoot(config, {
 Every replica must share the realtime `secrets`, the public `origin` and an
 identity that resolves identically on every replica (a shared session store or
 a signed stateless cookie). The
-[distributed example](../../examples/distributed-live) runs two replicas behind
+[distributed example](../../examples/distributed-live/README.md) runs two replicas behind
 one Redis.
+
+## Public API
+
+| Export                                                         | Purpose                                                                               |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `RedisLiveStore`, `RedisLiveStoreOptions`                      | `LiveStateStore` and `LiveActionCoordination` over one Redis primary                  |
+| `RedisRealtimeBroker`, `RedisRealtimeBrokerOptions`            | From `@nestvexa/realtime-redis/realtime`; re-export of `RespRealtimeBroker`           |
+| `RespConnection`, `RespError`, `encodeCommand`, `parseReplies` | Low-level RESP2 client used by the store (`RespConnectionOptions`, `RespReply` types) |
 
 ## `RedisLiveStore` options
 
@@ -95,13 +107,27 @@ at-most-once per connected subscriber: events published while a replica is
 disconnected from Redis are lost and browsers recover with an authorized
 refresh. Replay windows are per replica.
 
+## Status and limits
+
+Status: **Shipped (alpha)**. `RedisLiveStore` passes the shared store contract suite and, with the realtime broker, a real Redis 7 run including the two-replica browser acceptance suite ([services evidence](../../docs/implementation/services-evidence-2026-11-05.json)).
+
+- Single Redis primary only; no Sentinel discovery or tested failover, and Redis Cluster is not supported (DATA-004).
+- Cross-replica idempotent replay and identity locks are tested against the in-process RESP test double; the real-Redis service run does not cover them yet (LIVE-007).
+- The broker implementation lives in `@nestvexa/realtime`; this package re-exports it (REAL-002, recorded in ADR 0032).
+- Realtime delivery is at-most-once, presence and replay windows are per replica, and browser reconnect across a replica restart is unit-tested only (REAL-014).
+- About seven round trips per Live action; replica clocks must be NTP-synchronized.
+
 ## Testing
 
 ```sh
-pnpm exec vitest run tests/live-store-contract.test.ts   # RESP test double
-pnpm exec vitest run tests/live-shared-action-policy.test.ts
-NESTVEXA_REDIS_PORT=6379 pnpm test:services                # real Redis
+pnpm --filter @nestvexa/realtime-redis test
 ```
+
+Runs `tests/live-store-contract.test.ts` and `tests/live-shared-action-policy.test.ts` with the root Vitest config against an in-process RESP test double; the tests import `packages/*/dist`, so run `pnpm --filter @nestvexa/realtime-redis... build` first. `NESTVEXA_REDIS_PORT=6379 pnpm test:services` runs the store and broker against real Redis plus the two-replica browser suite, separately from the package script.
 
 See [ADR 0032](../../docs/adr/0032-distributed-state-and-redis.md) and the
 [production services guide](../../docs/guides/production-services.md). License: MIT.
+
+## Maintainers
+
+Maintained by the Nestvexa project (GitHub organization `Nestvexa`). Review ownership per path is in [CODEOWNERS](../../.github/CODEOWNERS) and roles and the decision process are in [GOVERNANCE.md](../../GOVERNANCE.md). No individual maintainers are named until the owner appoints them. Changes are recorded in the [changelog](../../CHANGELOG.md).
