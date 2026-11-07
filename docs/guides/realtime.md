@@ -213,6 +213,9 @@ and Fastify. `attachRealtimeWebSocket` handles `upgrade` events on Nest's HTTP
 server and is tested on both adapters as well; it is a `ws` upgrade handler rather
 than a `@WebSocketGateway`, so the same hub, tokens, origin check and policies
 apply to every transport ([ADR 0032](../adr/0032-distributed-state-and-redis.md)).
+Nest's `WsAdapter` (`@nestjs/platform-ws`) destroys upgrades for paths it does
+not own, so it cannot share an HTTP server with this transport; see
+[coexistence](coexistence.md#rest-graphql-microservices-and-websocket-gateways).
 
 ## Testing
 

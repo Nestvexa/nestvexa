@@ -253,6 +253,9 @@ namespaced (`react:<hash>`), so an Inertia visit from one root to another
 always receives a version 409 and performs a full page load. Same-root
 navigation stays an XHR visit.
 
+A framework page can also host an isolated Live element; see
+[coexistence](coexistence.md#a-live-element-inside-an-inertia-page).
+
 ## HTML root templates
 
 `defaultRootView` produces a minimal HTML5 document. To use Handlebars:

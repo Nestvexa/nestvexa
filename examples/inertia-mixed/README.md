@@ -12,6 +12,11 @@ into another root receives `409` + `X-Inertia-Location` and the official client
 performs a full page load. Bundles never mix (asserted on the manifests and the
 network in `tests/browser/inertia-mixed.spec.ts`).
 
+`/react/live` is a React Inertia page hosting an isolated Live counter: React
+owns the page and an empty host element, a `createLiveClient({ root })` owns
+everything inside it, and the mount is a lazy prop so partial reloads leave it
+alone. See [coexistence](../../docs/guides/coexistence.md).
+
 ```sh
 pnpm --filter @nestvexa/example-inertia-mixed build   # 3 type checks + 6 Vite builds
 pnpm --filter @nestvexa/example-inertia-mixed start   # http://127.0.0.1:3109
