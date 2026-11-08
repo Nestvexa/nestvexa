@@ -305,10 +305,17 @@ took 5–7 minutes, and parallel suites were killed with exit 134/143). The
   - `make:test` adds `@jest/globals` (pinned) for Jest projects.
   - `tests/cli-jest.test.ts` builds an ESM fixture that declares Jest. It
     generates component, page, form, action and smoke tests, plus the resource
-    tests, compiles them, and runs them with Jest's native ESM mode
-    (`--experimental-vm-modules`, `transform: {}`).
+    tests, and compiles all of them. It then runs the seven unit and HTTP
+    suites with Jest's native ESM mode (`--experimental-vm-modules`,
+    `transform: {}`).
   - Gap: CommonJS + `ts-jest` projects cannot import the ESM-only Nestvexa
     packages under Jest's CommonJS runtime. This is documented in Limits.
+  - Gap: the generated e2e smoke test (`make:test --kind smoke`) boots
+    `AppModule` without the `main.ts` setup (sessions, `configureNestvexa`). A
+    Live page such as `/nestvexa` therefore answers 500 there. It is compiled
+    but not run, in both the Jest and the vitest suites. The fix (sharing a
+    bootstrap function between `main.ts` and the test) is left for a later
+    round.
 
 ### DX-027: package-manager detection and doctor tests
 

@@ -7,7 +7,8 @@ import type { Page } from '@playwright/test';
  * page). Served with NESTVEXA_ASSETS=build so the Inertia roots render on the
  * server and hydrate from their built bundles.
  */
-const origin = 'http://127.0.0.1:3126';
+// The root suite serves it on 3126; local runs may pick another port.
+const origin = `http://127.0.0.1:${process.env['NV_CLI_GENERATED_PORT'] ?? '3126'}`;
 // First renders import SSR bundles and engines (cold module loading).
 test.describe.configure({ timeout: 120_000 });
 
@@ -136,7 +137,10 @@ test('make:form, make:resource and make:island work together on one page (access
   // Search narrows the server-side page to this project's task.
   await tasks.getByLabel('Search').fill(task);
   await expect(tasks.getByRole('listitem')).toHaveText([task]);
-  await expect(tasks.getByText(/Page 1 of 1 \(1 total\)/)).toBeVisible();
+  // toContainText normalizes whitespace (Prettier wraps the summary text).
+  await expect(
+    tasks.getByRole('navigation', { name: 'Task pages' }),
+  ).toContainText('Page 1 of 1 (1 total)');
   await tasks.getByLabel('Name').fill('x');
   await tasks.getByRole('button', { name: 'Add' }).click();
   await expect(tasks.getByRole('alert')).toHaveText(
@@ -169,15 +173,11 @@ test('make:form, make:resource and make:island work together on one page (access
     `${origin}/task?q=${encodeURIComponent(task)}`,
   );
   expect(listed).toMatchObject({ total: 1, items: [{ name: task }] });
-  const invalid = await page.evaluate(async (url) => {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'x', admin: true }),
-    });
-    return response.status;
-  }, `${origin}/task`);
-  expect(invalid).toBe(400);
+  // Outside the page, so the expected 400 is not a console error.
+  const invalid = await page.request.post(`${origin}/task`, {
+    data: { name: 'x', admin: true },
+  });
+  expect(invalid.status()).toBe(400);
   await axe(page);
   expect(errors).toEqual([]);
 });
