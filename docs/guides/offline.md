@@ -145,16 +145,49 @@ if (scope) {
      online** (dropped connection, `TIMEOUT`). The action may have run on the
      server, so the component is suspended: further actions are rejected until
      the page reloads or the host remounts the component from authoritative
-     markup. Drafts survive the reload.
+     markup. Drafts survive the reload. See the full-page fallback below.
 
    In every case the server validates the new request like any other. If an
    earlier request did commit, its revision makes the retry fail with
-   `409 STALE_REVISION` (the component then suspends) instead of running the
-   action twice.
+   `409 STALE_REVISION` instead of running the action twice.
+
+   That reply carries `x-nestvexa-recovery: resync`. Nothing ran on the
+   server, so instead of suspending, the client sends one fresh resync: a
+   `$sync` marked `x-nestvexa-resync: 1`, with no field updates. The server
+   accepts it only without updates and only for the caller's own snapshot,
+   and re-renders the current state at its current revision. The refused call
+   still rejects, so the user repeats the intent; it is never replayed.
+   Local drafts stay local and go with the next request. If the resync itself
+   comes back `STALE_REVISION`, the component suspends rather than loop.
+   Stale requests queued behind the first one share the same resync.
 
 Drafts are never replayed. Only operations you allowlist for the
 offline action queue (section 8) are sent on reconnect;
 purchases, payments and deletes cannot be allowlisted.
+
+### Full-page fallback for a suspended component
+
+A suspended component never resends the failed request. Two things keep the
+page usable without that:
+
+- **Forms with a host route.** When a `nv:submit` form also has an explicit
+  `action` attribute (its no-JavaScript equivalent), the client stops
+  preventing native submission once the component is suspended. The next
+  submit is an ordinary, user-initiated full-page request to that host route,
+  which validates and authorizes it like any form post. It is this
+  interaction's first attempt, not a replay of the failed Live call. A healthy
+  component keeps intercepting the form as before.
+- **A reload affordance.** Every suspended root (and its nested owned roots)
+  gets a `data-nv-suspended` attribute. Style a hint inside the component,
+  for example a `<p class="reload-hint" role="alert">` with a plain
+  `<a href="">Reload the page</a>` link, and show it with
+  `[data-nv-suspended] .reload-hint { display: block }`.
+
+Links with `nv:click` and an `href` already navigate natively when the
+component is suspended. Other suspended interactions do nothing until a
+reload. The [browser-lab example](../../examples/browser-lab/README.md) and
+`tests/browser/runtime-resilience.spec.ts` prove both paths in Chromium,
+Firefox and WebKit.
 
 ## 6. Logout clears drafts
 

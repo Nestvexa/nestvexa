@@ -50,6 +50,15 @@ export interface LargeRow {
   readonly note: string;
 }
 
+/**
+ * Output of the `notes.add` server action (src/actions.ts). Mutable like the
+ * generated action types, so the page prop is the hook's initial data as is.
+ */
+export interface NoteBoard {
+  total: number;
+  latest: string[];
+}
+
 /** Pages of the client-feature tour (src/features.ts, client/pages/Features). */
 export interface FeaturePages {
   readonly 'Features/Index': { readonly title: string };
@@ -76,4 +85,6 @@ export interface FeaturePages {
   readonly 'Features/Todos': { readonly todos: readonly Todo[] };
   readonly 'Features/Signup': Readonly<Record<string, never>>;
   readonly 'Features/Large': { readonly rows: readonly LargeRow[] };
+  readonly 'Features/Long': { readonly page: number; readonly next: number };
+  readonly 'Features/Actions': { readonly board: NoteBoard };
 }

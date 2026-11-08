@@ -1,8 +1,9 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type {
   CallHandler,
   ExecutionContext,
   NestInterceptor,
+  Type,
 } from '@nestjs/common';
 import {
   HTTP_CODE_METADATA,
@@ -12,8 +13,8 @@ import {
   SSE_METADATA,
 } from '@nestjs/common/constants.js';
 import { RouteParamtypes } from '@nestjs/common/enums/route-paramtypes.enum.js';
-import { Reflector } from '@nestjs/core';
-import { from, mergeMap, of } from 'rxjs';
+import { ModuleRef, Reflector } from '@nestjs/core';
+import { from, lastValueFrom, mergeMap, of } from 'rxjs';
 import type { Observable } from 'rxjs';
 import { INERTIA_PAGE_METADATA, PRECOGNITION_METADATA } from './constants.js';
 import type { InertiaPageMetadata } from './decorators.js';
@@ -23,7 +24,10 @@ import {
   defaultPrecognitionInput,
   runPrecognitionValidator,
 } from './precognition.js';
-import type { PrecognitionMetadata } from './precognition.js';
+import type {
+  PrecognitionInterceptor,
+  PrecognitionMetadata,
+} from './precognition.js';
 import { isPlainObject } from './resolver.js';
 import {
   InertiaBackResult,
@@ -50,9 +54,16 @@ import type { InertiaErrors } from './validation-types.js';
  */
 @Injectable()
 export class InertiaInterceptor implements NestInterceptor {
+  /** Precognition interceptor classes, created once through the injector. */
+  readonly #created = new Map<
+    Type<NestInterceptor>,
+    Promise<NestInterceptor>
+  >();
+
   constructor(
     @Inject(InertiaService) private readonly inertia: InertiaService,
     @Inject(Reflector) private readonly reflector: Reflector,
+    @Optional() @Inject(ModuleRef) private readonly moduleRef?: ModuleRef,
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
@@ -69,7 +80,9 @@ export class InertiaInterceptor implements NestInterceptor {
       PRECOGNITION_METADATA,
       context.getHandler(),
     );
-    return from(this.#before(request, response, metadata, precognition)).pipe(
+    return from(
+      this.#before(context, request, response, metadata, precognition),
+    ).pipe(
       mergeMap((conflict) =>
         conflict === undefined
           ? next
@@ -92,6 +105,7 @@ export class InertiaInterceptor implements NestInterceptor {
   }
 
   async #before(
+    context: ExecutionContext,
     request: object,
     response: object,
     metadata: InertiaPageMetadata | undefined,
@@ -113,7 +127,64 @@ export class InertiaInterceptor implements NestInterceptor {
       });
       return undefined;
     }
-    return this.#precognition(request, response, precognition);
+    if (precognition.interceptors.length === 0)
+      return this.#precognition(request, response, precognition);
+    return this.#precognitionThrough(context, request, response, precognition);
+  }
+
+  /**
+   * Runs the route's declared Precognition interceptors (typically a multipart
+   * parser such as `FileInterceptor`) around the validation, so files sent by
+   * `validateFiles()` are parsed first. Each must call `next.handle()`.
+   */
+  async #precognitionThrough(
+    context: ExecutionContext,
+    request: object,
+    response: object,
+    precognition: PrecognitionMetadata,
+  ): Promise<string> {
+    let answer: string | undefined;
+    const chain = (index: number): Observable<unknown> => {
+      const entry = precognition.interceptors[index];
+      if (entry === undefined)
+        return from(
+          this.#precognition(request, response, precognition).then(
+            (body) => (answer = body),
+          ),
+        );
+      return from(this.#interceptor(entry)).pipe(
+        mergeMap((interceptor) =>
+          from(
+            Promise.resolve(
+              interceptor.intercept(context, {
+                handle: () => chain(index + 1),
+              }),
+            ),
+          ),
+        ),
+        mergeMap((observable) => observable),
+      );
+    };
+    await lastValueFrom(chain(0), { defaultValue: undefined });
+    if (answer === undefined)
+      throw new InertiaConfigurationError(
+        'A @Precognitive interceptor did not call next.handle()',
+      );
+    return answer;
+  }
+
+  #interceptor(entry: PrecognitionInterceptor): Promise<NestInterceptor> {
+    if (typeof entry !== 'function') return Promise.resolve(entry);
+    let created = this.#created.get(entry);
+    if (!created) {
+      created = this.moduleRef
+        ? this.moduleRef.create(entry)
+        : Promise.resolve(new entry());
+      // A failed creation is retried on the next request, never cached.
+      created.catch(() => this.#created.delete(entry));
+      this.#created.set(entry, created);
+    }
+    return created;
   }
 
   /** Validation-only answer; the handler never runs for Precognition requests. */

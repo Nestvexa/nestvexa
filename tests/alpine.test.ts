@@ -51,7 +51,10 @@ function fixture() {
   const values = new Map<string, unknown>([['count', 0]]);
   const client: LiveClientBridge = {
     call: vi.fn(async () => undefined),
-    get: vi.fn((_element, name) => values.get(name)),
+    get: vi.fn((_element, name) => {
+      if (!values.has(name)) throw new Error('Unknown public state field');
+      return values.get(name);
+    }),
     set: vi.fn((_element, name, value) => {
       values.set(name, value);
     }),
@@ -64,10 +67,37 @@ function fixture() {
   const element = new TestElement();
   element.parentElement = local;
   const cleanups: (() => void)[] = [];
-  function facade(target = element): LiveMagic {
+  // Minimal stand-ins for Alpine's element-bound effect and data interceptor:
+  // effects run immediately and again on flush(); disposed ones stop.
+  const effects: (() => void)[] = [];
+  let effectsActive = true;
+  const reactivity: Pick<AlpineMagicUtilities, 'effect' | 'interceptor'> = {
+    effect(run) {
+      effects.push(run);
+      run();
+    },
+    interceptor: (run) => (initialValue) => ({
+      _x_interceptor: true,
+      initialize: (data: Record<string, unknown>, path: string) =>
+        run(
+          initialValue,
+          () => data[path],
+          (value) => {
+            data[path] = value;
+          },
+          path,
+          path,
+        ),
+    }),
+  };
+  function flush(): void {
+    if (effectsActive) for (const run of effects) run();
+  }
+  function facade(target = element, utilities = reactivity): LiveMagic {
     if (!callback) throw new Error('Plugin not installed');
     return callback(target.asElement(), {
       cleanup: (fn) => cleanups.push(fn),
+      ...utilities,
     }) as LiveMagic;
   }
   return {
@@ -79,6 +109,11 @@ function fixture() {
     element,
     cleanups,
     facade,
+    flush,
+    values,
+    stopEffects: () => {
+      effectsActive = false;
+    },
     revision: () => signal?.revision,
   };
 }
@@ -217,5 +252,81 @@ describe('Alpine Live adapter', () => {
     installLiveAlpine(f.alpine, { ...f.client, call });
     await expect(f.facade().call('increment')).rejects.toThrow('failed');
     expect(call).toHaveBeenCalledTimes(1);
+  });
+  it('$live.state is a reactive read-only view of public state', () => {
+    const f = fixture();
+    installLiveAlpine(f.alpine, f.client);
+    const magic = f.facade();
+    expect(magic.state['count']).toBe(0);
+    expect('count' in magic.state).toBe(true);
+    expect('missing' in magic.state).toBe(false);
+    expect(() => magic.state['missing']).toThrow('Unknown public state');
+    // Alpine/evaluator probes of internal keys never reach the client.
+    for (const key of ['_x_interceptor', '__v_skip', '$data'])
+      expect(Reflect.get(magic.state, key)).toBeUndefined();
+    expect(Reflect.get(magic.state, Symbol.iterator)).toBeUndefined();
+    expect(() => Reflect.set(magic.state, 'count', 1)).toThrow('read-only');
+    expect(() => Reflect.deleteProperty(magic.state, 'count')).toThrow(
+      'read-only',
+    );
+    expect(() =>
+      Object.defineProperty(magic.state, 'count', { value: 1 }),
+    ).toThrow('read-only');
+    expect(f.client.set).not.toHaveBeenCalled();
+    magic.set('count', 4);
+    expect(magic.state['count']).toBe(4);
+    for (const cleanup of f.cleanups) cleanup();
+    expect(() => magic.state['count']).toThrow('no longer attached');
+  });
+  it('$live.entangle stages Alpine writes as drafts and applies committed values', () => {
+    const f = fixture();
+    installLiveAlpine(f.alpine, f.client);
+    const magic = f.facade();
+    const data: Record<string, unknown> = {};
+    const binding = magic.entangle('count') as {
+      initialize(data: Record<string, unknown>, path: string): unknown;
+    };
+    data['count'] = binding.initialize(data, 'count');
+    expect(data['count']).toBe(0);
+    expect(f.client.set).not.toHaveBeenCalled();
+    // Alpine -> Live: a local write stages a draft once.
+    data['count'] = 5;
+    f.flush();
+    f.flush();
+    expect(f.client.set).toHaveBeenCalledTimes(1);
+    expect(f.client.set).toHaveBeenCalledWith(
+      f.element.asElement(),
+      'count',
+      5,
+    );
+    expect(f.revision()).toBe(1);
+    // Live -> Alpine: a committed server value replaces the local value
+    // without echoing it back as a new draft.
+    f.values.set('count', 9);
+    f.component.dispatchEvent(new Event('nestvexa:updated'));
+    f.flush();
+    expect(data['count']).toBe(9);
+    expect(f.client.set).toHaveBeenCalledTimes(1);
+    // Non-primitive Alpine values are reverted and rejected.
+    data['count'] = { nested: true };
+    expect(() => f.flush()).toThrow('primitive values only');
+    expect(data['count']).toBe(9);
+    // After Alpine cleanup nothing is staged any more.
+    for (const cleanup of f.cleanups) cleanup();
+    data['count'] = 11;
+    f.flush();
+    expect(f.client.set).toHaveBeenCalledTimes(1);
+  });
+  it('$live.entangle requires primitive fields and Alpine reactivity APIs', () => {
+    const f = fixture();
+    installLiveAlpine(f.alpine, f.client);
+    f.values.set('items', ['a']);
+    expect(() => f.facade().entangle('items')).toThrow('primitive public');
+    expect(() => f.facade().entangle('missing')).toThrow('Unknown public');
+    const bare = new TestElement();
+    bare.parentElement = f.local;
+    expect(() => f.facade(bare, {}).entangle('count')).toThrow(
+      'interceptor and effect',
+    );
   });
 });

@@ -79,7 +79,9 @@ export function UseInertia(): ClassDecorator & MethodDecorator {
  * `{ message, errors }` (errors as message arrays, filtered by
  * `Precognition-Validate-Only`). Every response of the route carries
  * `Vary: Precognition`. Ordinary submissions reach the handler unchanged, so
- * validate them there as usual (for example with the same adapter).
+ * validate them there as usual (for example with the same adapter). For
+ * multipart `validateFiles()` requests, pass the route's body parser in
+ * `interceptors` (see `PrecognitiveOptions`).
  *
  * ```ts
  * const user = zodAdapter(z.object({ name: z.string().min(1) }));
@@ -99,7 +101,7 @@ export function Precognitive(
       '@Precognitive options must be an object',
     );
   for (const key of Object.keys(options))
-    if (key !== 'input')
+    if (key !== 'input' && key !== 'interceptors')
       throw new InertiaConfigurationError(
         `Unknown @Precognitive option "${key}"`,
       );
@@ -107,9 +109,24 @@ export function Precognitive(
     throw new InertiaConfigurationError(
       '@Precognitive input must be a function',
     );
+  const interceptors = options.interceptors ?? [];
+  if (
+    !Array.isArray(interceptors) ||
+    !interceptors.every(
+      (entry: unknown) =>
+        typeof entry === 'function' ||
+        (typeof entry === 'object' &&
+          entry !== null &&
+          typeof (entry as { intercept?: unknown }).intercept === 'function'),
+    )
+  )
+    throw new InertiaConfigurationError(
+      '@Precognitive interceptors must be interceptor classes or instances',
+    );
   const metadata: PrecognitionMetadata = Object.freeze({
     validator,
     input: options.input,
+    interceptors: Object.freeze([...interceptors]),
   });
   return applyDecorators(
     SetMetadata(PRECOGNITION_METADATA, metadata),

@@ -203,8 +203,8 @@ screenshots were produced.
 - `pnpm --filter @nestvexa/example-showcase... build`: passes (tsc,
   vue-tsc, Vite client and SSR builds).
 - `pnpm exec eslint examples/showcase tests/browser/showcase.spec.ts
-  tests/services/showcase-redis.spec.ts playwright.config.ts
-  playwright.services.config.ts` and `node scripts/boundaries.mjs`: pass.
+tests/services/showcase-redis.spec.ts playwright.config.ts
+playwright.services.config.ts` and `node scripts/boundaries.mjs`: pass.
 - `pnpm exec tsc -p tsconfig.tests.json --noEmit`: no errors in the files of
   this round. The only errors reported come from test files that import
   packages not built in this worktree (`react`, `svelte`, `ui`,

@@ -26,6 +26,7 @@ import {
   InertiaPage,
   InertiaService,
   InertiaValidationException,
+  Precognitive,
   defer,
   optional,
   redirect,
@@ -44,6 +45,7 @@ import session from 'express-session';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ActionsPageController, NotesModule, noteActions } from './actions.js';
 import { DocumentsController, documentUploads } from './documents.js';
 import { FeaturesController } from './features.js';
 import { KitController } from './kit.js';
@@ -74,12 +76,34 @@ interface MultipartFile {
   readonly size: number;
 }
 
+/** Upload rules shared by Precognition (validateFiles()) and the submission. */
+function uploadErrors(file: unknown): { document: string } | undefined {
+  if (typeof file !== 'object' || file === null)
+    return { document: 'Choose a file.' };
+  const { mimetype, size } = file as Partial<MultipartFile>;
+  if (
+    typeof mimetype !== 'string' ||
+    !['text/plain', 'image/png'].includes(mimetype)
+  )
+    return { document: 'Only plain text and PNG files are accepted.' };
+  if (typeof size !== 'number' || size > 64 * 1024)
+    return { document: 'The file may not be larger than 64 KB.' };
+  return undefined;
+}
+
+/** Parses the multipart body for submissions and Precognition requests alike. */
+const DocumentUpload = FileInterceptor('document', {
+  limits: { fileSize: 1024 * 1024, files: 1 },
+});
+
 const root = fileURLToPath(new URL('..', import.meta.url));
 const dev = process.argv.includes('--dev');
 const testControls = process.argv.includes('--test-controls');
 // Client-only mode: no SSR at all; the client mounts into an empty root.
 const clientOnly = process.argv.includes('--client-only');
 const port = Number(process.env['PORT'] ?? 3106);
+/** The browser origin that upload and action requests must send. */
+const origin = process.env['ORIGIN'] ?? `http://127.0.0.1:${port}`;
 const ssrUrl = process.env['SSR_URL'] ?? 'http://127.0.0.1:13716';
 const logger = new Logger('InertiaReactExample');
 
@@ -226,26 +250,24 @@ class PagesController {
     return { uploads: () => uploads.map((upload) => ({ ...upload })) };
   }
 
+  /**
+   * The page calls validateFiles(): Precognition requests arrive as multipart
+   * bodies, parsed by the declared interceptor before the rules run.
+   */
   @Post('uploads')
-  @UseInterceptors(
-    FileInterceptor('document', {
-      limits: { fileSize: 1024 * 1024, files: 1 },
-    }),
+  @Precognitive(
+    (input) => uploadErrors((input as { document?: unknown }).document),
+    {
+      interceptors: [DocumentUpload],
+    },
   )
+  @UseInterceptors(DocumentUpload)
   upload(
     @Req() request: SessionRequest,
     @UploadedFile() file: MultipartFile | undefined,
   ) {
-    if (!file)
-      throw new InertiaValidationException({ document: 'Choose a file.' });
-    if (!['text/plain', 'image/png'].includes(file.mimetype))
-      throw new InertiaValidationException({
-        document: 'Only plain text and PNG files are accepted.',
-      });
-    if (file.size > 64 * 1024)
-      throw new InertiaValidationException({
-        document: 'The file may not be larger than 64 KB.',
-      });
+    const errors = uploadErrors(file);
+    if (errors || !file) throw new InertiaValidationException(errors ?? {});
     const name = file.originalname.replace(/[^\w.-]+/g, '_').slice(0, 80);
     uploads.unshift({ name, size: file.size, type: file.mimetype });
     this.inertia.flash(request, 'success', `Uploaded ${name}`);
@@ -270,7 +292,9 @@ class PagesController {
 
 @Module({
   imports: [
-    documentUploads(process.env['ORIGIN'] ?? `http://127.0.0.1:${port}`),
+    documentUploads(origin),
+    noteActions(origin),
+    NotesModule,
     InertiaModule.forRoot({
       version: (request) =>
         (request as SessionRequest).session.assetVersion ??
@@ -298,6 +322,7 @@ class PagesController {
     FeaturesController,
     DocumentsController,
     KitController,
+    ActionsPageController,
   ],
   providers: [{ provide: APP_GUARD, useClass: XsrfGuard }],
 })

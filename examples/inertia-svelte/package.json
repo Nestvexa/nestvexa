@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json && svelte-check --tsconfig client/tsconfig.json --fail-on-warnings && vite build && vite build --ssr client/ssr.ts --outDir dist/ssr",
+    "codegen": "node scripts/codegen.mjs",
+    "build": "node scripts/codegen.mjs && tsc -p tsconfig.json && svelte-check --tsconfig client/tsconfig.json --fail-on-warnings && vite build && vite build --ssr client/ssr.ts --outDir dist/ssr",
     "dev": "tsx src/main.ts --dev",
     "start": "node dist/main.js",
     "start:e2e": "node dist/main.js --test-controls",
@@ -14,6 +15,7 @@
     "@nestjs/common": "12.2.0",
     "@nestjs/core": "12.2.0",
     "@nestjs/platform-express": "12.2.0",
+    "@nestvexa/actions": "workspace:*",
     "@nestvexa/forms": "workspace:*",
     "@nestvexa/inertia": "workspace:*",
     "@nestvexa/svelte": "workspace:*",

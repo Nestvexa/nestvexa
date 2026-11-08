@@ -1,15 +1,21 @@
-import { Module } from '@nestjs/common';
+import { Module, RequestMethod } from '@nestjs/common';
 import type {
   DynamicModule,
   InjectionToken,
+  MiddlewareConsumer,
   ModuleMetadata,
+  NestModule,
   OptionalFactoryDependency,
   Provider,
 } from '@nestjs/common';
-import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { INERTIA_OPTIONS } from './constants.js';
 import { InertiaInterceptor } from './interceptor.js';
 import { resolveOptions } from './options.js';
+import {
+  PrecognitionGuard,
+  PrecognitionMiddleware,
+} from './precognition-http.js';
 import type { InertiaModuleOptions } from './options.js';
 import { InertiaService } from './service.js';
 import { InertiaValidationFilter } from './validation.js';
@@ -52,6 +58,9 @@ function providers(
     InertiaService,
     InertiaInterceptor,
     InertiaValidationFilter,
+    PrecognitionGuard,
+    // Keeps Precognition labels on guard rejections of @Precognitive routes.
+    { provide: APP_GUARD, useExisting: PrecognitionGuard },
     ...(behaviour.interceptor === 'decorated'
       ? []
       : [{ provide: APP_INTERCEPTOR, useExisting: InertiaInterceptor }]),
@@ -70,7 +79,14 @@ const exported = [
 
 /** Nest dynamic module for the Inertia v3 server adapter. */
 @Module({})
-export class InertiaModule {
+export class InertiaModule implements NestModule {
+  /** Labels Precognition responses before any guard can reject them. */
+  configure(consumer: MiddlewareConsumer): void {
+    consumer
+      .apply(PrecognitionMiddleware)
+      .forRoutes({ path: '{*path}', method: RequestMethod.ALL });
+  }
+
   static forRoot(
     options: InertiaModuleOptions & InertiaModuleBehaviour = {},
   ): DynamicModule {

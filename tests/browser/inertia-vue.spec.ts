@@ -2,6 +2,11 @@ import {
   defineClientOnlySuite,
   defineFeatureSmoke,
 } from './inertia-feature-smoke.js';
+import {
+  defineFeatureTour,
+  defineScrollAndProgress,
+  defineTypedActionsSuite,
+} from './inertia-feature-tour.js';
 import { defineFrameworkSuite, exampleUrl } from './inertia-framework-suite.js';
 import { defineFormsUploadsSuite } from './inertia-forms-uploads.js';
 import { defineHostilePropsSuite } from './inertia-hostile-props.js';
@@ -14,6 +19,9 @@ const base = exampleUrl('VUE', 3107);
 defineFrameworkSuite({ framework: 'Vue', base });
 defineFormsUploadsSuite({ framework: 'Vue', base });
 defineFeatureSmoke({ framework: 'Vue', base });
+defineFeatureTour({ framework: 'Vue', base });
+defineScrollAndProgress({ framework: 'Vue', base, home: '/features/tour' });
+defineTypedActionsSuite({ framework: 'Vue', base });
 defineClientOnlySuite({ framework: 'Vue', base: exampleUrl('VUE_CSR', 3211) });
 defineHostilePropsSuite({
   framework: 'Vue',

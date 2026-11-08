@@ -107,8 +107,13 @@ export {
   parsePrecognitionRequest,
   selectPrecognitionErrors,
 } from './precognition.js';
+export {
+  PrecognitionGuard,
+  PrecognitionMiddleware,
+} from './precognition-http.js';
 export type {
   PrecognitionCheck,
+  PrecognitionInterceptor,
   PrecognitionRequestInfo,
   PrecognitionResult,
   PrecognitionSchema,
