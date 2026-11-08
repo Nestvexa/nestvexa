@@ -39,18 +39,50 @@ async function directives(page: Page): Promise<Record<string, number>> {
   });
 }
 
+interface Violation {
+  readonly directive: string;
+  readonly tag: string;
+  readonly source: string;
+}
+
+/**
+ * WebKit reports `style-src-attr` for the internal rendering of native
+ * `<select>` controls while parsing (no source file, no sample, and no style
+ * attribute in the markup). Only that engine artifact is ignored; any
+ * violation from page code or an injected payload still fails the test.
+ */
+function significant(
+  violations: readonly Violation[],
+  browserName: string,
+): readonly Violation[] {
+  return violations.filter(
+    (violation) =>
+      !(
+        browserName === 'webkit' &&
+        violation.directive === 'style-src-attr' &&
+        violation.tag === 'SELECT' &&
+        violation.source === ''
+      ),
+  );
+}
+
 test('server-rendered user data never becomes an Alpine or Live directive', async ({
   page,
+  browserName,
 }) => {
   // Nine save-and-morph round trips; the default 30 s is too short on loaded hosts.
   test.setTimeout(120_000);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.addInitScript(() => {
-    const target = window as unknown as { __cspViolations: string[] };
+    const target = window as unknown as { __cspViolations: Violation[] };
     target.__cspViolations = [];
     document.addEventListener('securitypolicyviolation', (event) =>
-      target.__cspViolations.push(`${event.violatedDirective}`),
+      target.__cspViolations.push({
+        directive: event.violatedDirective,
+        tag: event.target instanceof Element ? event.target.tagName : '',
+        source: event.sourceFile,
+      }),
     );
   });
   await page.goto('/');
@@ -89,11 +121,10 @@ test('server-rendered user data never becomes an Alpine or Live directive', asyn
   await page.getByRole('button', { name: 'Alpine server increment' }).click();
   await expect(page.locator('#count')).toHaveText('1');
   await expect(page.locator('#alpine-server')).toHaveText('1');
-  expect(
-    await page.evaluate(
-      () =>
-        (window as unknown as { __cspViolations: string[] }).__cspViolations,
-    ),
-  ).toEqual([]);
+  const violations = await page.evaluate(
+    () =>
+      (window as unknown as { __cspViolations: Violation[] }).__cspViolations,
+  );
+  expect(significant(violations, browserName)).toEqual([]);
   expect(errors).toEqual([]);
 });
