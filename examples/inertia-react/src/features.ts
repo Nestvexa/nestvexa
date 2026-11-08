@@ -29,7 +29,8 @@ import type { FeaturePages, LargeRow, Todo } from './page-types.js';
 // @inertiajs/react client: prefetching, polling, manual/instant visits,
 // non-GET links, view transitions, infinite scroll and merge props,
 // WhenVisible, remembered state, once props, history encryption with
-// clearHistory, optimistic updates, Precognition and a large page payload.
+// clearHistory, optimistic updates, Precognition, a large page payload,
+// scroll management and the progress indicator.
 
 interface FeatureSession {
   ticks?: number;
@@ -48,6 +49,7 @@ type ServerProps<T> = {
 const PAGE_SIZE = 15;
 const SCROLL_PAGES = 3;
 const LARGE_ROWS = 20000;
+const LONG_PAGES = 3;
 
 function pageNumber(value: unknown, pages: number): number {
   const parsed = typeof value === 'string' ? Number(value) : 1;
@@ -255,6 +257,18 @@ export class FeaturesController {
     if (!result.ok) throw new InertiaValidationException(result.errors);
     this.inertia.flash(request, 'success', `Welcome, ${result.value.name}`);
     return redirect('/features');
+  }
+
+  /** Tall pages with a scroll region, for scroll reset/preserve/restore. */
+  @Get('long/:page')
+  @InertiaPage('Features/Long')
+  long(@Param('page') raw: string): ServerProps<FeaturePages['Features/Long']> {
+    const parsed = Number(raw);
+    const page =
+      Number.isInteger(parsed) && parsed >= 1 && parsed <= LONG_PAGES
+        ? parsed
+        : 1;
+    return { page, next: page < LONG_PAGES ? page + 1 : 1 };
   }
 
   @Get('large')

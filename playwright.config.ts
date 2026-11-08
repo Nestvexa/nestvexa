@@ -254,6 +254,13 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 180000,
     },
+    // Browser runtime lab: navigation, Alpine $live, reorder, reconnection, leaks.
+    {
+      command: 'pnpm --filter @nestvexa/example-browser-lab start',
+      url: 'http://127.0.0.1:3860/api/health',
+      env: { PORT: '3860' },
+      reuseExistingServer: false,
+    },
     // Islands built through Vite: production build and Vite dev middleware.
     {
       command: 'pnpm --filter @nestvexa/example-islands-vite start',

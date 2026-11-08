@@ -1,0 +1,31 @@
+<section aria-label="Lab counter">
+  <p>Count: <output id="count" aria-live="polite">{{count}}</output></p>
+  <button type="button" id="increment" nv:click="increment">Increment</button>
+  <p>
+    <label
+      >Echo
+      <input
+        id="echo"
+        nv:model.live.debounce.50ms="echo"
+        maxlength="80"
+        value="{{echo}}"
+    /></label>
+    Server echo: <output id="echo-server">{{echo}}</output>
+  </p>
+  <form nv:submit="save" action="/note" method="post">
+    <label
+      >Note
+      <input
+        id="note"
+        name="note"
+        nv:model="note"
+        maxlength="80"
+        value="{{note}}"
+    /></label>
+    <button type="submit">Save note</button>
+    <p>Saved: <output id="saved">{{saved}}</output></p>
+  </form>
+  <p class="reload-hint" role="alert">
+    This panel stopped updating. <a href="">Reload the page</a> to continue.
+  </p>
+</section>

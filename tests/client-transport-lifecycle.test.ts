@@ -42,6 +42,9 @@ interface Reply {
   html?: string;
   renderless?: unknown;
   snapshot?: string;
+  /** Response revision (defaults to the request revision + 1). */
+  revision?: number;
+  headers?: Record<string, string>;
   mode?:
     | 'hang'
     | 'hang-cancel'
@@ -256,7 +259,7 @@ async function mount(options: MountOptions = { timeout: 100 }): Promise<void> {
             component: {
               id: root.getAttribute('data-nv-component'),
               name,
-              revision: request.body.revision + 1,
+              revision: spec.revision ?? request.body.revision + 1,
             },
             snapshot: spec.snapshot ?? request.body.snapshot,
             state: spec.state ?? {
@@ -294,6 +297,8 @@ async function mount(options: MountOptions = { timeout: 100 }): Promise<void> {
             );
           if (spec.declaredLength !== undefined)
             headers.set('content-length', spec.declaredLength);
+          for (const [key, value] of Object.entries(spec.headers ?? {}))
+            headers.set(key, value);
           if (spec.mode === 'empty') {
             request.resolve(
               new Response(null, { status: spec.status ?? 200, headers }),
@@ -1360,6 +1365,101 @@ describe('bounded browser request lifecycle', () => {
       ]);
     },
   );
+
+  const staleHint = {
+    status: 409,
+    mode: 'empty',
+    headers: { 'x-nestvexa-recovery': 'resync' },
+  } as const;
+
+  it('answers STALE_REVISION with one fresh resync and no replay of the failed call', async () => {
+    await mount();
+    await page.locator('#parent-edit').fill('kept draft');
+    const task = await start();
+    const queued = await start('save');
+    await reply(0, staleHint);
+    expect(await result(task)).toEqual({ ok: false, code: 'HTTP' });
+    // The queued request still carries the stale revision: it fails the same
+    // way and shares the single resync instead of scheduling another.
+    await expect.poll(async () => (await metrics()).requests.length).toBe(2);
+    await reply(1, staleHint);
+    expect(await result(queued)).toEqual({ ok: false, code: 'HTTP' });
+    await expect.poll(async () => (await metrics()).requests.length).toBe(3);
+    const resync = await page.evaluate(() => {
+      const request = window.nvTransportSession.requests[2];
+      return {
+        url: new URL(request?.url ?? '', location.href).pathname,
+        header: request?.headers.get('x-nestvexa-resync') ?? null,
+        updates: request?.body.updates,
+        revision: request?.body.revision,
+      };
+    });
+    // No drafts are written by the resync; the failed action is not resent.
+    expect(resync).toEqual({
+      url: '/live/parent/_sync',
+      header: '1',
+      updates: {},
+      revision: 0,
+    });
+    // The server answers with its current revision, which may be any newer one.
+    await reply(2, { revision: 5, state: { query: 'server', count: 5 } });
+    expect(await page.locator('#parent-count').textContent()).toBe('5');
+    // The local draft survives and goes with the next request, at the new revision.
+    expect(await page.locator('#parent-edit').inputValue()).toBe('kept draft');
+    const next = await start();
+    const sent = await page.evaluate(
+      () => window.nvTransportSession.requests[3]?.body,
+    );
+    expect(sent).toMatchObject({
+      revision: 5,
+      updates: { query: 'kept draft' },
+    });
+    expect(
+      await page.evaluate(
+        () =>
+          window.nvTransportSession.requests[3]?.headers.get(
+            'x-nestvexa-resync',
+          ) ?? null,
+      ),
+    ).toBeNull();
+    await reply(3, { state: { query: 'kept draft', count: 6 } });
+    expect(await result(next)).toEqual({ ok: true, code: null });
+    expect((await metrics()).errors.map((error) => error.code)).toEqual([
+      'HTTP',
+      'HTTP',
+    ]);
+  });
+
+  it('suspends when the resync itself is stale instead of looping', async () => {
+    await mount();
+    const task = await start();
+    await reply(0, staleHint);
+    expect(await result(task)).toEqual({ ok: false, code: 'HTTP' });
+    await expect.poll(async () => (await metrics()).requests.length).toBe(2);
+    await reply(1, staleHint);
+    await page.clock.runFor(1000);
+    expect((await metrics()).requests).toHaveLength(2);
+    // Suspended: a later call is rejected without another request.
+    const later = await start();
+    await page.clock.runFor(0);
+    expect(await result(later)).toEqual({ ok: false, code: 'HTTP' });
+    expect((await metrics()).requests).toHaveLength(2);
+    expect(
+      await page.locator('#parent').getAttribute('data-nv-suspended'),
+    ).toBe('');
+  });
+
+  it('ignores the resync hint on statuses other than 409', async () => {
+    await mount();
+    const task = await start();
+    await reply(0, { ...staleHint, status: 500 });
+    expect(await result(task)).toEqual({ ok: false, code: 'HTTP' });
+    await page.clock.runFor(1000);
+    expect((await metrics()).requests).toHaveLength(1);
+    expect(
+      await page.locator('#parent').getAttribute('data-nv-suspended'),
+    ).toBe('');
+  });
 
   it('keeps a recoverable validation rejection available for an explicit correction', async () => {
     await mount();

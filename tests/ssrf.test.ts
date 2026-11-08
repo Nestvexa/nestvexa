@@ -89,7 +89,7 @@ describe('Inertia SSR gateway (HttpSsrGateway)', () => {
     'gopher://127.0.0.1:6379/_INFO',
     'data:text/plain,x',
     'javascript:alert(1)',
-    'http://user:secret@127.0.0.1:13714',
+    'http://user:secret@127.0.0.1:13714', // trufflehog:ignore (rejected fixture)
     'http://127.0.0.1:13714/?target=http://169.254.169.254/',
     'http://127.0.0.1:13714/#fragment',
   ])('refuses the configured URL %s', (url) => {
@@ -206,7 +206,7 @@ describe('S3-compatible storage (S3Storage)', () => {
   it.each([
     'file:///var/data',
     'ftp://127.0.0.1',
-    'http://user:pass@127.0.0.1:9000',
+    'http://user:pass@127.0.0.1:9000', // trufflehog:ignore (rejected fixture)
     'http://127.0.0.1:9000/bucket-path',
     'http://127.0.0.1:9000/?x=1',
     'http://127.0.0.1:9000/#x',

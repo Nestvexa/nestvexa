@@ -1,0 +1,40 @@
+<section aria-label="Event listener">
+  <p>
+    Received: <output id="received">{{received}}</output>; last:
+    <output id="last">{{last}}</output>
+  </p>
+  <p>
+    Server title: <output id="server-title">{{title}}</output>; level
+    <output id="level">{{level}}</output>
+  </p>
+  <button type="button" id="announce" nv:click="announce">Announce</button>
+  <button type="button" id="rename" nv:click="rename">Rename on server</button>
+  <div nv:ignore="" id="alpine-events" x-data="labEvents">
+    <button
+      type="button"
+      id="alpine-dispatch"
+      x-on:click="$live.dispatch('lab.ping', { text: 'from alpine' })"
+    >
+      Dispatch from Alpine
+    </button>
+    <button type="button" id="alpine-stop" x-on:click="stop">
+      Stop listening
+    </button>
+    <p>Events: <output id="alpine-log" x-text="log"></output></p>
+    <p>
+      State level:
+      <output id="alpine-level" x-text="$live.state.level"></output>; received:
+      <output id="alpine-received" x-text="$live.state.received"></output>
+    </p>
+  </div>
+  <div
+    nv:ignore=""
+    id="alpine-entangle"
+    x-data="{ title: $live.entangle('title') }"
+  >
+    <label
+      >Entangled title <input id="entangled-input" x-model="title"
+    /></label>
+    <p>Alpine title: <output id="entangled-title" x-text="title"></output></p>
+  </div>
+</section>

@@ -72,8 +72,8 @@ describe('secret scan rules', () => {
   it('ignores documentation placeholders, short fixture passwords and allowed lines', () => {
     const text = [
       'accessKeyId: "AKIAIOSFODNN7EXAMPLE",',
-      'redis://user:short@redis:6379',
-      'http://user:$PASSWORD_FROM_ENV@host/',
+      'redis://user:short@redis:6379', // trufflehog:ignore (placeholder fixture)
+      'http://user:$PASSWORD_FROM_ENV@host/', // trufflehog:ignore (placeholder fixture)
       `${'AKIA'}${repeat('Q', 16)} // nestvexa-secret-scan: allow fixture`,
       '// nestvexa-secret-scan: allow-next-line',
       `${'AKIA'}${repeat('Q', 16)}`,

@@ -92,3 +92,18 @@ button {
 .tall-item {
   min-height: 4rem;
 }
+
+/* Scroll management pages: taller than the viewport, plus a scroll region. */
+.long-spacer {
+  height: 160vh;
+}
+
+.scroll-region {
+  height: 10rem;
+  overflow: auto;
+  border: 1px solid #d1d5db;
+}
+
+.scroll-region-content {
+  height: 60rem;
+}
