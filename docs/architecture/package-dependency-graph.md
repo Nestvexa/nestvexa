@@ -74,6 +74,7 @@ flowchart TD
   inertia --> views
   islands --> views
   i18n --> views
+  cache --> views
   ui --> views
   react --> vite
   vue --> vite
@@ -120,9 +121,11 @@ flowchart TD
   depend on `@nestvexa/vite` for manifest and SSR helpers and take the official
   Inertia client and framework as **required peers**. `@nestvexa/inertia` (the server
   adapter) depends only on views and never imports a client framework.
-- **Standalone optional packages.** actions, realtime, cache, observability, ai,
-  flags, offline, mail and uploads have no workspace edges; they integrate through Nest DI
-  and public contracts, so installing one never drags in another.
+- **Standalone optional packages.** actions, realtime, observability, ai,
+  flags, offline, mail and uploads have no workspace edges, and cache depends
+  only on the dependency-free views contract (for `SafeHtml` fragment
+  results); they integrate through Nest DI and public contracts, so installing
+  one never drags in another.
 - **Optional peer edges.** `forms -.-> live` lets the forms package offer Live helpers
   from its `@nestvexa/forms/live` subpath without making Live mandatory;
   `nestvexa -.-> cli` lets the `nestvexa` bin delegate to an installed CLI.
@@ -134,7 +137,7 @@ flowchart TD
 | [@nestvexa/actions](../../packages/actions/README.md)                 | —                                                                                                                     | —                                | `@nestjs/common`, `@nestjs/core`, `reflect-metadata`, `rxjs`, `typescript` (optional)                                         | false         |
 | [@nestvexa/ai](../../packages/ai/README.md)                           | —                                                                                                                     | —                                | `@nestjs/common`, `reflect-metadata`, `rxjs`                                                                                  | false         |
 | [@nestvexa/alpine](../../packages/alpine/README.md)                   | `@nestvexa/client`                                                                                                    | —                                | `@alpinejs/csp` (optional), `alpinejs` (optional)                                                                             | false         |
-| [@nestvexa/cache](../../packages/cache/README.md)                     | —                                                                                                                     | —                                | —                                                                                                                             | false         |
+| [@nestvexa/cache](../../packages/cache/README.md)                     | `@nestvexa/views`                                                                                                     | —                                | —                                                                                                                             | false         |
 | [@nestvexa/cli](../../packages/cli/README.md)                         | —                                                                                                                     | `typescript@6.0.3`               | —                                                                                                                             | false         |
 | [@nestvexa/client](../../packages/client/README.md)                   | —                                                                                                                     | —                                | —                                                                                                                             | false         |
 | [@nestvexa/core](../../packages/core/README.md)                       | —                                                                                                                     | —                                | `@nestjs/common`, `reflect-metadata`, `rxjs`                                                                                  | false         |
