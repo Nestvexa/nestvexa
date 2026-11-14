@@ -1,25 +1,23 @@
-import { createElement } from '../packages/react/node_modules/react/index.js';
-import { defineComponent, h } from '../packages/vue/node_modules/vue/index.mjs';
 import { describe, expect, it, vi } from 'vitest';
-import { createPageRegistry } from '../packages/vite/src/pages.js';
-import type { InertiaPageLike } from '../packages/vite/src/pages.js';
+import { createPageRegistry } from '../packages/vite/dist/pages.js';
+import type { InertiaPageLike } from '../packages/vite/dist/pages.js';
 import {
   createReactSsrRender,
   startReactSsrServer,
-} from '../packages/react/src/ssr.js';
-import type { ReactPageModule } from '../packages/react/src/pages.js';
+} from '../packages/react/dist/ssr.js';
+import type { ReactPageModule } from '../packages/react/dist/pages.js';
 import {
   createVueSsrRender,
   startVueSsrServer,
-} from '../packages/vue/src/ssr.js';
-import type { VuePageModule } from '../packages/vue/src/pages.js';
-import { createSvelteSsrRender } from '../packages/svelte/src/ssr.js';
-import type { SveltePageModule } from '../packages/svelte/src/pages.js';
-import type { SvelteCreateInertiaApp } from '../packages/svelte/src/types.js';
+} from '../packages/vue/dist/ssr.js';
+import type { VuePageModule } from '../packages/vue/dist/pages.js';
+import { createSvelteSsrRender } from '../packages/svelte/dist/ssr.js';
+import type { SveltePageModule } from '../packages/svelte/dist/pages.js';
+import type { SvelteCreateInertiaApp } from '../packages/svelte/dist/types.js';
 
 // In-process SSR through the official @inertiajs/react and @inertiajs/vue3
-// server paths, imported from the package sources so the coverage gate sees
-// them (the adapter suites render prebuilt example bundles instead). The
+// server paths. The coverage run redirects these dist imports to the package
+// sources, so the gate sees them (the adapter suites render prebuilt example bundles instead). The
 // official HTTP server factories are replaced by spies: starting them would
 // bind a port and expose upstream's `/shutdown`, which exits the process.
 
@@ -45,9 +43,9 @@ const page = (
   version: 'v1',
 });
 
-describe('React SSR render (source)', () => {
-  const Users = ({ name }: { name: string }) =>
-    createElement('p', { id: 'user' }, `Hello ${name}`);
+describe('React SSR render ', () => {
+  // Text-returning components keep this file free of a direct react import.
+  const Users = ({ name }: { name: string }) => `Hello ${name}`;
   const Broken = (): null => {
     throw new Error('react boom');
   };
@@ -111,16 +109,16 @@ describe('React SSR render (source)', () => {
   });
 });
 
-describe('Vue SSR render (source)', () => {
-  const Users = defineComponent({
-    props: { name: { type: String, required: true } },
-    setup: (props) => () => h('p', { id: 'user' }, `Hello ${props.name}`),
-  });
-  const Broken = defineComponent({
+describe('Vue SSR render ', () => {
+  const Users = {
+    props: ['name'],
+    setup: (props: { name: string }) => () => `Hello ${props.name}`,
+  } as unknown as VuePageModule['default'];
+  const Broken = {
     setup: () => () => {
       throw new Error('vue boom');
     },
-  });
+  } as unknown as VuePageModule['default'];
   const pages = createPageRegistry<VuePageModule>(
     {
       './pages/Users.vue': async () => ({ default: Users }),
@@ -185,7 +183,7 @@ describe('Vue SSR render (source)', () => {
   });
 });
 
-describe('Svelte SSR render (source)', () => {
+describe('Svelte SSR render ', () => {
   const pages = createPageRegistry<SveltePageModule>(
     {
       './pages/Home.svelte': async () => ({

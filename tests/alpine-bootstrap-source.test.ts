@@ -87,7 +87,13 @@ describe('startLiveAlpine', () => {
 
   it('tolerates an Alpine without destroyTree on navigation', () => {
     const { doc, view } = page();
-    const { alpine } = runtime({ destroyTree: undefined });
+    const { alpine: full } = runtime();
+    const alpine: AlpineRuntime = {
+      version: full.version,
+      magic: full.magic,
+      reactive: full.reactive,
+      start: full.start,
+    };
     startLiveAlpine(alpine, client().live, { document: doc });
     expect(() =>
       view.dispatchEvent(new Event('nestvexa:navigate')),
