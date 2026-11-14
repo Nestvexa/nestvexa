@@ -1,0 +1,68 @@
+<section aria-label="Board">
+  <div class="columns">
+    <div>
+      <h2 id="todo-heading">To do</h2>
+      <ol
+        id="todo"
+        nv:sort="move"
+        nv:sort.group="todo"
+        aria-labelledby="todo-heading"
+      >
+        {{#each todo}}
+        <li nv:sort.item="{{this}}" data-nv-key="{{this}}">
+          <button
+            id="move-{{this}}"
+            type="button"
+            nv:sort.handle
+            aria-label="Move {{lookup ../titles this}}"
+          >
+            {{lookup ../titles this}}
+          </button>
+        </li>
+        {{/each}}
+      </ol>
+    </div>
+    <div>
+      <h2 id="done-heading">Done</h2>
+      <ol
+        id="done"
+        nv:sort="move"
+        nv:sort.group="done"
+        aria-labelledby="done-heading"
+      >
+        {{#each done}}
+        <li nv:sort.item="{{this}}" data-nv-key="{{this}}">
+          <button
+            id="move-{{this}}"
+            type="button"
+            nv:sort.handle
+            aria-label="Move {{lookup ../titles this}}"
+          >
+            {{lookup ../titles this}}
+          </button>
+        </li>
+        {{/each}}
+      </ol>
+    </div>
+  </div>
+  <h2 id="photos-heading">Photos</h2>
+  <ul
+    id="photos"
+    class="grid"
+    nv:sort="arrange"
+    aria-labelledby="photos-heading"
+  >
+    {{#each photos}}
+    <li nv:sort.item="{{this}}" data-nv-key="{{this}}">
+      <button
+        id="photo-{{this}}"
+        type="button"
+        nv:sort.handle
+        aria-label="Move photo {{this}}"
+      >
+        {{this}}
+      </button>
+    </li>
+    {{/each}}
+  </ul>
+</section>

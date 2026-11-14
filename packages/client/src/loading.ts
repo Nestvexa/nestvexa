@@ -1,4 +1,5 @@
 import { LiveClientError, parseIdentifier } from './grammar.js';
+import { boundClasses } from './bindings.js';
 import { createFocusController } from './focus.js';
 import type { FocusController } from './focus.js';
 
@@ -173,6 +174,11 @@ function plan(element: Element): Plan | undefined {
       properties.add(property);
     }
     if (
+      directive.mode === 'class' &&
+      boundClasses(element).some((token) => directive.tokens.includes(token))
+    )
+      invalid('Loading and nv:class cannot control the same class');
+    if (
       directive.mode === 'show' &&
       (element.hasAttribute('nv:show') || element.hasAttribute('nv:dirty'))
     )
@@ -221,6 +227,7 @@ function plan(element: Element): Plan | undefined {
       declarations.map((attribute) => [attribute.name, attribute.value]).sort(),
       target,
       element.getAttribute('nv:bind'),
+      element.getAttribute('nv:class'),
       element.hasAttribute('nv:show'),
       element.hasAttribute('nv:dirty'),
     ]),

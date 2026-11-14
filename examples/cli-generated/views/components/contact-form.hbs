@@ -7,9 +7,11 @@
       nv:model.blur="name"
       value="{{name}}"
       aria-invalid="{{fields.name.ariaInvalid}}"
-      {{#if fields.name.describedBy}}aria-describedby="{{fields.name.describedBy}}"{{/if}}
+      aria-describedby="{{fields.name.describedBy}}"
     />
-    {{#if fields.name.invalid}}<span id="{{fields.name.errorId}}" role="alert">{{fields.name.message}}</span>{{/if}}
+    {{#if fields.name.invalid}}<span id="{{fields.name.errorId}}" role="alert"
+      >{{fields.name.message}}</span
+    >{{/if}}
   </p>
   <p>
     <label for="{{fields.email.id}}">Email</label>
@@ -19,11 +21,15 @@
       nv:model.blur="email"
       value="{{email}}"
       aria-invalid="{{fields.email.ariaInvalid}}"
-      {{#if fields.email.describedBy}}aria-describedby="{{fields.email.describedBy}}"{{/if}}
+      aria-describedby="{{fields.email.describedBy}}"
     />
-    {{#if fields.email.invalid}}<span id="{{fields.email.errorId}}" role="alert">{{fields.email.message}}</span>{{/if}}
+    {{#if fields.email.invalid}}<span id="{{fields.email.errorId}}" role="alert"
+      >{{fields.email.message}}</span
+    >{{/if}}
   </p>
-  <button type="submit" nv:loading.attr="disabled" nv:target="submit">Submit</button>
+  <button type="submit" nv:loading.attr="disabled" nv:target="submit">
+    Submit
+  </button>
   <p role="status">{{status}}</p>
 </form>
 <!-- contact-form: values are escaped by default. -->

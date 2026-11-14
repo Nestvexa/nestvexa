@@ -7,7 +7,8 @@ import type { Page } from '@playwright/test';
  * page). Served with NESTVEXA_ASSETS=build so the Inertia roots render on the
  * server and hydrate from their built bundles.
  */
-const origin = 'http://127.0.0.1:3126';
+// The root suite serves it on 3126; local runs may pick another port.
+const origin = `http://127.0.0.1:${process.env['NV_CLI_GENERATED_PORT'] ?? '3126'}`;
 // First renders import SSR bundles and engines (cold module loading).
 test.describe.configure({ timeout: 120_000 });
 
@@ -133,27 +134,50 @@ test('make:form, make:resource and make:island work together on one page (access
   const task = `Write docs (${test.info().project.name})`;
   await tasks.getByLabel('Name').fill(task);
   await tasks.getByRole('button', { name: 'Add' }).click();
+  // Search narrows the server-side page to this project's task.
+  await tasks.getByLabel('Search').fill(task);
+  await expect(tasks.getByRole('listitem')).toHaveText([task]);
+  // toContainText normalizes whitespace (Prettier wraps the summary text).
   await expect(
-    tasks.getByRole('listitem').filter({ hasText: task }),
-  ).toHaveCount(1);
+    tasks.getByRole('navigation', { name: 'Task pages' }),
+  ).toContainText('Page 1 of 1 (1 total)');
   await tasks.getByLabel('Name').fill('x');
   await tasks.getByRole('button', { name: 'Add' }).click();
   await expect(tasks.getByRole('alert')).toHaveText(
     'Enter at least 2 characters.',
   );
+  await expect(tasks.getByLabel('Name')).toHaveAttribute(
+    'aria-invalid',
+    'true',
+  );
 
-  // Generated React island, mounted by the generated islands bundle.
-  const island = page.getByRole('button', { name: /^Clicks: \d+$/ });
-  await expect(island).toHaveText('Clicks: 0');
-  await island.click();
-  await expect(island).toHaveText('Clicks: 1');
+  // Generated React, Vue and Svelte islands, mounted by the generated islands bundle.
+  for (const label of ['Clicks', 'Feed', 'Status']) {
+    const island = page.getByRole('button', {
+      name: new RegExp(`^${label}: \\d+$`),
+    });
+    await expect(island).toHaveText(`${label}: 0`);
+    await island.click();
+    await expect(island).toHaveText(`${label}: 1`);
+  }
 
-  // The REST controller of make:resource --crud shares the service.
-  const listed = await page.evaluate(async (url) => {
-    const response = await fetch(url);
-    return (await response.json()) as { name: string }[];
-  }, `${origin}/task`);
-  expect(listed.map((item) => item.name)).toContain(task);
+  // The validated REST controller of make:resource --crud shares the service.
+  const listed = await page.evaluate(
+    async (url) => {
+      const response = await fetch(url);
+      return (await response.json()) as {
+        items: { name: string }[];
+        total: number;
+      };
+    },
+    `${origin}/task?q=${encodeURIComponent(task)}`,
+  );
+  expect(listed).toMatchObject({ total: 1, items: [{ name: task }] });
+  // Outside the page, so the expected 400 is not a console error.
+  const invalid = await page.request.post(`${origin}/task`, {
+    data: { name: 'x', admin: true },
+  });
+  expect(invalid.status()).toBe(400);
   await axe(page);
   expect(errors).toEqual([]);
 });

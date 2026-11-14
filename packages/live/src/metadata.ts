@@ -138,6 +138,8 @@ export interface ComponentDefinition {
   readonly listeners: ReadonlyMap<string, readonly string[]>;
   /** Method returning the realtime channels that refresh this component. */
   readonly realtime?: string;
+  /** `@DependsOn` data tags (static or resolved from hydrated state). */
+  readonly dependencies?: readonly LiveDependency[];
   /** `@Title` getter or method name. */
   readonly title?: string;
   readonly states: ReadonlyMap<string, StateOptions>;
@@ -156,6 +158,7 @@ const ACTION_OPTIONS = Symbol('nv:action-options');
 const PROPS = Symbol('nv:props');
 const LISTENERS = Symbol('nv:listeners');
 const REALTIME = Symbol('nv:realtime');
+const DEPENDS = Symbol('nv:depends-on');
 const RENDERLESS = Symbol('nv:renderless');
 const VALIDATORS = Symbol('nv:validators');
 const TITLE = Symbol('nv:title');
@@ -489,6 +492,52 @@ export function RealtimeChannels(): MethodDecorator {
     if (Reflect.getMetadata(REALTIME, target) !== undefined)
       throw new Error('Only one @RealtimeChannels method per component');
     Reflect.defineMetadata(REALTIME, name, target);
+  };
+}
+/**
+ * One `@DependsOn` entry: a data tag, or a synchronous function of the
+ * hydrated component returning tags (for example a tenant-scoped tag).
+ */
+export type LiveDependency<T extends object = object> =
+  string | ((component: T) => readonly string[]);
+/** Data tag grammar shared with @nestvexa/cache tags (`tag:` + tag ≤ 128). */
+const dependencyTagPattern = /^[a-z0-9][a-z0-9:._-]{0,123}$/;
+/**
+ * The realtime channel that carries invalidations of one data tag:
+ * `tag:<tag>`, the same channel `tagChannel(tag)` from @nestvexa/cache names.
+ */
+export function liveTagChannel(tag: string): string {
+  if (typeof tag !== 'string' || !dependencyTagPattern.test(tag))
+    throw new Error(
+      'Dependency tags are 1-124 lowercase letters, digits, ":", ".", "_" or "-"',
+    );
+  return `tag:${tag}`;
+}
+/**
+ * Declare, explicitly, the data tags this component renders. When the host
+ * configures `realtime`, the component subscribes to `tag:<tag>` for each
+ * tag (alongside any `@RealtimeChannels`), and `LiveTags.invalidate(tags)` —
+ * for example wired as the `onInvalidate` callback of a @nestvexa/cache
+ * `Cache` — refreshes exactly the subscribed components whose tags
+ * intersect, through their own read-only refresh. Nothing is inferred from
+ * queries or templates: a component without a matching declared tag is never
+ * refreshed (conservative invalidation). The realtime policy still decides
+ * which identities may read each `tag:` channel.
+ */
+export function DependsOn<T extends object = object>(
+  ...dependencies: readonly LiveDependency<T>[]
+): ClassDecorator {
+  if (!dependencies.length || dependencies.length > 32)
+    throw new Error('@DependsOn requires 1-32 tags or tag functions');
+  for (const dependency of dependencies)
+    if (typeof dependency === 'string') liveTagChannel(dependency);
+    else if (typeof dependency !== 'function')
+      throw new Error('@DependsOn accepts tags or tag functions');
+  const frozen = Object.freeze([...dependencies]) as readonly LiveDependency[];
+  return (target) => {
+    if (Reflect.getOwnMetadata(DEPENDS, target) !== undefined)
+      throw new Error('Only one @DependsOn per component');
+    Reflect.defineMetadata(DEPENDS, frozen, target);
   };
 }
 /** A synchronous getter, or an explicit async:true zero-argument method, rendered as derived JSON. */
@@ -1023,10 +1072,14 @@ export function definition(type: Type<object>): ComponentDefinition {
       title === realtime)
   )
     throw new Error(`Duplicate live member ${title}`);
+  const dependencies: unknown = Reflect.getOwnMetadata(DEPENDS, type);
   return Object.freeze({
     type,
     name: options.name,
     ...(typeof realtime === 'string' ? { realtime } : {}),
+    ...(Array.isArray(dependencies)
+      ? { dependencies: dependencies as readonly LiveDependency[] }
+      : {}),
     ...(typeof title === 'string' ? { title } : {}),
     view: options.view,
     children: options.children ?? new Map<string, Type<object>>(),

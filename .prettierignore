@@ -13,3 +13,5 @@ docs/implementation/feature-ledger.json
 .claude
 # Byte-for-byte CLI output, verified by tests/cli-example.test.ts (the CLI does not format).
 examples/cli-generated
+# Generated Prisma client (examples/orm-prisma build)
+examples/orm-prisma/src/generated

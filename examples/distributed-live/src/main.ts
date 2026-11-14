@@ -6,6 +6,9 @@ import {
   Inject,
   Injectable,
   Module,
+  NotFoundException,
+  Post,
+  Query,
   Render,
   Req,
   Res,
@@ -70,6 +73,8 @@ const redis =
       };
 const prefix = env['REDIS_PREFIX'] ?? 'nvdemo:';
 const exportDelay = Number(env['EXPORT_DELAY_MS'] ?? 1500);
+/** Acceptance-only load generator route; never enable it in a deployment. */
+const loadTools = env['ACCEPTANCE_LOAD_TOOLS'] === '1';
 function secret(name: string): string {
   const value = env[name];
   if (value && Buffer.byteLength(value) >= 32) return value;
@@ -243,6 +248,25 @@ class Pages {
       connections: this.realtime.hub.size,
       transports: this.realtime.transports,
     };
+  }
+  /**
+   * Acceptance-only (ACCEPTANCE_LOAD_TOOLS=1, otherwise 404): publish `count`
+   * (1-500) padded board events from this replica, for the slow-subscriber
+   * scenario. Each payload is about 15 KB, under the 16 KiB event limit.
+   */
+  @Post('api/load/broadcast')
+  @Header('Cache-Control', 'no-store')
+  async broadcast(@Query('count') count?: string) {
+    if (!loadTools) throw new NotFoundException();
+    const total = Math.min(Math.max(Math.trunc(Number(count)) || 1, 1), 500);
+    const pad = 'x'.repeat(15_000);
+    for (let index = 0; index < total; index++) {
+      await this.realtime.publish(boardChannel, { load: index, pad });
+      // One event per event-loop turn, as events arrive from a broker socket:
+      // a same-turn burst above 256 KiB would exceed every local transport bound.
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    return { published: total, replica };
   }
   /** Side-effect count of the idempotent `pay` action (all replicas). */
   @Get('api/charges')

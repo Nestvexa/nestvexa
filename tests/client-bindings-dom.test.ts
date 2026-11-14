@@ -16,6 +16,8 @@ import { readFile } from 'node:fs/promises';
 declare global {
   interface Window {
     nvBindingFixture: typeof import('../packages/client/dist/bindings.js');
+    nvLoadingFixture: typeof import('../packages/client/dist/loading.js');
+    nvPresentationFixture: typeof import('../packages/client/dist/presentation.js');
   }
 }
 
@@ -35,6 +37,14 @@ beforeAll(async () => {
       '/grammar.js',
       new URL('../packages/client/dist/grammar.js', import.meta.url),
     ],
+    [
+      '/loading.js',
+      new URL('../packages/client/dist/loading.js', import.meta.url),
+    ],
+    [
+      '/presentation.js',
+      new URL('../packages/client/dist/presentation.js', import.meta.url),
+    ],
   ]);
   server = createServer((request, response) => {
     const pathname = new URL(request.url ?? '/', 'http://localhost').pathname;
@@ -50,7 +60,7 @@ beforeAll(async () => {
         'Content-Type': 'text/javascript; charset=utf-8',
       });
       response.end(
-        "import * as bindings from '/bindings.js'; window.nvBindingFixture = bindings;",
+        "import * as bindings from '/bindings.js'; import * as loading from '/loading.js'; import * as presentation from '/presentation.js'; window.nvLoadingFixture = loading; window.nvPresentationFixture = presentation; window.nvBindingFixture = bindings;",
       );
       return;
     }
@@ -418,5 +428,127 @@ describe('real-browser data binding ownership and atomic validation', () => {
       initial: [true, false, true],
       cleared: [true, true, true],
     });
+  });
+});
+
+describe('real-browser nv:class bindings', () => {
+  it('toggles only the bound classes, keeps server classes and never writes style', async () => {
+    const result = await page.evaluate(() => {
+      const root = document.createElement('section');
+      root.setAttribute('data-nv-component', 'root');
+      root.innerHTML =
+        '<li id="item" class="row server" nv:class="active:selected is-done:task.done">Item</li>';
+      document.body.append(root);
+      const state: Record<string, unknown> = {
+        selected: true,
+        'task.done': false,
+      };
+      const apply = () =>
+        window.nvBindingFixture.applyBindings(
+          root,
+          (name) => state[name],
+          () => false,
+        );
+      const item = root.querySelector('#item');
+      apply();
+      const first = item?.getAttribute('class');
+      state['selected'] = false;
+      state['task.done'] = true;
+      apply();
+      return {
+        first,
+        second: item?.getAttribute('class'),
+        style: item?.hasAttribute('style'),
+      };
+    });
+    expect(result).toEqual({
+      first: 'row server active',
+      second: 'row server is-done',
+      style: false,
+    });
+  });
+
+  it('validates every class value before mutating, so a non-boolean leaves the DOM unchanged', async () => {
+    const result = await page.evaluate(() => {
+      const root = document.createElement('section');
+      root.setAttribute('data-nv-component', 'root');
+      root.innerHTML =
+        '<span id="text" nv:text="message" nv:cloak="">before</span><b id="flag" nv:class="on:flag">Flag</b>';
+      document.body.append(root);
+      const before = root.innerHTML;
+      let message = '';
+      try {
+        window.nvBindingFixture.applyBindings(
+          root,
+          (name) => (name === 'message' ? 'changed' : 'yes'),
+          () => false,
+        );
+      } catch (error) {
+        message = error instanceof Error ? error.message : 'unknown';
+      }
+      return { before, after: root.innerHTML, message };
+    });
+    expect(result.after).toBe(result.before);
+    expect(result.message).toContain('boolean');
+  });
+
+  it('does not bind classes inside nested Live, ignored or island subtrees', async () => {
+    const classes = await page.evaluate(() => {
+      const root = document.createElement('section');
+      root.setAttribute('data-nv-component', 'root');
+      root.innerHTML =
+        '<p id="own" nv:class="on:flag"></p><div nv:ignore=""><p id="ignored" nv:class="on:flag"></p></div><div data-nv-island="x"><p id="island" nv:class="on:flag"></p></div>';
+      document.body.append(root);
+      window.nvBindingFixture.applyBindings(
+        root,
+        () => true,
+        () => false,
+      );
+      return ['own', 'ignored', 'island'].map((id) =>
+        root.querySelector(`#${id}`)?.classList.contains('on'),
+      );
+    });
+    expect(classes).toEqual([true, false, false]);
+  });
+
+  it('rejects loading or presentation effects that would own the same class', async () => {
+    const errors = await page.evaluate(() => {
+      const attempt = (markup: string, check: (root: Element) => void) => {
+        const root = document.createElement('section');
+        root.setAttribute('data-nv-component', 'root');
+        root.innerHTML = markup;
+        document.body.append(root);
+        try {
+          check(root);
+          return 'accepted';
+        } catch (error) {
+          return error instanceof Error ? error.message : 'unknown';
+        } finally {
+          root.remove();
+        }
+      };
+      return {
+        loadingConflict: attempt(
+          '<button nv:class="busy:flag" nv:loading.class="busy">Save</button>',
+          (root) => window.nvLoadingFixture.validateLoading(root),
+        ),
+        loadingDistinct: attempt(
+          '<button nv:class="done:flag" nv:loading.class="busy">Save</button>',
+          (root) => window.nvLoadingFixture.validateLoading(root),
+        ),
+        offlineConflict: attempt(
+          '<p nv:class="dim:flag" nv:offline.class="dim">Status</p>',
+          (root) => window.nvPresentationFixture.validatePresentation(root),
+        ),
+        currentConflict: attempt(
+          '<a href="/x" nv:class="active:flag" nv:current="active">Link</a>',
+          (root) => window.nvPresentationFixture.validatePresentation(root),
+        ),
+      };
+    });
+    expect(errors.loadingConflict).toContain('nv:class');
+    expect(errors.loadingDistinct).toBe('accepted');
+    expect(errors.offlineConflict).toContain('nv:class');
+    expect(errors.currentConflict).toContain('nv:class');
   });
 });

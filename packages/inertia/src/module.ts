@@ -11,6 +11,7 @@ import type {
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { INERTIA_OPTIONS } from './constants.js';
 import { InertiaInterceptor } from './interceptor.js';
+import { InertiaSecurityGuard } from './security-guard.js';
 import { resolveOptions } from './options.js';
 import {
   PrecognitionGuard,
@@ -59,6 +60,7 @@ function providers(
     InertiaInterceptor,
     InertiaValidationFilter,
     PrecognitionGuard,
+    InertiaSecurityGuard,
     // Keeps Precognition labels on guard rejections of @Precognitive routes.
     { provide: APP_GUARD, useExisting: PrecognitionGuard },
     ...(behaviour.interceptor === 'decorated'
@@ -75,6 +77,7 @@ const exported = [
   InertiaService,
   InertiaInterceptor,
   InertiaValidationFilter,
+  InertiaSecurityGuard,
 ];
 
 /** Nest dynamic module for the Inertia v3 server adapter. */

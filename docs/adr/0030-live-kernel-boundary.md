@@ -65,10 +65,42 @@ are enforced directly. `@nestvexa/uploads` follows the same pattern (owner `uplo
 including `upload-quota`). The package graph is unchanged; `scripts/boundaries.mjs`
 still forbids `live → core`.
 
+## Amendment (2026-11-14): kernel identity, feature registry, every transport's policies
+
+Round 5 keeps the package graph unchanged and extends the same structural pattern to
+every transport:
+
+- **Policies.** `@nestvexa/actions` (owner `actions`) and `@nestvexa/inertia` (owner
+  `inertia`, with the opt-in `security` option and `InertiaSecurityGuard`) register
+  their origin, CSRF and authorization policies through a structural `policies` option,
+  as Live and uploads do. The uploads multipart `_csrf` field is decided by the
+  registered CSRF policy: the kernel contract became `verify(request, subject?, token?)`
+  and `authorize(subject, resource, action, request?)` (both additive).
+- **Identity.** `RequestContextFactory.identity(request)` returns the frozen principal
+  and tenant of the request. Live, actions, uploads, realtime and Inertia accept it as a
+  structural, opt-in `kernelIdentity` source (`{ identity(request) }`), attach the
+  principal and tenant to the identity every host policy receives, scope their bindings
+  to them and fail closed on errors or host mismatches. The umbrella passes it to Live
+  only with `kernelIdentity: true`, so existing applications keep their bindings.
+- **Features.** `NestvexaRegistry` lists installed features. Each package registers
+  itself through a structural `featureRegistry` option (`{ registerFeature(feature) }`)
+  with names and capability declarations only.
+
+Live still does not import `@nestvexa/core`; `scripts/boundaries.mjs` still forbids it and
+also keeps `@nestvexa/actions` free of other Nestvexa packages. The small structural
+helpers (`kernel.ts` in each package) are duplicated on purpose instead of adding a
+shared dependency; Live, uploads and realtime use the same binding-scoping function so a
+Live-signed realtime token verifies when both enable `kernelIdentity`.
+
 ## Evidence
 
 - [Kernel integration tests](../../tests/kernel-integration.test.ts): Live and uploads
   decisions come from the registry on Express and Fastify.
+- [Kernel transport tests](../../tests/kernel-transports.test.ts): actions, Inertia and
+  the uploads form path decide through the registry; one user and tenant across MVC,
+  Live, Inertia, actions, uploads and realtime; every feature in `NestvexaRegistry`.
+- [Kernel registry tests](../../tests/kernel-registry.test.ts): `NestvexaRegistry`,
+  `RequestContextFactory.identity` and the extended policy contracts.
 
 - [Package dependency graph](../architecture/package-dependency-graph.md) (checked by
   `pnpm docs:build`).

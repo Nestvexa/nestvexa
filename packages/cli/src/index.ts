@@ -8,14 +8,19 @@ import { add } from './features.js';
 import * as generators from './generators.js';
 import { migrate } from './migrate.js';
 import { detectProject } from './project.js';
+import { routesTypes } from './routes.js';
 import { version } from './templates.js';
 
 export { CliError, ChangePlan } from './plan.js';
 export type { CommandContext, CommandResult } from './context.js';
-export { satisfies } from './doctor.js';
+export { satisfies, supportedNode } from './doctor.js';
+export { detectPackageManager } from './project.js';
+export type { PackageManager } from './project.js';
 export { migrations } from './migrate.js';
 export type { MigrationStep } from './migrate.js';
 export { pinned } from './versions.js';
+export { pluginCapabilities, validatePluginManifest } from './plugins.js';
+export type { PluginManifest } from './plugins.js';
 
 const help: Record<string, string> = {
   '': `nestvexa ${version}
@@ -29,6 +34,7 @@ Commands:
   add engine <hbs|ejs|pug|nunjucks>
   add <react|vue|svelte|inertia>        Inertia root with its own Vite build
   add <islands|forms|actions|realtime|redis|uploads|i18n|devtools|cache>
+  add plugin <package> [--export <name>] [--legacy-plugin]  Wire an installed NestvexaExtension
   remove <feature>             Remove unmodified generated files (e.g. component:counter)
   make:component <Name> [--view hbs] [--module <dir>]
   make:page <Name> [--renderer hbs|ejs|pug|nunjucks|react|vue|svelte]
@@ -41,6 +47,7 @@ Commands:
   make:test <Name> [--kind component|page|form|action|smoke]
   templates | templates:eject <id>      List or customize generator templates
   inspect:routes | inspect:components | inspect:actions
+  routes:types [--check]       Typed route map, route()/routeLink() and {{route}}
   build                        Run the project build script
   migrate [--revert <id>]      Apply (or revert) versioned project migrations
 
@@ -52,6 +59,7 @@ Options:
   --json      Machine-readable output
   --quiet     Only print errors
   --verbose   Print every planned change
+  --no-format Do not run the project's Prettier/ESLint on written files
   --cwd <dir> Project directory (default: current directory)
   --help      Show help for a command
   --version   Print the version`,
@@ -60,7 +68,7 @@ Options:
     'nestvexa doctor [--json] [--production]\nChecks Node, NestJS, peer versions, template engines, CSRF/session settings, secrets (never printed), Vite manifests and that development tooling is disabled in production. Exit code 1 when a check fails; --production (or NODE_ENV=production) turns deployment warnings into failures.',
   check:
     'nestvexa check [--json]\ndoctor plus a strict TypeScript compile of the project.',
-  add: 'nestvexa add engine <hbs|ejs|pug|nunjucks>\nnestvexa add <react|vue|svelte|inertia|islands [react|vue|svelte]|forms|actions|realtime|redis|uploads|i18n|devtools|cache> [--dry-run] [--install]\nAdds pinned dependencies, generated configuration and AST patches of app.module.ts/main.ts. Idempotent.',
+  add: 'nestvexa add engine <hbs|ejs|pug|nunjucks>\nnestvexa add <react|vue|svelte|inertia|islands [react|vue|svelte]|forms|actions|realtime|redis|uploads|i18n|devtools|cache> [--dry-run] [--install]\nAdds pinned dependencies, generated configuration and AST patches of app.module.ts/main.ts. Idempotent.\nnestvexa add plugin <package> [--export <name>]\nWires a NestvexaExtension exported by a package you installed (its package.json "nestvexa" manifest is validated; plugin code is never executed by the CLI).',
   remove:
     'nestvexa remove <feature> [--dry-run]\nOnly deletes generated files whose content is unchanged.',
   'make:component':
@@ -84,6 +92,8 @@ Options:
     'nestvexa inspect:routes [--json] (static source inspection)',
   'inspect:components': 'nestvexa inspect:components [--json]',
   'inspect:actions': 'nestvexa inspect:actions [--json]',
+  'routes:types':
+    'nestvexa routes:types [--check] [--dry-run]\nWrites src/nestvexa/routes.ts (typed route map of every controller route, route() and routeLink()) and, once, the {{route}} Handlebars helper in main.ts. --check exits 1 when the map is out of date.',
   build: 'nestvexa build [--dry-run]',
   migrate:
     'nestvexa migrate [--dry-run] [--json] [--revert <id>] [--force]\nApplies pending versioned migrations atomically and records them in .nestvexa/manifest.json; --revert restores the latest one from its backup.',
@@ -96,6 +106,7 @@ const valueOptions = new Set([
   'orm',
   'kind',
   'revert',
+  'export',
 ]);
 const known = new Set([
   ...valueOptions,
@@ -110,6 +121,9 @@ const known = new Set([
   'version',
   'crud',
   'production',
+  'check',
+  'no-format',
+  'legacy-plugin',
 ]);
 
 export interface RunOutput {
@@ -231,6 +245,9 @@ export function run(argv: readonly string[], cwd = process.cwd()): RunOutput {
       case 'inspect:components':
       case 'inspect:actions':
         result = commands.inspect(context, command.slice('inspect:'.length));
+        break;
+      case 'routes:types':
+        result = routesTypes(context);
         break;
       case 'build':
         result = commands.build(context);

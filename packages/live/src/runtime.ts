@@ -19,7 +19,7 @@ import {
   isSnapshotToken,
 } from './protocol.js';
 import type { JsonValue, LiveCapability, LiveRequest } from './protocol.js';
-import { applyStateDefaults } from './metadata.js';
+import { applyStateDefaults, liveTagChannel } from './metadata.js';
 import {
   beginOperation,
   endOperation,
@@ -61,11 +61,24 @@ import type {
   LivePolicyEnforcer,
   LivePolicyRegistry,
 } from './security-policies.js';
+import { kernelIdentityOf, scopeBinding } from './kernel.js';
+import type {
+  LiveFeatureRegistry,
+  LiveKernelIdentitySource,
+  LiveKernelPrincipal,
+} from './kernel.js';
 
 export const LIVE_OPTIONS = Symbol('nv:live-options');
 export interface LiveIdentity {
   readonly binding: string;
   readonly csrfToken: string;
+  /**
+   * The kernel principal, set by Live only when `kernelIdentity` is
+   * configured (values a host `resolveIdentity` returns here are ignored).
+   */
+  readonly principal?: LiveKernelPrincipal;
+  /** The kernel tenant, set by Live only when `kernelIdentity` is configured. */
+  readonly tenant?: string;
 }
 export interface LiveHostOptions {
   readonly origin: string;
@@ -159,6 +172,21 @@ export interface LiveHostOptions {
    * `nestvexa.request_id`, the same ID error bodies and logs use.
    */
   readonly requestContext?: { correlationId(request: object): string };
+  /**
+   * Opt-in kernel identity (structural; for example `RequestContextFactory`
+   * from @nestvexa/core). Live still calls `resolveIdentity` for the session
+   * binding and CSRF token, then attaches the kernel `principal` and
+   * `tenant` to the identity every policy receives and scopes the binding to
+   * them, so snapshots never cross users or tenants. A failing or malformed
+   * kernel identity answers `401 IDENTITY_REQUIRED`.
+   */
+  readonly kernelIdentity?: LiveKernelIdentitySource;
+  /**
+   * Kernel feature registry (structural; for example `NestvexaRegistry`
+   * from @nestvexa/core). Live registers its components, views and
+   * capabilities once under `policyOwner` (default `live`).
+   */
+  readonly featureRegistry?: LiveFeatureRegistry;
 }
 /** Static shape of a registered component, for development inspectors. */
 export interface LiveComponentDescription {
@@ -178,8 +206,8 @@ export interface LiveComponentDescription {
 /** One top-level render observed by a `LiveInspector`. */
 export interface LiveRenderInspection {
   readonly component: string;
-  /** Why the component rendered: its first mount, an action or a model sync. */
-  readonly cause: 'mount' | 'action' | 'sync';
+  /** Why the component rendered: its first mount, an action, a model sync or a read-only refresh. */
+  readonly cause: 'mount' | 'action' | 'sync' | 'refresh';
   /** The action id for `action` (registered names only). */
   readonly action?: string;
   /** Fields updated by the request (model synchronization), names only. */
@@ -209,7 +237,8 @@ export function describeComponent(
     computed: Object.freeze([...component.computed.keys()]),
     children: Object.freeze([...component.children.keys()]),
     listeners: Object.freeze([...component.listeners.keys()]),
-    realtime: component.realtime !== undefined,
+    realtime:
+      component.realtime !== undefined || component.dependencies !== undefined,
   });
 }
 export interface RuntimeOptions extends LiveHostOptions {
@@ -221,6 +250,12 @@ interface Admission {
   readonly component: ComponentDefinition;
   readonly action: string;
   readonly capabilities: ReadonlySet<LiveCapability>;
+  /**
+   * Mode of a `$sync` marked `x-nestvexa-resync`: `refresh` (value `1`)
+   * renders stored state without a transaction; `commit` re-renders the
+   * current revision through one, for a tree whose children must change.
+   */
+  readonly recovery?: 'refresh' | 'commit';
 }
 /** One render tree: shared request/identity, bounded depth and child bookkeeping. */
 interface RenderContext {
@@ -234,6 +269,8 @@ interface RenderContext {
   readonly removed: string[];
   /** Total child renders in this tree. */
   readonly budget: { count: number };
+  /** Read-only refresh: mounting, removing or re-propping a child is refused. */
+  readonly readOnly?: boolean;
 }
 interface ChildRequest {
   readonly alias: string;
@@ -546,6 +583,27 @@ export class LiveRuntime implements OnApplicationShutdown {
       options.definitions,
       options.endpoint ?? '/_nestvexa/live',
     );
+    options.featureRegistry?.registerFeature({
+      name: options.policyOwner ?? 'live',
+      package: '@nestvexa/live',
+      components: options.definitions.map((component) => component.name),
+      views: [...new Set(options.definitions.map(({ view }) => view))],
+      capabilities: {
+        'state-store': isLiveActionCoordination(this.store)
+          ? { supported: true }
+          : {
+              supported: true,
+              degraded:
+                'Process-local state store: use a shared store such as RedisLiveStore for multiple replicas',
+            },
+        realtime: options.realtime
+          ? { supported: true }
+          : { supported: false, reason: 'No realtime signer configured' },
+        'kernel-identity': options.kernelIdentity
+          ? { supported: true }
+          : { supported: false, reason: 'kernelIdentity is not configured' },
+      },
+    });
     try {
       options.inspector?.registered?.(this.describeComponents());
     } catch {
@@ -594,9 +652,24 @@ export class LiveRuntime implements OnApplicationShutdown {
       identity.csrfToken.length > 256
     )
       fail(401, 'IDENTITY_REQUIRED');
+    const source = this.options.kernelIdentity;
+    if (!source)
+      return Object.freeze({
+        binding: identity.binding,
+        csrfToken: identity.csrfToken,
+      });
+    let kernel: ReturnType<typeof kernelIdentityOf>;
+    try {
+      kernel = kernelIdentityOf(await source.identity(request));
+    } catch {
+      kernel = undefined;
+    }
+    if (this.closed) fail(503, 'LIVE_SHUTDOWN');
+    if (!kernel) return fail(401, 'IDENTITY_REQUIRED');
     return Object.freeze({
-      binding: identity.binding,
+      binding: scopeBinding(identity.binding, kernel),
       csrfToken: identity.csrfToken,
+      ...kernel,
     });
   }
   private limit(identity: LiveIdentity, request: object): void {
@@ -689,6 +762,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     this.limit(identity, request);
     let payload: LiveRequest;
     let capabilities: ReadonlySet<LiveCapability>;
+    let recovery: Admission['recovery'];
     try {
       capabilities = parseLiveCapabilities(
         header(request, 'x-nestvexa-capabilities'),
@@ -699,16 +773,20 @@ export class LiveRuntime implements OnApplicationShutdown {
         identity.binding,
       );
       if (snapshot.name !== component.name) fail(403, 'COMPONENT_MISMATCH');
-      // Recovery after `STALE_REVISION`: a `$sync` without updates may target
-      // the current revision of the caller's own state. Nothing is written
-      // from the client and no action runs; it only re-renders.
-      if (header(request, 'x-nestvexa-resync') !== undefined) {
+      // Refresh, and recovery after `STALE_REVISION`: a `$sync` without
+      // updates renders the caller's own current state. `1` is read-only (no
+      // transaction, same revision); `commit` re-renders the current revision
+      // through a transaction, for a tree whose children must change. Nothing
+      // is written from the client and no action runs.
+      const resync = header(request, 'x-nestvexa-resync');
+      if (resync !== undefined) {
         if (
-          header(request, 'x-nestvexa-resync') !== '1' ||
+          (resync !== '1' && resync !== 'commit') ||
           action !== INTERNAL_SYNC_ACTION ||
           Object.keys(payload.updates).length > 0
         )
           fail(400, 'INVALID_REQUEST');
+        recovery = resync === '1' ? 'refresh' : 'commit';
         payload = { ...payload, revision: snapshot.revision };
       }
     } catch (error) {
@@ -725,6 +803,7 @@ export class LiveRuntime implements OnApplicationShutdown {
       component,
       action,
       capabilities,
+      ...(recovery === undefined ? {} : { recovery }),
     });
   }
   /** Authorize a read-only text stream from a normal host Nest route.
@@ -1023,22 +1102,38 @@ export class LiveRuntime implements OnApplicationShutdown {
     component: ComponentDefinition,
     identity: LiveIdentity,
   ): Promise<string | undefined> {
-    if (!component.realtime || !this.options.realtime) return undefined;
-    const method: unknown = Reflect.get(instance, component.realtime);
-    if (typeof method !== 'function')
-      throw new Error('Realtime channel method is not callable');
-    const channels: unknown = await Reflect.apply(method, instance, []);
     if (
-      !Array.isArray(channels) ||
-      channels.length > 32 ||
-      channels.some((channel) => typeof channel !== 'string')
+      (!component.realtime && !component.dependencies) ||
+      !this.options.realtime
     )
-      throw new Error('@RealtimeChannels must return up to 32 channel names');
-    if (!channels.length) return undefined;
-    const token = await this.options.realtime.sign(
-      identity,
-      channels as string[],
-    );
+      return undefined;
+    const channels = new Set<string>();
+    if (component.realtime) {
+      const method: unknown = Reflect.get(instance, component.realtime);
+      if (typeof method !== 'function')
+        throw new Error('Realtime channel method is not callable');
+      const declared: unknown = await Reflect.apply(method, instance, []);
+      if (
+        !Array.isArray(declared) ||
+        declared.length > 32 ||
+        declared.some((channel) => typeof channel !== 'string')
+      )
+        throw new Error('@RealtimeChannels must return up to 32 channel names');
+      for (const channel of declared as string[]) channels.add(channel);
+    }
+    // Explicit data tags only; a tag function sees the hydrated component.
+    for (const dependency of component.dependencies ?? []) {
+      const tags: unknown =
+        typeof dependency === 'string' ? [dependency] : dependency(instance);
+      if (!Array.isArray(tags))
+        throw new Error('@DependsOn functions must return an array of tags');
+      for (const tag of tags as unknown[])
+        channels.add(liveTagChannel(tag as string));
+    }
+    if (channels.size > 32)
+      throw new Error('A component subscribes to at most 32 realtime channels');
+    if (!channels.size) return undefined;
+    const token = await this.options.realtime.sign(identity, [...channels]);
     if (this.closed) fail(503, 'LIVE_SHUTDOWN');
     if (
       token !== undefined &&
@@ -1129,7 +1224,10 @@ export class LiveRuntime implements OnApplicationShutdown {
       html = parts.join(output.html);
     }
     for (const [slot, reference] of Object.entries(context.previous ?? {}))
-      if (!Object.hasOwn(children, slot)) context.removed.push(reference.token);
+      if (!Object.hasOwn(children, slot)) {
+        if (context.readOnly) fail(409, 'REFRESH_CONFLICT');
+        context.removed.push(reference.token);
+      }
     return { html, children: Object.freeze(children) };
   }
   private applyProps(
@@ -1232,6 +1330,8 @@ export class LiveRuntime implements OnApplicationShutdown {
     context: RenderContext,
   ): Promise<{ html: string; reference: ChildReference }> {
     const { identity, request } = context;
+    // A read-only refresh never creates state; the client commits instead.
+    if (context.readOnly) fail(409, 'REFRESH_CONFLICT');
     if (!(await this.#policy.authorize(identity, child.name, '$mount')))
       fail(403, 'COMPONENT_FORBIDDEN');
     if (this.closed) fail(503, 'LIVE_SHUTDOWN');
@@ -1319,6 +1419,7 @@ export class LiveRuntime implements OnApplicationShutdown {
     );
     const stub = `<div data-nv-component="${escapeAttribute(current.id)}" data-nv-key="nv-child:${escapeAttribute(slot)}" data-nv-stub=""></div>`;
     if (!changed.length) return { html: stub, reference };
+    if (context.readOnly) fail(409, 'REFRESH_CONFLICT');
     let result: LiveTransactionResult;
     let refreshedRealtime: string | undefined;
     try {
@@ -1568,6 +1669,8 @@ export class LiveRuntime implements OnApplicationShutdown {
         payload.input !== null
       )
         fail(400, 'UNEXPECTED_INPUT');
+      if (admitted.recovery === 'refresh')
+        return await this.refresh(request, identity, payload, component);
       const renderless =
         selected?.renderless === true && capabilities.has('renderless-v1');
       // An identical retry of a committed idempotent action replays its result
@@ -1794,6 +1897,85 @@ export class LiveRuntime implements OnApplicationShutdown {
       await release?.();
       this.#admissions.delete(request);
     }
+  }
+  /**
+   * Read-only refresh (`$sync` with `x-nestvexa-resync: 1`): render the stored
+   * state at its stored revision. There is no store transaction, no client
+   * update, no action and no host session write, so the snapshot, revision
+   * and stored state are unchanged and a retry is always safe. Computed
+   * values and the template re-read current data; effects queued by hooks
+   * (events, redirects, downloads, flash) are discarded. A render whose
+   * public state differs from the stored state, or whose children would
+   * change, fails with `409 REFRESH_CONFLICT` before anything is created or
+   * stored, so a successful refresh always returns exactly the stored state;
+   * the client then sends one committing resync.
+   */
+  private async refresh(
+    request: object,
+    identity: LiveIdentity,
+    payload: LiveRequest,
+    component: ComponentDefinition,
+  ): Promise<unknown> {
+    const snapshot = await this.store.peek(payload.snapshot, identity.binding);
+    if (snapshot.name !== component.name) fail(403, 'COMPONENT_MISMATCH');
+    const instance = await this.instance(component, request);
+    beginEffects(instance);
+    let title: string | undefined;
+    const rendered = await this.operation(instance, component, async () => {
+      if (this.closed) fail(503, 'LIVE_SHUTDOWN');
+      for (const [key, value] of Object.entries(cloneState(snapshot.state))) {
+        if (!component.states.has(key)) fail(409, 'STATE_SCHEMA_CHANGED');
+        Object.defineProperty(instance, key, {
+          value: hydrated(component, key, value),
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
+      }
+      await this.hook(instance, 'boot');
+      await this.hook(instance, 'hydrate');
+      await this.hook(instance, 'dehydrate');
+      const captured = await this.render(instance, component, {
+        request,
+        identity,
+        depth: 0,
+        created: [],
+        removed: [],
+        budget: { count: 0 },
+        previous: snapshot.children,
+        readOnly: true,
+      });
+      // State a hook changed (for example a status read in `dehydrate`) must
+      // be stored before actions read it: the client commits instead.
+      if (canonical(captured.state) !== canonical(snapshot.state))
+        fail(409, 'REFRESH_CONFLICT');
+      title = documentTitle(instance, component);
+      return captured;
+    }).finally(() => {
+      takeEffects(instance);
+    });
+    this.inspect(component, rendered, {
+      cause: 'refresh',
+      fields: [],
+      revision: snapshot.revision,
+    });
+    return {
+      protocol: 'nestvexa-live/1',
+      requestId: payload.requestId,
+      component: {
+        id: snapshot.id,
+        name: snapshot.name,
+        revision: snapshot.revision,
+      },
+      snapshot: snapshot.snapshot,
+      state: rendered.state,
+      html: rendered.html,
+      ...(rendered.url.length ? { url: rendered.url } : {}),
+      ...(rendered.realtime === undefined
+        ? {}
+        : { realtime: rendered.realtime }),
+      ...(title === undefined ? {} : { title }),
+    };
   }
   private storeDownload(
     identity: LiveIdentity,

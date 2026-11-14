@@ -23,7 +23,21 @@ export class ShowcaseController {
       title: 'Showcase',
       contact: await this.live.mount(ContactForm, request),
       tasks: await this.live.mount(TaskTableComponent, request),
-      clicker: islands.render('clicker', { label: 'Clicks' }, { key: 'clicker', label: 'Click counter' }),
+      clicker: islands.render(
+        'clicker',
+        { label: 'Clicks' },
+        { key: 'clicker', label: 'Click counter' },
+      ),
+      feed: islands.render(
+        'feed',
+        { label: 'Feed' },
+        { key: 'feed', label: 'Vue counter' },
+      ),
+      status: islands.render(
+        'status',
+        { label: 'Status' },
+        { key: 'status', label: 'Svelte counter' },
+      ),
     };
   }
 }

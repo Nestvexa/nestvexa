@@ -26,7 +26,7 @@ For automatic HBS/Live/Alpine composition, use the umbrella's second registratio
 
 ## Read the manifest and start the browser runtime
 
-Inject `NestvexaAssetsService` into a controller. `getManifest()` is available after Nest initialization and returns frozen `version`, `files` and `entries` objects:
+Inject `NestvexaAssetsService` into a controller. `getManifest()` is available after Nest initialization and returns frozen `version`, `files`, `integrity` and `entries` objects:
 
 | Entry                   | Served code                                       |
 | ----------------------- | ------------------------------------------------- |
@@ -34,8 +34,13 @@ Inject `NestvexaAssetsService` into a controller. `getManifest()` is available a
 | `entries.alpine`        | The installed Alpine CSP ESM build                |
 | `entries.alpineAdapter` | Nestvexa's Alpine bridge                          |
 | `files`                 | URLs for every approved module, keyed by filename |
+| `integrity`             | SHA-384 SRI digest of each served file, same keys |
 
-Each URL has the form `/_nestvexa/assets/<sha256>/<filename>`. The full SHA-256 version covers sorted filenames and the exact served UTF-8 content with length boundaries. The snapshot currently contains 15 files: 13 Live modules, the bridge and the CSP build. Relative imports stay under the same versioned URL directory. The service serves its snapshotted strings for the lifetime of that application; editing installed files requires a restart to create a new snapshot.
+Each URL has the form `/_nestvexa/assets/<sha256>/<filename>`. The full SHA-256 version covers sorted filenames and the exact served UTF-8 content with length boundaries. The snapshot currently contains 7 files: the Live entry, its four feature chunks, the bridge and the CSP build. Relative imports stay under the same versioned URL directory.
+
+The Live entry loads four optional feature chunks on first use: `live-sort.js`, `live-stream.js`, `live-upload.js` and `live-realtime.js` ([ADR 0036](../adr/0036-client-feature-chunks.md)). They are part of the same snapshot and version, so the entry's `import('./live-sort.js')` always resolves to the matching build. A custom asset route must serve every file in `CLIENT_MODULES`, not only `index.js`. Loading uses standard module `import()` only, so nonce-only, `'self'` and `'strict-dynamic'` script policies all work: dynamic imports inherit the importing module's nonce.
+
+Module preloads do not cover dynamic imports, so with `browser: { integrity: true }` `{{nvScripts}}` also renders an import map before the module tags; host-owned layouts can call `NestvexaBrowserService.importMap(nonce)` themselves. The map's `integrity` section lists the entry, each chunk, Alpine and its adapter; a browser that supports import-map integrity refuses a chunk whose bytes differ. It maps no specifiers; browsers that support only one import map per document need it merged into the application map. [`examples/client-chunks`](../../examples/client-chunks/src/main.ts) runs this under a nonce-only policy. The service serves its snapshotted strings for the lifetime of that application; editing installed files requires a restart to create a new snapshot.
 
 An application-owned external boot route can use the manifest:
 

@@ -137,7 +137,8 @@ describe(
       });
       expect(pkg.devDependencies['vite']).toBe(pinned.vite);
       expect(pkg.scripts['build:client']).toBe(
-        'npm run build:react && npm run build:vue && npm run build:svelte',
+        // The fixture lives in this pnpm workspace, so scripts use pnpm.
+        'pnpm run build:react && pnpm run build:vue && pnpm run build:svelte',
       );
       expect(pkg.scripts['dev:vue']).toBe('vite -c vite.vue.config.ts');
       expect(pkg.scripts['build:vue']).toBe(
@@ -311,6 +312,29 @@ describe(
         root,
       );
       expect(svelte.status, svelte.output).toBe(0);
+      // The Vue and Svelte islands (DX-017) are checked by their own tools too.
+      const vueIslands = node(
+        [
+          join(root, 'node_modules/vue-tsc/bin/vue-tsc.js'),
+          '-p',
+          'client/islands/tsconfig.json',
+        ],
+        root,
+      );
+      expect(vueIslands.status, vueIslands.output).toBe(0);
+      const svelteIslands = node(
+        [
+          join(root, 'node_modules/svelte-check/bin/svelte-check'),
+          '--tsconfig',
+          'client/islands/tsconfig.json',
+          '--fail-on-warnings',
+          '--output',
+          'machine',
+        ],
+        root,
+      );
+      expect(svelteIslands.status, svelteIslands.output).toBe(0);
+      expect(svelteIslands.output).toMatch(/COMPLETED d+ FILES/);
       const check = run(['check', '--json'], root);
       expect(json(check), check.stdout.join('\n')).toMatchObject({ ok: true });
     }, 240_000);
@@ -337,7 +361,8 @@ describe(
         root,
       );
       expect(result.status, result.output).toBe(0);
-      expect(result.output).toMatch(/Test Files\s+4 passed/);
+      // component, page, form, action + make:resource DTO, service and HTTP controller tests.
+      expect(result.output).toMatch(/Test Files\s+7 passed/);
     }, 120_000);
 
     it('boots the generated app: engine pages, Inertia roots, actions and the dev error page', async () => {
@@ -382,7 +407,12 @@ describe(
       }
       const welcome = await fetch(`${origin}/nestvexa`);
       expect(welcome.status).toBe(200);
-      expect(await (await fetch(`${origin}/invoice`)).json()).toEqual([]);
+      expect(await (await fetch(`${origin}/invoice`)).json()).toEqual({
+        items: [],
+        total: 0,
+        page: 1,
+        size: 20,
+      });
       const page = await (await fetch(`${origin}/react`)).text();
       expect(page).toContain('data-page="app"');
       expect(page).toContain(
@@ -586,7 +616,7 @@ describe(
 
     it('builds through the project script (dry run and real)', () => {
       expect(run(['build', '--dry-run'], root).stdout).toEqual([
-        'Would run: npm run build',
+        'Would run: pnpm run build',
       ]);
       const built = run(['build', '--json'], root);
       expect(json(built), built.stdout.join('\n')).toMatchObject({

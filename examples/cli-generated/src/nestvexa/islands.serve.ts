@@ -12,7 +12,9 @@ const directory = join(process.cwd(), 'dist/islands');
 export function configureIslands(app: INestApplication): void {
   if (!existsSync(directory)) {
     if (process.env['NODE_ENV'] === 'production')
-      throw new Error('dist/islands is missing; run the islands build before starting');
+      throw new Error(
+        'dist/islands is missing; run the islands build before starting',
+      );
     return;
   }
   app.use(viteStaticMiddleware({ root: directory, prefix: '/islands/' }));

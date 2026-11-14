@@ -245,4 +245,89 @@ test.describe('mixed Nest host: HBS + React + Vue + Svelte roots', () => {
     await hydratedAs(page, 'react');
     expect(await sameDocument(page)).toBe(false);
   });
+  // VISION-017: a framework (Inertia React) page hosting an isolated Live
+  // element. React owns the page and an empty host; the Live client, scoped to
+  // that host, owns everything inside it.
+  test('an Inertia React page hosts an isolated Live element across Inertia visits', async ({
+    page,
+  }) => {
+    const observed = await observe(page);
+    const live: string[] = [];
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && request.url().includes('/_nestvexa/'))
+        live.push(new URL(request.url()).pathname);
+    });
+    await page.goto(`${base}/react/about`);
+    await hydratedAs(page, 'react');
+    await markDocument(page);
+    const xhr = inertiaRequests(page);
+    // Inertia visit into the hosting page: the island mounts client-side.
+    await page.getByRole('link', { name: 'React live' }).click();
+    await wait(
+      page.locator('#live-host[data-live-mounted="true"]'),
+    ).toHaveCount(1);
+    await wait(page.locator('#live-count')).toHaveText('0');
+    const increment = page.getByRole('button', { name: 'Increment' });
+    await increment.click();
+    await wait(page.locator('#live-count')).toHaveText('1');
+    await increment.click();
+    await wait(page.locator('#live-count')).toHaveText('2');
+    // Live actions are Live protocol requests, never Inertia visits.
+    expect(live.length).toBeGreaterThanOrEqual(2);
+    expect(xhr.map((request) => new URL(request.url()).pathname)).toEqual([
+      '/react/live',
+    ]);
+    // React state survives Live morphs; a React re-render leaves Live alone.
+    await page.getByRole('button', { name: 'React click' }).click();
+    await page.getByRole('button', { name: 'React click' }).click();
+    await wait(page.locator('#react-clicks')).toHaveText('2');
+    await wait(page.locator('#live-count')).toHaveText('2');
+    await increment.click();
+    await wait(page.locator('#live-count')).toHaveText('3');
+    await wait(page.locator('#react-clicks')).toHaveText('2');
+    // A partial reload of another prop keeps the same Live DOM and state.
+    await page.evaluate(() => {
+      const output = document.querySelector('#live-count');
+      if (output) Reflect.set(output, '__kept', true);
+    });
+    const stamp = await page.locator('#stamp').textContent();
+    const partial = page.waitForRequest(
+      (request) =>
+        request.headers()['x-inertia-partial-data'] === 'stamp' &&
+        new URL(request.url()).pathname === '/react/live',
+    );
+    await page.getByRole('button', { name: 'Reload stamp' }).click();
+    await partial;
+    await wait(page.locator('#stamp')).not.toHaveText(stamp ?? '');
+    await wait(page.locator('#live-count')).toHaveText('3');
+    expect(
+      await page
+        .locator('#live-count')
+        .evaluate((output) => Reflect.get(output, '__kept') === true),
+    ).toBe(true);
+    // Leaving through Inertia disposes the island; React navigation works
+    // after Live activity and remains a same-document XHR visit.
+    await page.getByRole('link', { name: 'React about' }).click();
+    await wait(
+      page.getByRole('heading', { name: 'React about' }),
+    ).toBeVisible();
+    await wait(page.locator('#live-host')).toHaveCount(0);
+    // Returning mounts a fresh server component with a new client; the
+    // disposed client left no ownership claim behind.
+    await page.getByRole('link', { name: 'React live' }).click();
+    await wait(
+      page.locator('#live-host[data-live-mounted="true"]'),
+    ).toHaveCount(1);
+    await wait(page.locator('#live-count')).toHaveText('0');
+    await increment.click();
+    await wait(page.locator('#live-count')).toHaveText('1');
+    expect(await sameDocument(page)).toBe(true);
+    await wait(page.locator('#live-host')).not.toHaveAttribute(
+      'data-live-error',
+      /.*/,
+    );
+    expect(await cspViolations(page)).toEqual([]);
+    expect(observed.errors).toEqual([]);
+    expect(observed.console).toEqual([]);
+  });
 });

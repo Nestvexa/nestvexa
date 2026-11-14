@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="{{locale}}" dir="{{dir}}">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nestvexa data cache</title>
+    <script type="module" src="/assets/boot.js"></script>
+  </head>
+  <body>
+    <main>
+      {{{account}}} {{{catalog}}} {{#if canEdit}}
+      <form method="post" action="/products">
+        <input type="hidden" name="_csrf" value="{{csrf}}" />
+        <label for="product-name">New product</label>
+        <input id="product-name" name="name" maxlength="60" required />
+        <button type="submit">Add product</button>
+      </form>
+      {{/if}} {{{cart}}} {{{footer}}}
+    </main>
+  </body>
+</html>

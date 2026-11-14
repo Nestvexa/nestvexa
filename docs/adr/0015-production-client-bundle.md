@@ -41,3 +41,10 @@ assumptions about local function names; publicly served maps may reveal sources.
 Run aggregate, three-browser, CSP, packed-consumer and size gates before accepting
 the checkpoint. No supported public export has changed; private file imports are
 not an extension API.
+
+## Amendment (2026-11-07)
+
+The canonical entry remains the only public entry and ownership registry.
+[ADR 0036](0036-client-feature-chunks.md) adds four fixed-name feature chunks
+that the entry imports on demand and that import the entry's error class back;
+the asset catalog serves them beside it.

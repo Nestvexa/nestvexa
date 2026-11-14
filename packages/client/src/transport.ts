@@ -7,8 +7,11 @@ export class LiveHttpError extends LiveClientError {
     readonly status: number,
     /** The server asked for a full page reload (asset version mismatch). */
     readonly reload = false,
-    /** The server's recovery hint is a fresh resync (`STALE_REVISION`). */
-    readonly resync = false,
+    /**
+     * The server's recovery hint on a 409: `resync` (`STALE_REVISION`, send a
+     * read-only refresh) or `commit` (`REFRESH_CONFLICT`, repeat it committing).
+     */
+    readonly recovery?: string | null,
   ) {
     super('HTTP', `Live request failed (${status})`);
     this.name = 'LiveHttpError';
@@ -62,8 +65,9 @@ async function readJson(
     throw new LiveHttpError(
       response.status,
       response.headers.get('x-nestvexa-reload') === 'asset-version',
-      response.status === 409 &&
-        response.headers.get('x-nestvexa-recovery') === 'resync',
+      response.status === 409
+        ? response.headers.get('x-nestvexa-recovery')
+        : null,
     );
   if (
     response.headers

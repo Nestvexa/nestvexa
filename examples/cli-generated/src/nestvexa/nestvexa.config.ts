@@ -31,15 +31,18 @@ export function liveIdentity(request: object): LiveIdentity {
   const session: unknown = Reflect.get(request, 'session');
   const id: unknown = Reflect.get(request, 'sessionID');
   const csrf: unknown =
-    session && typeof session === 'object' ? Reflect.get(session, 'csrf') : undefined;
-  if (typeof id !== 'string' || typeof csrf !== 'string') throw new UnauthorizedException();
+    session && typeof session === 'object'
+      ? Reflect.get(session, 'csrf')
+      : undefined;
+  if (typeof id !== 'string' || typeof csrf !== 'string')
+    throw new UnauthorizedException();
   return { binding: `session:${id}`, csrfToken: csrf };
 }
 /** Explicit allowlist: component name → actions (`$mount`, `$sync` and registered actions). */
 export const liveActions: Record<string, readonly string[]> = {
   counter: ['$mount', 'increment'],
   'contact-form': ['$mount', '$sync', 'submit'],
-  'task-table': ['$mount', '$sync', 'create'],
+  'task-table': ['$mount', '$sync', 'create', 'previous', 'next'],
   // nestvexa:actions
 };
 
@@ -51,7 +54,9 @@ export function sessionSecret(): string {
   const secret = process.env['SESSION_SECRET'];
   if (secret !== undefined && secret.length >= 32) return secret;
   if (process.env['NODE_ENV'] === 'production')
-    throw new Error('SESSION_SECRET must be set to at least 32 characters in production');
+    throw new Error(
+      'SESSION_SECRET must be set to at least 32 characters in production',
+    );
   return randomBytes(48).toString('base64url');
 }
 
@@ -69,5 +74,9 @@ export const nestvexaLive = {
     authorize: (_identity: LiveIdentity, component: string, action: string) =>
       liveActions[component]?.includes(action) ?? false,
     realtime,
-  }), browser: { realtime: { endpoint: '/_nestvexa/realtime' }, uploads: { endpoint: '/_nestvexa/uploads' } },
+  }),
+  browser: {
+    realtime: { endpoint: '/_nestvexa/realtime' },
+    uploads: { endpoint: '/_nestvexa/uploads' },
+  },
 };

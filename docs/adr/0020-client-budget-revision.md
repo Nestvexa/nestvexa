@@ -45,3 +45,9 @@ increase requires a new ADR with fresh measurements.
 Default pages transfer roughly 12 KiB more compressed JavaScript than the original
 proposal allowed. The runtime is still a single cached, content-addressed asset.
 No public API changes.
+
+## Amendment (2026-11-07)
+
+[ADR 0036](0036-client-feature-chunks.md) splits sort, stream, upload and
+realtime into on-demand chunks and replaces the single 48 KiB gate with a 44 KiB
+core gate, per-chunk gates and a 60 KiB all-files gate.

@@ -11,19 +11,27 @@ import { configureInertia } from './nestvexa/inertia.config.js';
 import { configureIslands } from './nestvexa/islands.serve.js';
 import { configureUploads } from '@nestvexa/uploads';
 import { configureI18n } from './nestvexa/i18n.config.js';
+import { configureRouteHelpers } from './nestvexa/route-helpers.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { logger: ['error', 'warn'] });
+  const app = await NestFactory.create(AppModule, {
+    logger: ['error', 'warn'],
+  });
   // nestvexa:setup — guest sessions for Live CSRF/identity (replace for production)
   app.use(
     session({
       secret: sessionSecret(),
       resave: false,
       saveUninitialized: false,
-      cookie: { httpOnly: true, sameSite: 'strict', secure: process.env['NODE_ENV'] === 'production' },
+      cookie: {
+        httpOnly: true,
+        sameSite: 'strict',
+        secure: process.env['NODE_ENV'] === 'production',
+      },
     }),
   );
   configureI18n(app);
+  configureRouteHelpers(app);
   await configureNestvexa(app);
   await registerEjsEngine(app);
   await registerPugEngine(app);

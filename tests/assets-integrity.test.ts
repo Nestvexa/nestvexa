@@ -131,6 +131,18 @@ describe.each(['express', 'fastify'] as const)(
       expect(html).toContain(
         `<script type="module" src="/_nestvexa/boot.js" integrity="${sha384(boot)}" crossorigin="anonymous"></script>`,
       );
+      // An import map before every module tag pins the modules the page does
+      // not preload: the on-demand feature chunks (ADR 0036).
+      const map = /<script type="importmap">([^<]*)<\/script>/.exec(html);
+      expect(map?.index).toBeLessThan(
+        html.indexOf('<link rel="modulepreload"'),
+      );
+      expect(JSON.parse(map?.[1] ?? '{}')).toEqual({
+        integrity: { ...manifest.integrity },
+      });
+      expect(Object.keys(manifest.integrity)).toContain(
+        manifest.files['live-sort.js'],
+      );
       expect(
         app.get(NestvexaBrowserService).scripts('bm9uY2UtMDEyMzQ1Njc4OQ==')
           .value,

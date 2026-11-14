@@ -7,5 +7,7 @@ import { IslandRegistry } from '@nestvexa/islands';
  */
 export const islands = new IslandRegistry([
   { id: 'clicker', framework: 'react' },
+  { id: 'feed', framework: 'vue' },
+  { id: 'status', framework: 'svelte' },
   // nestvexa:islands
 ]);

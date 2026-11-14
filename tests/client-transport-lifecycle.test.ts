@@ -1379,14 +1379,12 @@ describe('bounded browser request lifecycle', () => {
     const queued = await start('save');
     await reply(0, staleHint);
     expect(await result(task)).toEqual({ ok: false, code: 'HTTP' });
-    // The queued request still carries the stale revision: it fails the same
-    // way and shares the single resync instead of scheduling another.
+    // The queued request was issued against the refused revision: it is
+    // dropped unsent (the caller sees ABORTED), and only the resync follows.
+    expect(await result(queued)).toEqual({ ok: false, code: 'ABORTED' });
     await expect.poll(async () => (await metrics()).requests.length).toBe(2);
-    await reply(1, staleHint);
-    expect(await result(queued)).toEqual({ ok: false, code: 'HTTP' });
-    await expect.poll(async () => (await metrics()).requests.length).toBe(3);
     const resync = await page.evaluate(() => {
-      const request = window.nvTransportSession.requests[2];
+      const request = window.nvTransportSession.requests[1];
       return {
         url: new URL(request?.url ?? '', location.href).pathname,
         header: request?.headers.get('x-nestvexa-resync') ?? null,
@@ -1402,13 +1400,13 @@ describe('bounded browser request lifecycle', () => {
       revision: 0,
     });
     // The server answers with its current revision, which may be any newer one.
-    await reply(2, { revision: 5, state: { query: 'server', count: 5 } });
+    await reply(1, { revision: 5, state: { query: 'server', count: 5 } });
     expect(await page.locator('#parent-count').textContent()).toBe('5');
     // The local draft survives and goes with the next request, at the new revision.
     expect(await page.locator('#parent-edit').inputValue()).toBe('kept draft');
     const next = await start();
     const sent = await page.evaluate(
-      () => window.nvTransportSession.requests[3]?.body,
+      () => window.nvTransportSession.requests[2]?.body,
     );
     expect(sent).toMatchObject({
       revision: 5,
@@ -1417,15 +1415,15 @@ describe('bounded browser request lifecycle', () => {
     expect(
       await page.evaluate(
         () =>
-          window.nvTransportSession.requests[3]?.headers.get(
+          window.nvTransportSession.requests[2]?.headers.get(
             'x-nestvexa-resync',
           ) ?? null,
       ),
     ).toBeNull();
-    await reply(3, { state: { query: 'kept draft', count: 6 } });
+    await reply(2, { state: { query: 'kept draft', count: 6 } });
     expect(await result(next)).toEqual({ ok: true, code: null });
+    // Only the refused call is reported; the dropped call is not a page error.
     expect((await metrics()).errors.map((error) => error.code)).toEqual([
-      'HTTP',
       'HTTP',
     ]);
   });
@@ -1447,6 +1445,83 @@ describe('bounded browser request lifecycle', () => {
     expect(
       await page.locator('#parent').getAttribute('data-nv-suspended'),
     ).toBe('');
+  });
+
+  it('applies a read-only refresh that keeps the current revision', async () => {
+    await mount();
+    const task = await start();
+    await reply(0, staleHint);
+    expect(await result(task)).toEqual({ ok: false, code: 'HTTP' });
+    await expect.poll(async () => (await metrics()).requests.length).toBe(2);
+    // A refresh answers with the stored revision, which may equal the
+    // client's (nothing committed since); it is applied, not rejected.
+    await reply(1, { revision: 0, state: { query: 'server', count: 3 } });
+    expect(await page.locator('#parent-count').textContent()).toBe('3');
+    const next = await start();
+    expect(
+      await page.evaluate(() => window.nvTransportSession.requests[2]?.body),
+    ).toMatchObject({ revision: 0 });
+    await reply(2, { revision: 1, state: { query: 'server', count: 4 } });
+    expect(await result(next)).toEqual({ ok: true, code: null });
+  });
+
+  const conflictHint = {
+    status: 409,
+    mode: 'empty',
+    headers: { 'x-nestvexa-recovery': 'commit' },
+  } as const;
+
+  it('commits once when a read-only refresh would change the child tree', async () => {
+    await mount();
+    const task = await start();
+    await reply(0, staleHint);
+    expect(await result(task)).toEqual({ ok: false, code: 'HTTP' });
+    await expect.poll(async () => (await metrics()).requests.length).toBe(2);
+    await reply(1, conflictHint);
+    await expect.poll(async () => (await metrics()).requests.length).toBe(3);
+    const commit = await page.evaluate(() => {
+      const request = window.nvTransportSession.requests[2];
+      return {
+        url: new URL(request?.url ?? '', location.href).pathname,
+        header: request?.headers.get('x-nestvexa-resync') ?? null,
+        updates: request?.body.updates,
+      };
+    });
+    expect(commit).toEqual({
+      url: '/live/parent/_sync',
+      header: 'commit',
+      updates: {},
+    });
+    await reply(2, { revision: 6, state: { query: 'server', count: 6 } });
+    expect(await page.locator('#parent-count').textContent()).toBe('6');
+    expect(
+      await page.locator('#parent').getAttribute('data-nv-suspended'),
+    ).toBeNull();
+  });
+
+  it('suspends instead of looping when the commit is refused the same way', async () => {
+    await mount();
+    const task = await start();
+    await reply(0, staleHint);
+    expect(await result(task)).toEqual({ ok: false, code: 'HTTP' });
+    await expect.poll(async () => (await metrics()).requests.length).toBe(2);
+    await reply(1, conflictHint);
+    await expect.poll(async () => (await metrics()).requests.length).toBe(3);
+    await reply(2, conflictHint);
+    await page.clock.runFor(1000);
+    expect((await metrics()).requests).toHaveLength(3);
+    expect(
+      await page.locator('#parent').getAttribute('data-nv-suspended'),
+    ).toBe('');
+  });
+
+  it('ignores the commit hint outside a read-only refresh', async () => {
+    await mount();
+    const task = await start();
+    await reply(0, conflictHint);
+    expect(await result(task)).toEqual({ ok: false, code: 'HTTP' });
+    await page.clock.runFor(1000);
+    expect((await metrics()).requests).toHaveLength(1);
   });
 
   it('ignores the resync hint on statuses other than 409', async () => {

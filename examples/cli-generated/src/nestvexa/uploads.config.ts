@@ -15,12 +15,20 @@ export const uploadsOptions: UploadsModuleOptions = {
     const session: unknown = Reflect.get(request, 'session');
     const id: unknown = Reflect.get(request, 'sessionID');
     const csrf: unknown =
-      session && typeof session === 'object' ? Reflect.get(session, 'csrf') : undefined;
-    if (typeof id !== 'string' || typeof csrf !== 'string') throw new UnauthorizedException();
+      session && typeof session === 'object'
+        ? Reflect.get(session, 'csrf')
+        : undefined;
+    if (typeof id !== 'string' || typeof csrf !== 'string')
+      throw new UnauthorizedException();
     return { binding: `session:${id}`, csrfToken: csrf };
   },
-  authorize: (_identity, purpose) => Object.hasOwn(uploadsOptions.purposes, purpose),
+  authorize: (_identity, purpose) =>
+    Object.hasOwn(uploadsOptions.purposes, purpose),
   purposes: {
-    'attachments.files': { types: ['png', 'jpeg', 'pdf'], maxFileSize: 5 * 1024 * 1024, maxFiles: 5 },
+    'attachments.files': {
+      types: ['png', 'jpeg', 'pdf'],
+      maxFileSize: 5 * 1024 * 1024,
+      maxFiles: 5,
+    },
   },
 };
