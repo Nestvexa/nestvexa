@@ -8,9 +8,9 @@
     "start": "node dist/main.js"
   },
   "dependencies": {
-    "@nestjs/common": "12.2.0",
-    "@nestjs/core": "12.2.0",
-    "@nestjs/platform-fastify": "12.2.0",
+    "@nestjs/common": "12.4.2",
+    "@nestjs/core": "12.4.2",
+    "@nestjs/platform-fastify": "12.4.2",
     "fastify": "5.12.7",
     "nestvexa": "workspace:*",
     "reflect-metadata": "0.2.2",
