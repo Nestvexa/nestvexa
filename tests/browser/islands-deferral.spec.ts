@@ -45,17 +45,26 @@ async function loaderSettled(page: Page): Promise<void> {
   await expect.poll(() => state(page, 'revenue-chart')).toBe('mounted');
 }
 
-test('a visible island requests its code only after it scrolls into view', async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 1280, height: 360 });
+// A short viewport from context creation, so the feed is below the fold even
+// in the first layout, before the islands above it render and grow.
+const foldHeight = 140;
+test.describe('visible strategy', () => {
+  test.use({ viewport: { width: 1280, height: foldHeight } });
+  test('a visible island requests its code only after it scrolls into view', async ({
+    page,
+  }) => {
+    await visibleIslandScenario(page);
+  });
+});
+
+async function visibleIslandScenario(page: Page): Promise<void> {
   const requests = chunkRequests(page);
   await page.goto(url);
   await loaderSettled(page);
   const feed = page.locator('[data-nv-island="activity-feed"]');
   // Precondition: the island starts below the fold.
   const box = await feed.boundingBox();
-  expect(box?.y ?? 0).toBeGreaterThan(360);
+  expect(box?.y ?? 0).toBeGreaterThan(foldHeight);
   expect(await state(page, 'activity-feed')).toBe('scheduled');
   expect(requests.some((path) => feedChunk.test(path))).toBe(false);
 
@@ -69,7 +78,7 @@ test('a visible island requests its code only after it scrolls into view', async
   );
   await expect.poll(() => state(page, 'activity-feed')).toBe('mounted');
   expect(requests.filter((path) => feedChunk.test(path))).toHaveLength(1);
-});
+}
 
 test('an idle island waits for requestIdleCallback, with a 2 s timeout', async ({
   page,
