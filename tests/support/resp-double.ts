@@ -3,7 +3,8 @@ import type { Server, Socket } from 'node:net';
 
 /**
  * In-process RESP2 test double. NOT Redis: it implements only the commands the
- * Nestvexa Redis adapters use (strings with NX/XX/PX, INCR, sets, sorted sets
+ * Nestvexa Redis adapters use (strings with NX/XX/PX, INCR, sets incl.
+ * SRANDMEMBER with a count, sorted sets
  * with ZRANGEBYSCORE, expiry, optimistic WATCH/MULTI/EXEC, PUBLISH/SUBSCRIBE,
  * AUTH), with lazily applied expiry and a
  * per-key version for WATCH. Real-server behavior is checked by
@@ -234,6 +235,13 @@ export async function respDouble(
         return array([...(set(args[0] ?? '') ?? [])]);
       case 'SCARD':
         return `:${set(args[0] ?? '')?.size ?? 0}\r\n`;
+      case 'SRANDMEMBER': {
+        // Only the form with a positive count: up to `count` distinct members.
+        const count = Number(args[1]);
+        if (!Number.isSafeInteger(count) || count < 1)
+          return '-ERR value is not an integer or out of range\r\n';
+        return array([...(set(args[0] ?? '') ?? [])].slice(0, count));
+      }
       case 'PUBLISH': {
         const [channel = '', message = ''] = args;
         const targets = subscribers.get(channel) ?? new Set();
