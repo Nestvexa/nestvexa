@@ -174,7 +174,16 @@ pnpm --filter @nestvexa/example-offline-progressive start # http://127.0.0.1:312
 pnpm --filter @nestvexa/example-integration-matrix start  # http://127.0.0.1:3123 every renderer in one server
 pnpm --filter @nestvexa/example-showcase start          # http://127.0.0.1:3124 the coherent showcase app
 NESTVEXA_ASSETS=build PORT=3126 pnpm --filter @nestvexa/example-cli-generated start # CLI output only (see its README)
+pnpm --filter @nestvexa/example-directive-lab start     # http://127.0.0.1:3360 Live directives under Trusted Types
+pnpm --filter @nestvexa/example-islands-vite start      # http://127.0.0.1:3479 islands built with Vite (dev: HMR)
+pnpm --filter @nestvexa/example-browser-lab start       # http://127.0.0.1:3860 navigation, Alpine $live, network loss
+pnpm --filter @nestvexa/example-client-chunks start     # http://127.0.0.1:3880 on-demand Live client chunks, nonce CSP
+pnpm --filter @nestvexa/example-api-coexistence start   # http://127.0.0.1:3885 REST, GraphQL, TCP microservice, WebSocket
+PORT=3220 pnpm --filter @nestvexa/example-distributed-live start # one replica; REDIS_PORT=6379 for Redis mode (see its README)
 ```
+
+`pnpm docs:build` fails when an `examples/*` workspace is missing from this
+list.
 
 Every example has a README (what it shows, how to run it, security notes) and a
 Playwright spec under `tests/browser/` with an axe accessibility check. The

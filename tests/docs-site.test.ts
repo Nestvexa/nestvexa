@@ -283,6 +283,36 @@ describe('docs build checks', { timeout: 60_000 }, () => {
       'docs/feature-matrix.md: does not mention package @fixture/views',
     ],
     [
+      'a workspace example missing from the README example list',
+      (files: Files) => {
+        files['README.md'] = [
+          '# Fixture',
+          '',
+          '## Runnable examples',
+          '',
+          '```sh',
+          'pnpm --filter @fixture/example-one start',
+          '```',
+          '',
+          '## Next',
+          '',
+          '`@fixture/example-two` outside the section does not count.',
+          '',
+        ].join('\n');
+        files['examples/one/package.json'] = manifest('@fixture/example-one');
+        files['examples/two/package.json'] = manifest('@fixture/example-two');
+      },
+      'README.md: "Runnable examples" does not list examples/two (@fixture/example-two)',
+    ],
+    [
+      'examples without a README example list',
+      (files: Files) => {
+        files['README.md'] = '# Fixture\n';
+        files['examples/one/package.json'] = manifest('@fixture/example-one');
+      },
+      'README.md: has no "## Runnable examples" section',
+    ],
+    [
       'an unbuilt entry point',
       (files: Files) => {
         delete files['packages/core/dist/index.d.ts'];
