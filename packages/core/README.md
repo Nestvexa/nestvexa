@@ -303,7 +303,7 @@ Status: **Shipped (alpha)**. Configuration, registries, typed routes, the plugin
 - The kernel identity is opt-in per transport (`kernelIdentity`); hosts wire actions, uploads, realtime and Inertia themselves because the umbrella does not own those modules. Islands have no server transport of their own; they use server actions or Inertia props.
 - Feature packages register in `NestvexaRegistry` only when given the registry; extra view engines added with `registerViewEngine` are not listed.
 - `DiagnosticsRegistry` has no exporter (OpenTelemetry stays in `@nestvexa/observability`).
-- `PluginRegistry` is a deprecated adapter over the extension model (`pluginExtension`, `registry.extensions()`); no out-of-tree extension package has been consumed from a tarball.
+- `PluginRegistry` is a deprecated adapter over the extension model (`pluginExtension`, `registry.extensions()`) and warns once per process (`NVDEP002`). An out-of-tree extension package built against the packed `@nestvexa/core` is installed from its own tarball and booted by `pnpm test:pack` (`tests/pack-consumers/third-party`).
 - Typed routes do not reflect controllers added inside `forRootAsync` factories, Nest versioning or host constraints, and do not generate permission-aware links.
 
 ## Testing

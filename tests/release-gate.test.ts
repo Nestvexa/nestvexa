@@ -67,6 +67,8 @@ function evidence(): Map<string, Json> {
         consumers: [
           { manager: 'npm', passed: true },
           { manager: 'pnpm', passed: true },
+          { manager: 'npm', profile: 'init', passed: true },
+          { manager: 'npm', profile: 'third-party', passed: true },
         ],
         packages: [
           {
@@ -243,6 +245,28 @@ describe('release-check gate', () => {
           metadata: { component: { hashes: [] } },
           components: [],
         });
+      },
+      'Failed or incomplete evidence: artifacts/reports/pack.json',
+    ],
+    [
+      'the packed-bin init consumer did not pass',
+      (files) => {
+        const pack = files.get('artifacts/reports/pack.json');
+        const init = (pack?.['consumers'] as Json[]).find(
+          (consumer) => consumer['profile'] === 'init',
+        );
+        if (init) init['passed'] = false;
+      },
+      'Failed or incomplete evidence: artifacts/reports/pack.json',
+    ],
+    [
+      'the third-party adapter consumer never ran',
+      (files) => {
+        const pack = files.get('artifacts/reports/pack.json');
+        if (pack)
+          pack['consumers'] = (pack['consumers'] as Json[]).filter(
+            (consumer) => consumer['profile'] !== 'third-party',
+          );
       },
       'Failed or incomplete evidence: artifacts/reports/pack.json',
     ],
