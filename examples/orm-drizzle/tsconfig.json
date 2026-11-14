@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // drizzle-orm 0.45 declaration files do not type-check under TypeScript 6.
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts"]
+}
