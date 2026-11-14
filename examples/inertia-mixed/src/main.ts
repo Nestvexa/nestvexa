@@ -155,6 +155,23 @@ class MixedController {
     return pageProps('react', 'about');
   }
 
+  /**
+   * React page hosting an isolated Live element (VISION-017). The mount is a
+   * lazy prop, so a partial reload of other props neither re-mounts nor
+   * replaces the Live component the browser already owns.
+   */
+  @Get('react/live')
+  @Header('Cache-Control', 'no-store')
+  @InertiaPage('LiveHost')
+  reactLive(@Req() request: SessionRequest) {
+    request.session.csrf ??= randomBytes(32).toString('base64url');
+    return {
+      ...pageProps('react', 'live host'),
+      live: async () => (await this.live.mount(MixedCounter, request)).value,
+      stamp: () => Date.now(),
+    };
+  }
+
   @Get('vue')
   @InertiaPage('Home')
   vueHome() {

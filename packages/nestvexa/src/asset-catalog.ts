@@ -10,8 +10,18 @@ export interface AssetOptions {
   readonly path: string;
   readonly basePath: string;
 }
-/** One canonical bundled client identity; private implementation outputs are not public assets. */
-export const CLIENT_MODULES = ['index.js'] as const;
+/**
+ * The canonical client entry and its on-demand feature chunks (ADR 0036), in
+ * package `files` order. The entry imports each chunk by this sibling name;
+ * private implementation outputs are not public assets.
+ */
+export const CLIENT_MODULES = [
+  'index.js',
+  'live-realtime.js',
+  'live-sort.js',
+  'live-stream.js',
+  'live-upload.js',
+] as const;
 
 export interface ClientAsset {
   readonly content: string;

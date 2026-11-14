@@ -129,6 +129,17 @@ function attribute(value: string): string {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;');
 }
+/** Validated, escaped ` nonce="…"` attribute (empty without a nonce). */
+function scriptNonce(nonce: unknown): string {
+  if (nonce === undefined) return '';
+  if (
+    typeof nonce !== 'string' ||
+    /[\r\n]/.test(nonce) ||
+    !/^[a-zA-Z0-9+/_-]{1,256}={0,2}$/.test(nonce)
+  )
+    throw new Error('Invalid browser script nonce');
+  return ` nonce="${attribute(nonce)}"`;
+}
 
 /** Application-local document script integration; does not contain identity or session data. */
 @Injectable()
@@ -148,18 +159,17 @@ export class NestvexaBrowserService implements OnApplicationShutdown {
     this.assets.getManifest();
     return `${this.options.basePath}${this.options.path}/boot.js`;
   }
-  /** Trusted external module tag for document layouts; optional CSP nonce is validated and escaped. */
+  /**
+   * Trusted external module tag for document layouts; optional CSP nonce is
+   * validated and escaped. With the `integrity` option the boot module is
+   * integrity-checked, preceded by `importMap()` (which pins every client
+   * module, including the on-demand feature chunks of ADR 0036, for dynamic
+   * imports) and integrity-checked modulepreloads of the client, Alpine and
+   * the adapter.
+   */
   scripts(nonce?: string): SafeHtml {
-    if (
-      nonce !== undefined &&
-      (typeof nonce !== 'string' ||
-        /[\r\n]/.test(nonce) ||
-        !/^[a-zA-Z0-9+/_-]{1,256}={0,2}$/.test(nonce))
-    )
-      throw new Error('Invalid browser script nonce');
+    const nonceAttribute = scriptNonce(nonce);
     const url = this.getBootUrl();
-    const nonceAttribute =
-      nonce === undefined ? '' : ` nonce="${attribute(nonce)}"`;
     if (!this.options.integrity)
       return SafeHtml.trusted(
         `<script type="module" src="${attribute(url)}"${nonceAttribute}></script>`,
@@ -172,7 +182,24 @@ export class NestvexaBrowserService implements OnApplicationShutdown {
       )
       .join('');
     return SafeHtml.trusted(
-      `${preloads}<script type="module" src="${attribute(url)}" integrity="${attribute(assetIntegrity(this.boot()))}" crossorigin="anonymous"${nonceAttribute}></script>`,
+      `${this.importMap(nonce).value}${preloads}<script type="module" src="${attribute(url)}" integrity="${attribute(assetIntegrity(this.boot()))}" crossorigin="anonymous"${nonceAttribute}></script>`,
+    );
+  }
+  /**
+   * Inline import map whose `integrity` section pins every served client
+   * module (entry, feature chunks, Alpine and its adapter) to its SHA-384
+   * digest, so module imports the page does not preload (the on-demand
+   * chunks) are verified too. Place it before any module script; it maps no
+   * specifiers. Also usable by host-owned (manual mode) layouts.
+   */
+  importMap(nonce?: string): SafeHtml {
+    const nonceAttribute = scriptNonce(nonce);
+    if (this.closed)
+      throw new ServiceUnavailableException('Nestvexa browser has shut down');
+    const { integrity } = this.assets.getManifest();
+    const json = JSON.stringify({ integrity }).replaceAll('<', '\\u003c');
+    return SafeHtml.trusted(
+      `<script type="importmap"${nonceAttribute}>${json}</script>`,
     );
   }
   /** Generated trusted module imports only the current installed allowlist; no inline application code. */

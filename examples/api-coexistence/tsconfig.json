@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // @nestjs/apollo and @nestjs/graphql declarations reference optional peers
+    // (@apollo/gateway, ts-morph) that this example does not install.
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts"]
+}
