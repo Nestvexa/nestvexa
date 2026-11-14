@@ -422,6 +422,97 @@ describe.each(['express', 'fastify'] as const)(
   },
 );
 
+/**
+ * A subscriber whose socket stops reading, on a different replica than the
+ * publisher. Its replica buffers at most the transport bound (256 KiB plus
+ * the stream and socket buffers), then disconnects it as `slow-consumer`;
+ * a healthy subscriber on the same replica receives every event meanwhile.
+ */
+describe.each(['express', 'fastify'] as const)(
+  'slow consumers across replicas, receiving on %s',
+  (platform) => {
+    it('disconnects a stalled SSE subscriber, bounded, without delaying others', async () => {
+      const double = await respDouble();
+      cleanup.push(() => double.close());
+      const broker = () =>
+        new RespRealtimeBroker({ port: double.port, prefix: 'slow:' });
+      const publisher = await replica(
+        platform === 'express' ? 'fastify' : 'express',
+        { broker: broker() },
+      );
+      const receiver = await replica(platform, { broker: broker() });
+      const alice = { binding: users['alice'] ?? '' };
+      const bob = { binding: users['bob'] ?? '' };
+      const channel = 'tenant-a:bulk';
+      const healthy = await sse(
+        `${receiver.base}/_nestvexa/realtime/sse?t=${(await receiver.service.sign(alice, [channel])) ?? ''}`,
+        'alice',
+      );
+      await until(() => healthy.read().includes('event: ready'));
+      // Bob's client stops reading as soon as the stream opens.
+      const bobToken = (await receiver.service.sign(bob, [channel])) ?? '';
+      let stalledBytes = 0;
+      let stalledText = '';
+      let stalledEnded = false;
+      const stalledResponse = await new Promise<IncomingMessage>(
+        (done, reject) => {
+          const request = httpRequest(
+            `${receiver.base}/_nestvexa/realtime/sse?t=${bobToken}`,
+            { headers: { 'x-user': 'bob' } },
+            (response) => {
+              response.pause();
+              done(response);
+            },
+          );
+          cleanup.push(() => {
+            request.destroy();
+          });
+          request.on('error', (error) =>
+            stalledBytes ? undefined : reject(error),
+          );
+          request.end();
+        },
+      );
+      await until(() => receiver.service.hub.size === 2);
+      const count = 300;
+      const blob = 'x'.repeat(15_000);
+      for (let index = 0; index < count; index++)
+        await publisher.service.publish(channel, { index, blob });
+      // The healthy subscriber received every event, in order.
+      await until(
+        () =>
+          (healthy.read().match(/event: invalidate/g) ?? []).length === count,
+        30_000,
+      );
+      const indexes = [...healthy.read().matchAll(/"index":(\d+)/g)].map(
+        (match) => Number(match[1]),
+      );
+      expect(indexes).toEqual(Array.from({ length: count }, (_, at) => at));
+      // The stalled one was dropped by its replica; the healthy one remains.
+      await until(() => receiver.service.hub.size === 1, 30_000);
+      // Draining what was buffered shows the bound and the closing reason.
+      stalledResponse.on('data', (chunk: Buffer) => {
+        stalledBytes += chunk.length;
+        stalledText += chunk.toString();
+      });
+      stalledResponse.on('end', () => (stalledEnded = true));
+      stalledResponse.resume();
+      await until(() => stalledEnded, 30_000);
+      expect(stalledText).toContain('event: close');
+      expect(stalledText).toContain('"reason":"slow-consumer"');
+      const published = count * blob.length;
+      expect(stalledBytes).toBeLessThan(published / 2);
+      const delivered = (stalledText.match(/event: invalidate/g) ?? []).length;
+      expect(delivered).toBeLessThan(count);
+      // The healthy stream is still open and still receives.
+      await publisher.service.publish(channel, { index: count, blob: '' });
+      await until(() => healthy.read().includes(`"index":${count}`));
+      healthy.close();
+      await until(() => receiver.service.hub.size === 0);
+    }, 120_000);
+  },
+);
+
 it('detects at startup that an adapter cannot carry WebSockets', async () => {
   const f = await replica('express');
   const app = {
