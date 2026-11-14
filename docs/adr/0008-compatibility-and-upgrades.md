@@ -22,4 +22,4 @@ Runtime-critical dependency updates require scoped regression tests plus integra
 
 On 2026-10-25, `docker info --format '{{.OSType}}'` failed with exit 1 because `dockerDesktopLinuxEngine` was unavailable. The local Linux-container gate is **environment-blocked**; Docker Desktop being installed is not a successful Linux run. Do not start a daemon or claim a matrix result from that failure. A functioning Linux runner/container is still needed.
 
-[Integration tests](../../tests/integration.test.ts), [package contract tests](../../tests/contracts.test.ts) and [pack verification](../../scripts/pack.mjs) cover parts of the initial surface. Full API snapshots, multi-compiler/Node/OS tests, migrations and optional-renderer matrix remain pending.
+[Integration tests](../../tests/integration.test.ts), [package contract tests](../../tests/contracts.test.ts) and [pack verification](../../scripts/pack.mjs) cover parts of the initial surface. Public API snapshots are committed under `api-reports/` and checked in CI by `pnpm api:check` ([public API reports](../contributing/api-reports.md)). Multi-compiler tests, migrations and the optional-renderer matrix remain pending.

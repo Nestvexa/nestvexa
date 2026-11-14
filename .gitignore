@@ -25,3 +25,4 @@ examples/orm-prisma/src/generated/
 # SQLite files written by the ORM examples
 examples/orm-*/data/
 examples/multi-tenant/data/
+.vitest-reports/

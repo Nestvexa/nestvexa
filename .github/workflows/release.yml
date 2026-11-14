@@ -53,16 +53,21 @@ jobs:
       - run: pnpm format:check
       - run: pnpm typecheck
       - run: pnpm lint
+      - run: pnpm api:check
       - run: pnpm exec playwright install --with-deps chromium firefox webkit
       - run: pnpm test
       - run: pnpm test:coverage
       - run: pnpm size:check
       - run: pnpm test:e2e
+      # A release never accepts a browser test that only passed on a retry.
+      - name: Flaky browser tests (block)
+        if: ${{ !cancelled() }}
+        run: node scripts/flaky-check.mjs --mode=block
       - run: pnpm test:pack
       - run: pnpm docs:build
       - name: Record matrix entry (only reached when every check passed)
         env:
-          RELEASE_MATRIX_CHECKS: format,typecheck,lint,test,coverage,size,e2e,pack,docs
+          RELEASE_MATRIX_CHECKS: format,typecheck,lint,api,test,coverage,size,e2e,flaky,pack,docs
         run: node scripts/release-matrix.mjs entry artifacts/matrix/${{ matrix.os }}-node${{ matrix.node }}.json
       - uses: actions/upload-artifact@v4
         with:

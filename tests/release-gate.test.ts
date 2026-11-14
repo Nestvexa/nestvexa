@@ -57,7 +57,7 @@ function evidence(): Map<string, Json> {
     ],
     [
       'artifacts/reports/playwright.json',
-      { stats: { unexpected: 0, skipped: 0, expected: 1 } },
+      { stats: { unexpected: 0, skipped: 0, expected: 1, flaky: 0 } },
     ],
     ['artifacts/sbom/nestvexa-1.0.0.cdx.json', sbom],
     [
@@ -118,7 +118,7 @@ async function runGate(mutate: Mutation = () => undefined) {
   const root = await mkdtemp(join(tmpdir(), 'nestvexa-release-gate-'));
   try {
     await mkdir(join(root, 'scripts'));
-    for (const script of ['release-check.mjs', 'ledger.mjs'])
+    for (const script of ['release-check.mjs', 'ledger.mjs', 'flaky-check.mjs'])
       await copyFile(
         join(repository, 'scripts', script),
         join(root, 'scripts', script),
@@ -306,7 +306,45 @@ describe('release-check gate', () => {
       'a test was skipped',
       (files) => {
         files.set('artifacts/reports/playwright.json', {
-          stats: { unexpected: 0, skipped: 1, expected: 1 },
+          stats: { unexpected: 0, skipped: 1, expected: 1, flaky: 0 },
+        });
+      },
+      'Failed or incomplete evidence: artifacts/reports/playwright.json',
+    ],
+    [
+      'a browser test only passed on a retry',
+      (files) => {
+        files.set('artifacts/reports/playwright.json', {
+          stats: { unexpected: 0, skipped: 0, expected: 1, flaky: 1 },
+          suites: [
+            {
+              title: 'live.spec.ts',
+              file: 'live.spec.ts',
+              specs: [
+                {
+                  title: 'counts',
+                  file: 'live.spec.ts',
+                  line: 3,
+                  tests: [
+                    {
+                      projectName: 'webkit',
+                      status: 'flaky',
+                      results: [{ status: 'failed' }, { status: 'passed' }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        });
+      },
+      'Flaky browser test [webkit] live.spec.ts: counts',
+    ],
+    [
+      'the report has no flaky counter',
+      (files) => {
+        files.set('artifacts/reports/playwright.json', {
+          stats: { unexpected: 0, skipped: 0, expected: 1 },
         });
       },
       'Failed or incomplete evidence: artifacts/reports/playwright.json',

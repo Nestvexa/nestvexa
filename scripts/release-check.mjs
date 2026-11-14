@@ -1,6 +1,7 @@
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { collectFlaky } from './flaky-check.mjs';
 
 // Evidence formats are documented in docs/release/evidence-formats.md. Every
 // validator below only adds conditions; none may be relaxed for a release.
@@ -63,7 +64,11 @@ for (const [file, validate] of [
     (report) =>
       report.stats?.unexpected === 0 &&
       report.stats?.skipped === 0 &&
-      report.stats?.expected > 0,
+      report.stats?.expected > 0 &&
+      // A pass that needed a CI retry is not release evidence
+      // (docs/testing/flaky-tests.md).
+      report.stats?.flaky === 0 &&
+      collectFlaky(report).length === 0,
   ],
   [
     'artifacts/reports/pack.json',
@@ -137,6 +142,11 @@ for (const [file, validate] of [
         sbomResults.set(entry.name, await sbomMatches(entry));
     if (!validate(evidence))
       failures.push(`Failed or incomplete evidence: ${file}`);
+    if (file.endsWith('playwright.json'))
+      for (const test of collectFlaky(evidence))
+        failures.push(
+          `Flaky browser test [${test.project}] ${test.file}: ${test.title}`,
+        );
   } catch {
     failures.push(`Missing readable evidence: ${file}`);
   }
