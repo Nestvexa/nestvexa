@@ -33,6 +33,18 @@ async function signIn(
   await expect(page).toHaveURL(base + '/app');
   return { context, page, errors };
 }
+/**
+ * WebKit reports the realtime EventSource that a navigation (the switch's
+ * form post, a reload) tears down as a page error "... due to access control
+ * checks". Only that exact message is ignored, and only in WebKit.
+ */
+const webkitAbortedStream =
+  /\/_nestvexa\/realtime\/sse\?t=[\w.-]+ due to access control checks\.$/;
+function pageErrors(errors: readonly string[], browserName: string) {
+  return errors.filter(
+    (error) => browserName !== 'webkit' || !webkitAbortedStream.test(error),
+  );
+}
 async function direction(page: Page) {
   return page.evaluate(() => ({
     lang: document.documentElement.lang,
@@ -145,6 +157,7 @@ test('the locale switch is allowlisted, CSRF-protected and never an open redirec
 
 test('Arabic survives Live updates, realtime refreshes and island interaction on the dashboard', async ({
   browser,
+  browserName,
 }) => {
   const ada = await signIn(browser, 'ada@harbor.test');
   const ben = await signIn(browser, 'ben@harbor.test');
@@ -220,7 +233,7 @@ test('Arabic survives Live updates, realtime refreshes and island interaction on
     'التركيز على Ben Ortiz',
   );
   await axe(ada.page);
-  expect(ada.errors).toEqual([]);
+  expect(pageErrors(ada.errors, browserName)).toEqual([]);
   await ada.context.close();
   await ben.context.close();
 });
