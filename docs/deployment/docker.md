@@ -4,12 +4,14 @@ This page shows a multi-stage image for a Nest application that uses
 `nestvexa`. It builds with the toolchain, then runs on a slim runtime as a
 non-root user.
 
-> **Known gap:** This Dockerfile is a template for your application. It is not
-> built or run by the repository's suites. The project's Linux checkpoint does
-> run inside Docker (Ubuntu 24.04, Node 24), but as a test environment, not as
-> a packaged application image. Real services (Redis, SeaweedFS S3, ClamAV)
-> were run in Docker only for `pnpm test:services`. See
-> [production services](../guides/production-services.md).
+> **Known gap:** the Dockerfile on this page is a template for your
+> application and is not built by the repository's suites. The repository's own
+> image, [examples/showcase/Dockerfile](../../examples/showcase/Dockerfile), is
+> built on every push ([CI](#ci)), but neither image is started in CI and the
+> showcase [Compose stack](../../examples/showcase/docker-compose.yml) is only
+> validated, not booted. See
+> [production services](../guides/production-services.md) for the real Redis,
+> S3-compatible storage and ClamAV runs.
 
 ## Bind address and `PORT`
 
@@ -134,5 +136,27 @@ services:
 ```
 
 Read [multiple replicas and Redis](multi-replica-redis.md) before you scale
-`app` beyond one container. Redis delivers realtime events between replicas,
-but it does not share Live state or upload sessions.
+`app` beyond one container. Redis delivers realtime events between replicas
+and, with `RedisLiveStore`, shares Live state; upload sessions stay in one
+process, so upload routes need sticky sessions.
+
+## CI
+
+The `docker` job in [ci.yml](../../.github/workflows/ci.yml) runs on every push
+and pull request (Ubuntu, no registry login, nothing pushed):
+
+1. `docker compose -f examples/showcase/docker-compose.yml config --quiet`:
+   the Compose file parses and every variable resolves.
+2. `docker build --file examples/showcase/Dockerfile .` from the repository
+   root, the same context `docker compose build` uses, with
+   `examples/showcase/Dockerfile.dockerignore`. This proves the documented
+   image builds from a clean checkout: the frozen, filtered `pnpm install` and
+   the `pnpm --filter "@nestvexa/example-showcase..." build` of the showcase
+   and every workspace package it depends on succeed on Linux.
+3. `docker image inspect`: the image runs as the unprivileged `node` user and
+   declares the `/api/health` health check.
+
+It does not prove that the container starts, that the health check passes, or
+that the app works with the Compose Redis and SeaweedFS services; boot the stack
+yourself (`docker compose -f examples/showcase/docker-compose.yml up --build`)
+for that.

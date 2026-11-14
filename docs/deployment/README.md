@@ -123,7 +123,17 @@ The repository is developed and checkpointed on Windows as well as Linux
   checks. Both were fixed during the 2026-11-02 checkpoint, so upgrade before
   you debug an "outside the root" error on Windows.
 
-> **Known gap:** No production deployment topology (load balancer, multiple
-> replicas, real AWS S3, CDN) has been run by this project. Load, memory and
-> fuzz testing and an independent security review are still open. See
+What has been run: `services.yml` drives four Nest replicas (Express and
+Fastify, SSE and WebSocket) through one Redis behind the distributed-live
+example's development proxy, plus two showcase instances on the same Redis, in
+a real browser ([multiple replicas](multi-replica-redis.md)); `nightly.yml`
+runs the load and memory soak and the property and fuzz suites
+([property, load and mutation](../testing/property-load-mutation.md)); and
+`ci.yml` builds the showcase Docker image ([Docker](docker.md#ci)).
+
+> **Known gap:** no production load balancer has been put in front of the
+> replicas (only the example's development proxy), uploads were tested against
+> S3-compatible SeaweedFS rather than real AWS S3, and no CDN has been
+> configured. The showcase image is built in CI but the Compose stack is not
+> started there. An independent security review is still open. See
 > [implementation status](../implementation/STATUS.md).

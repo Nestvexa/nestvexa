@@ -103,6 +103,49 @@ Also assert that your `authorize` callback denies actions a role must not call
 (`403`), that guards on `@Action()` methods run, and that a reused snapshot after
 a successful action returns `409`.
 
+### Test a custom guard on an `@Action()` method
+
+A Live action is a real Nest route, so a method guard is an ordinary
+`CanActivate` that reads the request. This guard (from the repository's
+pipeline suite) refuses a request carrying `x-deny: yes`; it is attached with
+`@UseGuards(MethodGuard)` next to `@Action()` on the component method:
+
+<!-- snippet: tests/live-pipeline.test.ts -->
+
+```ts
+@Injectable()
+class MethodGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    events.push('method-guard');
+    const headers = context
+      .switchToHttp()
+      .getRequest<{ headers: Record<string, string | undefined> }>().headers;
+    return headers['x-deny'] !== 'yes';
+  }
+}
+```
+
+Call the action over HTTP once accepted and once denied. The denied call is a
+`403`, and neither the action's pipes nor any component lifecycle hook ran:
+
+<!-- snippet: tests/live-pipeline.test.ts -->
+
+```ts
+const denied = await send(
+  app,
+  '/_nestvexa/live/pipeline/run',
+  envelope({ ...marker(html, 'pipeline'), revision: 1 }, { input: 1 }),
+  { 'x-deny': 'yes' },
+);
+expect(denied.status).toBe(403);
+expect(events).not.toContain('param-pipe');
+expect(events.some((entry) => entry.startsWith('parent:'))).toBe(false);
+```
+
+The same pattern applies to universal server actions (`@ServerAction()`): see
+the global, class and method guard cases in
+[`tests/actions-http.test.ts`](../../tests/actions-http.test.ts).
+
 ## Test universal server actions
 
 Actions are `POST /_nestvexa/actions/<group>/<action>` with body `{ "input": … }`,
@@ -168,21 +211,33 @@ repository follows.
 
 ## How this repository's suites are organised
 
-| Script                  | Contents                                                                                           |
-| ----------------------- | -------------------------------------------------------------------------------------------------- |
-| `pnpm test:unit`        | Pure modules: protocol parsers, client helpers, adapters, validators                               |
-| `pnpm test:integration` | Real Nest apps over HTTP on Express and Fastify, CLI end-to-end                                    |
-| `pnpm test:security`    | The negative and attack-oriented files (overlaps with the groups above)                            |
-| `pnpm test:e2e`         | Playwright in Chromium, Firefox and WebKit against the started examples                            |
-| `pnpm test:pack`        | Packs every package and installs the tarballs into external npm/pnpm consumers                     |
-| `pnpm test:coverage`    | Vitest with the thresholds in [coverage gates](coverage.md)                                        |
-| `pnpm test:services`    | Real Redis, S3-compatible storage and ClamAV in Docker ([guide](../guides/production-services.md)) |
+| Script                  | Contents                                                                                                                                                                                                                                                                                                                                              |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm test:unit`        | Pure modules: protocol parsers, client helpers, adapters, validators                                                                                                                                                                                                                                                                                  |
+| `pnpm test:integration` | Real Nest apps over HTTP on Express and Fastify, CLI end-to-end                                                                                                                                                                                                                                                                                       |
+| `pnpm test:security`    | The negative and attack-oriented files (overlaps with the groups above)                                                                                                                                                                                                                                                                               |
+| `pnpm test:e2e`         | Playwright in Chromium, Firefox and WebKit against the started examples                                                                                                                                                                                                                                                                               |
+| `pnpm test:pack`        | Packs every package and installs the tarballs into external npm/pnpm consumers                                                                                                                                                                                                                                                                        |
+| `pnpm test:coverage`    | Vitest with the thresholds in [coverage gates](coverage.md)                                                                                                                                                                                                                                                                                           |
+| `pnpm test:services`    | Real Redis (two processes, restart, job queue, presence), S3-compatible storage and ClamAV when their env vars are set ([guide](../guides/production-services.md)); with Redis it also drives four Nest replicas (Express and Fastify) behind one proxy, plus two showcase instances on the same Redis, in Chromium (`playwright.services.config.ts`) |
+| `pnpm test:property`    | fast-check property and fuzz suites, including browser runtime fuzzing ([property, load and mutation](property-load-mutation.md))                                                                                                                                                                                                                     |
+| `pnpm test:mutation`    | StrykerJS over the highest-risk server modules (score reported, not gating)                                                                                                                                                                                                                                                                           |
+| `pnpm load`             | autocannon load and memory soak (starter, Live actions, realtime hub) with heap-growth gates                                                                                                                                                                                                                                                          |
 
 Integration tests import built `dist` output, so run `pnpm build` first. Manual
 accessibility checks are listed in the
 [accessibility checklist](accessibility-checklist.md).
 
+Where each runs: `ci.yml` runs format, typecheck, lint, `pnpm test`, coverage,
+size, e2e, pack and docs on every push; `services.yml` runs `pnpm test:services`
+against a Redis service container on every push; `nightly.yml` runs the e2e
+suite per browser, `pnpm test:property` with 10x runs and browser fuzzing in
+Chromium, Firefox and WebKit, `pnpm test:security`, `pnpm test:mutation` and
+a 10-minute `pnpm load` soak. The [test matrix](../contributing/test-matrix.md)
+lists every gate.
+
 > **Known gap:** there is no `@nestvexa/testing` helper package yet; the request
-> helpers above are copied into each test file. Load, memory, fuzz and mutation
-> testing have not been run (QA rows in the ledger), and a manual assistive
-> technology review is still open.
+> helpers above are copied into each test file (Inertia has
+> `@nestvexa/inertia/testing`). Mutation scores are reported, not gating, and
+> nightly load latency budgets are advisory on hosted runners. A manual
+> assistive technology review is still open.
