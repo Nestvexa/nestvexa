@@ -21,7 +21,12 @@ export type BindingDirective =
     }
   | { readonly kind: 'dirty'; readonly field?: string }
   | { readonly kind: 'cloak' }
-  | { readonly kind: 'ref'; readonly name: string };
+  | { readonly kind: 'ref'; readonly name: string }
+  | { readonly kind: 'class'; readonly classes: readonly ClassBinding[] };
+export interface ClassBinding {
+  readonly token: string;
+  readonly field: string;
+}
 
 const attributes = new Set<string>([
   'title',
@@ -36,6 +41,36 @@ const attributes = new Set<string>([
 
 function invalid(message: string): never {
   throw new LiveClientError('DIRECTIVE', message);
+}
+
+/**
+ * `nv:class="active:selected done:finished"`: 1 through 16 unique simple class
+ * tokens, each toggled by boolean public state. Classes are the CSP-safe
+ * styling channel; inline `style` and arbitrary DOM properties are not bindable.
+ */
+function parseClasses(value: string): readonly ClassBinding[] {
+  const pairs = value.trim() ? value.trim().split(/\s+/) : [];
+  if (!pairs.length || pairs.length > 16)
+    invalid('nv:class requires 1 through 16 class:field pairs');
+  const classes = pairs.map((pair) => {
+    const [token, field, extra] = pair.split(':');
+    if (
+      !token ||
+      !field ||
+      extra !== undefined ||
+      !/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/.test(token)
+    )
+      invalid('nv:class requires class:field pairs with simple class tokens');
+    return Object.freeze({ token, field: parsePath(field) });
+  });
+  if (new Set(classes.map(({ token }) => token)).size !== classes.length)
+    invalid('nv:class tokens must be unique');
+  return Object.freeze(classes);
+}
+/** Class tokens owned by an element's `nv:class`, for other controllers' conflict checks. */
+export function boundClasses(element: Element): readonly string[] {
+  const value = element.getAttribute('nv:class');
+  return value === null ? [] : parseClasses(value).map(({ token }) => token);
 }
 
 /** Parse configuration only: no expressions, indices, modifiers or executable code; fields may be dotted paths. */
@@ -57,6 +92,8 @@ export function parseBindingDirective(
       return { kind: 'cloak' };
     case 'nv:ref':
       return { kind: 'ref', name: parseIdentifier(value) };
+    case 'nv:class':
+      return { kind: 'class', classes: parseClasses(value) };
     case 'nv:bind': {
       const parts = value.split(':');
       const attribute = parts[0];
@@ -151,7 +188,8 @@ export function evaluateBinding(
       return value === null ? null : text(value);
     case 'cloak':
     case 'ref':
-      return invalid('This binding does not read state');
+    case 'class':
+      return invalid('This binding does not read one state value');
   }
 }
 
@@ -192,6 +230,8 @@ interface Operation {
   readonly element: Element;
   readonly binding: BindingDirective;
   readonly value: string | boolean | null;
+  /** The class an `nv:class` operation toggles. */
+  readonly token?: string;
 }
 
 /**
@@ -229,6 +269,7 @@ export function prepareBindings(
           'nv:dirty',
           'nv:cloak',
           'nv:ref',
+          'nv:class',
         ].includes(attribute.name)
       )
         continue;
@@ -238,6 +279,16 @@ export function prepareBindings(
         continue;
       }
       if (binding.kind === 'ref') continue;
+      if (binding.kind === 'class') {
+        for (const { token, field } of binding.classes)
+          operations.push({
+            element,
+            binding,
+            token,
+            value: boolean(read(field)),
+          });
+        continue;
+      }
       if (
         binding.kind === 'text' &&
         (element.children.length > 0 ||
@@ -261,7 +312,7 @@ export function prepareBindings(
     }
   }
   return (): void => {
-    for (const { element, binding, value } of operations) {
+    for (const { element, binding, value, token } of operations) {
       switch (binding.kind) {
         case 'text':
           element.textContent = String(value);
@@ -286,6 +337,10 @@ export function prepareBindings(
             element.toggleAttribute(binding.attribute, value === true);
           else if (value === null) element.removeAttribute(binding.attribute);
           else element.setAttribute(binding.attribute, String(value));
+          break;
+        case 'class':
+          if (token !== undefined)
+            element.classList.toggle(token, value === true);
           break;
         case 'cloak':
         case 'ref':
