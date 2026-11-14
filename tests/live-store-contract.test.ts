@@ -261,7 +261,7 @@ describe('RedisLiveStore tenant/user namespacing (DATA-004, RESP test double)', 
     );
     expect((await store.peek(other.snapshot, bob)).revision).toBe(0);
     // Bulk tenant revocation runs in rounds (more bindings than one batch).
-    const many = [];
+    const many: StateSnapshot[] = [];
     for (let index = 0; index < 70; index++)
       many.push(
         await store.create(
