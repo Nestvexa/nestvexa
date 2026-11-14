@@ -315,15 +315,19 @@ test('browsers reconnect after the load balancer drops them, without duplicates 
           resync: response.request().headers()['x-nestvexa-resync'],
         });
     });
+  // Read each body as soon as its response arrives: Chromium may discard a
+  // response body once later navigation or traffic has happened.
   const synced = [onA.page, onD.page].map((page) =>
-    page.waitForResponse((response) =>
-      response.url().includes('/_nestvexa/live/replica-board/_sync'),
-    ),
+    page
+      .waitForResponse((response) =>
+        response.url().includes('/_nestvexa/live/replica-board/_sync'),
+      )
+      .then((response) => response.json() as Promise<unknown>),
   );
   await increment(onD.page);
   await expect(onA.page.locator('#total')).toHaveText(String(start + 1));
   const [refreshA] = await Promise.all(synced);
-  expect(await refreshA?.json()).toMatchObject({
+  expect(refreshA).toMatchObject({
     component: { revision: revisionA },
   });
   await expect(board).toHaveAttribute('data-nv-revision', String(revisionA));
