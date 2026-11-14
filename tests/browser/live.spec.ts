@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
+import { wcagAxe } from './axe.js';
 import { holdResponse } from './transport.js';
 
 test.use({ baseURL: 'http://127.0.0.1:3101' });
@@ -140,9 +140,7 @@ test('accessibility: keyboard action keeps focus and announces live changes', as
   await expect(button).toBeFocused();
   await expect(page.locator('#count')).toHaveAttribute('aria-live', 'polite');
   await expect(page.locator('#status')).toHaveText('Updated');
-  const scan = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
-    .analyze();
+  const scan = await wcagAxe(page).analyze();
   expect(scan.violations).toEqual([]);
 });
 

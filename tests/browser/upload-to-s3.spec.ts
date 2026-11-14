@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { axe } from './axe.js';
 import { expect, test } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
 import { createHash } from 'node:crypto';
@@ -259,9 +259,9 @@ test('upload page passes an accessibility scan @accessibility', async ({
   // Two full axe scans: allow for slow shared CI hosts (WebKit especially).
   test.setTimeout(90_000);
   await open(page);
-  const results = await new AxeBuilder({ page }).analyze();
+  const results = await axe(page).analyze();
   expect(results.violations).toEqual([]);
   await page.goto(base + '/classic');
-  const classic = await new AxeBuilder({ page }).analyze();
+  const classic = await axe(page).analyze();
   expect(classic.violations).toEqual([]);
 });

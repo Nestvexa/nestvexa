@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
+import { axe } from './axe.js';
 import { holdResponse } from './transport.js';
 import { randomUUID } from 'node:crypto';
 
@@ -226,13 +226,13 @@ test('Phase 3 board accessibility covers initial, validation and empty states', 
   page,
 }) => {
   await page.goto(board);
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect((await axe(page).analyze()).violations).toEqual([]);
   await page.getByRole('button', { name: 'Add work item' }).click();
   await expect(page.getByRole('alert')).toBeVisible();
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect((await axe(page).analyze()).violations).toEqual([]);
   await page
     .getByRole('textbox', { name: 'Search work items' })
     .fill('no-matching-row');
   await expect(page.locator('tbody')).toHaveText('No matching items');
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect((await axe(page).analyze()).violations).toEqual([]);
 });

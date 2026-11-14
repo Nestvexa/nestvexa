@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
+import { axe } from './axe.js';
 import { randomUUID } from 'node:crypto';
 import { holdResponse } from './transport.js';
 
@@ -149,14 +149,14 @@ test('initial and loaded startup content passes automated accessibility checks',
   try {
     await page.goto(base + '/init');
     await release.started;
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect((await axe(page).analyze()).violations).toEqual([]);
     release();
     await release.wait();
     await expect(page.locator('[data-nv-name=startup-panel]')).toHaveAttribute(
       'data-nv-revision',
       '1',
     );
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect((await axe(page).analyze()).violations).toEqual([]);
   } finally {
     release();
     await release.wait();

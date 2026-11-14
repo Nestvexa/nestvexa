@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page, Request, Route } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
+import { axe } from './axe.js';
 import { exampleUrl } from './example-url.js';
 
 /**
@@ -84,7 +84,7 @@ test.describe('views through the umbrella', () => {
     expect(missing?.status()).toBe(404);
     await expect(page.locator('#error-heading')).toHaveText('404 Not Found');
     await expect(page).toHaveTitle('Not Found');
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect((await axe(page).analyze()).violations).toEqual([]);
     const boom = await page.goto('/boom');
     expect(boom?.status()).toBe(500);
     await expect(page.locator('#error-heading')).toHaveText(
@@ -171,7 +171,7 @@ test.describe('nv:class', () => {
     await expect(status).toHaveClass(/\bis-archived\b/);
     expect(await status.getAttribute('style')).toBeNull();
     expect(await violations()).toEqual([]);
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect((await axe(page).analyze()).violations).toEqual([]);
   });
 });
 
@@ -198,7 +198,7 @@ test.describe('lazy Live component with the visible strategy', () => {
     expect(
       await feed.evaluate((element) => element.getBoundingClientRect().top),
     ).toBeGreaterThan(await page.evaluate(() => window.innerHeight));
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect((await axe(page).analyze()).violations).toEqual([]);
 
     await feed.scrollIntoViewIfNeeded();
     await expect(page.locator('#tour-feed-heading')).toHaveText(
@@ -222,8 +222,7 @@ test.describe('lazy Live component with the visible strategy', () => {
     expect(loads).toHaveLength(1);
     expect(await violations()).toEqual([]);
     expect(
-      (await new AxeBuilder({ page }).include('#tour-feed').analyze())
-        .violations,
+      (await axe(page).include('#tour-feed').analyze()).violations,
     ).toEqual([]);
   });
 });

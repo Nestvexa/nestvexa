@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { axe } from './axe.js';
 import { expect, test } from '@playwright/test';
 
 // The root suite serves starter-live on 3102; local runs may override the origin.
@@ -169,5 +169,5 @@ test('accessibility: realtime board passes automated checks', async ({
   page,
 }) => {
   await page.goto(url);
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect((await axe(page).analyze()).violations).toEqual([]);
 });

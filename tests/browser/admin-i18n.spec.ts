@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { wcagAxe } from './axe.js';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
@@ -35,9 +35,7 @@ async function axe(page: Page) {
       document.getAnimations().map((a) => a.finished.catch(() => undefined)),
     ),
   );
-  const result = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-    .analyze();
+  const result = await wcagAxe(page).analyze();
   expect(
     result.violations.map((violation) => ({
       id: violation.id,

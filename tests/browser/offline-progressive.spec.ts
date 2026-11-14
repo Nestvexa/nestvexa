@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { axe } from './axe.js';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { exampleUrl } from './example-url.js';
@@ -273,9 +273,9 @@ test('the support page passes an accessibility scan @accessibility', async ({
   // Two full axe scans: allow for slow shared CI hosts (WebKit especially).
   test.setTimeout(90_000);
   await open(page);
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect((await axe(page).analyze()).violations).toEqual([]);
   // Also with visible validation errors.
   await page.getByRole('button', { name: 'Send ticket' }).click();
   await expect(page.locator('#ticket-summary')).toBeVisible();
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect((await axe(page).analyze()).violations).toEqual([]);
 });

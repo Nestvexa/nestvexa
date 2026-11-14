@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { wcagAxe } from './axe.js';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { exampleUrl } from './example-url.js';
@@ -6,7 +6,6 @@ import { exampleUrl } from './example-url.js';
 // examples/starter-ejs: EJS layouts, partials and helpers through Nest
 // @Render, a Live component template in EJS, and a no-JavaScript form.
 const base = exampleUrl('starter-ejs', 3114);
-const tags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 async function open(page: Page, path = '/'): Promise<string[]> {
   const errors: string[] = [];
@@ -140,13 +139,9 @@ test('accessibility: home, Live state and contact errors have no axe violations'
     .getByRole('button', { name: 'Increase' })
     .click();
   await expect(page.locator('#count')).toHaveText('1');
-  expect(
-    (await new AxeBuilder({ page }).withTags(tags).analyze()).violations,
-  ).toEqual([]);
+  expect((await wcagAxe(page).analyze()).violations).toEqual([]);
   await page.goto(base + '/contact');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.locator('#contact-errors')).toBeVisible();
-  expect(
-    (await new AxeBuilder({ page }).withTags(tags).analyze()).violations,
-  ).toEqual([]);
+  expect((await wcagAxe(page).analyze()).violations).toEqual([]);
 });
