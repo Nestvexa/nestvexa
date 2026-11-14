@@ -123,8 +123,10 @@ framework's own error output is shown.
 - `tests/browser/islands-deferral.spec.ts` against `examples/hybrid-dashboard`
   (no example change), asserting on network requests for each island's
   manifest entry chunk:
-  - `visible` (`activity-feed`, Vue): with a 360 px viewport the island is
-    below the fold, its state is `scheduled` and `vue-feed-*.js` has not been
+  - `visible` (`activity-feed`, Vue): with a 140 px viewport set at context
+    creation (a 360 px `setViewportSize` let WebKit lay the feed out above the
+    fold before the islands above it grew) the island is below the fold, its
+    state is `scheduled` and `vue-feed-*.js` has not been
     requested after the immediate islands mounted; scrolling requests it once
     and the island mounts.
   - `idle` (`status-widget`, Svelte): an init-script stub holds the loader's
@@ -141,8 +143,10 @@ framework's own error output is shown.
 
 - `README.md` "Runnable examples" now lists directive-lab (3360),
   islands-vite (3479), browser-lab (3860), client-chunks (3880),
-  api-coexistence (3885) and distributed-live (3220, Redis via `REDIS_PORT`).
-  showcase and uploads were already listed.
+  api-coexistence (3885) and distributed-live (3220, Redis via `REDIS_PORT`),
+  and, after merging main `bb1527b`, data-cache (4000), orm-prisma (4020),
+  orm-typeorm (4021), orm-drizzle (4022), auth-passport (4023) and views-tour
+  (4100). showcase and uploads were already listed.
 - New check in `apps/docs/src/build.mjs` (run by `scripts/docs.mjs` /
   `pnpm docs:build`): every `examples/<dir>/package.json` name must appear in
   the README's "## Runnable examples" section (text outside the section does
