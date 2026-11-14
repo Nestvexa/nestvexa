@@ -1,8 +1,9 @@
 # Multi-tenant workspaces
 
 A Nest (Express) application with two seeded workspaces (tenants), host-owned
-sign-in and three roles, showing how Nestvexa Live components stay inside one
-tenant and one account.
+sign-in and three roles, showing how every Nestvexa transport (pages, Live,
+Inertia, server actions, islands, uploads, realtime and the cache) stays inside
+one tenant and one account.
 
 | Who                   | Can                                                                     |
 | --------------------- | ----------------------------------------------------------------------- |
@@ -76,9 +77,49 @@ public, sign-in, member and forbidden pages.
   that needs simultaneous tabs can mount components with a server-set,
   read-only tenant state and re-check membership on every action instead.
 
+## One user context across transports
+
+`src/context.ts` is the single place that turns a request into the signed-in
+user and the active tenant. It reads only the server-side session and
+re-checks the membership against the directory on every call; every transport
+derives its identity from it:
+
+| Transport       | Where                                           | Tenant comes from                                          |
+| --------------- | ----------------------------------------------- | ---------------------------------------------------------- |
+| MVC pages, REST | `src/pages.ts`, `TenantGuard`                   | the guarded `/t/:tenant` route, membership verified        |
+| Live            | `liveIdentity`, `authorizeLive`                 | the active tenant in the session (set by the page route)   |
+| Inertia         | `GET /t/:tenant/report`, `sharedProps`          | the guarded route; shared props from the same context      |
+| Server actions  | `actionIdentity`, `WorkspaceActions`            | `identity.tenant`, verified per call; input cannot name it |
+| Islands         | `src/islands.ts` (signed props)                 | rendered for the page tenant; re-checked when sent back    |
+| Uploads         | `uploadIdentity`, `POST /t/:tenant/attachments` | tokens are bound to the user, tenant and session           |
+| Realtime        | `realtimeIdentity`, `authorizeChannel`          | one server-chosen channel per tenant, re-checked on use    |
+| Cache           | `src/events.ts` (`@nestvexa/cache`)             | the tenant is part of the key; writes invalidate its tag   |
+
+No endpoint accepts a tenant id from the body, query or headers: actions that
+take no input refuse any input (`UNEXPECTED_INPUT`), a `tenant` field in action
+input is ignored, and Live components hold no tenant state.
+
+The island has no client bundle in this example: it renders its server
+fallback (`N projects`) with signed props, which the `workspace/island-stats`
+action verifies and then re-authorizes (a valid signature from another
+tenant's page is refused). The Inertia report renders the protocol's root
+document without a client bundle; Inertia clients receive JSON page objects.
+
+[`tests/multi-tenant-isolation.test.ts`](../../tests/multi-tenant-isolation.test.ts)
+boots the example in-process (port 4026) and proves cross-tenant and
+cross-user isolation on each transport: MVC/REST, Live (replays across accounts
+and tenants, tenant switches, forged state), Inertia, server actions (smuggled
+tenant ids, no active tenant, another session's CSRF token), islands (foreign
+and tampered signed props), uploads (tokens of another user or tenant, tenant
+switch, guests), realtime (borrowed tokens, events reach only the tenant, a
+switch revokes the old token) and the cache (per-tenant keys, guard before
+cache, invalidation on writes).
+
 ## Known gaps
 
-No invitation or role-management UI, no subdomain-based tenant resolution, no
-database row-level security and no realtime fan-out per tenant (see
-[`examples/realtime-dashboard`](../realtime-dashboard/README.md) for authorized
-channels).
+No invitation or role-management UI, no subdomain-based tenant resolution and
+no database row-level security. Realtime uses the in-process broker and the
+cache an in-process store; several replicas need a shared broker
+(`@nestvexa/realtime-redis`) and shared cache invalidation. The island and the
+Inertia page have no browser bundle here (see
+[`examples/showcase`](../showcase/README.md) for bundled islands and Inertia).
