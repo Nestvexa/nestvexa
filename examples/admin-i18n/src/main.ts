@@ -80,6 +80,10 @@ const csp =
   "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 const knownFlags = ['ai-assistant', 'bulk-export'] as const;
 const wizardSteps = ['details', 'pricing', 'review'] as const;
+const feedbackTopics = ['catalog', 'pricing', 'shipping'] as const;
+const feedbackUrgency = ['low', 'normal', 'high'] as const;
+const emailPattern =
+  /^[^\s@<>"]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63})+$/;
 // Warnings go to process.emitWarning (stderr) while developing.
 const renderBudget = renderBudgetInstrumentation();
 
@@ -335,9 +339,46 @@ class AdminController {
     const products = this.catalog.list(binding(request));
     const notice = request.session.notice;
     delete request.session.notice;
+    // Post/redirect/get: a rejected feedback form is shown once with its errors.
+    const feedback = request.session.feedback;
+    delete request.session.feedback;
+    const feedbackErrors = Object.fromEntries(
+      Object.entries(feedback?.errors ?? {}).map(([name, key]) => [
+        name,
+        context.t(`kit:feedback.errors.${key}`),
+      ]),
+    );
+    const option = (namespace: string) => (value: string) => ({
+      value,
+      label: context.t(`kit:feedback.${namespace}.${value}`),
+    });
     return {
       ...shell,
       title: context.t('kit:title'),
+      // Bar chart of the session's catalog: active and archived per category.
+      chartLabels: categories.map((category) =>
+        context.t(`products:categories.${category}`),
+      ),
+      chartSeries: (['active', 'archived'] as const).map((status) => ({
+        name: context.t(`products:status.${status}`),
+        values: categories.map(
+          (category) =>
+            products.filter(
+              (product) =>
+                product.category === category && product.status === status,
+            ).length,
+        ),
+      })),
+      feedback: {
+        email: feedback?.values['email'] ?? '',
+        topic: feedback?.values['topic'] ?? '',
+        urgency: feedback?.values['urgency'] ?? 'normal',
+        message: feedback?.values['message'] ?? '',
+        reply: feedback?.values['reply'] === 'yes',
+      },
+      feedbackErrors,
+      topicOptions: feedbackTopics.map(option('topics')),
+      urgencyOptions: feedbackUrgency.map(option('urgency')),
       crumbs: [
         { label: context.t('kit:home'), href: '/admin' },
         { label: context.t('kit:heading') },
@@ -358,6 +399,44 @@ class AdminController {
         selectLabel: context.t('kit:table.select', { name: product.name }),
       })),
     };
+  }
+
+  /** Kit feedback form: server-side validation rendered by the field helpers. */
+  @Post('admin/kit/feedback')
+  @Redirect('/admin/kit', 303)
+  feedback(@Req() request: SessionRequest, @Body() body: unknown) {
+    assertFormCsrf(request, body);
+    const email = field(body, 'email', 254).trim();
+    const topic = field(body, 'topic', 32);
+    const urgency = field(body, 'urgency', 32);
+    const message = field(body, 'message', 600).trim();
+    const reply = field(body, 'reply', 8) === 'yes' ? 'yes' : '';
+    const errors: Record<string, string> = {};
+    if (!emailPattern.test(email)) errors['email'] = 'email';
+    if (!feedbackTopics.some((entry) => entry === topic))
+      errors['topic'] = 'topic';
+    if (message.length < 10 || message.length > 500)
+      errors['message'] = 'message';
+    if (Object.keys(errors).length > 0) {
+      // Only values that are valid choices are echoed back into the form.
+      request.session.feedback = {
+        values: {
+          email,
+          topic: feedbackTopics.some((entry) => entry === topic) ? topic : '',
+          urgency: feedbackUrgency.some((entry) => entry === urgency)
+            ? urgency
+            : 'normal',
+          message: message.slice(0, 500),
+          reply,
+        },
+        errors,
+      };
+      return { url: '/admin/kit#kit-feedback', statusCode: 303 };
+    }
+    request.session.notice = this.i18n
+      .forRequest(request)
+      .t('kit:feedback.sent');
+    return { url: '/admin/kit', statusCode: 303 };
   }
 
   /** Bulk archive from the data table's selection (a native form post). */
