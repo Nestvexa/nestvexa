@@ -771,6 +771,29 @@ describe('renderless acknowledgements in actual Chromium with controlled fetch',
 });
 
 describe('bounded browser request lifecycle', () => {
+  it('caps a component at 16 pending operations and refuses the 17th without sending it (QA-006)', async () => {
+    await mount({ timeout: 60_000 });
+    const accepted: number[] = [];
+    for (let call = 0; call < 16; call++) accepted.push(await start());
+    const refused = await start();
+    await page.clock.runFor(0);
+    expect(await result(refused)).toEqual({ ok: false, code: 'DIRECTIVE' });
+    // Requests are serialized: one is on the wire, fifteen wait behind it.
+    expect((await metrics()).requests).toHaveLength(1);
+    for (let index = 0; index < 16; index++) {
+      await reply(index);
+      expect(await result(accepted[index] ?? -1)).toEqual({
+        ok: true,
+        code: null,
+      });
+    }
+    expect((await metrics()).requests).toHaveLength(16);
+    // The refusal did not suspend the component: the queue accepts work again.
+    const after = await start();
+    await reply(16);
+    expect(await result(after)).toEqual({ ok: true, code: null });
+  });
+
   it('rejects a combined oversized request before dispatch and allows correction without suspension', async () => {
     await mount({ timeout: 1000 });
     const rejected = await page.evaluate(async () => {
