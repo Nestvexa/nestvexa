@@ -111,7 +111,9 @@ try {
   for (const url of Object.values(manifest.entries))
     assert.ok(bootstrap.includes(JSON.stringify(url)));
   assert.match(manifest.version, /^[a-f0-9]{64}$/);
-  assert.equal(Object.keys(manifest.files).length, 3);
+  // The Live entry, its four on-demand feature chunks (ADR 0036), CSP Alpine
+  // and the Alpine adapter.
+  assert.equal(Object.keys(manifest.files).length, 7);
   for (const [name, url] of Object.entries(manifest.files)) {
     const response = await fetch(`${base}${url}`);
     assert.equal(response.status, 200, name);
