@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -15,79 +15,155 @@ import {
   LiveRuntime,
   MemoryLiveStore,
   State,
-  isLiveStateStore,
 } from '../packages/live/dist/index.js';
 import type {
   LiveStateStore,
   StateSnapshot,
 } from '../packages/live/dist/index.js';
+import { liveStoreContract } from '../packages/live/dist/testing.js';
+import type { LiveStoreContractHarness } from '../packages/live/dist/testing.js';
 import { RedisLiveStore } from '../packages/realtime-redis/dist/index.js';
+import { SqliteLiveStore } from '../examples/data-cache/dist/sqlite-live-store.js';
 import { respDouble } from './support/resp-double.js';
 import type { RespDouble } from './support/resp-double.js';
 
 const alice = 'tenant-a/session-alice/principal-alice';
 const bob = 'tenant-a/session-bob/principal-bob';
-const otherTenant = 'tenant-b/session-alice/principal-alice';
 const cleanup: (() => Promise<void> | void)[] = [];
 afterEach(async () => {
   for (const step of cleanup.splice(0).reverse()) await step();
 });
 
-interface Clock {
-  now: number;
-}
-interface Harness {
-  /** A store; calling twice with the same harness gives a second replica where supported. */
-  store(options?: {
-    readonly ttlMs?: number;
-    readonly maxEntries?: number;
-  }): LiveStateStore;
-  readonly clock: Clock;
-  readonly shared: boolean;
-}
-type Factory = () => Promise<Harness>;
-
-const memory: Factory = async () => {
-  const clock = { now: 1_000_000 };
+/** Host-side namespace: bindings are `<tenant>/<session>/<principal>`. */
+const namespace = (binding: string) => {
+  const [tenant = '', , user] = binding.split('/');
+  return { tenant, ...(user === undefined ? {} : { user }) };
+};
+const memory = (): LiveStoreContractHarness => {
+  let now = 1_000_000;
   return {
-    clock,
     shared: false,
-    store: (options = {}) => {
-      const store = new MemoryLiveStore({
-        now: () => clock.now,
-        ...(options.ttlMs === undefined ? {} : { ttlMs: options.ttlMs }),
+    // MemoryLiveStore bounds total entries, not entries per binding.
+    boundsEntriesPerBinding: false,
+    advance: (ms) => {
+      now += ms;
+    },
+    store: (options) =>
+      new MemoryLiveStore({
+        now: () => now,
+        ttlMs: options.ttlMs,
         ...(options.maxEntries === undefined
           ? {}
           : { maxEntries: options.maxEntries }),
-      });
-      cleanup.push(() => store.close());
-      return store;
-    },
+      }),
   };
 };
-const redis: Factory = async () => {
-  const server = await respDouble();
-  cleanup.push(() => server.close());
-  const clock = { now: 1_000_000 };
-  const prefix = 'contract' + randomBytes(3).toString('hex') + ':';
+const redis =
+  (namespaced: boolean) => async (): Promise<LiveStoreContractHarness> => {
+    const server = await respDouble();
+    let now = 1_000_000;
+    const prefix = 'contract' + randomBytes(3).toString('hex') + ':';
+    return {
+      shared: true,
+      boundsEntriesPerBinding: true,
+      advance: (ms) => {
+        now += ms;
+      },
+      store: (options) =>
+        new RedisLiveStore({
+          port: server.port,
+          prefix,
+          now: () => now,
+          ttlMs: options.ttlMs,
+          ...(namespaced ? { namespace } : {}),
+          ...(options.maxEntries === undefined
+            ? {}
+            : { maxEntriesPerBinding: options.maxEntries }),
+        }),
+      dispose: () => server.close(),
+    };
+  };
+const sqlite = async (): Promise<LiveStoreContractHarness> => {
+  const root = await mkdtemp(join(tmpdir(), 'nestvexa-sqlite-store-'));
+  let now = 1_000_000;
   return {
-    clock,
     shared: true,
-    store: (options = {}) => {
-      const store = new RedisLiveStore({
-        port: server.port,
-        prefix,
-        now: () => clock.now,
-        ...(options.ttlMs === undefined ? {} : { ttlMs: options.ttlMs }),
+    boundsEntriesPerBinding: true,
+    advance: (ms) => {
+      now += ms;
+    },
+    store: (options) =>
+      new SqliteLiveStore({
+        path: join(root, 'live.db'),
+        now: () => now,
+        ttlMs: options.ttlMs,
         ...(options.maxEntries === undefined
           ? {}
           : { maxEntriesPerBinding: options.maxEntries }),
-      });
-      cleanup.push(() => store.close());
-      return store;
-    },
+      }),
+    dispose: () => rm(root, { recursive: true, force: true }),
   };
 };
+
+describe.each([
+  ['MemoryLiveStore', memory],
+  ['RedisLiveStore (RESP test double)', redis(false)],
+  ['RedisLiveStore with tenant/user namespace (RESP test double)', redis(true)],
+  ['SqliteLiveStore (examples/data-cache custom store)', sqlite],
+] as const)('Live state store contract: %s', (_name, factory) => {
+  for (const contract of liveStoreContract(factory))
+    it(contract.name, () => contract.run());
+});
+
+describe('liveStoreContract catches broken stores', () => {
+  it('fails a store that ignores revision locks and replays', async () => {
+    // Runs every transaction against the current revision instead of the requested one.
+    class Lenient extends MemoryLiveStore {
+      override async transaction(
+        token: string,
+        binding: string,
+        _revision: number,
+        callback: Parameters<LiveStateStore['transaction']>[3],
+      ) {
+        const current = this.peek(token, binding);
+        return super.transaction(token, binding, current.revision, callback);
+      }
+    }
+    const harness = (): LiveStoreContractHarness => ({
+      shared: false,
+      boundsEntriesPerBinding: false,
+      advance: () => undefined,
+      store: () => new Lenient(),
+    });
+    const stale = liveStoreContract(harness).find((entry) =>
+      entry.name.startsWith('commits revision + 1'),
+    );
+    await expect(stale?.run()).rejects.toThrow(/revision 0/);
+  });
+  it('fails a store whose peek ignores the binding', async () => {
+    class Unbound extends MemoryLiveStore {
+      readonly #owners = new Map<string, string>();
+      override create(...args: Parameters<MemoryLiveStore['create']>) {
+        const created = super.create(...args);
+        this.#owners.set(created.snapshot, args[1]);
+        return created;
+      }
+      override peek(token: string, binding: string) {
+        return super.peek(token, this.#owners.get(token) ?? binding);
+      }
+    }
+    const harness = (): LiveStoreContractHarness => ({
+      shared: false,
+      boundsEntriesPerBinding: false,
+      advance: () => undefined,
+      store: () => new Unbound(),
+    });
+    const binding = liveStoreContract(harness).find((entry) =>
+      entry.name.startsWith('creates detached frozen snapshots'),
+    );
+    await expect(binding?.run()).rejects.toThrow(/foreign binding/);
+  });
+});
 
 async function code(promise: unknown): Promise<string> {
   try {
@@ -103,330 +179,237 @@ async function code(promise: unknown): Promise<string> {
 }
 const commit = (state: StateSnapshot['state'], html = '<p>ok</p>') =>
   Promise.resolve({ state: { ...state }, html });
+const sha = (value: string) =>
+  createHash('sha256').update(value).digest('hex');
 
-describe.each([
-  ['MemoryLiveStore', memory],
-  ['RedisLiveStore (RESP test double)', redis],
-] as const)('Live state store contract: %s', (_name, factory) => {
-  it('satisfies the structural interface the runtime accepts', async () => {
-    const f = await factory();
-    expect(isLiveStateStore(f.store())).toBe(true);
-    expect(isLiveStateStore({ create() {}, peek() {} })).toBe(false);
-  });
-
-  it('creates detached frozen snapshots and reads them back only for the same binding', async () => {
-    const f = await factory();
-    const store = f.store();
-    const input = { count: 1, tags: ['a'], nested: { ok: true } };
-    const created = await store.create('counter', alice, input);
-    input.count = 99;
-    expect(created).toMatchObject({
-      name: 'counter',
-      revision: 0,
-      state: { count: 1, tags: ['a'], nested: { ok: true } },
+describe('RedisLiveStore tenant/user namespacing (DATA-004, RESP test double)', () => {
+  async function setup() {
+    const server = await respDouble();
+    cleanup.push(() => server.close());
+    const store = new RedisLiveStore({
+      port: server.port,
+      prefix: 'ns:',
+      namespace,
     });
-    expect(created.id).toMatch(/^[0-9a-f-]{36}$/);
-    expect(created.snapshot).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(Object.isFrozen(created.state)).toBe(true);
-    const read = await store.peek(created.snapshot, alice);
-    expect(read.state).toEqual(created.state);
-    expect(read.expiresAt).toBe(created.expiresAt);
-    // Foreign bindings, unknown and malformed tokens fail identically.
-    const unknown = randomBytes(32).toString('base64url');
-    for (const attempt of [
-      () => store.peek(created.snapshot, bob),
-      () => store.peek(created.snapshot, otherTenant),
-      () => store.peek(unknown, alice),
-      () => store.peek('not-a-token', alice),
-      () => store.peek(created.snapshot, ''),
-    ])
-      expect(await code(attempt)).toBe('INVALID_SNAPSHOT:410');
+    cleanup.push(() => store.close());
+    return { server, store };
+  }
+  const aliceSecond = 'tenant-a/session-alice-2/principal-alice';
+  const carol = 'tenant-b/session-carol/principal-carol';
+
+  it('keeps every key of a tenant under its own namespace with hashed users and tokens', async () => {
+    const { server, store } = await setup();
+    const a = await store.create('counter', alice, { n: 1 });
+    const c = await store.create('counter', carol, { n: 2 });
+    await store.transaction(a.snapshot, alice, 0, (s) => commit(s.state));
+    const keys = [...server.values.keys()];
+    const tokenA = sha(a.snapshot);
+    const tokenC = sha(c.snapshot);
+    expect(keys).toContain(`ns:t:tenant-a:s:${tokenA}`);
+    expect(keys).toContain(`ns:t:tenant-b:s:${tokenC}`);
+    expect(keys).toContain(`ns:t:tenant-a:b:${sha(alice)}`);
+    expect(keys).toContain(`ns:t:tenant-a:u:${sha('principal-alice')}`);
+    expect(keys).toContain('ns:t:tenant-a:i');
+    expect(server.values.get(`ns:p:${tokenA}`)).toBe('tenant-a');
+    // Only tenant ids appear in clear; tokens, bindings and users are hashed.
+    const text =
+      keys.join('\n') +
+      [...server.values.values()]
+        .map((value) => (typeof value === 'string' ? value : ''))
+        .join('\n');
+    for (const secret of [a.snapshot, alice, 'principal-alice', carol])
+      expect(text).not.toContain(secret);
+    // Lease and fence keys are gone after a commit.
+    expect(keys.some((key) => /:(?:l|f):/.test(key))).toBe(false);
+    // Nothing outside the tenant namespaces except the delete pointers.
+    expect(
+      keys.filter((key) => !/^ns:(?:t:tenant-[ab]:|p:)/.test(key)),
+    ).toEqual([]);
   });
 
-  it('rejects invalid component names and non-JSON state before storing', async () => {
-    const f = await factory();
-    const store = f.store();
-    expect(await code(() => store.create('Bad Name', alice, {}))).toBe(
-      'INVALID_STATE:400',
+  it('refuses a record moved into another tenant namespace or with a rewritten tenant', async () => {
+    const { server, store } = await setup();
+    const a = await store.create('counter', alice, { n: 1 });
+    const tokenA = sha(a.snapshot);
+    const record = String(server.values.get(`ns:t:tenant-a:s:${tokenA}`));
+    // The same session/principal under tenant-b resolves to tenant-b keys.
+    server.values.set(`ns:t:tenant-b:s:${tokenA}`, record);
+    const moved = 'tenant-b/session-alice/principal-alice';
+    expect(await code(() => store.peek(a.snapshot, moved))).toBe(
+      'INVALID_SNAPSHOT:410',
     );
-    expect(
-      await code(() => store.create('counter', alice, { value: Number.NaN })),
-    ).toBe('INVALID_REQUEST:400');
+    server.values.set(
+      `ns:t:tenant-a:s:${tokenA}`,
+      record.replace('"t":"tenant-a"', '"t":"tenant-b"'),
+    );
+    expect(await code(() => store.peek(a.snapshot, alice))).toBe(
+      'INVALID_SNAPSHOT:410',
+    );
+  });
+
+  it('revokes one user across sessions, then a whole tenant, and nothing else', async () => {
+    const { store } = await setup();
+    const first = await store.create('counter', alice, {});
+    const second = await store.create('counter', aliceSecond, {});
+    const other = await store.create('counter', bob, {});
+    const foreign = await store.create('counter', carol, {});
+    expect(await store.revokeUser('tenant-a', 'principal-alice')).toBe(2);
+    expect(await code(() => store.peek(first.snapshot, alice))).toBe(
+      'INVALID_SNAPSHOT:410',
+    );
+    expect(await code(() => store.peek(second.snapshot, aliceSecond))).toBe(
+      'INVALID_SNAPSHOT:410',
+    );
+    expect((await store.peek(other.snapshot, bob)).revision).toBe(0);
+    // Bulk tenant revocation runs in rounds (more bindings than one batch).
+    const many = [];
+    for (let index = 0; index < 70; index++)
+      many.push(
+        await store.create(
+          'counter',
+          `tenant-a/session-${index}/principal-x`,
+          {},
+        ),
+      );
+    expect(await store.revokeTenant('tenant-a')).toBeGreaterThanOrEqual(71);
+    expect(await code(() => store.peek(other.snapshot, bob))).toBe(
+      'INVALID_SNAPSHOT:410',
+    );
     expect(
       await code(() =>
-        store.create('counter', alice, JSON.parse('{"__proto__":{"x":1}}')),
-      ),
-    ).toBe('INVALID_REQUEST:400');
-  });
-
-  it('commits revision + 1 and rejects stale or replayed revisions before running the callback', async () => {
-    const f = await factory();
-    const store = f.store();
-    const created = await store.create('counter', alice, { count: 0 });
-    const result = await store.transaction(
-      created.snapshot,
-      alice,
-      0,
-      async (snapshot) => {
-        expect(Object.isFrozen(snapshot.state)).toBe(true);
-        return commit({ count: Number(snapshot.state['count']) + 1 });
-      },
-    );
-    expect(result).toMatchObject({
-      revision: 1,
-      state: { count: 1 },
-      html: '<p>ok</p>',
-      snapshot: created.snapshot,
-      id: created.id,
-    });
-    expect((await store.peek(created.snapshot, alice)).revision).toBe(1);
-    let calls = 0;
-    const counted = async (snapshot: StateSnapshot) => {
-      calls++;
-      return commit(snapshot.state);
-    };
-    // Replay of the request that produced revision 1.
-    for (const revision of [0, 2, -1, 1.5, Number.MAX_SAFE_INTEGER])
-      expect(
-        await code(() =>
-          store.transaction(created.snapshot, alice, revision, counted),
+        store.peek(
+          many[69]?.snapshot ?? '',
+          'tenant-a/session-69/principal-x',
         ),
-      ).toBe('STALE_REVISION:409');
-    expect(
-      await code(() => store.transaction(created.snapshot, bob, 1, counted)),
+      ),
     ).toBe('INVALID_SNAPSHOT:410');
-    expect(calls).toBe(0);
-    expect((await store.peek(created.snapshot, alice)).revision).toBe(1);
+    expect((await store.peek(foreign.snapshot, carol)).revision).toBe(0);
+    expect(await store.revokeTenant('tenant-a')).toBe(0);
+    // Host-only delete finds a namespaced entry through its pointer.
+    expect(await store.delete(foreign.snapshot)).toBe(true);
+    expect(await store.delete(foreign.snapshot)).toBe(false);
   });
 
-  it('serializes concurrent transactions on one entry (COMPONENT_BUSY)', async () => {
-    const f = await factory();
-    const store = f.store();
-    const created = await store.create('counter', alice, { count: 0 });
-    let release: () => void = () => undefined;
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const first = store.transaction(
-      created.snapshot,
-      alice,
-      0,
-      async (snapshot) => {
-        await gate;
-        return commit({ count: Number(snapshot.state['count']) + 1 });
-      },
+  it('validates the namespace and refuses tenant operations without it', async () => {
+    const server = await respDouble();
+    cleanup.push(() => server.close());
+    const plain = new RedisLiveStore({ port: server.port });
+    cleanup.push(() => plain.close());
+    expect(await code(() => plain.revokeTenant('tenant-a'))).toBe(
+      'INVALID_STORE_OPTIONS:500',
     );
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(await code(() => plain.revokeUser('tenant-a', 'u'))).toBe(
+      'INVALID_STORE_OPTIONS:500',
+    );
+    for (const bad of [
+      () => ({ tenant: 'has:colon' }),
+      () => ({ tenant: '' }),
+      () => ({ tenant: 'ok', user: '' }),
+      () => null,
+    ]) {
+      const store = new RedisLiveStore({
+        port: server.port,
+        namespace: bad as () => { tenant: string },
+      });
+      cleanup.push(() => store.close());
+      expect(await code(() => store.create('counter', alice, {}))).toBe(
+        'INVALID_STORE_OPTIONS:500',
+      );
+    }
+    expect(
+      () => new RedisLiveStore({ namespace: 'x' as unknown as () => never }),
+    ).toThrow(/namespace/);
+  });
+});
+
+describe('RedisLiveStore failure behaviour (DATA-004, RESP test double)', () => {
+  it('invalidates an entry whose earlier attempt never recorded a commit (fence)', async () => {
+    const server = await respDouble();
+    cleanup.push(() => server.close());
+    const store = new RedisLiveStore({ port: server.port, prefix: 'f:' });
+    cleanup.push(() => store.close());
+    const created = await store.create('counter', alice, { count: 0 });
+    // A replica crashed (or lost Redis) after starting the callback: its fence remains.
+    server.values.set(`f:f:${sha(created.snapshot)}`, '0');
     let ran = false;
     expect(
       await code(() =>
-        store.transaction(created.snapshot, alice, 0, async (snapshot) => {
+        store.transaction(created.snapshot, alice, 0, async (s) => {
           ran = true;
-          return commit(snapshot.state);
+          return commit(s.state);
         }),
-      ),
-    ).toBe('COMPONENT_BUSY:409');
-    release();
-    expect((await first).revision).toBe(1);
-    expect(ran).toBe(false);
-    // The lock is released after commit.
-    expect(
-      (
-        await store.transaction(created.snapshot, alice, 1, async (snapshot) =>
-          commit(snapshot.state),
-        )
-      ).revision,
-    ).toBe(2);
-  });
-
-  it('invalidates the entry when the callback fails instead of permitting a retry', async () => {
-    const f = await factory();
-    const store = f.store();
-    const created = await store.create('counter', alice, { count: 0 });
-    await expect(
-      store.transaction(created.snapshot, alice, 0, async () => {
-        throw new Error('side effect may have happened');
-      }),
-    ).rejects.toThrow('side effect may have happened');
-    expect(await code(() => store.peek(created.snapshot, alice))).toBe(
-      'INVALID_SNAPSHOT:410',
-    );
-    const big = await store.create('counter', alice, { count: 0 });
-    expect(
-      await code(() =>
-        store.transaction(big.snapshot, alice, 0, async (snapshot) =>
-          commit(snapshot.state, 'x'.repeat(1_048_577)),
-        ),
-      ),
-    ).toBe('PAYLOAD_TOO_LARGE:413');
-    expect(await code(() => store.peek(big.snapshot, alice))).toBe(
-      'INVALID_SNAPSHOT:410',
-    );
-  });
-
-  it('never resurrects state revoked, deleted or expired during a transaction', async () => {
-    const f = await factory();
-    const store = f.store({ ttlMs: 60_000 });
-    for (const interrupt of ['revoke', 'delete', 'expire'] as const) {
-      const created = await store.create('counter', alice, { count: 0 });
-      const outcome = await code(() =>
-        store.transaction(created.snapshot, alice, 0, async () => {
-          if (interrupt === 'revoke') await store.revoke(alice);
-          else if (interrupt === 'delete') await store.delete(created.snapshot);
-          else f.clock.now += 60_001;
-          return commit({ count: 5 });
-        }),
-      );
-      expect(outcome, interrupt).toBe('INVALID_SNAPSHOT:410');
-      expect(await code(() => store.peek(created.snapshot, alice))).toBe(
-        'INVALID_SNAPSHOT:410',
-      );
-    }
-  });
-
-  it('expires entries after the TTL', async () => {
-    const f = await factory();
-    const store = f.store({ ttlMs: 1000 });
-    const created = await store.create('counter', alice, { count: 0 });
-    f.clock.now += 999;
-    expect((await store.peek(created.snapshot, alice)).revision).toBe(0);
-    f.clock.now += 1;
-    expect(await code(() => store.peek(created.snapshot, alice))).toBe(
-      'INVALID_SNAPSHOT:410',
-    );
-    expect(
-      await code(() =>
-        store.transaction(created.snapshot, alice, 0, async (snapshot) =>
-          commit(snapshot.state),
-        ),
       ),
     ).toBe('INVALID_SNAPSHOT:410');
-  });
-
-  it('revokes every entry of one binding and nothing else', async () => {
-    const f = await factory();
-    const store = f.store();
-    const a1 = await store.create('counter', alice, { n: 1 });
-    const a2 = await store.create('editor', alice, { n: 2 });
-    const b1 = await store.create('counter', bob, { n: 3 });
-    const t1 = await store.create('counter', otherTenant, { n: 4 });
-    await store.revoke(alice);
-    for (const token of [a1.snapshot, a2.snapshot])
-      expect(await code(() => store.peek(token, alice))).toBe(
-        'INVALID_SNAPSHOT:410',
-      );
-    expect((await store.peek(b1.snapshot, bob)).state).toEqual({ n: 3 });
-    expect((await store.peek(t1.snapshot, otherTenant)).state).toEqual({
-      n: 4,
-    });
-    expect(await store.delete(b1.snapshot)).toBe(true);
-    expect(await store.delete(b1.snapshot)).toBe(false);
-    expect(await store.delete('malformed')).toBe(false);
-  });
-
-  it('keeps child references across commits unless the callback replaces them', async () => {
-    const f = await factory();
-    const store = f.store();
-    const child = await store.create('row', alice, { label: 'a' });
-    const parent = await store.create(
-      'board',
-      alice,
-      { rows: 1 },
-      {
-        first: {
-          alias: 'row',
-          name: 'row',
-          id: child.id,
-          token: child.snapshot,
-        },
-      },
-    );
-    expect(parent.children?.['first']?.token).toBe(child.snapshot);
-    const kept = await store.transaction(
-      parent.snapshot,
-      alice,
-      0,
-      async (snapshot) => commit(snapshot.state),
-    );
-    expect(kept.children?.['first']?.id).toBe(child.id);
-    const replaced = await store.transaction(
-      parent.snapshot,
-      alice,
-      1,
-      async (snapshot) => ({
-        state: { ...snapshot.state },
-        html: '',
-        children: {},
-      }),
-    );
-    expect(replaced.children).toEqual({});
-    expect((await store.peek(parent.snapshot, alice)).children).toEqual({});
-  });
-
-  it('bounds the entries one binding can hold', async () => {
-    const f = await factory();
-    const store = f.store({ maxEntries: 2 });
-    await store.create('counter', alice, {});
-    await store.create('counter', alice, {});
-    expect(await code(() => store.create('counter', alice, {}))).toBe(
-      'STORE_CAPACITY:503',
-    );
-  });
-
-  it('shares state and locks between replicas when the store is shared', async () => {
-    const f = await factory();
-    if (!f.shared) {
-      // Process-local by design: a second instance never sees the entry.
-      const a = f.store();
-      const b = f.store();
-      const created = await a.create('counter', alice, { count: 0 });
-      expect(await code(() => b.peek(created.snapshot, alice))).toBe(
-        'INVALID_SNAPSHOT:410',
-      );
-      return;
-    }
-    const a = f.store();
-    const b = f.store();
-    const created = await a.create('counter', alice, { count: 0 });
-    const continued = await b.transaction(
-      created.snapshot,
-      alice,
-      0,
-      async (snapshot) =>
-        commit({ count: Number(snapshot.state['count']) + 1 }),
-    );
-    expect(continued.state).toEqual({ count: 1 });
-    expect((await a.peek(created.snapshot, alice)).revision).toBe(1);
-    let release: () => void = () => undefined;
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const onA = a.transaction(created.snapshot, alice, 1, async (snapshot) => {
-      await gate;
-      return commit(snapshot.state);
-    });
-    await new Promise((resolve) => setTimeout(resolve, 30));
-    expect(
-      await code(() =>
-        b.transaction(created.snapshot, alice, 1, async (snapshot) =>
-          commit(snapshot.state),
-        ),
-      ),
-    ).toBe('COMPONENT_BUSY:409');
-    release();
-    await onA;
-    // Replaying revision 1 on the other replica is rejected.
-    expect(
-      await code(() =>
-        b.transaction(created.snapshot, alice, 1, async (snapshot) =>
-          commit(snapshot.state),
-        ),
-      ),
-    ).toBe('STALE_REVISION:409');
-    await b.revoke(alice);
-    expect(await code(() => a.peek(created.snapshot, alice))).toBe(
+    expect(ran).toBe(false);
+    expect(await code(() => store.peek(created.snapshot, alice))).toBe(
       'INVALID_SNAPSHOT:410',
     );
+  });
+
+  it('a lapsed lease lets the next attempt invalidate instead of running the callback twice', async () => {
+    const server = await respDouble();
+    cleanup.push(() => server.close());
+    const options = { port: server.port, prefix: 'lap:', lockTtlMs: 100 };
+    const a = new RedisLiveStore(options);
+    const b = new RedisLiveStore(options);
+    cleanup.push(
+      () => a.close(),
+      () => b.close(),
+    );
+    const created = await a.create('counter', alice, { count: 0 });
+    let calls = 0;
+    const slow = a.transaction(created.snapshot, alice, 0, async (s) => {
+      calls++;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      return commit(s.state);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    // The lease lapsed while the first callback still runs.
+    expect(
+      await code(() =>
+        b.transaction(created.snapshot, alice, 0, async (s) => {
+          calls++;
+          return commit(s.state);
+        }),
+      ),
+    ).toBe('INVALID_SNAPSHOT:410');
+    expect(await code(() => slow)).toBe('INVALID_SNAPSHOT:410');
+    expect(calls).toBe(1);
+  });
+
+  it('reports an outage during commit as 503 STORE_UNAVAILABLE and never re-runs the callback afterwards', async () => {
+    const server = await respDouble();
+    const port = server.port;
+    const store = new RedisLiveStore({ port, prefix: 'out:' });
+    cleanup.push(() => store.close());
+    const created = await store.create('counter', alice, { count: 0 });
+    let calls = 0;
+    const outcome = await code(() =>
+      store.transaction(created.snapshot, alice, 0, async (s) => {
+        calls++;
+        await server.close();
+        return commit(s.state);
+      }),
+    );
+    expect(outcome).toBe('STORE_UNAVAILABLE:503');
+    expect(await code(() => store.peek(created.snapshot, alice))).toBe(
+      'STORE_UNAVAILABLE:503',
+    );
+    // Redis comes back with its data (state and fence); the lease has expired.
+    const restarted = await respDouble({ port });
+    cleanup.push(() => restarted.close());
+    for (const [key, value] of server.values)
+      if (!key.startsWith('out:l:')) restarted.values.set(key, value);
+    expect((await store.peek(created.snapshot, alice)).revision).toBe(0);
+    expect(
+      await code(() =>
+        store.transaction(created.snapshot, alice, 0, async (s) => {
+          calls++;
+          return commit(s.state);
+        }),
+      ),
+    ).toBe('INVALID_SNAPSHOT:410');
+    expect(calls).toBe(1);
   });
 });
 
@@ -576,7 +559,13 @@ describe('RedisLiveStore storage hardening (RESP test double)', () => {
     const { server, store } = await setup();
     const created = await store.create('counter', alice, { count: 0 });
     await server.close();
-    await expect(store.peek(created.snapshot, alice)).rejects.toThrow(
+    const failure: unknown = await store
+      .peek(created.snapshot, alice)
+      .catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(LiveProtocolError);
+    expect(failure).toMatchObject({ code: 'STORE_UNAVAILABLE', status: 503 });
+    // The underlying I/O error stays available to host logs.
+    expect(String(Reflect.get(failure as object, 'cause'))).toMatch(
       /Redis connection/,
     );
   });
