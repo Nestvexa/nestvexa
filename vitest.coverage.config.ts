@@ -77,7 +77,33 @@ const packages = readdirSync(new URL('./packages/', import.meta.url), {
 export const browserOnlyExclusions: readonly {
   readonly glob: string;
   readonly reason: string;
-}[] = [];
+}[] = [
+  {
+    glob: 'packages/client/src/{index,bindings,control-state,focus,form-reset,initialization,listeners,loading,models,morph,navigation,observers,presentation,sort,stream,upload}.ts',
+    reason:
+      'Live browser runtime: DOM mounting, morphing, focus, observers, drag and drop, uploads and streaming. The tests/client-*.test.ts suites serve the built modules to Chromium, Firefox and WebKit, where V8 coverage in Node cannot see them. The pure modules (protocol, grammar, events, transport, realtime, url-state, optimistic, action-input, model-scheduler) stay gated.',
+  },
+  {
+    glob: 'packages/offline/src/index.ts',
+    reason:
+      'Browser drafts, snapshots, logout broadcast and offline queue over DOM forms, Web Storage and BroadcastChannel, run in browsers by tests/offline-drafts, offline-snapshot and offline-queue-browsers. The server half (packages/offline/src/server) stays gated.',
+  },
+  {
+    glob: 'packages/ui/src/{browser/index,adapters/react,adapters/vue}.ts',
+    reason:
+      'UI kit browser behaviour and the interactive React/Vue components, exercised in browsers by tests/ui-browser, ui-primitives-browser and ui-adapters. The server markup modules stay gated.',
+  },
+  {
+    glob: 'packages/islands/src/{client,react,vue,svelte}.ts',
+    reason:
+      'Island loader and the React/Vue/Svelte mount and hydrate adapters (react-dom/client, createApp, hydrate), exercised in browsers by tests/islands-client and the hybrid Playwright specs. Server rendering and signing stay gated.',
+  },
+  {
+    glob: 'packages/{react,vue,svelte}/src/{client,boundary}.ts',
+    reason:
+      'Inertia client boot (createInertiaApp with createRoot/hydrateRoot, mount or hydrate) and client error boundaries, exercised by the Inertia Playwright specs. The SSR entry points and page registries stay gated.',
+  },
+];
 
 export default defineConfig({
   plugins: [distToSource()],
