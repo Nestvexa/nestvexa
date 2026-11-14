@@ -60,6 +60,39 @@ another template engine.
 > registry, so registry installs do not work yet. Registry publication is an
 > owner-authorized release step; use the packed tarballs until then.
 
+### Installing from the packed tarballs
+
+`pnpm test:pack` writes one tarball per package to `artifacts/packages/`. Until the
+packages are on a registry, `nestvexa` resolves its `@nestvexa/*` dependencies only
+if npm is told where each one is. Point the two direct dependencies at their tarballs
+and add an `overrides` entry for every other `@nestvexa/*` tarball (the paths below
+are examples):
+
+```json
+{
+  "dependencies": {
+    "nestvexa": "file:../nestvexa/artifacts/packages/nestvexa-0.1.0-alpha.0.tgz"
+  },
+  "devDependencies": {
+    "@nestvexa/cli": "file:../nestvexa/artifacts/packages/nestvexa-cli-0.1.0-alpha.0.tgz"
+  },
+  "overrides": {
+    "nestvexa": "$nestvexa",
+    "@nestvexa/cli": "$@nestvexa/cli",
+    "@nestvexa/core": "file:../nestvexa/artifacts/packages/nestvexa-core-0.1.0-alpha.0.tgz",
+    "@nestvexa/views": "file:../nestvexa/artifacts/packages/nestvexa-views-0.1.0-alpha.0.tgz"
+  }
+}
+```
+
+Then `npm install` and `npx --no nestvexa init --install` (`--no` keeps npx from
+downloading anything; `--install` runs `npm install` for the session packages
+`init` adds). `init` keeps your `nestvexa` entry as it is. `pnpm test:pack` runs
+exactly this in a fresh Nest application in a temporary directory: it builds the
+result, runs `nestvexa doctor`, boots the app and checks `/`, the `/nestvexa` page,
+the Alpine boot script and a CSRF-checked Live action
+([scripts/pack-consumers.mjs](../../scripts/pack-consumers.mjs)).
+
 To work from this repository instead, run `pnpm install --frozen-lockfile` and
 `pnpm build`, then start any example listed in the
 [root README](../../README.md#runnable-examples).

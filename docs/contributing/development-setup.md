@@ -61,7 +61,12 @@ See the [site README](../../apps/docs/README.md) for the checks and how to add p
 
 - Every gate runs on Windows in CI (`windows-latest`, Node 22 and 24).
 - Use Git Bash or PowerShell. `pnpm test:pack` should run from PowerShell; Git Bash
-  path conversion can break `npm pack` arguments.
+  path conversion can break `npm pack` arguments, and its `tar` misreads `C:` paths.
+- `pnpm test:pack` runs six external consumers (npm and pnpm full and minimal, the
+  packed-bin `npx nestvexa init` app and the third-party adapter packages). Set
+  `NESTVEXA_PACK_PROFILES=npm:init,npm:third-party` to run a subset while iterating
+  (the report is then marked not passed), and `NESTVEXA_PACK_PORT` to pick the port of
+  the booted init app (default: a free port).
 - Vitest uses one worker on Windows hosts (`vitest.config.ts`) to avoid file-lock
   flakiness; the suite is slower there.
 - Line endings are LF (`.prettierrc` `endOfLine: lf`). Set `core.autocrlf=false` or

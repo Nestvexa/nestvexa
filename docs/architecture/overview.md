@@ -269,10 +269,13 @@ security and diagnostics registries through `CoreModule.forRoot(options, { exten
 Nothing resolves package names or URLs or loads code
 ([core README](../../packages/core/README.md#extensions-and-legacy-plugins)).
 
+An out-of-tree view-engine adapter and extension, written against the public API only,
+are packed and installed from their own tarballs into a fresh application by
+`pnpm test:pack` ([fixture](../../tests/pack-consumers/third-party)).
+
 > **Known gap:** section 29.1 of the specification asks for a stable, versioned plugin
-> SDK with a third-party example package consumed from tarballs. The other contracts
-> above remain package-level interfaces, and no out-of-tree extension package has been
-> consumed from a tarball yet (MAINT rows). CLI generators are not pluggable.
+> SDK. The contracts above are package-level interfaces at `0.1.0-alpha`, without a
+> stability promise yet. CLI generators are not pluggable.
 
 ## Where to go next
 
