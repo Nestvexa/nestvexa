@@ -474,7 +474,10 @@ describe.each(['express', 'fastify'] as const)(
         },
       );
       await until(() => receiver.service.hub.size === 2);
-      const count = 300;
+      // About 15 MB: loopback socket buffers absorb several MB before the
+      // replica sees backpressure (3.2 MB of 4.5 MB reached the stalled
+      // reader on a Linux CI runner), so the volume must be well above them.
+      const count = 1000;
       const blob = 'x'.repeat(15_000);
       for (let index = 0; index < count; index++)
         await publisher.service.publish(channel, { index, blob });
@@ -482,7 +485,7 @@ describe.each(['express', 'fastify'] as const)(
       await until(
         () =>
           (healthy.read().match(/event: invalidate/g) ?? []).length === count,
-        30_000,
+        60_000,
       );
       const indexes = [...healthy.read().matchAll(/"index":(\d+)/g)].map(
         (match) => Number(match[1]),
@@ -509,7 +512,7 @@ describe.each(['express', 'fastify'] as const)(
       await until(() => healthy.read().includes(`"index":${count}`));
       healthy.close();
       await until(() => receiver.service.hub.size === 0);
-    }, 120_000);
+    }, 180_000);
   },
 );
 
