@@ -1,29 +1,33 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}" dir="{{dir}}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{{title}} · Nestvexa Showcase</title>
+    <title>{{title}} · {{t "site.name"}}</title>
     {{#if description}}
     <meta name="description" content="{{description}}" />
     <meta property="og:title" content="{{title}}" />
     <meta property="og:description" content="{{description}}" />
     {{/if}} {{#if canonical}}
     <link rel="canonical" href="{{canonical}}" />
-    {{/if}}
+    {{/if}} {{#each alternates}}
+    <link rel="alternate" hreflang="{{code}}" href="{{href}}" />
+    {{/each}}
+    <link rel="stylesheet" href="/assets/ui.css" />
     <link rel="stylesheet" href="/assets/app.css" />
     {{nvScripts}} {{#if islandTags}}{{islandTags}}{{/if}}
     <script type="module" src="/assets/dialog.js"></script>
+    <script type="module" src="/assets/connection.js"></script>
   </head>
   <body>
-    <a class="skip" href="#main">Skip to content</a>
+    <a class="skip" href="#main">{{t "site.skip"}}</a>
     <header class="site-header">
       <p class="brand">
-        <a href="/">Nestvexa Showcase</a>{{#if workspaceName}} ·
+        <a href="/">{{t "site.name"}}</a>{{#if workspaceName}} ·
         {{workspaceName}}{{/if}}
       </p>
       {{#if signedIn}}
-      <nav aria-label="Main">
+      <nav aria-label="{{t 'site.mainNav'}}">
         {{#each nav}} {{#if current}}
         <a href="{{href}}" aria-current="page">{{label}}</a>
         {{else}}
@@ -33,12 +37,45 @@
       <form method="post" action="/logout" class="signout">
         <input type="hidden" name="_csrf" value="{{csrf}}" />
         <span class="who" id="who">{{userName}} ({{role}})</span>
-        <button type="submit">Sign out</button>
+        <button type="submit">{{t "site.signOut"}}</button>
       </form>
       {{else}}
-      <nav aria-label="Main"><a href="/login">Sign in</a></nav>
+      <nav aria-label="{{t 'site.mainNav'}}">
+        <a href="/login">{{t "site.signIn"}}</a>
+      </nav>
+      {{/if}} {{#if locales}}
+      <form method="post" action="/locale" class="locale-switch">
+        <input type="hidden" name="_csrf" value="{{csrf}}" />
+        <input type="hidden" name="return" value="{{returnTo}}" />
+        <fieldset>
+          <legend>{{t "site.language"}}</legend>
+          {{#each locales}}
+          <button
+            type="submit"
+            name="locale"
+            value="{{code}}"
+            lang="{{code}}"
+            dir="{{this.dir}}"
+            aria-pressed="{{pressed}}"
+          >
+            {{label}}
+          </button>
+          {{/each}}
+        </fieldset>
+      </form>
       {{/if}}
     </header>
+    <div
+      id="connection-status"
+      class="connection"
+      role="status"
+      aria-live="polite"
+      data-lost="{{t 'connection.lost'}}"
+      data-restored="{{t 'connection.restored'}}"
+      data-suspended="{{t 'connection.suspended'}}"
+      data-reload="{{t 'connection.reload'}}"
+      hidden
+    ></div>
     <main id="main" tabindex="-1">
       {{#each flash}}
       <p class="notice flash" role="status">{{this}}</p>
@@ -46,7 +83,7 @@
     </main>
     <footer>
       <p>
-        Nestvexa Showcase · fictional sample data · instance
+        {{t "site.footer"}}
         <span id="instance">{{instance}}</span>
       </p>
     </footer>

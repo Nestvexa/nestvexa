@@ -1,19 +1,21 @@
 /**
- * `pnpm reset`: deletes the data file and every stored upload in the data
- * directory, deletes the showcase keys in Redis when `REDIS_PORT` is set
- * (only keys under `REDIS_PREFIX`), then writes fresh seed data.
+ * `pnpm reset`: deletes the data file, the session file (`SESSION_STORE=file`)
+ * and every stored upload in the data directory, deletes the showcase keys
+ * in Redis when `REDIS_PORT` is set (only keys under `REDIS_PREFIX`), then
+ * writes fresh seed data.
  * S3 objects are not deleted: use a disposable bucket for the showcase.
  */
 import { RespConnection } from '@nestvexa/realtime-redis';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { dataDirectory, redis, s3 } from '../config.js';
+import { dataDirectory, redis, s3, sessionFile } from '../config.js';
 import { dataFile, writeState } from '../data.js';
 import { seedState } from '../seed.js';
 
 rmSync(dataFile, { force: true });
+rmSync(sessionFile, { force: true });
 rmSync(join(dataDirectory, 'uploads'), { recursive: true, force: true });
-console.log(`Removed data and local uploads in ${dataDirectory}`);
+console.log(`Removed data, sessions and local uploads in ${dataDirectory}`);
 
 if (redis) {
   const connection = new RespConnection({

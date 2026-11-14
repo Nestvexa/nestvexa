@@ -19,7 +19,7 @@
 {{/if}}
 <form id="login-form" method="post" action="/login" novalidate>
   <input type="hidden" name="_csrf" value="{{csrf}}" />
-  <label for="{{fields.email.id}}">Email</label>
+  <label for="{{fields.email.id}}">{{t "login.email"}}</label>
   <input
     id="{{fields.email.id}}"
     name="email"
@@ -30,7 +30,7 @@
     required
     aria-invalid="{{fields.email.ariaInvalid}}"
   />
-  <label for="{{fields.password.id}}">Password</label>
+  <label for="{{fields.password.id}}">{{t "login.password"}}</label>
   <input
     id="{{fields.password.id}}"
     name="password"
@@ -40,12 +40,12 @@
     required
     aria-invalid="{{fields.password.ariaInvalid}}"
   />
-  <button type="submit">Sign in</button>
+  <button type="submit">{{t "login.submit"}}</button>
 </form>
-<h2>Demo accounts</h2>
+<h2>{{t "login.demoHeading"}}</h2>
 <p>
-  Every account uses the public demonstration password
-  <code>showcase-demo-2026</code>. Never reuse it.
+  {{t "login.demoPassword"}}
+  <code>showcase-demo-2026</code>. {{t "login.demoWarning"}}
 </p>
 <ul id="demo-accounts">
   {{#each accounts}}

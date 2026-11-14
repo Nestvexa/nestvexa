@@ -1,22 +1,24 @@
-<h1>{{title}}</h1>
-{{#if memory}}
-<p>
-  Mail goes through the <strong>test transport</strong> of
-  <code>@nestvexa/mail</code>: nothing leaves this server. These are the
-  messages addressed to you, newest first.
-</p>
-<ol id="outbox-list" aria-label="Messages">
-  {{#each messages}}
-  <li class="mail">
-    <h2 class="mail-subject">{{subject}}</h2>
-    <pre class="mail-text">{{text}}</pre>
-  </li>
+<div lang="en">
+  <h1>{{title}}</h1>
+  {{#if memory}}
+  <p>
+    Mail goes through the <strong>test transport</strong> of
+    <code>@nestvexa/mail</code>: nothing leaves this server. These are the
+    messages addressed to you, newest first.
+  </p>
+  <ol id="outbox-list" aria-label="Messages">
+    {{#each messages}}
+    <li class="mail">
+      <h2 class="mail-subject">{{subject}}</h2>
+      <pre class="mail-text">{{text}}</pre>
+    </li>
+    {{else}}
+    <li id="outbox-empty">No messages yet.</li>
+    {{/each}}
+  </ol>
   {{else}}
-  <li id="outbox-empty">No messages yet.</li>
-  {{/each}}
-</ol>
-{{else}}
-<p id="outbox-console">
-  Mail is written to the server log (console transport).
-</p>
-{{/if}}
+  <p id="outbox-console">
+    Mail is written to the server log (console transport).
+  </p>
+  {{/if}}
+</div>

@@ -1,0 +1,15 @@
+{
+  "heading": "تحليلات {workspace}",
+  "summary": "ملخص مساحة العمل",
+  "open": "المهام المفتوحة",
+  "done": "المهام المنجزة",
+  "members": "الأعضاء",
+  "throughputHeading": "الإنجاز الأسبوعي",
+  "loading": "جارٍ تحميل الرسم…",
+  "caption": "المهام المنجزة في كل أسبوع",
+  "breakdownHeading": "المهام المفتوحة حسب العضو",
+  "loadBreakdown": "حمّل التفصيل",
+  "refreshBreakdown": "حدّث التفصيل",
+  "goals": "الأهداف",
+  "signedInAs": "مسجّل الدخول باسم {name} ({role})"
+}

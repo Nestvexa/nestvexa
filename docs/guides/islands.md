@@ -192,6 +192,13 @@ const props = islands.verifyProps('status-widget', input.props, input.token); //
 `--nv-<name>` CSS custom properties on each island root, so components style
 with `var(--nv-accent)`. Only display data belongs here.
 
+[examples/showcase](../../examples/showcase) puts the negotiated `locale` and
+`direction` in the context, passes every visible string already translated in
+the props (so SSR and hydration agree in English and Arabic), and builds Vue,
+React (the `@nestvexa/ui` chart wrapper) and Svelte islands as lazy chunks of
+one Vite loader under a strict CSP without `'unsafe-inline'`
+([tests/browser/showcase-islands.spec.ts](../../tests/browser/showcase-islands.spec.ts)).
+
 ## 7. Diagnostics, events and lifecycle
 
 - `loader.diagnostics()` shows each island's state, listener count, rejected

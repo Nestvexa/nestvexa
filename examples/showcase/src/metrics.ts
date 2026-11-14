@@ -1,6 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { OnApplicationShutdown } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
+import { I18n } from '@nestvexa/i18n';
+import type { I18nView } from '@nestvexa/i18n';
 import { RealtimeService } from '@nestvexa/realtime';
 import { RespConnection } from '@nestvexa/realtime-redis';
 import {
@@ -11,6 +13,7 @@ import {
   State,
 } from 'nestvexa';
 import { instance, redis } from './config.js';
+import { ShowcaseData } from './data.js';
 import {
   Directory,
   bindingOf,
@@ -35,7 +38,8 @@ export interface InboxItem {
 
 /**
  * Workspace metrics and per-user notification inboxes. In a single process
- * they live in memory; with `REDIS_PORT` they live in Redis (hash and capped
+ * the metrics are persisted with the showcase data (they survive a restart)
+ * and inboxes live in memory; with `REDIS_PORT` they live in Redis (hash and capped
  * list per key), so every instance renders the same numbers when a realtime
  * event tells its browsers to refresh.
  */
@@ -49,9 +53,9 @@ export class SharedState implements OnApplicationShutdown {
       })
     : undefined;
   readonly #prefix = redis?.prefix ?? '';
-  readonly #metrics = new Map<string, Metrics>();
   readonly #inbox = new Map<string, InboxItem[]>();
   #next = 1;
+  constructor(@Inject(ShowcaseData) private readonly data: ShowcaseData) {}
 
   get distributed(): boolean {
     return this.#redis !== undefined;
@@ -60,7 +64,7 @@ export class SharedState implements OnApplicationShutdown {
   async metrics(workspace: string): Promise<Metrics> {
     if (!this.#redis)
       return (
-        this.#metrics.get(workspace) ?? {
+        this.data.metrics(workspace) ?? {
           deployments: 0,
           created: 0,
           completed: 0,
@@ -99,7 +103,7 @@ export class SharedState implements OnApplicationShutdown {
   ): Promise<void> {
     if (!this.#redis) {
       const current = await this.metrics(workspace);
-      this.#metrics.set(workspace, {
+      this.data.saveMetrics(workspace, {
         ...current,
         [name]: Math.max(0, current[name] + by),
         last,
@@ -179,6 +183,7 @@ export class MetricsPanel {
     @Inject(Directory) private readonly directory: Directory,
     @Inject(SharedState) private readonly shared: SharedState,
     @Inject(RealtimeService) private readonly realtime: RealtimeService,
+    @Inject(I18n) private readonly translations: I18n,
     @Inject(REQUEST) private readonly request: object,
   ) {}
   @State() metrics: Metrics = {
@@ -189,7 +194,8 @@ export class MetricsPanel {
   };
   @State() inbox: readonly InboxItem[] = [];
   @State() online: readonly string[] = [];
-  @State() notice = '';
+  /** Message key of the last action's notice; translated at render time. */
+  @State() notice: '' | 'logged' | 'cleared' = '';
 
   #access() {
     return this.directory.require(this.request);
@@ -200,6 +206,19 @@ export class MetricsPanel {
       metricsChannel(access.workspace.slug),
       notificationsChannel(access.user.id),
     ];
+  }
+  /**
+   * The locale is negotiated per request (cookie, header), never stored in
+   * state: every Live update and realtime refresh renders in the language
+   * the browser currently asks for.
+   */
+  @Computed() get i18n(): I18nView {
+    return this.translations.forRequest(this.request).view;
+  }
+  @Computed() get noticeText(): string {
+    return this.notice
+      ? this.translations.forRequest(this.request).t(`metrics.${this.notice}`)
+      : '';
   }
   @Computed() get renderedBy(): string {
     return instance;
@@ -226,12 +245,12 @@ export class MetricsPanel {
       1,
       `${access.user.name} logged a deployment`,
     );
-    this.notice = 'Deployment logged.';
+    this.notice = 'logged';
     await this.realtime.publish(metricsChannel(access.workspace.slug), null);
   }
   @Action() async clearNotifications(): Promise<void> {
     const access = this.#access();
     await this.shared.clearInbox(access.user.id);
-    this.notice = 'Notifications cleared.';
+    this.notice = 'cleared';
   }
 }
