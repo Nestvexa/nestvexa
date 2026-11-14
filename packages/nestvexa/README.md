@@ -18,13 +18,17 @@ NestvexaModule.forRoot({
 await configureNestvexa(app);
 ```
 
+### Namespaces, themes and error pages
+
+`views.namespaces` and `views.themes` (name -> directory maps) configure the umbrella's Handlebars engine: `@Render('admin::dashboard')` resolves inside the `admin` directory on Express and Fastify, an application file at `<root>/vendor/admin/dashboard.hbs` overrides it, and `engine.render(view, model, { theme })` (inject `HbsEngine`) selects a registered theme override directory. `configureNestvexa(app, { errorPages: { views: { '404': 'errors/404', '5xx': 'errors/500' } } })` installs the opt-in `ViewErrorPageFilter` with the umbrella engine as renderer: browser page requests get the error view, API, Live and action calls keep Nest's JSON body, and `development: true` shows the diagnostic page with the failing template and line. Options are accepted on the first call only. Without `errorPages` no filter is installed. Permission helpers (`permissionHelpers`, `grantPermissions`) come from `@nestvexa/views` through the umbrella exports. See [namespaces and themes](../../docs/guides/template-engines.md#namespaces-and-themes), [error pages](../../docs/guides/template-engines.md#error-pages) and the [views tour](../../examples/views-tour/README.md).
+
 Other template engines render next to HBS with `await registerViewEngine(app, 'ejs', ejsEngine)` (any adapter with `render` and `renderFile`, such as `@nestvexa/engine-ejs`, `-pug` or `-nunjucks`): `@Render('pages/report.ejs')` uses the adapter, views without that extension keep HBS. Express registers it with `app.engine()`; on Fastify the `reply.view` decorator installed by `configureNestvexa` dispatches by extension. Invalid extensions, `hbs` and duplicate registrations are rejected. See [template engines](../../docs/guides/template-engines.md).
 
 ## Public API and defaults
 
 `forRootAsync({ imports, inject, useFactory })` supports Nest provider injection. An optional third `forRoot` argument passes kernel services (request context, diagnostics, extensions, error logging) to `CoreModule`; see the [core README](../core/README.md#kernel-services). Defaults are HBS, `src/views`, no layout, no production template cache, and Live disabled. Use `views.cache: true` for immutable deployed templates.
 
-Public root exports include `NestvexaModule`, `configureNestvexa`, `registerViewEngine`, `HbsEngine`, everything exported by `@nestvexa/core`, `@nestvexa/views` and `@nestvexa/live` (decorators such as `@LiveComponent`, `@State` and `@Action`, and their types), `NestvexaBrowserService`, `NestvexaBrowserOptions`, `NestvexaLiveOptions` and `NestvexaLivePolicies`. The `nestvexa/assets` subpath is described [below](#explicit-browser-asset-hosting). The `nestvexa` bin delegates to the optional `@nestvexa/cli` and prints an install hint when it is absent.
+Public root exports include `NestvexaModule`, `configureNestvexa` (with `ConfigureNestvexaOptions` and `NestvexaErrorPageOptions`), `registerViewEngine`, `HbsEngine`, everything exported by `@nestvexa/core`, `@nestvexa/views` and `@nestvexa/live` (decorators such as `@LiveComponent`, `@State` and `@Action`, and their types), `NestvexaBrowserService`, `NestvexaBrowserOptions`, `NestvexaLiveOptions` and `NestvexaLivePolicies`. The `nestvexa/assets` subpath is described [below](#explicit-browser-asset-hosting). The `nestvexa` bin delegates to the optional `@nestvexa/cli` and prints an install hint when it is absent.
 
 ## Dependencies
 
@@ -80,7 +84,7 @@ Templates are trusted code; interpolation escapes, triple braces do not. The MVC
 
 ## Examples
 
-[starter-hbs](../../examples/starter-hbs/README.md) (MVC), [starter-live](../../examples/starter-live/README.md) (integrated Live), [starter-ejs](../../examples/starter-ejs/README.md) (EJS adapter), and the [express-host](../../examples/express-host/README.md) and [fastify-host](../../examples/fastify-host/README.md) adapters. Start with the [getting started guide](../../docs/getting-started/README.md).
+[starter-hbs](../../examples/starter-hbs/README.md) (MVC), [views-tour](../../examples/views-tour/README.md) (namespaces, themes, permission helpers, error pages, `nv:cloak`, `nv:class` and a lazy Live component), [starter-live](../../examples/starter-live/README.md) (integrated Live), [starter-ejs](../../examples/starter-ejs/README.md) (EJS adapter), and the [express-host](../../examples/express-host/README.md) and [fastify-host](../../examples/fastify-host/README.md) adapters. Start with the [getting started guide](../../docs/getting-started/README.md).
 
 ## Status and limits
 
@@ -90,6 +94,7 @@ Status: **Shipped (alpha)**. MVC rendering, extra view engines on Express and Fa
 - The `nestvexa` bin wrapper has no dedicated test; the CLI it delegates to is tested in `@nestvexa/cli`.
 - Hosts that already run their own Alpine need manual browser startup, and URI-versioned Live routes may need a separate browser `basePath`.
 - Identity, sessions, CSP and authorization stay host-owned; the umbrella installs none of them.
+- Themes are selected per render (`engine.render(..., { theme })`); `@Render` has no theme channel and Live component views render without a theme. Namespaced `@Render` names on Express go through the umbrella's `view` class, so Express `view cache` keys them by name like any other view.
 
 ## Testing
 
@@ -97,7 +102,7 @@ Status: **Shipped (alpha)**. MVC rendering, extra view engines on Express and Fa
 pnpm --filter nestvexa test
 ```
 
-Runs `tests/integration.test.ts`, `tests/assets.test.ts` and `tests/umbrella-*.test.ts` (Live registration, view engines) with the root Vitest config; the tests import `packages/*/dist`, so run `pnpm --filter nestvexa... build` first. Browser specs such as `tests/browser/mvc.spec.ts`, `default-setup.spec.ts` and `assets.spec.ts` run separately with `pnpm test:e2e`, and `pnpm test:pack` checks packed consumers.
+Runs `tests/integration.test.ts`, `tests/assets.test.ts` and `tests/umbrella-*.test.ts` (Live registration, view engines, namespaces/themes/permissions/error pages) with the root Vitest config; the tests import `packages/*/dist`, so run `pnpm --filter nestvexa... build` first. Browser specs such as `tests/browser/mvc.spec.ts`, `default-setup.spec.ts` and `assets.spec.ts` run separately with `pnpm test:e2e`, and `pnpm test:pack` checks packed consumers.
 
 ## Maintainers
 
