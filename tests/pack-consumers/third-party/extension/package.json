@@ -1,0 +1,19 @@
+{
+  "name": "nestvexa-extension-mini",
+  "version": "1.0.0",
+  "description": "Out-of-tree Nestvexa extension fixture (MAINT-007)",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "peerDependencies": {
+    "@nestvexa/core": "^0.1.0-alpha.0"
+  }
+}

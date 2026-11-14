@@ -70,10 +70,13 @@ required delivery.
   `.nestvexa/manifest.json`; `--revert <id>` restores the latest one. Release and
   upgrade-note drafts are generated from changesets by `pnpm release:notes`.
 
-> **Known gap:** there is no shared runtime deprecation-warning helper yet; deprecated
-> APIs (for example `definePlugin` and `PluginRegistry` in `@nestvexa/core`) carry
-> `@deprecated` JSDoc only. There are no codemods for `nv:*` directive or decorator
-> renames because none has been renamed; `nestvexa migrate` is the place to add them.
+- **Deprecation warnings**: deprecated APIs call `emitDeprecation` from `@nestvexa/core`,
+  which emits one Node `DeprecationWarning` per stable code (`NVDEP001`, ...) per process
+  and honours `--no-deprecation`. The codes are listed in the
+  [deprecation policy](docs/release/versioning-and-deprecation.md#runtime-deprecation-warnings).
+
+> **Known gap:** there are no codemods for `nv:*` directive or decorator renames
+> because none has been renamed; `nestvexa migrate` is the place to add them.
 
 ## Release cadence
 

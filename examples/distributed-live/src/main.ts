@@ -160,8 +160,6 @@ export class ReplicaBoard {
   ) {}
   /** Component state: lives in the shared Live store, so any replica continues it. */
   @State() clicks = 0;
-  @State() total = 0;
-  @State() viewers = 0;
   @RealtimeChannels() channels(): string[] {
     return [boardChannel];
   }
@@ -171,10 +169,17 @@ export class ReplicaBoard {
   @Computed() get httpAdapter(): string {
     return adapter;
   }
-  async dehydrate(): Promise<void> {
-    this.total = await this.shared.read();
+  /**
+   * Shared data is read on every render, never copied into `@State`: a
+   * realtime refresh then stays read-only (one request, no new revision)
+   * instead of a refused refresh followed by a commit.
+   */
+  @Computed({ async: true }) async total(): Promise<number> {
+    return this.shared.read();
+  }
+  @Computed({ async: true }) async viewers(): Promise<number> {
     const identity = { binding: guestOf(this.request).binding };
-    this.viewers = (await this.realtime.presence(identity, boardChannel)).total;
+    return (await this.realtime.presence(identity, boardChannel)).total;
   }
   @Action() async increment(): Promise<void> {
     this.clicks++;

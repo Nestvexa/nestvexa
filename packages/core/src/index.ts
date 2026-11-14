@@ -100,6 +100,11 @@ export {
 } from './routes.js';
 export { NESTVEXA_VERSION, isSemanticVersion } from './version.js';
 export {
+  NESTVEXA_DEPRECATIONS,
+  emitDeprecation,
+  type NestvexaDeprecationCode,
+} from './deprecation.js';
+export {
   PLUGIN_CAPABILITIES,
   PluginRegistry,
   definePlugin,

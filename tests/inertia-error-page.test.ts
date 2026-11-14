@@ -41,7 +41,7 @@ import type { Platform } from './inertia-support.js';
  * details out of production pages, and leaves every other response alone.
  */
 
-const SECRET = 'postgres://admin:hunter2@db.internal/app';
+const SECRET = 'postgres://admin:hunter2@db.internal/app'; // trufflehog:ignore (leak-test fixture)
 const HOSTILE = '</script><script>alert(1)</script>\u2028&amp;';
 
 @Controller()
