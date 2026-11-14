@@ -209,6 +209,72 @@ describe('realtime hub', () => {
     expect(replayed.closed).toEqual(['revoked']);
   });
 
+  it('bounds a stalled consumer and closes it without delaying other subscribers', async () => {
+    const broker = new MemoryRealtimeBroker({ replaySize: 5 });
+    const signer = createTokenSigner({ secrets: [secret] });
+    let stall = false;
+    const held: (() => void)[] = [];
+    const instance = new RealtimeHub(
+      broker,
+      signer,
+      {
+        // Alice's delivery path hangs (a stuck policy lookup stands in for any
+        // consumer that stops making progress); Bob's never does.
+        authorizeChannel: (identity) =>
+          stall && identity.binding === alice
+            ? new Promise<boolean>((resolve) => held.push(() => resolve(true)))
+            : true,
+      },
+      {
+        maxConnections: 10,
+        maxConnectionsPerIdentity: 2,
+        queueLimit: 4,
+        heartbeatMs: 60_000,
+        // Short, so Alice's next delivery re-checks the (stuck) policy.
+        revalidateMs: 30,
+      },
+    );
+    cleanup.push(() => instance.shutdown());
+    const stalled = sink();
+    const healthy = sink();
+    await instance.connect(
+      () => ({ binding: alice }),
+      [signer.sign(alice, ['orders:a'])],
+      stalled.value,
+    );
+    await instance.connect(
+      () => ({ binding: bob }),
+      [signer.sign(bob, ['orders:a'])],
+      healthy.value,
+    );
+    expect(instance.size).toBe(2);
+    // From now on every policy lookup for Alice hangs; once her last check is
+    // older than the window, each delivery to her waits on one.
+    stall = true;
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    // Events arrive one network read at a time, as from a broker socket.
+    for (let index = 0; index < 20; index++) {
+      await broker.publish('orders:a', index);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    await tick();
+    // Bob received every event in order while Alice was stuck.
+    expect(healthy.events.map((event) => event.data)).toEqual(
+      Array.from({ length: 20 }, (_, index) => index),
+    );
+    expect(healthy.closed).toEqual([]);
+    // Alice was cut at the queue bound (4 pending deliveries): nothing more
+    // is buffered for her and her connection is released.
+    expect(stalled.closed).toEqual(['slow-consumer']);
+    expect(held.length).toBeGreaterThan(0);
+    expect(instance.size).toBe(1);
+    // A late answer to the stuck lookup delivers nothing to a closed consumer.
+    for (const release of held) release();
+    await tick();
+    expect(stalled.events).toEqual([]);
+    expect(stalled.closed).toEqual(['slow-consumer']);
+  });
+
   it('re-authorizes before delivery after the revalidation window', async () => {
     let allowed = true;
     const f = hub({

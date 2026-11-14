@@ -359,7 +359,9 @@ export function renderDevtools(
                 ? `action <code>${escape(render.action ?? '')}</code>`
                 : render.cause === 'sync'
                   ? `model sync of <code>${escape(render.fields.join(', '))}</code>`
-                  : 'mount';
+                  : render.cause === 'refresh'
+                    ? 'read-only refresh'
+                    : 'mount';
             return `<li><h3><code>${escape(render.component)}</code> <small>revision ${render.revision}</small></h3><p>Re-render cause: ${cause}. State ${render.stateBytes} bytes, HTML ${render.htmlBytes} bytes, at ${time(render.at)}${render.requestId === undefined ? '' : `, request <code>${escape(render.requestId.slice(0, 13))}</code>`}.</p>${errors}<details><summary>Public state (redacted)</summary><pre>${escape(JSON.stringify(render.state, null, 2) ?? 'null')}</pre></details></li>`;
           })
           .join('')}</ol>`

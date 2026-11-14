@@ -28,6 +28,7 @@ import { catchError, throwError } from 'rxjs';
 import type { Observable } from 'rxjs';
 import { DiscoveryModule, HttpAdapterHost, ModuleRef } from '@nestjs/core';
 import { LiveEvents } from './domain-events.js';
+import { LiveTags } from './dependencies.js';
 import {
   GUARDS_METADATA,
   INTERCEPTORS_METADATA,
@@ -115,7 +116,9 @@ class LiveAdmissionGuard implements CanActivate {
 /**
  * Error bodies are never parsed by the browser, so a `STALE_REVISION` reply
  * carries its documented recovery as `x-nestvexa-recovery: resync`. The client
- * answers with one fresh resynchronization instead of suspending.
+ * answers with one fresh read-only refresh instead of suspending. A refresh
+ * refused with `REFRESH_CONFLICT` carries `x-nestvexa-recovery: commit`: the
+ * client repeats it once as a committing resync.
  */
 @Injectable()
 class LiveRecoveryInterceptor implements NestInterceptor {
@@ -125,14 +128,21 @@ class LiveRecoveryInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     return next.handle().pipe(
       catchError((error: unknown) => {
-        if (
-          error instanceof HttpException &&
-          Reflect.get(Object(error.getResponse()), 'code') === 'STALE_REVISION'
-        )
+        const code: unknown =
+          error instanceof HttpException
+            ? Reflect.get(Object(error.getResponse()), 'code')
+            : undefined;
+        const recovery =
+          code === 'STALE_REVISION'
+            ? 'resync'
+            : code === 'REFRESH_CONFLICT'
+              ? 'commit'
+              : undefined;
+        if (recovery)
           this.adapter.httpAdapter.setHeader(
             context.switchToHttp().getResponse<object>(),
             'x-nestvexa-recovery',
-            'resync',
+            recovery,
           );
         return throwError(() => error);
       }),
@@ -405,6 +415,7 @@ function providers(
     options,
     LiveRuntime,
     LiveEvents,
+    LiveTags,
     LiveAdmissionGuard,
     LiveRecoveryInterceptor,
     LiveRouteConflictCheck,
@@ -605,7 +616,7 @@ export class LiveModule {
           definitions,
         }),
       }),
-      exports: [LiveRuntime, LiveEvents],
+      exports: [LiveRuntime, LiveEvents, LiveTags],
     };
   }
 
@@ -643,7 +654,7 @@ export class LiveModule {
         }),
         LiveAsyncConfigurationGuard,
       ],
-      exports: [LiveRuntime, LiveEvents],
+      exports: [LiveRuntime, LiveEvents, LiveTags],
     };
   }
 }

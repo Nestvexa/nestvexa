@@ -49,6 +49,9 @@ export {
   Modelable,
   OnEvent,
   RealtimeChannels,
+  DependsOn,
+  liveTagChannel,
+  type LiveDependency,
   Renderless,
   Validate,
   Title,
@@ -102,6 +105,7 @@ export {
   LIVE_DOMAIN_EVENT_FIELD,
   type LiveDomainEventMessage,
 } from './domain-events.js';
+export { LiveTags, type LiveTagListener } from './dependencies.js';
 export {
   isLiveActionCoordination,
   type LiveActionCoordination,

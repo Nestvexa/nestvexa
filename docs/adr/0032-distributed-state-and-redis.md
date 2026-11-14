@@ -108,3 +108,72 @@ Live request now costs Redis round trips with the shared store (peek + lease +
 re-read + WATCH commit, about seven); an action longer than the lease fails
 closed. Redis Cluster and durable event replay across replicas remain open; a
 BullMQ adapter is declined (see 6).
+
+## Amendment (protocol and realtime round 5, 2026-11-14): REAL-002
+
+**Broker location (decision 4) stands.** Moving `RespRealtimeBroker` into
+`@nestvexa/realtime-redis` with a backward-compatible re-export from
+`@nestvexa/realtime` would make `@nestvexa/realtime` import
+`@nestvexa/realtime-redis`. That package requires `@nestvexa/live` as a peer
+and itself peers on `@nestvexa/realtime`, so the re-export would (a) create a
+package cycle, (b) make Redis code and a Live peer mandatory for every realtime
+install, which ADR 0009 rejected, and (c) break the optional-peer rule that
+`scripts/boundaries.mjs` and the packaging ADRs enforce. The documented
+distributed import stays `RedisRealtimeBroker` from
+`@nestvexa/realtime-redis/realtime`; the class remains defined in
+`@nestvexa/realtime` (about 400 lines, no client library). A future major may
+remove the `RespRealtimeBroker` export from `@nestvexa/realtime` after a
+deprecation cycle; that is the only way to move it without the cycle.
+
+**WebSocket transport (decision 5): rationale and exact compatibility.** No
+`@nestjs/websockets` gateway is shipped. Reasons, in order:
+
+1. A Nest gateway owns its handshake and connection lifecycle through a
+   platform adapter (`@nestjs/platform-ws` or `@nestjs/platform-socket.io`).
+   Realtime authorization must happen in one place for every transport: exact
+   `Origin` check before the upgrade completes, identity resolved from the raw
+   upgrade request, signed identity-bound tokens in the first message within
+   5 s, per-channel policy, revalidation, revocation, connection quotas and the
+   256 KiB backpressure bound. The `ws` handler calls the same `RealtimeHub`
+   as the SSE and polling controllers, so these rules cannot drift.
+2. A gateway would add two peers (`@nestjs/websockets` and a platform adapter)
+   to every realtime install, or a second package with its own release and
+   test matrix, for a transport that already works on both HTTP adapters.
+3. Socket.IO's own protocol (namespaces, rooms, acknowledgements) would be a
+   second message format for the browser client to bundle; the client budget
+   (ADR 0020) does not allow it.
+
+Exact compatibility the handler gives:
+
+| Aspect                      | Behaviour                                                                                                                                                                                                                                                                                                                                                                     |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Nest HTTP adapters          | Express and Fastify: `attachRealtimeWebSocket(app)` listens to `upgrade` on `app.getHttpServer()`; an adapter without upgrade events fails at startup (`tests/realtime-distributed.test.ts`).                                                                                                                                                                                 |
+| Path                        | Only `<endpoint>/ws` (default `/_nestvexa/realtime/ws`, behind no global prefix). Upgrades for other paths are left untouched, so a host's own upgrade listeners for other paths keep working.                                                                                                                                                                                |
+| Nest lifecycle              | The listener is removed by the returned `detach()`; open sockets close with the hub on `beforeApplicationShutdown`, like SSE streams.                                                                                                                                                                                                                                         |
+| Guards, interceptors, pipes | Not applied (they are not applied to Nest gateways' handshakes either). Authorization is the realtime policy (`resolveUpgradeIdentity`, `authorizeChannel`).                                                                                                                                                                                                                  |
+| Host `@WebSocketGateway`    | Not tested together. A gateway on **its own port** (`@WebSocketGateway(4001)`) is independent. A gateway on the same HTTP server through a platform adapter may reject or destroy upgrade requests for paths it does not own, which would break `<endpoint>/ws`; such hosts should give the gateway its own port or use the `sse`/`polling` transports (`transports` option). |
+| Message format              | JSON text frames: client `{"tokens":[…],"cursor":"…"}`; server `{"type":"ready"}`, `{"type":"invalidate",channel,id,data}`; close codes 4000 (expired/slow/revoked, with the reason) and 4003 (rejected). Documented in the realtime guide.                                                                                                                                   |
+
+The ledger deviation is therefore narrowed to "no Nest gateway class"; the
+spec's intent (use Nest's HTTP server and lifecycle, no private competing
+socket stack with its own authorization) is met. Revisit if Nest gains an
+adapter-neutral upgrade hook that runs before gateways.
+
+## Amendment (round 5): slow-subscriber evidence
+
+The multi-replica acceptance suite gained "a stalled subscriber is
+disconnected by its replica without slowing other browsers"
+(`tests/services/distributed.spec.ts`, replica a publishes ~4.5 MB through
+Redis, a stalled SSE client on Fastify replica c is closed as `slow-consumer`
+while a browser on c receives every event; written this round but not yet run
+against real Redis, see the round 5 report). The same scenario runs over the
+RESP double in `tests/realtime-distributed.test.ts` (Express and Fastify
+receivers) and a hub-level stalled-delivery test in `tests/realtime.test.ts`.
+Finding: the per-connection bound is measured synchronously at `send`, so a
+burst of more than 256 KiB published on one replica **within one event-loop
+turn** (a tight in-process loop with the memory broker) exceeds the bound for
+every local subscriber, healthy ones included; they are disconnected and
+reconnect with replay. Events that arrive from Redis are spread over socket
+reads and do not trigger it. The acceptance load route yields between
+publishes for this reason. A drain-aware bound (close only when the buffer
+stays above the limit after a grace period) is the recorded follow-up.
