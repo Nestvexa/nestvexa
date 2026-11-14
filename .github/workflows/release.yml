@@ -64,11 +64,11 @@ jobs:
         env:
           RELEASE_MATRIX_CHECKS: format,typecheck,lint,test,coverage,size,e2e,pack,docs
         run: node scripts/release-matrix.mjs entry artifacts/matrix/${{ matrix.os }}-node${{ matrix.node }}.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: matrix-${{ matrix.os }}-node${{ matrix.node }}
           path: artifacts/matrix/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: evidence-${{ matrix.os }}-node${{ matrix.node }}
@@ -117,7 +117,7 @@ jobs:
       - name: Owner-supplied independent security review evidence
         run: cp docs/release/evidence/security-review.json artifacts/reports/security-review.json
       - run: pnpm release:check
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-candidate
           path: |
