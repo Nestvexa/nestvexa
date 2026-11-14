@@ -24,9 +24,12 @@ export const actionsOptions: ActionsModuleOptions = {
     const session: unknown = Reflect.get(request, 'session');
     const id: unknown = Reflect.get(request, 'sessionID');
     const csrf: unknown =
-      session && typeof session === 'object' ? Reflect.get(session, 'csrf') : undefined;
+      session && typeof session === 'object'
+        ? Reflect.get(session, 'csrf')
+        : undefined;
     if (typeof id !== 'string' || typeof csrf !== 'string') return null;
     return { subject: `session:${id}`, csrfToken: csrf };
   },
-  authorize: (_identity, action) => allowedActions[action.group]?.includes(action.action) ?? false,
+  authorize: (_identity, action) =>
+    allowedActions[action.group]?.includes(action.action) ?? false,
 };

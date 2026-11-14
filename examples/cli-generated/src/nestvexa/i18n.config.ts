@@ -13,7 +13,9 @@ export async function i18nOptions(): Promise<I18nOptions> {
     locales,
     defaultLocale: 'en',
     timeZone: 'UTC',
-    catalogs: await loadCatalogs(resolve(process.cwd(), 'locales'), { locales }),
+    catalogs: await loadCatalogs(resolve(process.cwd(), 'locales'), {
+      locales,
+    }),
   };
 }
 

@@ -8,6 +8,18 @@
       "template": "island.react",
       "templateVersion": 1
     },
+    "client/islands/feed.island.ts": {
+      "sha256": "c42a907e1e84a7b928dfa302f3113168724ef7f4b20796856d14758f76323096",
+      "feature": "island:feed",
+      "template": "island.vue.wrapper",
+      "templateVersion": 1
+    },
+    "client/islands/feed.vue": {
+      "sha256": "522f14f83772b29bc55fded865c283dc6f82c325b027ffc68de0668d0bc300d6",
+      "feature": "island:feed",
+      "template": "island.vue",
+      "templateVersion": 1
+    },
     "client/islands/index.ts": {
       "sha256": "631346d641701f5dc5fd49e6e7c26ac808db79759c777052727d01fed00a1941",
       "feature": "island:clicker"
@@ -16,8 +28,20 @@
       "sha256": "b63e088b88e088dd1226efd7d8cf7082b1c6307559339f44e8946abd42a6bbae",
       "feature": "island:clicker"
     },
+    "client/islands/status.island.ts": {
+      "sha256": "c2a50931eb4061f66610f04e7ae4698004ce7cf74332f784925fcd41e920a049",
+      "feature": "island:status",
+      "template": "island.svelte.wrapper",
+      "templateVersion": 1
+    },
+    "client/islands/status.svelte": {
+      "sha256": "1ae749711fee7b79ba93c3f09a2998e706f440fb7cdbc2240339497250f6464c",
+      "feature": "island:status",
+      "template": "island.svelte",
+      "templateVersion": 1
+    },
     "client/islands/tsconfig.json": {
-      "sha256": "c590ce09fec0d3cfce962fa22538ea4e0ddf83ba0d02fd58bf3ad85e668b5579",
+      "sha256": "f27eb0057e21bb65c0ce9b15aa340a3c27131f43821468dcf0a68dbbfc915127",
       "feature": "island:clicker"
     },
     "client/react/app.tsx": {
@@ -37,15 +61,15 @@
       "templateVersion": 1
     },
     "client/react/setup.ts": {
-      "sha256": "247426f0b0c0e40dc7968f28944ad05ffad2994ec2df4360fbdbb0d911d7c06e",
+      "sha256": "5655e057d04fb4cfdcd65978507e6e74ee7baae9c6bb66e90e792d5038857141",
       "feature": "page:react-dashboard"
     },
     "client/react/ssr.tsx": {
-      "sha256": "8ab42a8ab6d14090fb1f9cb198ff42b0f3940f7b6ab8c6f1f8499538e5e7e84b",
+      "sha256": "c3a0f1140e645f847069f1e31a5e1986816e7df77238b087e050ca3247f9f6d0",
       "feature": "page:react-dashboard"
     },
     "client/react/tsconfig.json": {
-      "sha256": "f3c8a9092b263cffdd0e70a9bece2084b0a33d134b0e84a23569c64953d3de23",
+      "sha256": "cd0399a22351bc4753f1ecd4b7a6d55435e551e3a49fa34a09d851c259bd4957",
       "feature": "page:react-dashboard"
     },
     "client/svelte/app.ts": {
@@ -65,7 +89,7 @@
       "templateVersion": 1
     },
     "client/svelte/setup.ts": {
-      "sha256": "e2ebbba588419be40449233f6eb7cfb38fa9bd92a3da4b957bcfdd1c5ff0f286",
+      "sha256": "7d6ddce217dbf28594327536fa4b1567245367d933516b528202c0e22f3183e5",
       "feature": "page:svelte-dashboard"
     },
     "client/svelte/ssr.ts": {
@@ -73,7 +97,7 @@
       "feature": "page:svelte-dashboard"
     },
     "client/svelte/tsconfig.json": {
-      "sha256": "8aa872a2671060cbd93648850061244bf69e39907805e4dcf84221b84bfeb502",
+      "sha256": "5c6a802f746ab90f9dda090f324f53942d2218fe23ae4601cc5dfa9eb9c15c37",
       "feature": "page:svelte-dashboard"
     },
     "client/vue/app.ts": {
@@ -93,15 +117,15 @@
       "templateVersion": 1
     },
     "client/vue/setup.ts": {
-      "sha256": "4b53fa400a8d41e76bd3835394e8169f98f16b92eb1a89448d6afe4d16eecccd",
+      "sha256": "799beaeaaa32170b3a61552ca3bf1f21649171f09a4a35b7a2952145697686a2",
       "feature": "page:vue-dashboard"
     },
     "client/vue/ssr.ts": {
-      "sha256": "29fa2969507b592fe602711339ba19c963c340d807e012c65ecc5c231d92fea6",
+      "sha256": "8ecec45c6b9d2f8aca95d6467cd1886d476e6c6b34cd2554e79719632bb55a31",
       "feature": "page:vue-dashboard"
     },
     "client/vue/tsconfig.json": {
-      "sha256": "c6dbe2696c5beb268487ca48a86f8016ab08868a2a7e28e38a8527524879ac58",
+      "sha256": "6fc9ee9bb4c5aaa9fe96f792081b2a873f651af3616dcc8b634ef86a54c59dda",
       "feature": "page:vue-dashboard"
     },
     "locales/en/common.json": {
@@ -109,13 +133,13 @@
       "feature": "add:i18n"
     },
     "src/actions/greeter.actions.ts": {
-      "sha256": "bfec290e5990c9299ff500d3aafad6f1ae2d451fe8427339faf3f0b4545f7a38",
+      "sha256": "6823b76ae66313b9e5207da5b10c864b771b2f61b7c816a97ca9a6e705c5a480",
       "feature": "action:greeter",
       "template": "action.group",
       "templateVersion": 1
     },
     "src/nestvexa/actions.config.ts": {
-      "sha256": "d89244d522896e86aaf423b598b8a50cb63f02a0f1cd17c7b06ab3b20c18cd62",
+      "sha256": "6e75667c263cd85024bd02391d6ec5b2376241407145fbd10a038a94ee07a06f",
       "feature": "action:greeter"
     },
     "src/nestvexa/components/counter.component.ts": {
@@ -127,7 +151,7 @@
       "feature": "page:report-ejs"
     },
     "src/nestvexa/engines/nunjucks.engine.ts": {
-      "sha256": "1d1f4baeb51294f5bc35aacbb8b221bb8735526a98c5fdf5fec253ec24c2c945",
+      "sha256": "f588d1136da44bd1cda26f89c8965c4aa709bedc332d683659ad3218f6470f1f",
       "feature": "page:report-nunjucks"
     },
     "src/nestvexa/engines/pug.engine.ts": {
@@ -135,21 +159,21 @@
       "feature": "page:report-pug"
     },
     "src/nestvexa/forms/contact.form.ts": {
-      "sha256": "cfc1275edf6ccbaabd7eb41657bb17dd4df9f663ad1cb22bb29cbeac6f3fb184",
+      "sha256": "4b45bf9ea65a7978edbde18672fcb4caffa7acffee361221524234f23ba1681d",
       "feature": "form:contact",
       "template": "form.component",
       "templateVersion": 1
     },
     "src/nestvexa/i18n.config.ts": {
-      "sha256": "7059ef18e87e1f9cfd5b0dfe4a13c6d1392342237cf1120f4382287b556cab08",
+      "sha256": "5e04e88442cb7c6596ed2aad00fd5d045fbcfed8f21fb42ce6df4d183c5e7df0",
       "feature": "add:i18n"
     },
     "src/nestvexa/inertia.config.ts": {
-      "sha256": "21959a1c9204a61734d7486a4ad83658f5ff0c5f04e328c07f241f240662e3ae",
+      "sha256": "c58d076a0b80da580e0f56f77fabfd107220a64c8447ca47d7a94b73185fae89",
       "feature": "page:react-dashboard"
     },
     "src/nestvexa/islands.serve.ts": {
-      "sha256": "96e3fc5adf9be42e9bf5dbfe6b8633aa87a7c0bc55a469ae551b34d78df681be",
+      "sha256": "bdbbea642b99858a8947f933c9d0c55d15fc3c6351bb9893a1d44d1e3fa84d3e",
       "feature": "island:clicker"
     },
     "src/nestvexa/islands.ts": {
@@ -157,15 +181,27 @@
       "feature": "island:clicker"
     },
     "src/nestvexa/nestvexa.config.ts": {
-      "sha256": "80e830b6b12db03a4bbf48918b4048183e7c09cda84848c29dd79a43537ab617",
+      "sha256": "5d3d1ae87833caf11ea9aa537997ae2f45a392b3b959df12225589f3096e4fdf",
       "feature": "init"
     },
     "src/nestvexa/realtime.config.ts": {
-      "sha256": "1181cacd829555bf60824de03b25c9e652a0ada0336e91c61660bc220e98dda1",
+      "sha256": "f91ca1c8cd87ead93a0677f56c923aa7231f9c5518954cc67ff1d5b16ab1fd72",
       "feature": "add:realtime"
     },
+    "src/nestvexa/route-helpers.ts": {
+      "sha256": "ac5208ebccf4236cbcec86c94e8c311bc3356d98b86df8b7ff96544de3af4ea8",
+      "feature": "routes",
+      "template": "routes.helpers",
+      "templateVersion": 1
+    },
+    "src/nestvexa/routes.ts": {
+      "sha256": "56189e02ca935ef38e83306828ab346d54be317d7f8495b75a48ce4f08dc579c",
+      "feature": "routes",
+      "template": "routes.map",
+      "templateVersion": 1
+    },
     "src/nestvexa/uploads.config.ts": {
-      "sha256": "2c3237e1b54734057d0b832389291c5579be1e43a487a51133865dc7719bb90f",
+      "sha256": "07aedff21165ef5f06088c6b1cd32edaa449317c70f964fe7e9041daa9f154ab",
       "feature": "add:uploads"
     },
     "src/nestvexa/welcome.controller.ts": {
@@ -233,44 +269,80 @@
       "templateVersion": 2
     },
     "src/task/task-table.component.ts": {
-      "sha256": "36536443921f006b7246ae534aadf42045a895166d018e3ed2e997ec649cd06f",
+      "sha256": "162ea911eb49cd89775d5d6ec26287fec55a7afc53e19edafffb6a2a60ff7efc",
       "feature": "resource:task",
       "template": "resource.component",
+      "templateVersion": 2
+    },
+    "src/task/task.controller.spec.ts": {
+      "sha256": "a81e7c23d890dbaf98be8df05ed1a834e8615a52136ac2859446f34cc401b1f1",
+      "feature": "resource:task",
+      "template": "resource.test.controller",
       "templateVersion": 1
     },
     "src/task/task.controller.ts": {
-      "sha256": "d22464b123a97aae23fae6060975d8f7f27dcb7ac7356da171979f331bfa5c3a",
+      "sha256": "32bb391a183e9e77de8cf1f1f701b6eaaa5d8afd91146ca6313ba011af0e4d69",
       "feature": "resource:task",
       "template": "resource.controller",
+      "templateVersion": 2
+    },
+    "src/task/task.dto.spec.ts": {
+      "sha256": "1bce4b9c3cc4e10bb898f801c4901b19563603f04eae1ed0007520cda34239d5",
+      "feature": "resource:task",
+      "template": "resource.test.dto",
+      "templateVersion": 1
+    },
+    "src/task/task.dto.ts": {
+      "sha256": "eb147cece36643d11cc68c0485d98659331c5dd6ce99e12ad78619e96a8cdbc1",
+      "feature": "resource:task",
+      "template": "resource.dto",
+      "templateVersion": 1
+    },
+    "src/task/task.memory-repository.ts": {
+      "sha256": "458b5dd8fcce18262db6becd6524fcab75242e2067f3c94abffd347cb6fac91b",
+      "feature": "resource:task",
+      "template": "resource.repository.memory",
       "templateVersion": 1
     },
     "src/task/task.module.ts": {
-      "sha256": "6de76a0868026d0987e080708a22327e412fad4e67582fda5870384def43c8f6",
+      "sha256": "e39f8642d3dd6363f2205d45cd033051087b29b7d01b45d5599fecf314e3bd86",
       "feature": "resource:task",
       "template": "resource.module.crud",
+      "templateVersion": 2
+    },
+    "src/task/task.repository.ts": {
+      "sha256": "59483ad7e8f1780dbd7e261c2f879333153f776cd375e00fa3f18d9746563ee5",
+      "feature": "resource:task",
+      "template": "resource.repository",
+      "templateVersion": 1
+    },
+    "src/task/task.service.spec.ts": {
+      "sha256": "d3d809d908f09bcaf152b6b47baaffe79b49a25030fe32e5604c07f8b4cabfe5",
+      "feature": "resource:task",
+      "template": "resource.test.service",
       "templateVersion": 1
     },
     "src/task/task.service.ts": {
-      "sha256": "42137e87e6f7c9dfdb842d2772c81e7856911b99e7ee9d50f25c730a4f07e120",
+      "sha256": "bc61becc7f2afe30bae8eb6115eeb33e722641a4c01c4267487ef18df37d0ef0",
       "feature": "resource:task",
       "template": "resource.service",
-      "templateVersion": 1
+      "templateVersion": 2
     },
     "views/components/contact-form.hbs": {
-      "sha256": "5a8606251fcae8cbe4d90485bd41164d2118db9fbc756be438e6d03833b2f7c8",
+      "sha256": "ab9206b4253d872210c15089e990a34bb6e205d44457573c5ef3e0c228decf52",
       "feature": "form:contact",
       "template": "form.view",
-      "templateVersion": 1
+      "templateVersion": 2
     },
     "views/components/counter.hbs": {
-      "sha256": "dc8d5137ae33737e05918dc3d6cb614cb3f87d4a474e13e2d093f1b71df9a9a2",
+      "sha256": "f4e0635fe01068ce0f858857a8e97cf0bcfd39b56f5755846dab718adb96634b",
       "feature": "init"
     },
     "views/components/task-table.hbs": {
-      "sha256": "2f5dbe7347171331a794b83111a2491ea57069c0dd5db3d06c4889392b02b253",
+      "sha256": "3a11e88e2c50e966ff75eb7e6220b237cc63a81b9b93770a97d6d676f0ef809a",
       "feature": "resource:task",
       "template": "resource.view",
-      "templateVersion": 1
+      "templateVersion": 2
     },
     "views/layout.hbs": {
       "sha256": "192e09b1ca2f2b87d08fbd0a17ac6b22d5f7f1f960e1cbacd488a0fbb83573ce",
@@ -313,11 +385,11 @@
       "templateVersion": 1
     },
     "views/welcome.hbs": {
-      "sha256": "6f3e668fc0c825f8d63aede359b7411b0fc8bb8aeb2fa9d6a263dad493a7e457",
+      "sha256": "75c5a40e1b3f575579ea4d43ef28438169822bbddd4dd3d94e223b9572c400ed",
       "feature": "init"
     },
     "vite.islands.config.ts": {
-      "sha256": "cbe8308ce86b0d9667f60716a02ae2a42c542946d79fdf5ee081a350973a6808",
+      "sha256": "b713e6abaeac16cfc7281f7ae0adf91df22dc76b5c69188e8771f69cd7ff06fe",
       "feature": "island:clicker"
     },
     "vite.react.config.ts": {
