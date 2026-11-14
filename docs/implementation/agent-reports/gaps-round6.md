@@ -194,6 +194,18 @@ framework's own error output is shown.
   `git archive HEAD` export on this Windows host and succeeded; the first CI
   run on Linux is the real evidence. The YAML parses (yaml 2.9.1).
 
+## Verification (after merging main `bb1527b`)
+
+- `pnpm build` 0; `pnpm exec tsc -p tsconfig.tests.json --noEmit` 0;
+  `pnpm lint` 0; `prettier --check .` clean.
+- Vitest: `inertia-share-once` 17/17, `inertia-error-page` 29/29,
+  `forms-view-engines` 12/12, `docs-site` 20/20, `inertia-http` 40/40.
+- `node scripts/docs.mjs --check-only`: 263 documents, 46 provenance
+  snippets, every example listed.
+- Playwright (local config, ports 4140/4141): `inertia.spec.ts` 7/7 in
+  Chromium, Firefox and WebKit (`--timeout=90000` for the loaded host);
+  `islands-deferral.spec.ts` 3/3 in Chromium, Firefox and WebKit.
+
 ## Not done
 
 - The Docker job has not executed in GitHub Actions yet; the container is not
