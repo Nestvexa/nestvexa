@@ -160,8 +160,6 @@ export class ReplicaBoard {
   ) {}
   /** Component state: lives in the shared Live store, so any replica continues it. */
   @State() clicks = 0;
-  @State() total = 0;
-  @State() viewers = 0;
   @RealtimeChannels() channels(): string[] {
     return [boardChannel];
   }
@@ -171,10 +169,17 @@ export class ReplicaBoard {
   @Computed() get httpAdapter(): string {
     return adapter;
   }
-  async dehydrate(): Promise<void> {
-    this.total = await this.shared.read();
+  /**
+   * Shared data is read on every render, never copied into `@State`: a
+   * realtime refresh then stays read-only (one request, no new revision)
+   * instead of a refused refresh followed by a commit.
+   */
+  @Computed({ async: true }) async total(): Promise<number> {
+    return this.shared.read();
+  }
+  @Computed({ async: true }) async viewers(): Promise<number> {
     const identity = { binding: guestOf(this.request).binding };
-    this.viewers = (await this.realtime.presence(identity, boardChannel)).total;
+    return (await this.realtime.presence(identity, boardChannel)).total;
   }
   @Action() async increment(): Promise<void> {
     this.clicks++;
@@ -251,17 +256,22 @@ class Pages {
   }
   /**
    * Acceptance-only (ACCEPTANCE_LOAD_TOOLS=1, otherwise 404): publish `count`
-   * (1-500) padded board events from this replica, for the slow-subscriber
-   * scenario. Each payload is about 15 KB, under the 16 KiB event limit.
+   * (1-500) padded board events numbered from `offset` from this replica,
+   * for the slow-subscriber scenario. Each payload is about 15 KB, under the
+   * 16 KiB event limit.
    */
   @Post('api/load/broadcast')
   @Header('Cache-Control', 'no-store')
-  async broadcast(@Query('count') count?: string) {
+  async broadcast(
+    @Query('count') count?: string,
+    @Query('offset') offset?: string,
+  ) {
     if (!loadTools) throw new NotFoundException();
     const total = Math.min(Math.max(Math.trunc(Number(count)) || 1, 1), 500);
+    const first = Math.min(Math.max(Math.trunc(Number(offset)) || 0, 0), 1e6);
     const pad = 'x'.repeat(15_000);
     for (let index = 0; index < total; index++) {
-      await this.realtime.publish(boardChannel, { load: index, pad });
+      await this.realtime.publish(boardChannel, { load: first + index, pad });
       // One event per event-loop turn, as events arrive from a broker socket:
       // a same-turn burst above 256 KiB would exceed every local transport bound.
       await new Promise((resolve) => setImmediate(resolve));

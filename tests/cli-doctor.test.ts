@@ -460,7 +460,7 @@ describe('doctor checks', { timeout: 180_000 }, () => {
       'inline-signing-secret',
     );
     process.env['REALTIME_SECRET'] = 'x'.repeat(40);
-    process.env['REDIS_URL'] = 'http://user:hunter2@cache:6379';
+    process.env['REDIS_URL'] = 'http://user:hunter2@cache:6379'; // trufflehog:ignore (fake credential the doctor must redact)
     const report = doctor(realtime());
     expect(report.byName('realtime-secret')).toMatchObject({
       status: 'pass',

@@ -80,6 +80,13 @@ for (const [file, validate] of [
       report.consumers?.some(
         (consumer) => consumer.manager === 'pnpm' && consumer.passed,
       ) &&
+      // `npx nestvexa init` from the packed bin (REL-004) and the
+      // out-of-tree adapter packages (MAINT-007).
+      ['init', 'third-party'].every((profile) =>
+        report.consumers?.some(
+          (consumer) => consumer.profile === profile && consumer.passed,
+        ),
+      ) &&
       report.packages?.length > 0 &&
       // One coordinated version, and a verified SBOM for every tarball.
       new Set(report.packages.map((entry) => entry.version)).size === 1 &&

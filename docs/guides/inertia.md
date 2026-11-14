@@ -78,6 +78,39 @@ first (page props win), `errors` is always first and always resolved.
 Partial headers are honoured only on `X-Inertia: true` requests; a full page
 load always receives every eligible prop.
 
+### Once-shared props (`shareOnce`)
+
+The reference adapter's `Inertia::shareOnce('countries', fn)` and middleware
+`shareOnce()` share a once prop with every page: resolved on the first visit,
+then skipped (never evaluated) while the official client lists it in
+`X-Inertia-Except-Once-Props`; the client keeps its copy.
+
+```ts
+InertiaModule.forRoot({
+  share: () => ({ appName: 'Acme' }),
+  // Every value is a callback (wrapped in once()) or a once() prop.
+  shareOnce: () => ({
+    countries: () => countries.list(),
+    plans: once(() => plans.list()).until(3600),
+  }),
+});
+
+// Request-scoped, from a guard, interceptor or middleware:
+inertia.shareOnce(request, 'permissions', () => permissionsFor(user), {
+  as: 'perms',
+  until: 60,
+});
+```
+
+Order, lowest to highest precedence: `share`, `shareOnce`, then the
+request-scoped `share()`/`shareOnce()` calls (as the reference middleware
+applies `shareOnce()` after `share()`); page props win over all of them.
+Options replace the reference adapter's chained `as()`/`until()`/`fresh()`.
+Evidence: `tests/inertia-share-once.test.ts` (Express and Fastify) and the
+`inertia-basic` browser test, where the official React client sends
+`X-Inertia-Except-Once-Props: regions` on the next visit and keeps showing the
+first value.
+
 ## Validation, errors and flash
 
 `errors` is shaped exactly like `Middleware::resolveValidationErrors` in the
@@ -94,6 +127,38 @@ app.useGlobalPipes(
   new ValidationPipe({ exceptionFactory: inertiaValidationExceptionFactory }),
 );
 ```
+
+## Error pages
+
+The reference adapter documents error pages as an exception handler that
+renders `ErrorPage` with `{ status }` for 500, 503, 404 and 403 outside the
+local environment. Set `errorPage` and `forRoot` registers
+`InertiaErrorPageFilter` (`forRootAsync` needs `errorPageFilter: true`):
+
+```ts
+InertiaModule.forRoot({
+  errorPage: {
+    component: 'ErrorPage', // props: { status, message }
+    statuses: [403, 404, 500, 503], // default
+    debug: process.env.NODE_ENV === 'development', // default
+  },
+});
+```
+
+| Request                                   | Response                                                              |
+| ----------------------------------------- | --------------------------------------------------------------------- |
+| Full visit (`Accept` has `text/html`)     | HTML document with the error page object, original status             |
+| Inertia visit (`X-Inertia: true`)         | JSON page, original status: the official client renders the component |
+| JSON API client, Precognition, other code | Nest's default handling, unchanged                                    |
+| `InertiaValidationException`              | `InertiaValidationFilter` (redirect back with errors)                 |
+
+With `debug: false` (production) `message` is the fixed status text and no
+exception message or stack is sent; `debug: true` adds the exception's own
+message and `exception: { name, message, stack }`. A failure while rendering
+the error page answers the status with a plain-text line. Evidence:
+`tests/inertia-error-page.test.ts` (Express and Fastify) and the
+`inertia-basic` browser test (404 document, 403 and 500 Inertia visits, no
+error modal, no exception text in the page).
 
 ## Precognition (live validation)
 
@@ -342,7 +407,7 @@ official SSR server launcher are covered in the [Vite](vite.md),
 
 Legend: **Server** = implemented and tested here; **Client** = owned by the
 official client (the server only needs the protocol pieces listed);
-**Not implemented** = known gap.
+**Not implemented** = known gap (none remain in this table).
 
 | Feature                                                                                                                                                 | Status                                     | Evidence / notes                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -379,8 +444,8 @@ official client (the server only needs the protocol pieces listed);
 | Automatic "empty response → back()"                                                                                                                     | Server                                     | `emptyResponse: 'back'` (default); `tests/inertia-testing.test.ts` (Express + Fastify): 302/303 back, `@Res`/`@HttpCode`/plain requests untouched, `passthrough`                                                                                                                                                                                                                                                                                                            |
 | Previous-URL storage                                                                                                                                    | Server                                     | `previousUrl` (default on with a session): GET non-prefetch 200 pages stored, `back()` falls back to it; tampered values ignored; `tests/inertia-testing.test.ts`                                                                                                                                                                                                                                                                                                           |
 | Inertia testing helpers                                                                                                                                 | Server                                     | `@nestvexa/inertia/testing` (`assertInertia`, `readInertiaPage`, `inertiaHeaders`); `tests/inertia-testing.test.ts`, `tests/browser/inertia-forms-uploads.ts`                                                                                                                                                                                                                                                                                                               |
-| `shareOnce()` sugar                                                                                                                                     | Not implemented                            | use `once()` in `share`                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Error-page rendering helper                                                                                                                             | Not implemented                            | write a Nest filter calling `InertiaService.render` (tested pattern)                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `shareOnce()` (module option and `InertiaService.shareOnce`)                                                                                            | Server + Client (verified)                 | `tests/inertia-share-once.test.ts`; `inertia-basic` browser test: except-once header sent, value kept                                                                                                                                                                                                                                                                                                                                                                       |
+| Error pages (`errorPage`, `InertiaErrorPageFilter`)                                                                                                     | Server                                     | `tests/inertia-error-page.test.ts`; `inertia-basic` browser test (403/404/500, production message only)                                                                                                                                                                                                                                                                                                                                                                     |
 
 ## Known deviations from the reference adapter
 

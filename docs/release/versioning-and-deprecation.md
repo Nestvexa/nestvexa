@@ -1,6 +1,6 @@
 # Versioning and deprecation policy
 
-Status: proposed for 1.0 (2026-11-06). It takes effect with the first `1.0.0`
+Status: proposed for 1.0 (2026-11-06; LTS/backport rules added 2026-11-14). It takes effect with the first `1.0.0`
 publication; until then every artifact is `0.1.0-alpha.*` and experimental (see
 [SECURITY.md](../../SECURITY.md)). It refines
 [ADR 0008](../adr/0008-compatibility-and-upgrades.md).
@@ -52,13 +52,41 @@ a deploy that changes component state schemas; they fail closed with
 
 1. Mark the API with `@deprecated` JSDoc naming the replacement and the
    earliest removal version, add a changeset and a migration-guide entry.
-2. Emit at most one runtime warning per process through the Nest logger (never
-   per request), and only where detection is cheap and certain.
+2. Emit at most one runtime warning per process (never per request), and only
+   where detection is cheap and certain, with `emitDeprecation` from
+   `@nestvexa/core` and a code from the table below (see
+   [runtime warnings](#runtime-deprecation-warnings)).
 3. Keep the deprecated API working for **at least one minor release and at
    least 90 days**, whichever is longer, before removal in the next major (the
    window set in [GOVERNANCE.md](../../GOVERNANCE.md#compatibility-and-deprecation)).
 4. Security exceptions: an API that cannot be made safe may be removed or
    disabled in a minor or patch with an advisory.
+
+### Runtime deprecation warnings
+
+`emitDeprecation(code, message)` (exported by `@nestvexa/core`) calls
+`process.emitWarning(message, { type: 'DeprecationWarning', code })` the first
+time a code is used in a process and does nothing afterwards. Because it is a
+standard Node `DeprecationWarning`, Node's switches apply:
+
+- `--no-deprecation` (or `NODE_OPTIONS=--no-deprecation`) silences it;
+- `--trace-deprecation` prints the stack of the call that triggered it;
+- `--throw-deprecation` throws it, which is useful in CI to find remaining callers;
+- `process.on('warning', ...)` receives it with `warning.code` set.
+
+Codes are stable: a code is never reused for another API, and a row stays in
+this table after the API is removed. Framework codes are `NVDEP` plus three
+digits. An extension uses its own prefix with the same shape, for example
+`ACMEDEP001`; anything else is rejected.
+
+| Code       | Deprecated API                            | Replacement                                                                                           | Since         | Earliest removal |
+| ---------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------- | ---------------- |
+| `NVDEP001` | `definePlugin()` (`@nestvexa/core`)       | `defineExtension()`, or `pluginExtension(plugin)` for an existing plugin                              | 0.1.0-alpha.0 | 1.0.0            |
+| `NVDEP002` | `new PluginRegistry()` (`@nestvexa/core`) | `CoreModule.forRoot(options, { extensions: [pluginExtension(plugin)] })` (or `registry.extensions()`) | 0.1.0-alpha.0 | 1.0.0            |
+
+`pluginExtension` and `registry.extensions()` are the migration path and do not
+warn on their own. `tests/core-deprecation.test.ts` checks the once-per-process
+behaviour, the Node switches and that this table lists every code.
 
 ## Support windows
 
@@ -67,6 +95,31 @@ a deploy that changes component state schemas; they fail closed with
 - Supported runtimes: maintained Node LTS lines (22 and 24 at 1.0), NestJS 12,
   TypeScript 6 and the browser versions in the tested matrix. Support for a line
   ends no earlier than its upstream end of life.
+
+## LTS lines and backports
+
+There is no long-term-support (LTS) line before 1.0, and none is promised
+for 1.0 itself. "LTS" in this document refers only to Node.js LTS lines. The
+support windows above are the whole commitment:
+
+- **Where fixes land.** Every fix lands on `main` first, with a test and a
+  changeset. A fix for an older line is a cherry-pick of that commit onto a
+  maintenance branch `release/<major>.x`. The branch is created from the last
+  tag of that major when the first backport is needed. A backport never
+  contains changes that are not on `main`.
+- **What is backported.** To the previous major, during its 6-month window:
+  security fixes (P0–P2) and fixes for data loss or cross-tenant exposure.
+  Nothing else. To the latest minor of the current major: every patch-level
+  fix. Features are never backported.
+- **How it ships.** The maintenance branch has its own changesets and its own
+  coordinated patch version of every package. It is published through the
+  same [release workflow](release-process.md) from a `v<major>.<minor>.<patch>`
+  tag. Because the dist-tag `latest` must stay on the current major, a
+  backport release passes `--tag v<major>-lts` instead. That flag must be
+  added to `scripts/release-publish.mjs` before the first backport release.
+- **Ending a line.** When a window ends, the last release of that line is
+  announced in the changelog and the security policy table, and
+  `npm deprecate` is not used for supported-but-old versions.
 
 ## Release cadence
 

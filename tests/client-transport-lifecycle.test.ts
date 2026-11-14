@@ -1497,6 +1497,42 @@ describe('bounded browser request lifecycle', () => {
     expect(
       await page.locator('#parent').getAttribute('data-nv-suspended'),
     ).toBeNull();
+    // Only the stale call was reported; the conflict is a normal recovery.
+    expect((await metrics()).errors.map((error) => error.code)).toEqual([
+      'HTTP',
+    ]);
+  });
+
+  it('keeps a call queued behind a refresh conflict and sends it before the commit', async () => {
+    await mount();
+    const task = await start();
+    await reply(0, staleHint);
+    expect(await result(task)).toEqual({ ok: false, code: 'HTTP' });
+    await expect.poll(async () => (await metrics()).requests.length).toBe(2);
+    // Queued while the refresh is in flight: no revision was refused for it.
+    const queued = await start('save');
+    await reply(1, conflictHint);
+    await expect.poll(async () => (await metrics()).requests.length).toBe(3);
+    const order = await page.evaluate(() =>
+      window.nvTransportSession.requests.slice(2).map((request) => ({
+        url: new URL(request.url, location.href).pathname,
+        header: request.headers.get('x-nestvexa-resync'),
+      })),
+    );
+    expect(order).toEqual([{ url: '/live/parent/save', header: null }]);
+    await reply(2, { revision: 1, state: { query: 'server', count: 1 } });
+    expect(await result(queued)).toEqual({ ok: true, code: null });
+    await expect.poll(async () => (await metrics()).requests.length).toBe(4);
+    expect(
+      await page.evaluate(() =>
+        window.nvTransportSession.requests[3]?.headers.get('x-nestvexa-resync'),
+      ),
+    ).toBe('commit');
+    await reply(3, { revision: 2, state: { query: 'server', count: 2 } });
+    expect(await page.locator('#parent-count').textContent()).toBe('2');
+    expect((await metrics()).errors.map((error) => error.code)).toEqual([
+      'HTTP',
+    ]);
   });
 
   it('suspends instead of looping when the commit is refused the same way', async () => {

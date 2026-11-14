@@ -1,0 +1,32 @@
+{
+  "throughput": {
+    "label": "Weekly throughput chart (Vue island)",
+    "loading": "Loading the chart…",
+    "title": "Completed tasks per week",
+    "caption": "{title} ({count, plural, one {# week} other {# weeks}})",
+    "range": "Chart range",
+    "all": "All weeks",
+    "recent": "Last 4 weeks"
+  },
+  "members": {
+    "label": "Tasks by member chart (React island)",
+    "loading": "Loading the member chart…",
+    "title": "Open and done tasks by member",
+    "category": "Member",
+    "open": "Open",
+    "done": "Done",
+    "type": "Chart type",
+    "bars": "Bars",
+    "lines": "Lines",
+    "focus": "Focus on {name}"
+  },
+  "pulse": {
+    "label": "Workspace pulse widget (Svelte island)",
+    "progress": "{done} of {total} tasks done",
+    "percent": "{percent, number, percent} of tasks done",
+    "showPercent": "Show percentage",
+    "showCounts": "Show counts",
+    "pick": "Pick a member in the chart to focus on them.",
+    "focus": "Focused on {name}: {open, plural, one {# open task} other {# open tasks}}."
+  }
+}

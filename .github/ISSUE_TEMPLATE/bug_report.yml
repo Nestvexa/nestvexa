@@ -32,3 +32,8 @@ body:
       label: Expected and actual behavior
     validations:
       required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Security, privacy or data impact
+      description: Could this expose data across users or tenants, or crash a server? If yes, stop and report privately per SECURITY.md.

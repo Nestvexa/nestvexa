@@ -180,7 +180,11 @@ versions are in [upstream compatibility](upstream-compatibility.md).
 The rest of the script covers browser/server separation and
 package-specific import rules; read it for the full list. Packed-consumer tests
 ([scripts/pack.mjs](../../scripts/pack.mjs)) prove the graph installs from tarballs
-without workspace links.
+without workspace links. [tests/umbrella-dependencies.test.ts](../../tests/umbrella-dependencies.test.ts)
+holds the umbrella's production closure to an allowlist of nine third-party packages
+(Alpine's CSP build and Handlebars with their dependencies), denies SPA frameworks,
+bundlers, S3 and Redis clients and ORMs outright, and caps the installed size
+(8 MiB third-party, 12 MiB with the Nestvexa packages).
 
 ## Output format
 

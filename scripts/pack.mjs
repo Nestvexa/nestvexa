@@ -13,6 +13,8 @@ import { performance } from 'node:perf_hooks';
 import { resolve, join, relative } from 'node:path';
 import { tmpdir } from 'node:os';
 import { sbomContext, writeSbom } from './sbom.mjs';
+import { scanText } from './secrets.mjs';
+import { initConsumer, thirdPartyConsumer } from './pack-consumers.mjs';
 
 const pnpm = process.env.npm_execpath;
 if (!pnpm)
@@ -119,6 +121,29 @@ async function packPackages() {
           !contents.includes('package/' + file.replace(/^\.\//, ''))
         )
           throw new Error(tarball + ' missing ' + key + ' file ' + file);
+    // Every `bin` target must be packed (the `nestvexa` and CLI binaries).
+    const bins =
+      typeof manifest.bin === 'string'
+        ? [manifest.bin]
+        : Object.values(manifest.bin ?? {});
+    for (const target of bins)
+      if (!contents.includes('package/' + target.replace(/^\.\//, '')))
+        throw new Error(tarball + ' missing bin ' + target);
+    // No credential-shaped text in any packed file (same rules as
+    // `pnpm secrets:scan`); findings name the file and line, never the value.
+    for (const entry of contents) {
+      const buffer = await readFile(join(cwd, entry.slice('package/'.length)));
+      if (buffer.includes(0)) continue;
+      const findings = scanText(buffer.toString('utf8'));
+      if (findings.length)
+        throw new Error(
+          tarball +
+            ' contains credential-shaped content: ' +
+            findings
+              .map((finding) => entry + ':' + finding.line + ' ' + finding.rule)
+              .join(', '),
+        );
+    }
     if (
       /^package\/(?:src|tests|node_modules)\/|(?:^|\/)\.env(?:\.|$)/m.test(
         archive.stdout,
@@ -367,17 +392,67 @@ async function consume(manager, profile) {
   console.log(manager + ' ' + profile + ': ' + smoke.stdout.trim());
 }
 
+/**
+ * Every external consumer, in run order. NESTVEXA_PACK_PROFILES (comma
+ * separated, for example `npm:init,npm:third-party`) runs a subset locally.
+ */
+const consumerProfiles = [
+  'pnpm:full',
+  'pnpm:minimal',
+  'npm:full',
+  'npm:minimal',
+  'npm:init',
+  'npm:third-party',
+];
+const selected = process.env.NESTVEXA_PACK_PROFILES
+  ? process.env.NESTVEXA_PACK_PROFILES.split(',').map((item) => item.trim())
+  : consumerProfiles;
+for (const item of selected)
+  if (!consumerProfiles.includes(item))
+    throw new Error(
+      'Unknown NESTVEXA_PACK_PROFILES entry ' +
+        item +
+        '; use ' +
+        consumerProfiles.join(', '),
+    );
+report.profiles = selected;
+
+/** The init (REL-004) and third-party (MAINT-007) consumers, npm only. */
+async function consumeExtra(profile) {
+  const entry = { manager: 'npm', profile, passed: false, commands: [] };
+  report.consumers.push(entry);
+  const localPackages = Object.fromEntries(
+    report.packages.map((p) => [
+      p.name,
+      'file:' + p.tarball.replaceAll('\\', '/'),
+    ]),
+  );
+  const run = profile === 'init' ? initConsumer : thirdPartyConsumer;
+  const summary = await run({ root, command, localPackages, entry });
+  console.log('npm ' + profile + ': ' + summary);
+}
+
 await mkdir('artifacts/reports', { recursive: true });
 try {
   await packPackages();
   await writeSboms();
-  for (const manager of ['pnpm', 'npm'])
-    for (const profile of ['full', 'minimal']) await consume(manager, profile);
-  report.passed = true;
+  for (const consumer of selected) {
+    const [manager, profile] = consumer.split(':');
+    if (profile === 'full' || profile === 'minimal')
+      await consume(manager, profile);
+    else await consumeExtra(profile);
+  }
+  // A partial run (NESTVEXA_PACK_PROFILES) is never release evidence.
+  report.passed = selected.length === consumerProfiles.length;
   console.log(
     'Inspected ' +
       report.packages.length +
-      ' tarballs; npm/pnpm full MVC/Live and minimal umbrella-only default setup consumers passed.',
+      ' tarballs; ' +
+      (report.passed
+        ? 'npm/pnpm full MVC/Live and minimal umbrella-only default setup, npx nestvexa init and third-party adapter consumers passed.'
+        : 'partial run of ' +
+          selected.join(', ') +
+          ' passed (pack.json is marked not passed).'),
   );
 } catch (error) {
   report.error =

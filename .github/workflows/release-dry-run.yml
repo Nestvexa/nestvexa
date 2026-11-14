@@ -1,0 +1,50 @@
+# Release dry run. Applies the pending Changesets in a throwaway clone of the
+# checked-out commit, verifies the coordinated version and changelogs, drafts
+# release and migration notes, builds and packs the versioned tarballs with
+# SBOMs (`pnpm test:pack`) and runs `npm publish --dry-run --provenance` on
+# each one through scripts/release-publish.mjs. npm never uploads in dry-run
+# mode.
+#
+# This workflow cannot publish: it has no `id-token: write` permission (so no
+# OIDC credential for npm trusted publishing exists), no npm token, no
+# protected environment, and the clone has no git remote. Publishing happens
+# only in release.yml after owner approval.
+name: Release dry run
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '41 4 * * 1'
+permissions:
+  contents: read
+concurrency:
+  group: release-dry-run
+  cancel-in-progress: true
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # A full clone: the dry run clones this checkout locally.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      # release-publish.mjs requires npm >= 11.5.1 (trusted publishing).
+      - run: npm install --global npm@11.21.2
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm release:prepare
+      - run: pnpm release:dry-run --pack
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-dry-run
+          path: artifacts/release/
+          if-no-files-found: error
+          retention-days: 14

@@ -4,7 +4,8 @@
 //
 // Verification (fails the build): Markdown structure, internal links and
 // heading anchors, snippet provenance, CLI command coverage, dependency graph
-// and feature matrix drift. Output: a static site in artifacts/docs with the
+// and feature matrix drift, and every examples/* workspace listed in the root
+// README's "Runnable examples". Output: a static site in artifacts/docs with the
 // generated API reference under api/.
 import { execFileSync } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
@@ -301,6 +302,42 @@ for (const file of [
       !document.markdown.includes(`\`${manifest.name}\``)
     )
       problem(file, `does not mention package ${manifest.name}`);
+}
+
+// Root README "Runnable examples": every workspace example (examples/<name>
+// with a package.json) is listed by its package name, so the start command
+// list cannot silently fall behind the examples directory.
+if (existsSync(join(root, 'examples'))) {
+  const readmeFile = 'README.md';
+  const readme = existsSync(join(root, readmeFile))
+    ? await readFile(join(root, readmeFile), 'utf8')
+    : '';
+  const section =
+    /^## Runnable examples[ \t]*$([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(
+      readme,
+    )?.[1];
+  const exampleDirs = (await readdir(join(root, 'examples')))
+    .filter((directory) =>
+      existsSync(join(root, 'examples', directory, 'package.json')),
+    )
+    .sort();
+  if (section === undefined) {
+    if (exampleDirs.length > 0)
+      problem(readmeFile, 'has no "## Runnable examples" section');
+  } else
+    for (const directory of exampleDirs) {
+      const { name } = JSON.parse(
+        await readFile(
+          join(root, 'examples', directory, 'package.json'),
+          'utf8',
+        ),
+      );
+      if (typeof name !== 'string' || !section.includes(name))
+        problem(
+          readmeFile,
+          `"Runnable examples" does not list examples/${directory} (${String(name)})`,
+        );
+    }
 }
 
 // CLI reference: every documented command is known to the built CLI.

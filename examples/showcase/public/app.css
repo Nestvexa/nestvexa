@@ -1,5 +1,13 @@
 /* Showcase styles: system fonts, WCAG AA contrast, visible focus, no inline styles. */
+/* The @nestvexa/ui theme (ui.css, loaded first) follows this light palette. */
 :root {
+  color-scheme: light;
+  --nv-bg: #fff;
+  --nv-text: #1b1b1f;
+  --nv-muted: #45464d;
+  --nv-border: #8a94a3;
+  --nv-chart-1: #1d4ed8;
+  --nv-chart-2: #b45309;
   --ink: #1b1b1f;
   --muted: #45464d;
   --accent: #1d4ed8;
@@ -26,10 +34,10 @@ a {
 }
 .skip {
   position: absolute;
-  left: -999px;
+  inset-inline-start: -999px;
 }
 .skip:focus {
-  left: 1rem;
+  inset-inline-start: 1rem;
   top: 0.5rem;
   background: #fff;
   padding: 0.25rem 0.5rem;
@@ -255,4 +263,55 @@ label.inline {
 }
 [nv\:cloak] {
   display: none;
+}
+
+/* Language switch, connection banner and island widgets (logical properties: RTL mirrors). */
+.locale-switch fieldset {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.locale-switch legend {
+  float: inline-start;
+  margin-inline-end: 0.5rem;
+}
+.locale-switch [aria-pressed='true'] {
+  font-weight: 700;
+}
+.connection {
+  margin-block: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--accent);
+  border-inline-start-width: 0.4rem;
+  background: var(--card);
+}
+.connection[data-state='lost'] {
+  border-color: var(--danger);
+}
+/* A suspended Live component (its last action may not have run): marked, not dimmed (contrast). */
+[data-nv-suspended] {
+  outline: 2px dashed var(--danger);
+  outline-offset: 4px;
+}
+.loading {
+  margin-inline-start: 0.5rem;
+  color: var(--muted);
+}
+.focus-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+}
+.focus-list [aria-pressed='true'],
+.island-chart [aria-pressed='true'],
+.pulse [aria-pressed='true'] {
+  font-weight: 700;
+}
+.pulse progress {
+  inline-size: 100%;
 }

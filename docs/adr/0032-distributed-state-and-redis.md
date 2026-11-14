@@ -177,3 +177,19 @@ reconnect with replay. Events that arrive from Redis are spread over socket
 reads and do not trigger it. The acceptance load route yields between
 publishes for this reason. A drain-aware bound (close only when the buffer
 stays above the limit after a grace period) is the recorded follow-up.
+
+_Correction (round 6):_ the first version of both slow-subscriber tests
+asserted that the stalled client received less than half of a fixed 4.5 MB.
+On Linux CI it received 3.2–3.8 MB: what a stalled socket absorbs before the
+replica sees backpressure is the 256 KiB stream bound **plus the kernel send
+and receive buffers**, and Linux autotunes loopback TCP buffers to several MiB
+(`net.ipv4.tcp_rmem`/`tcp_wmem` maxima), far more than Windows. A byte count
+is therefore not the guarantee. The tests now publish in batches until the
+replica disconnects the stalled subscriber, under a cap (60 MB in vitest,
+45 MB in the services suite) an order of magnitude above any kernel
+buffering, and assert what holds on every host: the disconnect happens
+(buffering is bounded), the reason is `slow-consumer`, nothing published after
+it reaches the stalled client, what it did receive is in order, and the
+healthy subscriber receives every event in order throughout. Per-connection
+memory on the server stays bounded by the 256 KiB check regardless of kernel
+buffer sizes.

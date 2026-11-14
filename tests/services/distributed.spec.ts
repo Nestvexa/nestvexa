@@ -300,7 +300,21 @@ test('browsers reconnect after the load balancer drops them, without duplicates 
   const start = await total(onA.page);
   // Both pages refresh on the event. Let those refreshes finish first: a drop
   // that cuts a committed `$sync` lets the browser resend it on a new
-  // connection, which the server refuses as a stale revision.
+  // connection, which the server refuses as a stale revision. The board reads
+  // the shared total through an async computed value, so every refresh is
+  // read-only: marked `x-nestvexa-resync: 1`, answered 201 (never
+  // `409 REFRESH_CONFLICT`), and the revision does not move.
+  const board = onA.page.locator('[data-nv-name="replica-board"]');
+  const revisionA = Number(await board.getAttribute('data-nv-revision'));
+  const refreshes: { status: number; resync: string | undefined }[] = [];
+  for (const page of [onA.page, onD.page])
+    page.on('response', (response) => {
+      if (response.url().includes('/_nestvexa/live/replica-board/_sync'))
+        refreshes.push({
+          status: response.status(),
+          resync: response.request().headers()['x-nestvexa-resync'],
+        });
+    });
   const synced = [onA.page, onD.page].map((page) =>
     page.waitForResponse((response) =>
       response.url().includes('/_nestvexa/live/replica-board/_sync'),
@@ -308,8 +322,17 @@ test('browsers reconnect after the load balancer drops them, without duplicates 
   );
   await increment(onD.page);
   await expect(onA.page.locator('#total')).toHaveText(String(start + 1));
-  for (const response of await Promise.all(synced))
-    expect(response.status()).toBe(201);
+  const [refreshA] = await Promise.all(synced);
+  expect(await refreshA?.json()).toMatchObject({
+    component: { revision: revisionA },
+  });
+  await expect(board).toHaveAttribute('data-nv-revision', String(revisionA));
+  expect(refreshes.length).toBeGreaterThanOrEqual(2);
+  for (const refresh of refreshes)
+    expect(refresh, JSON.stringify(refresh)).toEqual({
+      status: 201,
+      resync: '1',
+    });
   // Every open connection is cut, like a load balancer restart.
   const reconnectedStream = sseOpened(onA.page);
   const reconnectedSocket = websocketReady(onD.page);
@@ -545,23 +568,40 @@ test('a stalled subscriber is disconnected by its replica without slowing other 
   );
   await expect.poll(() => connections('c', healthy.page)).toBe(2);
   const before = (await events()).length;
-  // Express replica a publishes ~4.5 MB through Redis.
-  const count = 300;
-  const published = await healthy.page.request.post(
-    `${direct.a}/api/load/broadcast?count=${count}`,
-  );
-  expect(await published.json()).toMatchObject({ published: count });
-  // The healthy browser receives every event and stays connected…
-  await expect
-    .poll(async () => (await events()).length - before, { timeout: 120_000 })
-    .toBeGreaterThanOrEqual(count);
-  // …while replica c dropped the stalled subscriber instead of buffering.
-  await expect
-    .poll(() => connections('c', healthy.page), { timeout: 60_000 })
-    .toBe(1);
+  // Express replica a publishes through Redis in batches of 100 × 15 KB until
+  // replica c drops the stalled subscriber. How much a stalled socket absorbs
+  // first is the 256 KiB transport bound plus kernel send/receive buffers,
+  // which differ by OS (several MiB with Linux autotuning), so the test does
+  // not fix a byte count. The cap (3,000 events, 45 MB) proves the bound: an
+  // unbounded replica would never disconnect it.
+  const cap = 3000;
+  let published = 0;
+  const batch = async () => {
+    const response = await healthy.page.request.post(
+      `${direct.a}/api/load/broadcast?count=100&offset=${published}`,
+    );
+    expect(await response.json()).toMatchObject({ published: 100 });
+    published += 100;
+    // The healthy browser keeps up batch by batch and stays connected.
+    await expect
+      .poll(async () => (await events()).length - before, { timeout: 60_000 })
+      .toBe(published);
+  };
+  while ((await connections('c', healthy.page)) === 2 && published < cap)
+    await batch();
+  expect(await connections('c', healthy.page)).toBe(1);
+  expect(published).toBeLessThan(cap);
+  const atDisconnect = published;
+  // Later events reach only the healthy browser.
+  await batch();
   const drained = await stalled.drain();
   expect(drained.text).toContain('"reason":"slow-consumer"');
-  expect(drained.bytes).toBeLessThan((count * 15_000) / 2);
+  const indexes = [...drained.text.matchAll(/"load":(\d+)/g)].map((match) =>
+    Number(match[1]),
+  );
+  expect(indexes.length).toBeLessThanOrEqual(atDisconnect);
+  expect(Math.max(-1, ...indexes)).toBeLessThan(atDisconnect);
+  expect(indexes).toEqual(indexes.map((_, at) => at));
   stalled.close();
   // Live keeps working for the healthy browser.
   const start = await total(healthy.page);

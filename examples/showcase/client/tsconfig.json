@@ -4,11 +4,12 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["vite/client", "node"],
+    "types": ["vite/client", "node", "svelte"],
+    "jsx": "react-jsx",
     "noEmit": true,
     "declaration": false,
     "declarationMap": false,
     "sourceMap": false
   },
-  "include": ["**/*.ts", "**/*.vue", "../vite.config.ts"]
+  "include": ["**/*.ts", "**/*.tsx", "**/*.vue", "../vite.config.ts"]
 }

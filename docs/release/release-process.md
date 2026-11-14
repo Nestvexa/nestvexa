@@ -3,7 +3,7 @@
 Nothing in this repository publishes automatically. Publication, tags and
 pushes need explicit owner authorization ([GOVERNANCE.md](../../GOVERNANCE.md)).
 Policy: [versioning and deprecation](versioning-and-deprecation.md). Evidence:
-[formats](evidence-formats.md).
+[formats](evidence-formats.md). Step list: [release checklist](release-checklist.md).
 
 ## One-time owner setup
 
@@ -36,6 +36,48 @@ version across public packages, the Changesets fixed group, and that the
 pending changesets produce exactly one next version (the target if given). It
 writes `artifacts/reports/release-plan.json` and never versions or publishes.
 The coordinated 1.0 major changeset is deliberately **not** committed yet.
+
+### Dry run and notes
+
+```sh
+pnpm release:dry-run          # changeset version in a temp clone + checks + notes
+pnpm release:dry-run --pack   # also install/build/test:pack and npm publish --dry-run --provenance
+pnpm release:notes --from 0.1.0-alpha.0 --to 0.1.0   # notes only
+```
+
+[`release-dry-run.mjs`](../../scripts/release-dry-run.mjs) clones `HEAD` into a
+temporary directory, removes the clone's `origin` remote (so nothing done in
+the clone can be pushed), runs `changeset version` there and checks:
+
+- every public package moved to one new version;
+- each package has a `CHANGELOG.md` entry for that version;
+- private examples kept their versions;
+- every changeset was consumed.
+
+With `--pack`, it installs, builds and runs `pnpm test:pack` in the clone, then
+runs [`release-publish.mjs`](../../scripts/release-publish.mjs) `--dry-run` on
+those tarballs. That is `npm publish <tarball> --provenance --access public
+--dry-run` in dependency order. npm uploads nothing in dry-run mode and needs no
+credential. The report goes to `artifacts/release/dry-run.json`, with the clone's
+`pack.json` and SBOMs next to it.
+
+The **Release dry run** workflow
+([release-dry-run.yml](../../.github/workflows/release-dry-run.yml)) runs the
+same thing weekly and on demand. It has no `id-token` permission, no
+environment and no secrets, so it cannot publish.
+
+[`release-notes.mjs`](../../scripts/release-notes.mjs) drafts
+`release-notes.md` (security first, then breaking changes, features and fixes)
+and `migration-notes.md` from the pending changesets. The migration draft has
+tables for breaking, security-relevant, deprecation and changed-default
+entries, each with _TO FILL_ action and test cells. These rows are selected
+mechanically from the changeset text, so a maintainer must complete them in
+`docs/release/migration-<major>.0.md`.
+
+> **Prerelease note:** without Changesets pre mode, the pending changesets
+> version `0.1.0-alpha.0` to `0.1.0`. This was observed in the 2026-11-14 dry
+> run. Run `pnpm changeset pre enter alpha` first if the next release should
+> be `0.1.0-alpha.1`.
 
 Then, on a clean branch:
 

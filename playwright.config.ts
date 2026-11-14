@@ -15,8 +15,17 @@ export default defineConfig({
   use: { baseURL: 'http://127.0.0.1:3100', trace: 'retain-on-failure' },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+    // `*.chromium.spec.ts` files use Chromium-only APIs (DevTools protocol).
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+      testIgnore: /\.chromium\.spec\.ts$/,
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+      testIgnore: /\.chromium\.spec\.ts$/,
+    },
   ],
   webServer: [
     {

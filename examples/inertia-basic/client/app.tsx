@@ -15,15 +15,25 @@ interface User {
 }
 
 function Layout({ children }: { readonly children: ReactNode }) {
-  const page = usePage<{ appName: string }>();
+  const page = usePage<{
+    appName: string;
+    regions?: { readonly names: readonly string[]; readonly load: number };
+  }>();
+  const regions = page.props.regions;
   const success = page.flash['success'];
   return (
     <main>
       <nav aria-label="Main">
         <Link href="/">Home</Link> <Link href="/users">Users</Link>{' '}
-        <Link href="/users/create">New user</Link>
+        <Link href="/users/create">New user</Link>{' '}
+        <Link href="/admin">Admin</Link> <Link href="/broken">Broken</Link>
       </nav>
       <p data-testid="app-name">{page.props.appName}</p>
+      {regions ? (
+        <p data-testid="regions">
+          Regions: {regions.names.join(', ')} (load {regions.load})
+        </p>
+      ) : null}
       {typeof success === 'string' ? (
         <p role="status" data-testid="flash">
           {success}
@@ -109,8 +119,24 @@ function UsersCreate() {
   );
 }
 
+function ErrorPage({
+  status,
+  message,
+}: {
+  readonly status: number;
+  readonly message: string;
+}) {
+  return (
+    <Layout>
+      <h1>Error {status}</h1>
+      <p data-testid="error-message">{message}</p>
+    </Layout>
+  );
+}
+
 const pages = {
   Home,
+  ErrorPage,
   'Users/Index': UsersIndex,
   'Users/Create': UsersCreate,
 } as const;

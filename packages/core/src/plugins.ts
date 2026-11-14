@@ -1,3 +1,4 @@
+import { deprecated } from './deprecation.js';
 import { NestvexaError } from './errors.js';
 import { defineExtension } from './extensions.js';
 import type { NestvexaExtension } from './extensions.js';
@@ -118,8 +119,19 @@ export function parsePluginManifest(input: unknown): NestvexaPluginManifest {
   });
 }
 
-/** Validate and freeze a plugin definition. @deprecated Use `defineExtension`. */
+/**
+ * Validate and freeze a plugin definition. Emits the `NVDEP001` deprecation
+ * warning once per process.
+ *
+ * @deprecated Use `defineExtension`, or `pluginExtension(plugin)` for an
+ * existing plugin.
+ */
 export function definePlugin(plugin: NestvexaPlugin): NestvexaPlugin {
+  deprecated('NVDEP001');
+  return validatePlugin(plugin);
+}
+/** `definePlugin` without the warning: the adapters below are the migration path. */
+function validatePlugin(plugin: NestvexaPlugin): NestvexaPlugin {
   if (plugin === null || typeof plugin !== 'object')
     throw new NestvexaError(
       'INVALID_CONFIGURATION',
@@ -186,7 +198,7 @@ export function pluginExtension(
   plugin: NestvexaPlugin,
   options: { readonly name?: string } = {},
 ): NestvexaExtension {
-  const defined = definePlugin(plugin);
+  const defined = validatePlugin(plugin);
   return convert(defined, options.name, true);
 }
 function convert(
@@ -224,13 +236,15 @@ function convert(
  * @deprecated Kept for existing callers as an adapter over the extension
  * model: pass `registry.extensions()` (or `pluginExtension(plugin)` for each
  * plugin) to `CoreModule.forRoot(options, { extensions })` so plugins join
- * the capability, security and diagnostics registries.
+ * the capability, security and diagnostics registries. Constructing one
+ * emits the `NVDEP002` deprecation warning once per process.
  */
 export class PluginRegistry {
   readonly #plugins = new Map<string, NestvexaPlugin>();
   readonly #frameworkVersion: string;
   #sealed = false;
   constructor(options: { readonly frameworkVersion?: string } = {}) {
+    deprecated('NVDEP002');
     const frameworkVersion = options.frameworkVersion ?? NESTVEXA_VERSION;
     if (!isSemanticVersion(frameworkVersion))
       throw new NestvexaError(
@@ -248,7 +262,7 @@ export class PluginRegistry {
         'INVALID_CONFIGURATION',
         'Install a plugin object you imported explicitly',
       );
-    const plugin = definePlugin(input);
+    const plugin = validatePlugin(input);
     const { name, nestvexa } = plugin.manifest;
     if (this.#plugins.has(name))
       throw new NestvexaError(
