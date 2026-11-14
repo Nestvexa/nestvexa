@@ -20,3 +20,4 @@ examples/inertia-react/client/generated/
 examples/inertia-vue/client/generated/
 examples/inertia-svelte/client/generated/
 .stryker-tmp/
+.vitest-reports/

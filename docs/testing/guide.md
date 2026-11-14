@@ -175,7 +175,8 @@ repository follows.
 | `pnpm test:security`    | The negative and attack-oriented files (overlaps with the groups above)                            |
 | `pnpm test:e2e`         | Playwright in Chromium, Firefox and WebKit against the started examples                            |
 | `pnpm test:pack`        | Packs every package and installs the tarballs into external npm/pnpm consumers                     |
-| `pnpm test:coverage`    | Vitest with the thresholds in [coverage gates](coverage.md)                                        |
+| `pnpm test:coverage`    | Every Vitest file against the sources, with the thresholds in [coverage gates](coverage.md)        |
+| `pnpm flaky:check`      | Fails when a Playwright test only passed on a retry ([flaky tests](flaky-tests.md))                |
 | `pnpm test:services`    | Real Redis, S3-compatible storage and ClamAV in Docker ([guide](../guides/production-services.md)) |
 
 Integration tests import built `dist` output, so run `pnpm build` first. Manual

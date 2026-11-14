@@ -24,11 +24,24 @@ jobs:
       - run: pnpm format:check
       - run: pnpm typecheck
       - run: pnpm lint
+      # Public API reports (api-reports/, docs/contributing/api-reports.md).
+      - run: pnpm api:check
       - run: pnpm exec playwright install --with-deps chromium firefox webkit
-      - run: pnpm test
-      - run: pnpm test:coverage
+      # One leg runs every Vitest suite under the project-wide coverage gate
+      # (against packages/*/src); the other three run the same suites against
+      # the built dist output. See docs/testing/coverage.md.
+      - if: ${{ !(matrix.os == 'ubuntu-latest' && matrix.node == 24) }}
+        run: pnpm test
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.node == 24 }}
+        run: pnpm test:coverage
       - run: pnpm size:check
       - run: pnpm test:e2e
+      # Flakes (passed only on a retry) are listed as warnings and in the job
+      # summary here; nightly and release runs fail on them
+      # (docs/testing/flaky-tests.md).
+      - name: Flaky browser tests (report)
+        if: ${{ !cancelled() }}
+        run: node scripts/flaky-check.mjs --mode=report
       - run: pnpm test:pack
       - run: pnpm docs:build
       - uses: actions/upload-artifact@v4
