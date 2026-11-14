@@ -215,7 +215,10 @@ async function formatFiles(files) {
   for (const file of files) {
     const path = join(out, file);
     const options = { ...(await prettier.resolveConfig(path)), filepath: path };
-    writeFileSync(path, await prettier.format(readFileSync(path, 'utf8'), options));
+    writeFileSync(
+      path,
+      await prettier.format(readFileSync(path, 'utf8'), options),
+    );
   }
 }
 await formatFiles([
@@ -329,7 +332,9 @@ await formatFiles([
 // Everything else was formatted by the CLI itself; refuse drift instead of hiding it.
 const unformatted = [];
 const walk = async (directory) => {
-  for (const entry of readdirSync(join(out, directory), { withFileTypes: true })) {
+  for (const entry of readdirSync(join(out, directory), {
+    withFileTypes: true,
+  })) {
     const path = directory ? `${directory}/${entry.name}` : entry.name;
     if (keep.has(entry.name) || entry.name === '.nestvexa') continue;
     if (entry.isDirectory()) await walk(path);
@@ -337,7 +342,10 @@ const walk = async (directory) => {
       const absolute = join(out, path);
       const info = await prettier.getFileInfo(absolute);
       if (!info.inferredParser) continue;
-      const options = { ...(await prettier.resolveConfig(absolute)), filepath: absolute };
+      const options = {
+        ...(await prettier.resolveConfig(absolute)),
+        filepath: absolute,
+      };
       if (!(await prettier.check(readFileSync(absolute, 'utf8'), options)))
         unformatted.push(path);
     }
