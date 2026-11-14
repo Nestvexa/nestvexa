@@ -148,6 +148,16 @@ realtime on SSE/polling. Guide: `docs/guides/coexistence.md`, note in
 
 ## Commands run (Windows, Node 24, heavily loaded shared host)
 
+Final state after merging `main` at `928b2f1` (one test file at a time):
+`pnpm install --frozen-lockfile` pass (after regenerating the browser-lab
+importer entry, commit `575ec98`); all packages build; `pnpm size:check` pass
+(core 39,211 of 45,056; total 54,463 of 61,440); `pnpm lint` and
+`tsc -p tsconfig.tests.json` pass; `pnpm format:check` pass;
+`tests/client-sort.test.ts` 74/74; the sort rows of
+`tests/client-directive-combinations.test.ts` (Chromium) 7/7.
+
+Earlier runs in this round:
+
 - `pnpm --filter @nestvexa/client build` + `pnpm size:check`: pass after the
   merge (core 38,759; sort 5,415; stream 3,497; upload 4,053; realtime 2,287
   after main's transport negotiation; total 54,011 of 61,440).
