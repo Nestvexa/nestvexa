@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { axe } from './axe.js';
 import { expect, test } from '@playwright/test';
 import type { Browser, Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
@@ -261,7 +261,7 @@ test('accessibility: viewer and operator dashboards pass automated checks', asyn
 }) => {
   for (const role of ['viewer', 'operator'] as const) {
     const { page } = await open(browser, role);
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect((await axe(page).analyze()).violations).toEqual([]);
     await page.context().close();
   }
 });

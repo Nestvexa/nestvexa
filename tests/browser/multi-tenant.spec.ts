@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { axe } from './axe.js';
 import { expect, test } from '@playwright/test';
 import type { Browser, Locator, Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
@@ -274,19 +274,13 @@ test('accessibility: public, sign-in and member pages pass automated checks', as
   const guest = await context.newPage();
   for (const path of ['/', '/t/globex', '/login']) {
     await guest.goto(base + path);
-    expect(
-      (await new AxeBuilder({ page: guest }).analyze()).violations,
-    ).toEqual([]);
+    expect((await axe(guest).analyze()).violations).toEqual([]);
   }
   await context.close();
   const max = await signIn(browser, 'max@acme.test');
   await openBoard(max, 'acme');
-  expect((await new AxeBuilder({ page: max }).analyze()).violations).toEqual(
-    [],
-  );
+  expect((await axe(max).analyze()).violations).toEqual([]);
   await max.goto(base + '/t/globex/projects');
-  expect((await new AxeBuilder({ page: max }).analyze()).violations).toEqual(
-    [],
-  );
+  expect((await axe(max).analyze()).violations).toEqual([]);
   await max.context().close();
 });

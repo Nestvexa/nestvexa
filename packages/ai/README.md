@@ -220,6 +220,18 @@ once. Stop calls `client.cancelStream(target)`. `dispose()` removes listeners an
 cancels in-flight streams. The module is CSP-safe (no eval, no inline code, no
 HTML parsing) and safe to import in Node.
 
+## Provider outages
+
+Each turn is bounded by `timeoutMs` (default 20000) and each tool call by
+`toolTimeoutMs` (default 10000). The provider also has a circuit breaker
+(`circuitBreaker`, default 5 consecutive provider errors or turn timeouts,
+then a 10 second cooldown). While it is open, a turn fails at once with the
+audit event `turn.failed` and detail `UNAVAILABLE`, and the provider is not
+called. After the cooldown, one probe turn decides whether the circuit closes.
+Cancelled turns, and model output that the server refuses, never count.
+`assistant.circuit` reports the state. See
+[timeouts and circuit breakers](../../docs/guides/resilience.md).
+
 ## Security
 
 - **Human approval is mandatory and server-enforced.** There is no auto-approve

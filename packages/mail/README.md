@@ -123,6 +123,19 @@ and a closed error code only (no addresses or content); a throwing hook is ignor
 `allowProduction: true` is passed, because silently swallowing mail or logging
 reset links in production is a defect.
 
+## Timeouts and outages
+
+`sendTimeoutMs` (default 30000) bounds every transport call. A send that times
+out fails with `TRANSPORT_FAILED`, and the `onDelivery` event reports
+`TRANSPORT_TIMEOUT`. Transports cannot be cancelled, so the message may still
+be delivered later: do not retry blindly. A circuit breaker (`circuitBreaker`,
+default 5 consecutive failures, then a 10 second cooldown) makes sends fail at
+once while the transport is down. The error is still `TRANSPORT_FAILED`, the
+event reports `CIRCUIT_OPEN` and the transport is not called. After the
+cooldown, one probe send decides whether the circuit closes. `mailer.circuit`
+reports the state. See
+[timeouts and circuit breakers](../../docs/guides/resilience.md).
+
 ## Message validation
 
 `normalizeMailMessage` (run by `Mailer` for every send) enforces:

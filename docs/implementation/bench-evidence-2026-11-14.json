@@ -1,0 +1,274 @@
+{
+  "timestamp": "2026-11-14T12:44:42.201Z",
+  "node": "v24.13.0",
+  "platform": "win32 10.0.26200",
+  "cpu": "11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz",
+  "cpuCount": 8,
+  "totalMemoryBytes": 16856080384,
+  "freeMemoryBytesAtStart": 541741056,
+  "settings": {
+    "duration": 10,
+    "connections": 10,
+    "port": 4210,
+    "scenarios": [
+      "hbs-adapter",
+      "cold-render",
+      "ssr-throughput",
+      "noop-action",
+      "bytes",
+      "components",
+      "dom-patch"
+    ]
+  },
+  "note": "Host-specific measurements for comparing runs and targets; not performance promises.",
+  "scenarios": {
+    "hbs-adapter": {
+      "scope": "cached HbsEngine render of examples/starter-hbs home, in process",
+      "milliseconds": {
+        "samples": 1000,
+        "p50": 1.35,
+        "p95": 11.29,
+        "p99": 21.02
+      }
+    },
+    "cold-render": {
+      "scope": "process start until listening, the first request after boot (templates not yet compiled) and 200 sequential warm requests of the 50-row page",
+      "nestvexa-hbs": {
+        "bootMs": 19174.76,
+        "firstRequestMs": 130.68,
+        "warmMs": {
+          "samples": 200,
+          "p50": 7.27,
+          "p95": 10.91,
+          "p99": 22.32
+        }
+      },
+      "plain-hbs": {
+        "bootMs": 10984.16,
+        "firstRequestMs": 59.66,
+        "warmMs": {
+          "samples": 200,
+          "p50": 1.52,
+          "p95": 2.29,
+          "p99": 3.02
+        }
+      }
+    },
+    "ssr-throughput": {
+      "scope": "autocannon, 10 connections for 10s per target and visit kind, the same 50-row model and templates",
+      "nestvexa-hbs": {
+        "requestsPerSecond": 369.3,
+        "latencyMs": {
+          "p50": 21,
+          "p97_5": 74,
+          "p99": 114
+        },
+        "bytesPerResponse": 5554
+      },
+      "plain-hbs": {
+        "requestsPerSecond": 1061,
+        "latencyMs": {
+          "p50": 8,
+          "p97_5": 24,
+          "p99": 34
+        },
+        "bytesPerResponse": 5554
+      },
+      "nestvexa-inertia": {
+        "html": {
+          "requestsPerSecond": 1396.4,
+          "latencyMs": {
+            "p50": 5,
+            "p97_5": 20,
+            "p99": 28
+          },
+          "bytesPerResponse": 4551
+        },
+        "json": {
+          "requestsPerSecond": 1414.5,
+          "latencyMs": {
+            "p50": 6,
+            "p97_5": 18,
+            "p99": 25
+          },
+          "bytesPerResponse": 3980
+        }
+      },
+      "plain-inertia": {
+        "html": {
+          "requestsPerSecond": 2171.4,
+          "latencyMs": {
+            "p50": 3,
+            "p97_5": 13,
+            "p99": 19
+          },
+          "bytesPerResponse": 7412
+        },
+        "json": {
+          "requestsPerSecond": 3412.2,
+          "latencyMs": {
+            "p50": 2,
+            "p97_5": 8,
+            "p99": 12
+          },
+          "bytesPerResponse": 3794
+        }
+      }
+    },
+    "noop-action": {
+      "scope": "10 sequential clients for 10s; Live: one component per client (10-row state) calling a no-op action through the full pipeline (CSRF, origin, identity, store transaction, render); plain: a Nest JSON POST route",
+      "nestvexa-live-noop": {
+        "requestsPerSecond": 272.3,
+        "latencyMs": {
+          "samples": 2723,
+          "p50": 31.98,
+          "p95": 69.61,
+          "p99": 117.46
+        }
+      },
+      "plain-nest-post": {
+        "requestsPerSecond": 995.9,
+        "latencyMs": {
+          "samples": 9959,
+          "p50": 8.32,
+          "p95": 19.5,
+          "p99": 36.11
+        }
+      }
+    },
+    "bytes": {
+      "scope": "response bodies as sent (no compression middleware) and their gzip size; the Live list keeps N rows in state and renders them",
+      "live-10": {
+        "mountHtml": {
+          "bytes": 2256,
+          "gzipBytes": 600
+        },
+        "noopReply": {
+          "bytes": 1546,
+          "gzipBytes": 579
+        },
+        "touchReply": {
+          "bytes": 1546,
+          "gzipBytes": 580
+        }
+      },
+      "live-100": {
+        "mountHtml": {
+          "bytes": 19688,
+          "gzipBytes": 2885
+        },
+        "noopReply": {
+          "bytes": 13218,
+          "gzipBytes": 2804
+        },
+        "touchReply": {
+          "bytes": 13218,
+          "gzipBytes": 2804
+        }
+      },
+      "live-1000": {
+        "refused": "Live mount failed (413)"
+      },
+      "inertia-10": {
+        "jsonPage": {
+          "bytes": 830,
+          "gzipBytes": 341
+        },
+        "htmlPage": {
+          "bytes": 1229,
+          "gzipBytes": 525
+        }
+      },
+      "inertia-100": {
+        "jsonPage": {
+          "bytes": 6848,
+          "gzipBytes": 1432
+        },
+        "htmlPage": {
+          "bytes": 8147,
+          "gzipBytes": 1706
+        }
+      },
+      "inertia-1000": {
+        "jsonPage": {
+          "bytes": 68750,
+          "gzipBytes": 12107
+        },
+        "htmlPage": {
+          "bytes": 79049,
+          "gzipBytes": 12588
+        }
+      },
+      "plain-hbs-10": {
+        "htmlPage": {
+          "bytes": 1369,
+          "gzipBytes": 469
+        }
+      },
+      "plain-hbs-100": {
+        "htmlPage": {
+          "bytes": 10267,
+          "gzipBytes": 1830
+        }
+      },
+      "plain-hbs-1000": {
+        "htmlPage": {
+          "bytes": 101869,
+          "gzipBytes": 15496
+        }
+      }
+    },
+    "components": {
+      "10": {
+        "mountWaveMs": 82.3,
+        "concurrentActionWaveMs": 80.07,
+        "actionLatencyMs": {
+          "samples": 10,
+          "p50": 76.27,
+          "p95": 79.07,
+          "p99": 79.07
+        },
+        "heapPerComponentBytes": 161007
+      },
+      "100": {
+        "mountWaveMs": 308.51,
+        "concurrentActionWaveMs": 301.68,
+        "actionLatencyMs": {
+          "samples": 100,
+          "p50": 266.22,
+          "p95": 292,
+          "p99": 293.91
+        },
+        "heapPerComponentBytes": 26806
+      },
+      "1000": {
+        "mountWaveMs": 1911.22,
+        "concurrentActionWaveMs": 2178.99,
+        "actionLatencyMs": {
+          "samples": 1000,
+          "p50": 202.89,
+          "p95": 282.72,
+          "p99": 431.78
+        },
+        "heapPerComponentBytes": 8200
+      },
+      "scope": "N users each mount one Live list (10 rows) in waves of 50, then all N call one action in one wave over at most 100 concurrent connections; heap measured after forced GC with the default MemoryLiveStore"
+    },
+    "dom-patch": {
+      "100": {
+        "medianMs": 14.2,
+        "maxMs": 20.1
+      },
+      "1000": {
+        "medianMs": 128.1,
+        "maxMs": 147.1
+      },
+      "5000": {
+        "medianMs": 1234.9,
+        "maxMs": 1288.1
+      },
+      "scope": "built morphChildren updating every row of a keyed table (text and a selection checkbox per row), median of 10 runs after one warm-up",
+      "browser": "chromium 156.0.8078.4"
+    }
+  }
+}

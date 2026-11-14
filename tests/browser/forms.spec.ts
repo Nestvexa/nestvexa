@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { axe as axeScan } from './axe.js';
 import { expect, test } from '@playwright/test';
 import type { Browser, BrowserContext, Page, TestInfo } from '@playwright/test';
 
@@ -16,7 +16,7 @@ function watch(page: Page): string[] {
   return errors;
 }
 async function axe(page: Page): Promise<void> {
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect((await axeScan(page).analyze()).violations).toEqual([]);
 }
 async function register(page: Page, name: string, address: string) {
   await page.goto(base + '/register');

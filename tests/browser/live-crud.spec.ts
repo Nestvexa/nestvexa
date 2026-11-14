@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { wcagAxe } from './axe.js';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { exampleUrl } from './example-url.js';
@@ -8,7 +8,6 @@ import { exampleUrl } from './example-url.js';
 // delete and an optimistic toggle with rollback. Data is per guest session,
 // so every test starts from the same seeded list.
 const base = exampleUrl('live-crud', 3115);
-const tags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 async function open(page: Page, path = '/tasks'): Promise<string[]> {
   const errors: string[] = [];
@@ -369,16 +368,12 @@ test('accessibility: board, open modal and validation errors have no axe violati
 }) => {
   test.setTimeout(90_000);
   await open(page);
-  expect(
-    (await new AxeBuilder({ page }).withTags(tags).analyze()).violations,
-  ).toEqual([]);
+  expect((await wcagAxe(page).analyze()).violations).toEqual([]);
   await page.getByRole('button', { name: 'New task' }).click();
   await page
     .getByRole('dialog', { name: 'New task' })
     .getByRole('button', { name: 'Create task' })
     .click();
   await expect(page.locator('#task-error-summary')).toBeVisible();
-  expect(
-    (await new AxeBuilder({ page }).withTags(tags).analyze()).violations,
-  ).toEqual([]);
+  expect((await wcagAxe(page).analyze()).violations).toEqual([]);
 });

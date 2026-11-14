@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { axe } from './axe.js';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
@@ -181,10 +181,10 @@ test('accessibility: projects board passes automated checks including validation
   page,
 }) => {
   await open(page);
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect((await axe(page).analyze()).violations).toEqual([]);
   await page.getByRole('button', { name: 'Create project' }).click();
   await expect(page.locator('#project-name-error')).toBeVisible();
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect((await axe(page).analyze()).violations).toEqual([]);
 });
 
 test('projects pagination works without JavaScript', async ({ browser }) => {

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
+import { axe } from './axe.js';
 
 test.use({
   baseURL: process.env['DIRECTIVE_LAB_URL'] ?? 'http://127.0.0.1:3360',
@@ -315,5 +315,5 @@ test('accessibility scan of the directive lab has no axe violations', async ({
   page,
 }) => {
   await open(page);
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect((await axe(page).analyze()).violations).toEqual([]);
 });

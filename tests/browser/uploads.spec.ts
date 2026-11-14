@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { axe } from './axe.js';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
@@ -223,9 +223,9 @@ test('upload pages pass automated accessibility checks', async ({ page }) => {
   await expect(page.locator('#attachment-files-status')).toHaveText(
     'Uploaded 1 file',
   );
-  const live = await new AxeBuilder({ page }).analyze();
+  const live = await axe(page).analyze();
   expect(live.violations).toEqual([]);
   await page.goto(`${base}/classic`);
-  const classic = await new AxeBuilder({ page }).analyze();
+  const classic = await axe(page).analyze();
   expect(classic.violations).toEqual([]);
 });

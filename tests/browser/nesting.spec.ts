@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { axe } from './axe.js';
 import { expect, test } from '@playwright/test';
 
 test('nested children keep local DOM, refresh changed reactive props and handle child events', async ({
@@ -79,6 +79,6 @@ test('accessibility: nested team board passes automated checks', async ({
 }) => {
   await page.goto('http://127.0.0.1:3102/team');
   await expect(page.locator('#team-stats')).toBeVisible();
-  const results = await new AxeBuilder({ page }).analyze();
+  const results = await axe(page).analyze();
   expect(results.violations).toEqual([]);
 });

@@ -41,6 +41,8 @@ import type {
   LiveModuleAsyncOptions,
   LiveRuntimeFactoryOptions,
 } from '../packages/live/dist/index.js';
+// Fails the test on any server-side unhandled promise rejection (QA-073).
+import './support/no-unhandled-rejections.js';
 
 const origin = 'http://localhost:3100';
 const csrf = 'async-fixture-csrf-012345678901234567890123456789';

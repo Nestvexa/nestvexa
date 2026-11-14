@@ -55,7 +55,26 @@ function key(element: Element): string | undefined {
   }
   return undefined;
 }
-function path(element: Element, root: Root): string {
+/**
+ * Element-child positions for one capture pass, computed once per parent.
+ * A per-control `indexOf` over the siblings made capturing N unnamed,
+ * unkeyed controls (a selection checkbox per table row) O(N^2).
+ */
+type Positions = (parent: Root, child: Element) => number;
+function positions(): Positions {
+  const cache = new Map<Root, Map<Element, number>>();
+  return (parent, child) => {
+    let indexes = cache.get(parent);
+    if (!indexes) {
+      indexes = new Map();
+      let index = 0;
+      for (const element of parent.children) indexes.set(element, index++);
+      cache.set(parent, indexes);
+    }
+    return indexes.get(child) ?? -1;
+  };
+}
+function path(element: Element, root: Root, position: Positions): string {
   const indices: number[] = [];
   let node = element;
   while (node !== root) {
@@ -63,7 +82,7 @@ function path(element: Element, root: Root): string {
     if (!parent || (parent.nodeType !== 1 && parent.nodeType !== 11))
       return 'outside';
     // DOM parents on this owned path are elements or document fragments.
-    indices.unshift([...(parent as Root).children].indexOf(node));
+    indices.unshift(position(parent as Root, node));
     if (parent === root) break;
     node = parent as Element;
   }
@@ -73,10 +92,14 @@ function group(
   input: HTMLInputElement,
   root: Root,
   outer: HTMLFormElement | null,
+  position: Positions,
   projected?: ReadonlyMap<string, HTMLFormElement | null>,
 ): string {
   if (!input.name)
-    return JSON.stringify(['single', key(input) ?? path(input, root)]);
+    return JSON.stringify([
+      'single',
+      key(input) ?? path(input, root, position),
+    ]);
   let form = input.form;
   // Detached template radios do not resolve every explicit internal/external
   // form reference. Resolve against the projected tree, not the attribute text.
@@ -98,7 +121,7 @@ function group(
       : form.id
         ? `id:${form.id}`
         : form !== root && root.contains(form)
-          ? (key(form) ?? path(form, root))
+          ? (key(form) ?? path(form, root, position))
           : 'outer';
   return JSON.stringify([scope, input.name]);
 }
@@ -146,6 +169,7 @@ function capture(
   projected?: ReadonlyMap<string, HTMLFormElement | null>,
 ): Map<Element, Control> {
   const result = new Map<Element, Control>();
+  const position = positions();
   for (const element of elements(root)) {
     if (element.tagName === 'INPUT') {
       const input = element as HTMLInputElement;
@@ -158,7 +182,7 @@ function capture(
         defaultValue: input.defaultValue,
         checked: input.checked,
         defaultChecked: input.defaultChecked,
-        group: group(input, root, outer, projected),
+        group: group(input, root, outer, position, projected),
       });
     } else if (element.tagName === 'TEXTAREA') {
       const textarea = element as HTMLTextAreaElement;
@@ -360,6 +384,8 @@ export function createControlMorph(
         }
       }
       const radios: { input: HTMLInputElement; checked: boolean }[] = [];
+      // Positions of the patched DOM (read-only until the loop below ends).
+      const position = positions();
       for (const element of remaining) {
         if (
           element.tagName !== 'INPUT' ||
@@ -368,7 +394,7 @@ export function createControlMorph(
           continue;
         if (previous.has(element) && !plans.has(element)) continue;
         const input = element as HTMLInputElement;
-        const scope = group(input, root, outerForm);
+        const scope = group(input, root, outerForm, position);
         const draft = draftGroups.get(scope);
         const model = getModelDirective(input);
         const plan = plans.get(element);

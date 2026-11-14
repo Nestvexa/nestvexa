@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
+import { axe } from './axe.js';
 
 const base = 'http://127.0.0.1:3102';
 
@@ -97,7 +97,7 @@ test('activity state and connectivity indicators pass automated accessibility ch
 }) => {
   await page.goto(base + '/activity?q=accessible');
   await expect(page.locator('#activity-appearances')).toHaveText('1');
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect((await axe(page).analyze()).violations).toEqual([]);
 });
 
 test('activity filtering has a real GET fallback without JavaScript', async ({

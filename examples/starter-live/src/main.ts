@@ -263,10 +263,11 @@ class Pages {
   health() {
     return { status: 'ok' };
   }
+  /** Shared page styles; controls keep the WCAG 2.5.8 24 px target size. */
   @Get('activity.css')
   @Header('Content-Type', 'text/css; charset=utf-8')
   activityStyles() {
-    return '.activity-fade{transition:opacity .15s ease}.activity-fade-start{opacity:0}.activity-fade-end{opacity:1}.active{font-weight:bold}@media(prefers-reduced-motion:reduce){.activity-fade{transition:none}}';
+    return '.activity-fade{transition:opacity .15s ease}.activity-fade-start{opacity:0}.activity-fade-end{opacity:1}.active{font-weight:bold}@media(prefers-reduced-motion:reduce){.activity-fade{transition:none}}button,#project-pages a{display:inline-block;min-block-size:24px;min-inline-size:24px}';
   }
   @Get('activity')
   @Header('Cache-Control', 'no-store')

@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { axe } from './axe.js';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
@@ -370,5 +370,5 @@ test('accessibility: hybrid dashboard passes automated checks', async ({
     .locator('[data-nv-island="status-widget"]')
     .scrollIntoViewIfNeeded();
   await expect(page.locator('#widget-status')).toBeVisible();
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect((await axe(page).analyze()).violations).toEqual([]);
 });

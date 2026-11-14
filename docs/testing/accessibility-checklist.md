@@ -12,6 +12,30 @@ before a release.
 > below have been carried out. Record results (date, versions, tester, pass or
 > fail, notes) in the release checklist when they are.
 
+Some of the visual checks below also have automated browser coverage. That
+coverage supplements the manual pass; it does not replace it.
+
+- **Reflow and zoom.**
+  [`tests/browser/display-accessibility.spec.ts`](../../tests/browser/display-accessibility.spec.ts)
+  covers starter-live (counter and work board), the admin dashboard, the UI
+  kit page and the showcase app (sign-in and tasks). It renders each page at
+  640 and 320 CSS px, the equivalent of 200% and 400% zoom of a 1280 px
+  window, and asserts two things: the page does not scroll horizontally, and
+  no text or control ends outside the viewport or is clipped by its own box.
+  Tables may scroll inside their own container.
+- **Forced colors.** The same spec emulates `forced-colors: active` in
+  Chromium. It asserts that every keyboard focus stop keeps an outline, that
+  axe finds no violations against the forced palette, and that the UI kit
+  theme switches its alert accent to the system `CanvasText` color.
+- **WCAG 2.2 AA rules.** Every axe check in the browser specs goes through
+  [`tests/browser/axe.ts`](../../tests/browser/axe.ts). The `axe()` helper
+  runs axe's default rules plus `target-size` (SC 2.5.8), which axe leaves
+  off by default. `wcagAxe()` runs only the `wcag2a`, `wcag2aa`, `wcag21a`,
+  `wcag21aa` and `wcag22aa` tags.
+
+What a screen reader announces still has no automated check. Firefox and
+WebKit cannot emulate forced colors, so that part runs in Chromium only.
+
 ## Environments
 
 Test at least these pairings, using current stable versions:

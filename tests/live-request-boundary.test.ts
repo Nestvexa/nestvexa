@@ -22,6 +22,8 @@ import {
   State,
   configureNestvexa,
 } from '../packages/nestvexa/dist/index.js';
+// Fails the test on any server-side unhandled promise rejection (QA-073).
+import './support/no-unhandled-rejections.js';
 
 const cleanup: (() => Promise<void>)[] = [];
 afterEach(async () => {
