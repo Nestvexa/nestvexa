@@ -24,7 +24,7 @@ export class AppModule {}
 
 ## Public API and defaults
 
-- `NestvexaConfigService.value`: deeply frozen normalized config. Views default to engine `hbs`, root `src/views`, cache `false`, layout `false` (or a named layout string); Live defaults disabled, `live.client` (`'alpine'`/`'manual'`) is present only when configured; CSRF and authorized-action policy flags default true. Flags are contracts for integrations, not claims that core enforces HTTP security.
+- `NestvexaConfigService.value`: deeply frozen normalized config. Views default to engine `hbs`, root `src/views`, cache `false`, layout `false` (or a named layout string); `views.namespaces` and `views.themes` (lowercase name -> directory maps, frozen null-prototype copies) are present only when configured; Live defaults disabled, `live.client` (`'alpine'`/`'manual'`) is present only when configured; CSRF and authorized-action policy flags default true. Flags are contracts for integrations, not claims that core enforces HTTP security.
 - `normalizeOptions(unknown)`: runtime validation, rejects unknown keys, accessor properties and invalid types. It reports every invalid path at once as a `NestvexaConfigError` with `issues: { path, expected }[]`; supplied values never appear in messages.
 - `mergeNestvexaOptions(...layers)`, `nestvexaOptionsFromEnvironment(record)`, `NESTVEXA_ENVIRONMENT_VARIABLES`: explicit layering and environment mapping.
 - `CollisionSafeRegistry<T>`: `register`, `get`, `has`, `names`, `seal`, `sealed`. Duplicate identifiers fail; explicit sealing prevents later registration. Values are trusted adapter objects and are not cloned or frozen.
@@ -197,7 +197,7 @@ Status: **Shipped (alpha)**. Configuration, registries, typed routes, the plugin
 - Views do not read the CSP nonce from `RequestContextFactory` automatically; hosts pass it.
 - `SecurityPolicyRegistry` describes and evaluates policies; Live keeps enforcing its own copy, and `@nestvexa/uploads` does not register its quotas there yet.
 - `DiagnosticsRegistry` has no exporter (OpenTelemetry stays in `@nestvexa/observability`).
-- `PluginRegistry` is separate from the extension hooks, and no out-of-tree plugin package has been consumed from a tarball.
+- `PluginRegistry` is a deprecated adapter over the extension model (`pluginExtension`, `registry.extensions()`); no out-of-tree extension package has been consumed from a tarball.
 - Typed routes do not reflect controllers added inside `forRootAsync` factories, Nest versioning or host constraints, and do not generate permission-aware links.
 
 ## Testing
