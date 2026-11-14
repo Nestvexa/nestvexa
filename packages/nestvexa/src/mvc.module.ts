@@ -8,6 +8,8 @@ import type {
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { CoreModule, NestvexaConfigService } from '@nestvexa/core';
 import { HbsEngine } from '@nestvexa/engine-hbs';
+import { ViewErrorPageFilter, expressViewModel } from '@nestvexa/views';
+import type { ViewErrorPageFilterOptions } from '@nestvexa/views';
 import { resolve } from 'node:path';
 import {
   NestvexaBrowserModule,
@@ -46,6 +48,8 @@ function engineProvider(withLive: boolean): Provider {
         root: views.root,
         cache: views.cache,
         ...(views.layout ? { defaultLayout: views.layout } : {}),
+        ...(views.namespaces ? { namespaces: views.namespaces } : {}),
+        ...(views.themes ? { themes: views.themes } : {}),
         ...(browser
           ? {
               helpers: {
@@ -95,6 +99,7 @@ interface ExpressViewHost {
     ) => void,
   ): unknown;
   set(name: string, value: unknown): unknown;
+  get(name: string): unknown;
 }
 interface ViewReply {
   type(contentType: string): ViewReply;
@@ -118,7 +123,9 @@ function expressHost(host: unknown): host is ExpressViewHost {
     ? 'engine' in host &&
         typeof host.engine === 'function' &&
         'set' in host &&
-        typeof host.set === 'function'
+        typeof host.set === 'function' &&
+        'get' in host &&
+        typeof host.get === 'function'
     : false;
 }
 function fastifyHost(host: unknown): host is FastifyViewHost {
@@ -195,6 +202,37 @@ export async function registerViewEngine(
     );
 }
 
+type ExpressRenderCallback = (error: Error | null, html?: string) => void;
+/**
+ * Express resolves `res.render(name)` to a file before calling an engine, which
+ * cannot work for `admin::users/index`. This `view` class hands namespaced
+ * names to the Handlebars engine (which resolves them inside the registered
+ * namespace) and keeps Express's own `View` for every other name.
+ */
+function namespacedViews(base: unknown, engine: HbsEngine): unknown {
+  if (typeof base !== 'function') return base;
+  return function NestvexaView(
+    name: unknown,
+    options: unknown,
+  ): { readonly path: string; render: unknown } {
+    if (typeof name !== 'string' || !name.includes('::'))
+      return Reflect.construct(base, [name, options]) as {
+        readonly path: string;
+        render: unknown;
+      };
+    return {
+      path: name,
+      render(model: Record<string, unknown>, done: ExpressRenderCallback) {
+        void engine.render(name, expressViewModel(model)).then(
+          (html) => done(null, html),
+          (error: unknown) =>
+            done(error instanceof Error ? error : new Error('Render failed')),
+        );
+      },
+    };
+  };
+}
+
 async function installViews(
   app: INestApplication,
   engine: HbsEngine,
@@ -212,6 +250,8 @@ async function installViews(
       engine.renderFile(file, model, done),
     );
     host.set('views', resolve(config.value.views.root));
+    if (config.value.views.namespaces)
+      host.set('view', namespacedViews(host.get('view'), engine));
     host.set('view engine', 'hbs');
     host.set('view cache', config.value.views.cache);
   } else {
@@ -231,11 +271,32 @@ async function installViews(
   }
 }
 
+/**
+ * View-rendered error pages installed by {@link configureNestvexa}: the
+ * `ViewErrorPageFilter` options except `render`, which is the umbrella's own
+ * Handlebars engine.
+ */
+export type NestvexaErrorPageOptions = Omit<
+  ViewErrorPageFilterOptions,
+  'render'
+>;
+export interface ConfigureNestvexaOptions {
+  /**
+   * Opt-in catch-all exception filter (`app.useGlobalFilters`) rendering error
+   * views for browser page requests (`Accept: text/html`) and Nest's JSON body
+   * for everything else, including Live and action calls. `development: true`
+   * shows the diagnostic page (messages, template name/line, stacks); never
+   * enable it in production.
+   */
+  readonly errorPages?: NestvexaErrorPageOptions;
+}
+
 /** Application-local initialization and teardown; no process-global registry. */
 @Injectable()
 class NestvexaRuntime implements OnApplicationShutdown {
   private app: INestApplication | undefined;
   private setup: Promise<void> | undefined;
+  private options: ConfigureNestvexaOptions | undefined;
   private disposed = false;
   constructor(
     @Inject(HbsEngine) private readonly engine: HbsEngine,
@@ -243,15 +304,47 @@ class NestvexaRuntime implements OnApplicationShutdown {
     private readonly config: NestvexaConfigService,
   ) {}
 
-  configure(app: INestApplication): Promise<void> {
+  configure(
+    app: INestApplication,
+    options: ConfigureNestvexaOptions | undefined,
+  ): Promise<void> {
     if (this.disposed)
       return Promise.reject(new Error('Nestvexa runtime has shut down'));
     if (this.app && this.app !== app)
       return Promise.reject(
         new Error('Nestvexa runtime is already bound to another application'),
       );
+    if (this.setup && options !== undefined && options !== this.options)
+      return Promise.reject(
+        new Error(
+          'configureNestvexa options are accepted on the first call only',
+        ),
+      );
     this.app = app;
-    this.setup ??= installViews(app, this.engine, this.config);
+    if (!this.setup) {
+      this.options = options;
+      const errorPages = options?.errorPages;
+      if (errorPages !== undefined) {
+        if (
+          typeof errorPages !== 'object' ||
+          errorPages === null ||
+          'render' in errorPages
+        )
+          return Promise.reject(
+            new Error(
+              'errorPages must be ViewErrorPageFilter options without render',
+            ),
+          );
+        const engine = this.engine;
+        app.useGlobalFilters(
+          new ViewErrorPageFilter({
+            ...errorPages,
+            render: (view, model) => engine.render(view, model),
+          }),
+        );
+      }
+      this.setup = installViews(app, this.engine, this.config);
+    }
     return this.setup;
   }
 
@@ -263,7 +356,13 @@ class NestvexaRuntime implements OnApplicationShutdown {
   }
 }
 
-/** Install the view bridge once before listen(). Concurrent repeated calls share initialization. */
-export async function configureNestvexa(app: INestApplication): Promise<void> {
-  await app.get(NestvexaRuntime).configure(app);
+/**
+ * Install the view bridge once before listen(). Concurrent repeated calls
+ * share initialization; options are accepted on the first call only.
+ */
+export async function configureNestvexa(
+  app: INestApplication,
+  options?: ConfigureNestvexaOptions,
+): Promise<void> {
+  await app.get(NestvexaRuntime).configure(app, options);
 }
