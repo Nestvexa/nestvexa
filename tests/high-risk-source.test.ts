@@ -136,6 +136,87 @@ describe('core configuration layers (source)', () => {
   });
 });
 
+describe('view namespaces and themes (source)', () => {
+  it('omits absent maps and returns frozen null-prototype copies', () => {
+    const plain = normalizeOptions({});
+    expect('namespaces' in plain.views).toBe(false);
+    expect('themes' in plain.views).toBe(false);
+    const options = normalizeOptions({
+      views: {
+        namespaces: { admin: 'views/admin', 'dark-mode': 'views/dark' },
+        themes: Object.assign(Object.create(null) as object, {
+          dark: 'themes/dark',
+        }),
+      },
+    });
+    expect(options.views.namespaces).toEqual({
+      admin: 'views/admin',
+      'dark-mode': 'views/dark',
+    });
+    expect(Object.isFrozen(options.views.namespaces)).toBe(true);
+    expect(Object.getPrototypeOf(options.views.namespaces)).toBeNull();
+    expect(options.views.themes).toEqual({ dark: 'themes/dark' });
+  });
+
+  it('rejects non-objects, arrays, null and class instances', () => {
+    for (const value of ['views', 7, null, ['a'], new (class Map2 {})()])
+      expect(
+        issuesOf(() =>
+          normalizeOptions({ views: { namespaces: value } } as never),
+        ),
+      ).toContain('views.namespaces');
+    expect(
+      issuesOf(() => normalizeOptions({ views: { themes: 'dark' } } as never)),
+    ).toContain('views.themes');
+  });
+
+  it('bounds the entry count', () => {
+    const many = Object.fromEntries(
+      Array.from({ length: 65 }, (_value, index) => [`n${index}`, 'dir']),
+    );
+    expect(
+      issuesOf(() => normalizeOptions({ views: { namespaces: many } })),
+    ).toContain('views.namespaces');
+  });
+
+  it('rejects invalid, uppercase, reserved and symbol names', () => {
+    for (const key of ['Admin', '1admin', 'a_b', 'constructor', 'prototype'])
+      expect(
+        issuesOf(() =>
+          normalizeOptions({ views: { namespaces: { [key]: 'dir' } } }),
+        ),
+      ).toContain('views.namespaces');
+    const symbolic = { [Symbol('x')]: 'dir' };
+    expect(
+      issuesOf(() =>
+        normalizeOptions({ views: { themes: symbolic } } as never),
+      ),
+    ).toContain('views.themes');
+  });
+
+  it('never reads accessors and requires string directories', () => {
+    let read = false;
+    const accessor = Object.defineProperty({}, 'admin', {
+      enumerable: true,
+      get() {
+        read = true;
+        return 'dir';
+      },
+    });
+    expect(
+      issuesOf(() =>
+        normalizeOptions({ views: { namespaces: accessor } } as never),
+      ),
+    ).toContain('views.namespaces.admin');
+    expect(read).toBe(false);
+    expect(
+      issuesOf(() =>
+        normalizeOptions({ views: { themes: { dark: 42 } } } as never),
+      ),
+    ).toContain('views.themes.dark');
+  });
+});
+
 describe('Live capability header (source)', () => {
   it('accepts known tokens and ignores unknown well-formed tokens', () => {
     expect([...parseLiveCapabilities(undefined)]).toEqual([]);
