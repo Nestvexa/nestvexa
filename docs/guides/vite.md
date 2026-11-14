@@ -107,6 +107,54 @@ imported by the trusted entry load without listing hashes, and
 Pass the nonce to Inertia with `nonce: (request) => cspNonce(request)`; the
 framework adapters read the meta and forward it to the official clients.
 
+## 103 Early Hints (opt-in)
+
+Browsers can start fetching the content-hashed stylesheets and modules while
+the server is still rendering the page if the route sends a
+`103 Early Hints` response first. Nestvexa never sends one automatically; call
+`sendEarlyHints` (from `@nestvexa/core`, re-exported by `nestvexa`) in the
+routes that render HTML documents:
+
+```ts
+import { sendEarlyHints } from 'nestvexa';
+
+@Get()
+@Render('home')
+home(@Res({ passthrough: true }) response: unknown) {
+  sendEarlyHints(response, [
+    ...this.vite.earlyHints('web'), // hashed CSS (preload) and modules (modulepreload)
+    ...this.browser.earlyHints(), // the hashed Nestvexa client, Alpine and adapter
+  ]);
+  return {};
+}
+```
+
+- Works with an Express response and a Fastify reply (it writes through the
+  Node `ServerResponse.writeEarlyHints`); HTTP/2 through Node's compatibility
+  API also works. `NestvexaBrowserService#writeEarlyHints(response)` is the
+  one-line form for the client modules.
+- Only GET and HEAD requests over HTTP/1.1 or later get hints (HTTP/1.0 has
+  no informational responses), and nothing is written once the final headers
+  were sent.
+- `ViteAssets#earlyHints` is empty in development mode (dev-server URLs are
+  not content-hashed) and leaves out URLs that are neither root-relative nor
+  `https:`. With `integrity`, hints carry `crossorigin` so the hinted fetch
+  matches the integrity-checked tags. The generated Nestvexa `boot.js` is
+  served `no-store` and is never hinted.
+- Every link is validated: same-origin paths or `https:` URLs only, no
+  characters that could end the header or the `<…>; rel=…` grammar, at most
+  32 hints. Invalid input throws before anything is written.
+- Hints are sent before guards and the handler finish, so hint only public
+  static assets every response of the route references anyway, never
+  per-user or per-tenant URLs.
+- Deployability: browsers treat hints as optional (current Chromium and
+  Firefox use `preload`; `modulepreload` from a 103 is honoured by fewer
+  browsers, which then simply fetch the module when the page tag asks). Some
+  proxies, CDNs and load balancers drop 103 or need it enabled; very old
+  HTTP/1.1 intermediaries can mishandle it. Enable it per route after checking
+  your edge, and measure. Tests: `tests/early-hints.test.ts` (Node, Express
+  and Fastify hosts; the browser-side use of hints is not tested).
+
 ## Server-rendered (HBS/Live) pages
 
 `viteViewHelpers(assets)` returns a trusted `viteTags` helper that prints the

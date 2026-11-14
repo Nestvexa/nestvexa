@@ -111,3 +111,8 @@ export {
   type PluginCapability,
   type PluginSetupContext,
 } from './plugins.js';
+export {
+  formatEarlyHint,
+  sendEarlyHints,
+  type EarlyHint,
+} from './early-hints.js';
