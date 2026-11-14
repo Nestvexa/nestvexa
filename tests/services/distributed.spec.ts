@@ -298,18 +298,31 @@ test('browsers reconnect after the load balancer drops them, without duplicates 
   await firstStream;
   await firstSocket;
   const start = await total(onA.page);
-  // Both pages refresh on the event. Let those refreshes finish first: a drop
-  // that cuts a committed `$sync` lets the browser resend it on a new
-  // connection, which the server refuses as a stale revision.
+  // Both pages refresh on the event. The board copies the shared total into
+  // @State in `dehydrate`, so a read-only refresh that sees a new total is
+  // refused with 409 REFRESH_CONFLICT and the browser commits once (ADR 0037).
+  // Let those refreshes finish first: a drop that cuts a committed `$sync`
+  // lets the browser resend it on a new connection, which the server refuses
+  // as a stale revision.
+  const isSync = (url: string) =>
+    url.includes('/_nestvexa/live/replica-board/_sync');
+  const conflicts: (string | undefined)[] = [];
+  for (const page of [onA.page, onD.page])
+    page.on('response', (response) => {
+      if (isSync(response.url()) && response.status() === 409)
+        conflicts.push(response.headers()['x-nestvexa-recovery']);
+    });
   const synced = [onA.page, onD.page].map((page) =>
-    page.waitForResponse((response) =>
-      response.url().includes('/_nestvexa/live/replica-board/_sync'),
+    page.waitForResponse(
+      (response) => isSync(response.url()) && response.status() !== 409,
     ),
   );
   await increment(onD.page);
   await expect(onA.page.locator('#total')).toHaveText(String(start + 1));
   for (const response of await Promise.all(synced))
     expect(response.status()).toBe(201);
+  // The only refusals are refresh conflicts answered by a commit.
+  for (const recovery of conflicts) expect(recovery).toBe('commit');
   // Every open connection is cut, like a load balancer restart.
   const reconnectedStream = sseOpened(onA.page);
   const reconnectedSocket = websocketReady(onD.page);
@@ -545,12 +558,18 @@ test('a stalled subscriber is disconnected by its replica without slowing other 
   );
   await expect.poll(() => connections('c', healthy.page)).toBe(2);
   const before = (await events()).length;
-  // Express replica a publishes ~4.5 MB through Redis.
-  const count = 300;
-  const published = await healthy.page.request.post(
-    `${direct.a}/api/load/broadcast?count=${count}`,
-  );
-  expect(await published.json()).toMatchObject({ published: count });
+  // Express replica a publishes ~15 MB through Redis (two batches of 500).
+  // Kernel socket buffers absorb several MB before the replica sees
+  // backpressure (3.8 MB reached the stalled reader on a Linux CI runner with
+  // 4.5 MB published), so the volume must be well above them.
+  const batch = 500;
+  const count = 2 * batch;
+  for (let sent = 0; sent < count; sent += batch) {
+    const published = await healthy.page.request.post(
+      `${direct.a}/api/load/broadcast?count=${batch}`,
+    );
+    expect(await published.json()).toMatchObject({ published: batch });
+  }
   // The healthy browser receives every event and stays connected…
   await expect
     .poll(async () => (await events()).length - before, { timeout: 120_000 })
