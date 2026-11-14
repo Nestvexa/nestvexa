@@ -136,6 +136,18 @@ its tenant for host-only `delete(token)`.
 
 The original I/O error is attached as `cause` for host logs.
 
+Every connection (`RespConnection`, and the two connections inside each store
+and queue) bounds connection attempts and commands with `commandTimeoutMs`
+(default 5000) and has a circuit breaker. After 5 consecutive connection
+failures, closes or timeouts, commands fail fast with `CircuitOpenError` for 1
+second without touching the network. The Live store maps that error to the
+same retryable `503 STORE_UNAVAILABLE`, with the `CircuitOpenError` as
+`cause`. Then one probe command decides whether the circuit closes. Error
+replies never count. Tune it with
+`circuitBreaker: { failureThreshold, cooldownMs }` or turn it off with
+`circuitBreaker: false`, and read the state from `connection.circuit`. See
+[timeouts and circuit breakers](../../docs/guides/resilience.md).
+
 - `close()` (called on Nest shutdown) closes connections; shared state stays for
   the other replicas.
 - The store also implements `LiveActionCoordination`, so `@Action({ idempotent })`

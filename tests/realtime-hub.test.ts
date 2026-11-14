@@ -20,6 +20,8 @@ import type {
   RealtimeModuleOptions,
   RealtimeSink,
 } from '../packages/realtime/dist/index.js';
+// Fails the test on any server-side unhandled promise rejection (QA-073).
+import './support/no-unhandled-rejections.js';
 
 const secret = 'realtime-hub-secret-0123456789abcdefghijk';
 const alice = 'tenant-a/session/alice';

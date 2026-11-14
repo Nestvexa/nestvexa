@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
+import { axe } from './axe.js';
 import type { Page } from '@playwright/test';
 
 const url = 'http://127.0.0.1:3102/activity';
@@ -80,7 +80,7 @@ test('native pointer sorting commits server-rendered order and remains accessibl
       targetPosition: { x: bounds.width / 2, y: bounds.height - 2 },
     });
   await expectOrder(page, ['security', 'docs', 'forms']);
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect((await axe(page).analyze()).violations).toEqual([]);
 });
 
 test('forged orders and mass assignment fail without consuming the valid revision', async ({

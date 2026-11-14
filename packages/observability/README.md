@@ -105,8 +105,52 @@ Warnings (`slow-render`, `slow-action`, `large-html`, `large-state`,
 suppressed for `repeatAfterMs` (10 s). With `environment` (default `NODE_ENV`)
 equal to `production` the function returns `inner` unchanged. Loop detection
 counts root renders only, so a page rendering many child instances is not a
-loop. Not covered: N+1 queries (no database integration) and island bundle
-sizes (use the build's size report).
+loop. Not covered: island bundle sizes (use the build's size report). N+1
+queries have their own hook, below.
+
+## N+1 query detection (development only)
+
+`queryBudget()` counts the statements your ORM runs per request, by normalized
+shape (literals, bind placeholders and `IN` lists become `?`), and warns when
+one shape repeats more than `maxIdenticalQueries` times in one request: the
+signature of an N+1 loop. Nestvexa has no database integration of its own; the
+ORM reports each statement through the structural `record()` hook.
+
+```ts
+import { queryBudget } from '@nestvexa/observability';
+
+export const queries = queryBudget({
+  maxIdenticalQueries: 5, // default 5
+  maxQueries: 100, // statements per request, default 100
+});
+app.use(queries.middleware()); // one counting scope per HTTP request
+
+// TypeORM: a Logger whose logQuery forwards the statement (logging: ['query'])
+class BudgetLogger implements Logger {
+  logQuery(query: string) {
+    queries.record(query);
+  }
+  // logQueryError, logQuerySlow, logSchemaBuild, logMigration, log: no-ops
+}
+// Prisma: new PrismaClient({ log: [{ emit: 'event', level: 'query' }] })
+prisma.$on('query', (event) => queries.record(event.query));
+// Drizzle: drizzle(client, { logger: { logQuery: (sql) => queries.record(sql) } })
+```
+
+- Warnings (`n-plus-one`, `query-count`) go to `onWarning` or, by default,
+  `process.emitWarning` with code `NESTVEXA_QUERY_BUDGET`, once per request
+  and statement shape when the limit is crossed. They carry the scope label
+  (`HTTP GET`, or the label passed to `run()`), the normalized statement (at
+  most 200 characters, never literal values or parameters) and the count.
+- `queries.run(label, work)` opens a scope for work outside HTTP requests
+  (jobs, WebSocket Live messages, tests); `record()` outside any scope does
+  nothing. Scopes use `AsyncLocalStorage`, so concurrent requests are counted
+  apart.
+- With `environment` (default `NODE_ENV`) equal to `production`,
+  `queryBudget()` returns a disabled hook: no scopes, no counting, no
+  warnings. `enabled` tells which one you got.
+- Tests: `tests/observability-queries.test.ts` (a real TypeORM data source on
+  sql.js and a Nest Express host).
 
 ## Trace context (W3C `traceparent`)
 
@@ -285,7 +329,9 @@ DX-033 views.
   browser OpenTelemetry SDK (DX-035, by design).
 - A devtools browser extension is out of scope for v1
   ([ADR 0034](../../docs/adr/0034-devtools-browser-extension-scope.md)).
-- Render budgets do not detect N+1 queries or island bundle sizes.
+- Render budgets do not detect island bundle sizes at runtime. N+1 detection
+  (`queryBudget`) needs the ORM to report statements; it sees only what the
+  ORM forwards, and only the TypeORM wiring is tested.
 - `MemoryInstrumentation` keeps the last `capacity` (default 500) records in process memory; export
   production telemetry through the OpenTelemetry bridge.
 

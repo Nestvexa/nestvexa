@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { wcagAxe } from './axe.js';
 import { expect, test } from '@playwright/test';
 import type { Browser, BrowserContext, Locator, Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
@@ -20,9 +20,7 @@ const png = Buffer.concat([
 test.describe.configure({ timeout: 180_000 });
 
 async function axe(page: Page): Promise<void> {
-  const result = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-    .analyze();
+  const result = await wcagAxe(page).analyze();
   expect(result.violations).toEqual([]);
 }
 interface Session {

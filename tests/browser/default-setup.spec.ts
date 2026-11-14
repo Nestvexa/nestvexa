@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
+import { axe } from './axe.js';
 
 const home = 'http://127.0.0.1:3102/';
 
@@ -109,7 +109,7 @@ test('default starter accessibility and ordinary document navigation', async ({
     .getByRole('button', { name: 'Local Alpine click', exact: true })
     .click();
   await expect(page.locator('#local')).toHaveText('1');
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect((await axe(page).analyze()).violations).toEqual([]);
   await page.getByRole('link', { name: 'About', exact: true }).click();
   await expect(
     page.getByRole('heading', { name: 'About this starter' }),

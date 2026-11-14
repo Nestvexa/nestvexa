@@ -59,5 +59,37 @@
     "name": "Name",
     "status": "Status",
     "archive": "Archive selected"
+  },
+  "chart": {
+    "title": "Catalog overview",
+    "description": "Active and archived products in this session's catalog."
+  },
+  "feedback": {
+    "title": "Send feedback",
+    "email": "Email",
+    "emailHint": "We only use it to answer you.",
+    "topic": "Topic",
+    "topicPlaceholder": "Choose a topic",
+    "topics": {
+      "catalog": "Catalog",
+      "pricing": "Pricing",
+      "shipping": "Shipping"
+    },
+    "urgencyLabel": "Urgency",
+    "urgency": {
+      "low": "Low",
+      "normal": "Normal",
+      "high": "High"
+    },
+    "message": "Message",
+    "messageHint": "10 to 500 characters.",
+    "reply": "Email me a reply",
+    "send": "Send feedback",
+    "sent": "Thanks, your feedback was sent.",
+    "errors": {
+      "email": "Enter a valid email address.",
+      "topic": "Choose a topic.",
+      "message": "Write between 10 and 500 characters."
+    }
   }
 }

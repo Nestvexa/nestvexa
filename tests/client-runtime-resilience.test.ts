@@ -14,6 +14,8 @@ import {
   startMatrix,
 } from './support/live-matrix.js';
 import type { MatrixFixture } from './support/live-matrix.js';
+// Fails the test on any server-side unhandled promise rejection (QA-073).
+import './support/no-unhandled-rejections.js';
 
 declare global {
   interface Window {

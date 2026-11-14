@@ -7,3 +7,10 @@ export {
   type RespConnectionOptions,
   type RespReply,
 } from './resp.js';
+export {
+  CircuitBreaker,
+  CircuitOpenError,
+  type CircuitBreakerOptions,
+  type CircuitCall,
+  type CircuitState,
+} from './circuit-breaker.js';

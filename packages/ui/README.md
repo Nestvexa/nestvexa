@@ -472,7 +472,7 @@ compatibility policy. Requires the HBS engine's `registerHelpers` API and
 [Engine](../engine-hbs/README.md) · [Changelog](../../CHANGELOG.md)
 
 Examples: [`examples/admin-i18n`](../../examples/admin-i18n) (HBS/Live pages on
-the helpers) and the `/kit` page of
+the helpers; its `/admin/kit` page uses the chart and every form-field helper) and the `/kit` page of
 [`examples/inertia-react`](../../examples/inertia-react) (React wrappers).
 
 ## Status and limits

@@ -1,5 +1,7 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { auditSubject } from './audit.js';
+import { CircuitBreaker, CircuitOpenError } from './circuit-breaker.js';
+import type { CircuitCall } from './circuit-breaker.js';
 import { AiError } from './errors.js';
 import type {
   AiApprovalResult,
@@ -122,6 +124,7 @@ export class AiAssistant {
   readonly #maxConversations: number;
   readonly #maxIdentities: number;
   readonly #now: () => number;
+  readonly #breaker: CircuitBreaker | undefined;
   readonly #identities = new Map<string, Map<string, Conversation>>();
   readonly #settled = new WeakMap<Conversation, Set<() => void>>();
 
@@ -176,6 +179,17 @@ export class AiAssistant {
       throw new AiError('CONFIG', 'System prompt must be text');
     this.#system = options.system;
     this.#timeout = integer(options.timeoutMs, 20_000, 1, 28_000, 'timeoutMs');
+    try {
+      this.#breaker =
+        options.circuitBreaker === false
+          ? undefined
+          : new CircuitBreaker(
+              `AI provider ${provider.id}`,
+              options.circuitBreaker,
+            );
+    } catch {
+      throw new AiError('CONFIG', 'Invalid circuitBreaker options');
+    }
     this.#approvalTtl = integer(
       options.approvalTtlMs,
       300_000,
@@ -408,7 +422,9 @@ export class AiAssistant {
     let outcome: 'completed' | 'cancelled' | 'timeout' | 'failed' | undefined;
     let failureCode = 'PROVIDER';
     let iterator: AsyncIterator<ChatEvent> | undefined;
+    let call: CircuitCall | undefined;
     try {
+      call = this.#breaker?.attempt();
       const iterable = this.#provider.stream(this.#messages(conversation), {
         signal: controller.signal,
         tools: this.#toolSpecs,
@@ -495,9 +511,24 @@ export class AiAssistant {
         outcome = stopReason ?? 'cancelled';
       } else {
         outcome = 'failed';
-        failureCode = error instanceof Failure ? error.code : 'PROVIDER';
+        failureCode =
+          error instanceof Failure
+            ? error.code
+            : error instanceof CircuitOpenError
+              ? 'UNAVAILABLE'
+              : 'PROVIDER';
       }
     } finally {
+      // Provider errors and timeouts count against the provider; output it
+      // produced but the server refused proves it answered.
+      if (outcome === 'completed') call?.succeed();
+      else if (
+        outcome === 'timeout' ||
+        (outcome === 'failed' && failureCode === 'PROVIDER')
+      )
+        call?.fail();
+      else if (outcome === 'failed') call?.succeed();
+      else call?.release();
       clearTimeout(timer);
       external.removeEventListener('abort', onAbort);
       if (!controller.signal.aborted) controller.abort(new Stop('cancelled'));
@@ -514,6 +545,11 @@ export class AiAssistant {
       for (const note of notes) this.#push(conversation, note);
     }
     if (outcome !== 'completed') throw new AiError('BUSY', 'Turn stopped');
+  }
+
+  /** Provider breaker state (`closed` when the breaker is disabled). */
+  get circuit(): 'closed' | 'open' | 'half-open' {
+    return this.#breaker?.state ?? 'closed';
   }
 
   #finish(

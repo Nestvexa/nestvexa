@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { wcagAxe } from './axe.js';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
@@ -21,9 +21,7 @@ function collectErrors(page: Page): string[] {
   return errors;
 }
 async function axe(page: Page): Promise<void> {
-  const { violations } = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-    .analyze();
+  const { violations } = await wcagAxe(page).analyze();
   expect(violations.map((violation) => violation.id)).toEqual([]);
 }
 

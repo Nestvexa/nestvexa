@@ -52,3 +52,42 @@ The browser client does not send `traceparent`.
 Still open, as above: production load and comparative baselines, long-running
 memory tests and distributed throughput. No measured performance target is
 claimed.
+
+## Status update (2026-11-14): comparative benchmarks and morph complexity
+
+`pnpm bench` ([scripts/bench.mjs](../../scripts/bench.mjs)) measures SSR
+throughput, cold and warm first render, no-op action overhead, serialized
+bytes, 10/100/1000 concurrently active Live components and DOM patch time. It
+compares each against a baseline:
+
+- plain NestJS with Handlebars registered as the Express view engine;
+- a hand-written responder that follows the official Inertia protocol, as an
+  official server adapter does. No first-party NestJS Inertia adapter exists
+  to compare against.
+
+Each server runs in its own process (`tests/bench/server.ts`), and load is
+generated outside it. The nightly workflow runs the benchmarks and uploads
+`artifacts/reports/benchmark.json`. The results are recorded, not gated:
+shared runners are too noisy for wall-clock gates. The recorded runs and their
+host are in [docs/testing/benchmarks.md](../testing/benchmarks.md). No budget
+from the specification is claimed as met.
+
+**Morph complexity.** `morphChildren` is linear in the number of nodes on its
+common path:
+
+- Keyed siblings are paired through one `Map` per parent.
+- Unkeyed siblings pair by position.
+- Moves use `insertBefore`.
+- Key validation, stub validation and component-root lookup are single tree
+  walks.
+- The control snapshot taken before patching (`control-state.ts`) used to
+  compute the path of each unnamed, unkeyed control with an `indexOf` over
+  its siblings. That made a table with a selection checkbox per row O(N²):
+  5,000 rows did not finish in two minutes. Sibling positions are now
+  computed once per parent per pass.
+
+[tests/morph-scaling.test.ts](../../tests/morph-scaling.test.ts) guards this.
+It morphs keyed table updates, reversals, churn, checkbox rows, an unkeyed
+prepend and a large form at 1,000 and 5,000 rows in a real browser, and
+asserts that five times the rows cost less than 12.5 times the median time. A
+quadratic path would cost about 25 times more.

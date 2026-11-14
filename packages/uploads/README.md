@@ -218,6 +218,20 @@ that differs from the kernel tenant (or a failing kernel identity) is
 `policyOwner` with the `storage`, `direct`, `scan` and `kernel-identity`
 capabilities.
 
+## Timeouts and circuit breakers
+
+`S3Storage` (`requestTimeoutMs`, default 30000 of inactivity) and
+`ClamdScanner` (`timeoutMs`, default 30000) each have a circuit breaker. After
+5 consecutive network errors, timeouts or 5xx replies, S3 calls fail at once
+with `502 STORAGE_FAILED` for 10 seconds: no request is sent, and an unsent
+upload stream is closed. clamd scans return
+`{ status: 'error', reason: 'unavailable' }` without connecting, so uploads
+still fail closed. One probe after the cooldown decides whether the circuit
+closes. A 4xx reply, a cancelled scan or an infected verdict never counts.
+Configure with `circuitBreaker: { failureThreshold, cooldownMs }`, turn off
+with `circuitBreaker: false`, and inspect with `.circuit`. See
+[timeouts and circuit breakers](../../docs/guides/resilience.md).
+
 ## Security model
 
 - **Identity**: the host `resolveIdentity` (same contract as Live) is the only

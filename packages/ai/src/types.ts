@@ -1,3 +1,5 @@
+import type { CircuitBreakerOptions } from './circuit-breaker.js';
+
 /** JSON values accepted in tool arguments and parameter schemas. */
 export type AiJson =
   | null
@@ -173,6 +175,15 @@ export interface AiAssistantOptions {
   readonly maxConversationsPerIdentity?: number;
   readonly maxIdentities?: number;
   readonly now?: () => number;
+  /**
+   * Fail fast while the provider is down: after `failureThreshold` (default
+   * 5) consecutive provider errors or turn timeouts, turns fail at once with
+   * `turn.failed` detail `UNAVAILABLE` without calling the provider for
+   * `cooldownMs` (default 10000), then one probe turn decides. Cancelled
+   * turns and model-output refusals (length, unknown tool) never count.
+   * `false` disables the breaker.
+   */
+  readonly circuitBreaker?: CircuitBreakerOptions | false;
 }
 
 export interface AiStreamOptions {

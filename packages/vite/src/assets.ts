@@ -6,11 +6,11 @@ import {
   resolveEntryAssets,
 } from './manifest.js';
 import type { LoadedViteManifest, ViteEntryAssets } from './manifest.js';
-import { renderAssetTags } from './tags.js';
+import { assetEarlyHints, renderAssetTags } from './tags.js';
 import { integrityForFiles, isIntegrityAlgorithm } from './integrity.js';
 import type { IntegrityAlgorithm } from './integrity.js';
 import { basename, dirname, isAbsolute } from 'node:path';
-import type { ViteTagOptions } from './tags.js';
+import type { ViteEarlyHint, ViteTagOptions } from './tags.js';
 
 /** Assets of one frontend root (one Vite build with its own manifest). */
 export interface ViteAppOptions {
@@ -202,6 +202,20 @@ export class ViteAssets {
     const resolved = this.#app(app);
     return renderAssetTags(resolved.assets, {
       nonce: options.nonce,
+      crossOrigin: resolved.crossOrigin,
+    });
+  }
+
+  /**
+   * `103 Early Hints` links for `app` (see `assetEarlyHints`), for
+   * `sendEarlyHints(response, hints)` from `@nestvexa/core`. Empty in
+   * development mode: dev-server URLs are not content-hashed and change on
+   * every edit.
+   */
+  earlyHints(app: string): readonly ViteEarlyHint[] {
+    const resolved = this.#app(app);
+    if (resolved.loaded === undefined) return Object.freeze([]);
+    return assetEarlyHints(resolved.assets, {
       crossOrigin: resolved.crossOrigin,
     });
   }

@@ -59,6 +59,8 @@ import {
   sessionOption,
 } from './inertia-support.js';
 import type { Platform } from './inertia-support.js';
+// Fails the test on any server-side unhandled promise rejection (QA-073).
+import './support/no-unhandled-rejections.js';
 
 const calls: Record<string, number> = {};
 const count = (name: string) => {

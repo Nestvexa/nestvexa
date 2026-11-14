@@ -46,3 +46,45 @@ export function renderAssetTags(
     );
   return tags.join('');
 }
+
+/**
+ * One `103 Early Hints` link, structurally identical to `EarlyHint` from
+ * `@nestvexa/core` (pass the list to its `sendEarlyHints`).
+ */
+export interface ViteEarlyHint {
+  readonly href: string;
+  readonly rel: 'modulepreload' | 'preload';
+  readonly as?: 'style';
+  readonly crossOrigin?: 'anonymous' | 'use-credentials';
+}
+
+/** Root-relative (not protocol-relative) path or `https:` URL. */
+const hintable = (url: string): boolean =>
+  (url.startsWith('/') && !url.startsWith('//')) || url.startsWith('https://');
+
+/**
+ * Early Hints for resolved entry assets: stylesheets as `preload` (`as=style`)
+ * and entry scripts plus their static imports as `modulepreload`, with the
+ * same `crossorigin` the tags carry. URLs that are neither root-relative nor
+ * `https:` (a relative Vite `base`) are left out.
+ */
+export function assetEarlyHints(
+  assets: ViteEntryAssets,
+  options: Pick<ViteTagOptions, 'crossOrigin'> = {},
+): readonly ViteEarlyHint[] {
+  const integrity = assets.integrity ?? {};
+  const cross = (url: string): Pick<ViteEarlyHint, 'crossOrigin'> => {
+    const value =
+      options.crossOrigin ??
+      (Object.hasOwn(integrity, url) ? 'anonymous' : undefined);
+    return value === undefined ? {} : { crossOrigin: value };
+  };
+  const hints: ViteEarlyHint[] = [];
+  for (const href of assets.styles)
+    if (hintable(href))
+      hints.push({ href, rel: 'preload', as: 'style', ...cross(href) });
+  for (const href of [...assets.scripts, ...assets.preloads])
+    if (hintable(href))
+      hints.push({ href, rel: 'modulepreload', ...cross(href) });
+  return Object.freeze(hints);
+}

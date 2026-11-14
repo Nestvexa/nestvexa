@@ -39,6 +39,8 @@ import {
   send,
   sha256,
 } from './support/uploads-http.js';
+// Fails the test on any server-side unhandled promise rejection (QA-073).
+import './support/no-unhandled-rejections.js';
 
 const CHUNK = 16 * 1024;
 

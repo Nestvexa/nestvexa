@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { axe } from './axe.js';
 import { expect, test } from '@playwright/test';
 import type { ConsoleMessage, Page, Request } from '@playwright/test';
 
@@ -346,12 +346,12 @@ export function defineFrameworkSuite({
       await expect(page.getByTestId('stats')).toHaveText(/^Users:/, {
         timeout: 15000,
       });
-      expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+      expect((await axe(page).analyze()).violations).toEqual([]);
       await page.goto(`${base}/users/create`);
       await hydrated(page);
       await page.getByRole('button', { name: 'Save' }).click();
       await expect(page.locator('#name-error')).toBeVisible();
-      expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+      expect((await axe(page).analyze()).violations).toEqual([]);
     });
 
     test('a page that throws falls back from SSR to the client error boundary', async ({

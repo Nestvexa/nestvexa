@@ -1,5 +1,7 @@
 import { connect } from 'node:net';
 import type { Socket } from 'node:net';
+import { CircuitBreaker } from './circuit-breaker.js';
+import type { CircuitBreakerOptions } from './circuit-breaker.js';
 
 /** An error reply (`-ERR ...`) from the server. Its text never contains values. */
 export class RespError extends Error {
@@ -19,8 +21,19 @@ export interface RespConnectionOptions {
   readonly password?: string;
   /** Logical database index (single-primary deployments only). */
   readonly database?: number;
-  /** A command without a reply after this long destroys the connection. */
+  /**
+   * A command without a reply after this long destroys the connection; a
+   * connection attempt that does not complete within it fails. Default 5000.
+   */
   readonly commandTimeoutMs?: number;
+  /**
+   * Fail fast while Redis is unreachable: after `failureThreshold` (default 5)
+   * consecutive connection failures, closes or timeouts, commands reject with
+   * `CircuitOpenError` without touching the network for `cooldownMs`
+   * (default 1000), then one probe command decides. Error replies (`-ERR`)
+   * never count. `false` disables the breaker.
+   */
+  readonly circuitBreaker?: CircuitBreakerOptions | false;
 }
 
 const maxBulkBytes = 8_388_608;
@@ -119,9 +132,10 @@ interface Pending {
  */
 export class RespConnection {
   readonly #options: Required<
-    Omit<RespConnectionOptions, 'username' | 'password'>
+    Omit<RespConnectionOptions, 'username' | 'password' | 'circuitBreaker'>
   > &
     Pick<RespConnectionOptions, 'username' | 'password'>;
+  readonly #breaker: CircuitBreaker | undefined;
   #socket: Promise<Socket> | undefined;
   readonly #pending: Pending[] = [];
   #closed = false;
@@ -146,6 +160,17 @@ export class RespConnection {
       commandTimeoutMs > 120_000
     )
       throw new Error('Invalid Redis command timeout');
+    this.#breaker =
+      options.circuitBreaker === false
+        ? undefined
+        : new CircuitBreaker('Redis', {
+            cooldownMs: 1000,
+            ...options.circuitBreaker,
+          });
+  }
+  /** Current breaker state (`closed` when the breaker is disabled). */
+  get circuit(): 'closed' | 'open' | 'half-open' {
+    return this.#breaker?.state ?? 'closed';
   }
   #connect(): Promise<Socket> {
     return new Promise((resolve, reject) => {
@@ -153,6 +178,13 @@ export class RespConnection {
       socket.setNoDelay(true);
       let buffer: Buffer = Buffer.alloc(0);
       let ready = false;
+      // A host that never answers the handshake must not hold callers for
+      // the operating system's connect timeout.
+      const connecting = setTimeout(
+        () => socket.destroy(new Error('Redis connection timed out')),
+        this.#options.commandTimeoutMs,
+      );
+      connecting.unref();
       socket.on('data', (chunk: Buffer) => {
         buffer = buffer.length ? Buffer.concat([buffer, chunk]) : chunk;
         if (buffer.length > maxBufferBytes) {
@@ -172,6 +204,7 @@ export class RespConnection {
       });
       socket.once('connect', () => {
         ready = true;
+        clearTimeout(connecting);
         const setup: string[][] = [];
         const { username, password, database } = this.#options;
         if (password !== undefined)
@@ -201,6 +234,7 @@ export class RespConnection {
         if (!ready) reject(new Error('Redis connection failed'));
       });
       socket.on('close', () => {
+        clearTimeout(connecting);
         this.#socket = undefined;
         for (const pending of this.#pending.splice(0))
           pending.reject(new Error('Redis connection closed'));
@@ -212,14 +246,23 @@ export class RespConnection {
     if (this.#closed) throw new Error('Redis connection is closed');
     if (!parts.length || parts.length > maxArrayItems)
       throw new Error('Invalid Redis command');
+    return this.#breaker
+      ? this.#breaker.run(() => this.#send(parts))
+      : this.#send(parts);
+  }
+  async #send(parts: readonly string[]): Promise<RespReply> {
     this.#socket ??= this.#connect().catch((error: unknown) => {
       this.#socket = undefined;
       throw error;
     });
     const socket = await this.#socket;
+    // The server may close the connection between connecting and writing.
+    if (socket.destroyed) throw new Error('Redis connection closed');
     return new Promise<RespReply>((resolve, reject) => {
       const timer = setTimeout(() => {
-        socket.destroy(new Error('Redis command timed out'));
+        // A socket that already closed emits no further 'close' event.
+        if (socket.destroyed) reject(new Error('Redis connection closed'));
+        else socket.destroy(new Error('Redis command timed out'));
       }, this.#options.commandTimeoutMs);
       timer.unref();
       this.#pending.push({

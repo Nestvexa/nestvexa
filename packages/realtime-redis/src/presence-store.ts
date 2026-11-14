@@ -44,6 +44,9 @@ export class RedisPresenceStore implements PresenceStore {
       ...(options.commandTimeoutMs === undefined
         ? {}
         : { commandTimeoutMs: options.commandTimeoutMs }),
+      ...(options.circuitBreaker === undefined
+        ? {}
+        : { circuitBreaker: options.circuitBreaker }),
     });
   }
   #check(replica: string, channel: string): void {

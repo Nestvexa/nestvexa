@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { wcagAxe } from './axe.js';
 import { expect, test } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
 
@@ -291,14 +291,10 @@ export function defineHostSuite({ platform, base }: HostSuite): void {
         .getByRole('button', { name: 'Sign' })
         .click();
       await expect(page.locator('#guestbook-error')).toBeVisible();
-      const home = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
+      const home = await wcagAxe(page).analyze();
       expect(home.violations).toEqual([]);
       await page.goto(base + '/about');
-      const about = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
+      const about = await wcagAxe(page).analyze();
       expect(about.violations).toEqual([]);
     });
   });

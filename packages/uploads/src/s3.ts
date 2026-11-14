@@ -3,6 +3,8 @@ import { request as httpRequest } from 'node:http';
 import type { IncomingMessage } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import type { Readable } from 'node:stream';
+import { CircuitBreaker } from './circuit-breaker.js';
+import type { CircuitBreakerOptions } from './circuit-breaker.js';
 import { fail } from './errors.js';
 import { contentDisposition } from './filename.js';
 import { EMPTY_SHA256, presignUrl, signRequest } from './sigv4.js';
@@ -34,6 +36,14 @@ export interface S3StorageOptions {
   readonly prefix?: string;
   /** Per-request inactivity timeout. Default 30000ms. */
   readonly requestTimeoutMs?: number;
+  /**
+   * Fail fast while the service is down: after `failureThreshold` (default 5)
+   * consecutive network errors, timeouts or 5xx replies, storage calls fail
+   * with `502 STORAGE_FAILED` without a request for `cooldownMs` (default
+   * 10000), then one probe request decides. 4xx replies never count.
+   * `false` disables the breaker.
+   */
+  readonly circuitBreaker?: CircuitBreakerOptions | false;
   /** Clock override for tests. */
   readonly now?: () => Date;
 }
@@ -50,6 +60,7 @@ export class S3Storage implements UploadStorage {
   readonly #options: S3StorageOptions;
   readonly #prefix: string;
   readonly #timeout: number;
+  readonly #breaker: CircuitBreaker | undefined;
   constructor(options: S3StorageOptions) {
     if (!options || typeof options !== 'object')
       throw new Error('Invalid S3 storage options');
@@ -96,6 +107,14 @@ export class S3Storage implements UploadStorage {
     this.#options = options;
     this.#prefix = prefix;
     this.#timeout = timeout;
+    this.#breaker =
+      options.circuitBreaker === false
+        ? undefined
+        : new CircuitBreaker('S3 storage', options.circuitBreaker);
+  }
+  /** Current breaker state (`closed` when the breaker is disabled). */
+  get circuit(): 'closed' | 'open' | 'half-open' {
+    return this.#breaker?.state ?? 'closed';
   }
   private now(): Date {
     return this.#options.now ? this.#options.now() : new Date();
@@ -115,7 +134,42 @@ export class S3Storage implements UploadStorage {
     } else url.pathname = `/${this.#options.bucket}/${object}`;
     return url;
   }
+  /**
+   * One signed request through the breaker. A 5xx reply is drained and
+   * rejected (it counts as a service failure); callers map every rejection,
+   * including an open circuit, to `502 STORAGE_FAILED`.
+   */
   private async send(
+    method: 'GET' | 'PUT' | 'HEAD' | 'DELETE',
+    key: string,
+    headers: Record<string, string>,
+    payloadHash: string,
+    body?: Readable,
+  ): Promise<IncomingMessage> {
+    const exchange = async () => {
+      const response = await this.request(
+        method,
+        key,
+        headers,
+        payloadHash,
+        body,
+      );
+      if ((response.statusCode ?? 0) >= 500) {
+        await S3Storage.drain(response);
+        throw new Error('S3 service error');
+      }
+      return response;
+    };
+    if (!this.#breaker) return exchange();
+    try {
+      return await this.#breaker.run(exchange);
+    } catch (error) {
+      // An upload stream that was never sent must not stay open.
+      body?.destroy();
+      throw error;
+    }
+  }
+  private async request(
     method: 'GET' | 'PUT' | 'HEAD' | 'DELETE',
     key: string,
     headers: Record<string, string>,

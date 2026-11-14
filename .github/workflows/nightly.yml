@@ -1,9 +1,9 @@
 name: Nightly
 # Long-running suites that are too slow for every push: the full e2e suite in
-# all three browsers (failing on flaky outcomes), property/fuzz suites with 10x
-# runs (browser runtime fuzz in Chromium, Firefox and WebKit), mutation
-# testing, the HBS render benchmark, the load/memory soak, the complete
-# security suite and an upstream dependency audit.
+# all three browsers (failing on flaky outcomes), property/fuzz suites with 10x runs (browser runtime fuzz
+# in Chromium, Firefox and WebKit), mutation testing, the load/memory soak,
+# the benchmarks (pnpm bench), the complete security suite and an upstream
+# dependency audit.
 # See docs/testing/property-load-mutation.md.
 on:
   schedule:
@@ -120,28 +120,6 @@ jobs:
           name: nightly-mutation
           path: artifacts/reports/mutation/
 
-  bench:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10.26.1
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      # Recorded for trend comparison, not gated (hosted runner timings vary).
-      - run: pnpm bench
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: nightly-bench
-          path: artifacts/reports/benchmark.json
-
   load:
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -167,6 +145,33 @@ jobs:
         with:
           name: nightly-load
           path: artifacts/reports/load.json
+
+  bench:
+    # Comparative benchmarks (scripts/bench.mjs): SSR throughput against plain
+    # NestJS + Handlebars and an official-style Inertia responder, no-op action
+    # overhead, serialized bytes, 10/100/1000 concurrent Live components and
+    # DOM patch time. Recorded for comparison between runs, never gated:
+    # hosted runners are shared machines.
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm bench
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-bench
+          path: artifacts/reports/benchmark.json
 
   dependencies:
     runs-on: ubuntu-latest

@@ -1,5 +1,7 @@
 import { connect } from 'node:net';
 import type { Readable } from 'node:stream';
+import { CircuitBreaker, CircuitOpenError } from './circuit-breaker.js';
+import type { CircuitBreakerOptions, CircuitCall } from './circuit-breaker.js';
 
 /** Scanner verdict. Anything but `clean` blocks finalization. */
 export type ScanVerdict =
@@ -33,7 +35,18 @@ export interface ClamdScannerOptions {
   readonly socketPath?: string;
   /** Default 30000ms. */
   readonly timeoutMs?: number;
+  /**
+   * Fail fast while clamd is down: after `failureThreshold` (default 5)
+   * consecutive connection failures, timeouts or dropped connections, scans
+   * return `{ status: 'error', reason: 'unavailable' }` without connecting
+   * for `cooldownMs` (default 10000), then one probe scan decides. The upload
+   * still fails closed. `false` disables the breaker.
+   */
+  readonly circuitBreaker?: CircuitBreakerOptions | false;
 }
+
+/** Verdict reasons that mean clamd itself is unreachable or unresponsive. */
+const outages = new Set(['connection', 'timeout', 'closed']);
 
 /**
  * ClamAV `clamd` adapter using the documented INSTREAM protocol. Requires a
@@ -43,6 +56,7 @@ export interface ClamdScannerOptions {
 export class ClamdScanner implements UploadScanner {
   readonly name = 'clamd';
   readonly #options: ClamdScannerOptions;
+  readonly #breaker: CircuitBreaker | undefined;
   constructor(options: ClamdScannerOptions = {}) {
     const timeout = options.timeoutMs ?? 30_000;
     if (!Number.isSafeInteger(timeout) || timeout < 100 || timeout > 600_000)
@@ -56,8 +70,39 @@ export class ClamdScanner implements UploadScanner {
     )
       throw new Error('Invalid clamd port');
     this.#options = options;
+    this.#breaker =
+      options.circuitBreaker === false
+        ? undefined
+        : new CircuitBreaker('clamd', options.circuitBreaker);
+  }
+  /** Current breaker state (`closed` when the breaker is disabled). */
+  get circuit(): 'closed' | 'open' | 'half-open' {
+    return this.#breaker?.state ?? 'closed';
   }
   async scan(file: ScanInput, signal: AbortSignal): Promise<ScanVerdict> {
+    if (!this.#breaker) return this.#scan(file, signal);
+    let call: CircuitCall;
+    try {
+      call = this.#breaker.attempt();
+    } catch (error) {
+      if (error instanceof CircuitOpenError)
+        return { status: 'error', reason: 'unavailable' };
+      throw error;
+    }
+    try {
+      const verdict = await this.#scan(file, signal);
+      if (verdict.status !== 'error') call.succeed();
+      else if (outages.has(verdict.reason ?? '')) call.fail();
+      else if (verdict.reason === 'aborted' || verdict.reason === 'read')
+        call.release();
+      else call.succeed();
+      return verdict;
+    } catch (error) {
+      call.release();
+      throw error;
+    }
+  }
+  async #scan(file: ScanInput, signal: AbortSignal): Promise<ScanVerdict> {
     const source = await file.open();
     const socket =
       this.#options.socketPath === undefined

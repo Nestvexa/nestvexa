@@ -84,13 +84,26 @@ components render through engine-level helpers only.
 - Optional browser modules are served and versioned by the host; they are not
   part of the content-addressed core asset catalog.
 - ICU support is a documented subset; translation extraction is regex based.
-- UI kit coverage is partial (no datepicker, uploader, drawer, wizard, popover,
-  chart wrapper, table selection/filtering); the combobox needs JavaScript and the
-  example adds a `<noscript>` select.
+- UI kit coverage (updated 2026-11-14): the HBS/Live helpers now include the
+  date picker, file uploader, drawer, step wizard, popover, dropdown menu,
+  breadcrumbs, live notification badge, form-field wrappers (text, textarea,
+  select, checkbox, radio group), the SVG chart wrapper (bar, line, sparkline,
+  plus a `custom` container for a third-party library) and data-table search,
+  filtering and row selection ([UI kit README](../../packages/ui/README.md)).
+  React, Vue and Svelte wrappers cover the primitives listed in
+  [ADR 0033](0033-ui-kit-framework-wrappers.md); accordion, popover, tooltip,
+  breadcrumbs, badge, alert, file upload, wizard, combobox, pagination and
+  progress remain HBS-only. Charts have no interactive tooltips and at most
+  200 labels and 8 series; field wrappers are single controls. Client-side
+  table filtering works on rendered rows only. The combobox still needs
+  JavaScript (no no-JS fallback; the example adds a `<noscript>` select).
+  `examples/admin-i18n` uses the fields and charts on its kit page.
 - AI conversations, approvals and flag rules are in-process; multi-instance
   deployments need shared implementations of those stores.
 - Without a service worker a full page reload while offline is not supported.
-- Automated axe checks run in three browsers; manual screen-reader testing is a
+- Automated axe checks run in three browsers (the framework-wrapper and
+  primitive browser suites run in Firefox and WebKit through
+  `NV_UI_BROWSERS`); manual screen-reader testing is a
   documented checklist ([accessibility checklist](../testing/accessibility-checklist.md))
   that has not been executed by the implementing agent.
 

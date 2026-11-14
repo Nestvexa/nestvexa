@@ -87,6 +87,31 @@ href="/admin/kit?step=pricing"}}
   <button type="submit" class="nv-button">{{t "kit:table.archive"}}</button>
 </form>
 
+<section aria-labelledby="kit-overview-title">
+  {{uiChart id="kit-overview" title=(t "kit:chart.title") description=(t
+  "kit:chart.description") categoryLabel=(t "kit:table.category")
+  labels=chartLabels series=chartSeries locale=lang showTable=true}}
+</section>
+
+<form method="post" action="/admin/kit/feedback" id="kit-feedback" novalidate>
+  <h2 id="kit-feedback-title">{{t "kit:feedback.title"}}</h2>
+  <input type="hidden" name="_csrf" value="{{csrf}}" />
+  {{uiTextField id="kit-email" name="email" type="email" label=(t
+  "kit:feedback.email") hint=(t "kit:feedback.emailHint") autocomplete="email"
+  value=feedback.email error=feedbackErrors.email required=true}}
+  {{uiSelectField id="kit-topic" name="topic" label=(t "kit:feedback.topic")
+  options=topicOptions value=feedback.topic placeholder=(t
+  "kit:feedback.topicPlaceholder") error=feedbackErrors.topic required=true}}
+  {{uiRadioGroupField id="kit-urgency" name="urgency" label=(t
+  "kit:feedback.urgencyLabel") options=urgencyOptions value=feedback.urgency}}
+  {{uiTextareaField id="kit-message" name="message" label=(t
+  "kit:feedback.message") hint=(t "kit:feedback.messageHint") rows=4
+  maxLength=500 value=feedback.message error=feedbackErrors.message
+  required=true}} {{uiCheckboxField id="kit-reply" name="reply" value="yes"
+  label=(t "kit:feedback.reply") checked=feedback.reply}}
+  <button type="submit" class="nv-button">{{t "kit:feedback.send"}}</button>
+</form>
+
 {{#uiDrawer id="kit-filters" title=(t "kit:filters") closeLabel=(t
 "common:close")}}
 <p>{{t "kit:filtersBody"}}</p>

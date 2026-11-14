@@ -56,3 +56,10 @@ export {
   type RealtimeChannelOptions,
   type RealtimePublisher,
 } from './notifications.js';
+export {
+  CircuitBreaker,
+  CircuitOpenError,
+  type CircuitBreakerOptions,
+  type CircuitCall,
+  type CircuitState,
+} from './circuit-breaker.js';

@@ -71,6 +71,13 @@ available through the client `onDiagnostic` option.
   get development-only warnings for slow renders and actions, large HTML,
   public state or Inertia pages, and root render loops. It is a no-op in
   production. `examples/admin-i18n` enables it.
+- `queryBudget()` warns in development when one SQL statement shape repeats
+  more than `maxIdenticalQueries` (5) times in a request (N+1) or a request
+  runs more than `maxQueries` (100) statements. Register
+  `app.use(queries.middleware())` and forward statements from the ORM with
+  `queries.record(sql)` (TypeORM `Logger#logQuery`, Prisma `$on('query')`,
+  Drizzle `logger`); it is disabled in production. See the
+  [package README](../../packages/observability/README.md#n1-query-detection-development-only).
 - `app.use(traceContextMiddleware())` accepts a validated W3C `traceparent`
   (for example from a browser OpenTelemetry SDK) and
   `openTelemetryInstrumentation(tracer, { api: { trace, context } })` parents

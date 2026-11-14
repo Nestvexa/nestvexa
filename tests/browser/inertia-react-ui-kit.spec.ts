@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { axe } from './axe.js';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import {
@@ -32,7 +32,7 @@ test.describe('React UI kit wrappers in the Inertia example', () => {
     const observed = await observe(page);
     await page.goto(`${base}/kit`);
     await hydrated(page);
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect((await axe(page).analyze()).violations).toEqual([]);
 
     // Dialog: trigger, focus moves in, Escape closes and focus returns.
     await page.locator('[data-nv-ui-open="kit-dialog"]').focus();
@@ -89,7 +89,7 @@ test.describe('React UI kit wrappers in the Inertia example', () => {
     await expect(page.getByLabel('Select Hammer')).toBeChecked();
     await expect(page.getByLabel('Select Atlas')).not.toBeChecked();
 
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect((await axe(page).analyze()).violations).toEqual([]);
     // WebKit reports style-src-attr for the UA shadow tree of a <select>
     // created by script (client rendering without SSR); see
     // tests/ui-adapters.test.ts. Other engines must report nothing.
