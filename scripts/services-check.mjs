@@ -291,6 +291,102 @@ const realtimeUrl = JSON.stringify(
 );
 
 if (env.NESTVEXA_REDIS_PORT)
+  await check('redis-live-namespace', async (step) => {
+    // DATA-004 on a real server: tenant/user key spaces (SCAN MATCH per
+    // tenant), user and tenant revocation, and the attempt fence after a
+    // replica process is SIGKILLed while its action callback runs.
+    const prefix = 'nvns' + randomBytes(4).toString('hex') + ':';
+    const namespace = (binding) => {
+      const [tenant, , user] = binding.split('/');
+      return { tenant, user };
+    };
+    const store = new RedisLiveStore({ ...redisOptions(prefix), namespace });
+    const scan = new RespConnection(redisOptions(prefix));
+    const keys = async (pattern) => {
+      const found = [];
+      let cursor = '0';
+      do {
+        const [next, batch] = await scan.command(
+          'SCAN',
+          cursor,
+          'MATCH',
+          pattern,
+          'COUNT',
+          '1000',
+        );
+        cursor = next;
+        found.push(...batch);
+      } while (cursor !== '0');
+      return found;
+    };
+    const code = async (run) => {
+      try {
+        await run();
+        return 'ok';
+      } catch (error) {
+        return error?.code ?? error?.message ?? String(error);
+      }
+    };
+    const expect = (actual, expected, label) => {
+      if (actual !== expected)
+        throw new Error(`${label}: expected ${expected}, got ${actual}`);
+    };
+    const alice = 'tenant-a/session-1/alice';
+    const aliceTwo = 'tenant-a/session-2/alice';
+    const carol = 'tenant-b/session-3/carol';
+    let worker;
+    try {
+      const a1 = await store.create('counter', alice, { n: 1 });
+      await store.create('counter', aliceTwo, { n: 2 });
+      const c1 = await store.create('counter', carol, { n: 3 });
+      const tenantA = await keys(`${prefix}t:tenant-a:*`);
+      const tenantB = await keys(`${prefix}t:tenant-b:*`);
+      expect(tenantA.some((key) => key.includes(':s:')), true, 'tenant-a keys');
+      expect(tenantB.length > 0, true, 'tenant-b keys');
+      const all = (await keys(`${prefix}*`)).join('\n');
+      expect(all.includes(a1.snapshot) || all.includes('alice'), false, 'raw values in keys');
+      step('each tenant has its own key space (SCAN MATCH <prefix>t:<tenant>:*)');
+      expect(await store.revokeUser('tenant-a', 'alice'), 2, 'revokeUser');
+      expect(await code(() => store.peek(a1.snapshot, alice)), 'INVALID_SNAPSHOT', 'revoked user');
+      expect((await store.peek(c1.snapshot, carol)).state.n, 3, 'other tenant');
+      for (let index = 0; index < 100; index++)
+        await store.create('counter', `tenant-a/session-x${index}/u${index}`, {});
+      expect(await store.revokeTenant('tenant-a'), 100, 'revokeTenant');
+      expect((await keys(`${prefix}t:tenant-a:*`)).length, 0, 'tenant-a purged');
+      expect((await store.peek(c1.snapshot, carol)).revision, 0, 'tenant-b kept');
+      step('revokeUser and revokeTenant (100 bindings, batched) delete only their scope');
+      // A replica process starts an action and is killed before committing.
+      const entry = await store.create('counter', carol, { count: 0 });
+      const storeUrl = JSON.stringify(
+        new URL('../packages/realtime-redis/dist/index.js', import.meta.url).href,
+      );
+      worker = child(`import { RedisLiveStore } from ${storeUrl};
+const store = new RedisLiveStore({ ...${JSON.stringify(redisOptions(prefix))}, lockTtlMs: 1500, namespace: (b) => { const [tenant, , user] = b.split('/'); return { tenant, user }; } });
+await store.transaction(${JSON.stringify(entry.snapshot)}, ${JSON.stringify(carol)}, 0, async (s) => { console.log('running'); await new Promise(() => {}); return { state: s.state, html: '' }; });`);
+      await waitFor(() => worker.lines.includes('running'), 'worker action', 60_000);
+      worker.proc.kill('SIGKILL');
+      let ran = false;
+      const attempt = () =>
+        code(() =>
+          store.transaction(entry.snapshot, carol, 0, async (s) => {
+            ran = true;
+            return { state: s.state, html: '' };
+          }),
+        );
+      expect(await attempt(), 'COMPONENT_BUSY', 'lease held by the killed replica');
+      await delay(1700);
+      expect(await attempt(), 'INVALID_SNAPSHOT', 'abandoned attempt');
+      expect(ran, false, 'callback never re-run');
+      step('a SIGKILLed replica mid-action leaves a fence: the entry is invalidated, never retried');
+    } finally {
+      worker?.proc.kill();
+      await store.revokeTenant('tenant-b').catch(() => undefined);
+      await store.close();
+      await scan.close();
+    }
+  });
+
+if (env.NESTVEXA_REDIS_PORT)
   await check('redis-live-coordination', async (step) => {
     // LiveActionCoordination on RedisLiveStore (shared idempotent replay and
     // identity locks). Two store instances stand in for two replicas; the

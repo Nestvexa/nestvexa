@@ -248,7 +248,7 @@ describe('RedisLiveStore tenant/user namespacing (DATA-004, RESP test double)', 
   });
 
   it('revokes one user across sessions, then a whole tenant, and nothing else', async () => {
-    const { store } = await setup();
+    const { server, store } = await setup();
     const first = await store.create('counter', alice, {});
     const second = await store.create('counter', aliceSecond, {});
     const other = await store.create('counter', bob, {});
@@ -271,7 +271,8 @@ describe('RedisLiveStore tenant/user namespacing (DATA-004, RESP test double)', 
           {},
         ),
       );
-    expect(await store.revokeTenant('tenant-a')).toBeGreaterThanOrEqual(71);
+    // Bob plus the 70 sessions: Alice's revoked sessions are not counted again.
+    expect(await store.revokeTenant('tenant-a')).toBe(71);
     expect(await code(() => store.peek(other.snapshot, bob))).toBe(
       'INVALID_SNAPSHOT:410',
     );
@@ -284,6 +285,10 @@ describe('RedisLiveStore tenant/user namespacing (DATA-004, RESP test double)', 
       ),
     ).toBe('INVALID_SNAPSHOT:410');
     expect((await store.peek(foreign.snapshot, carol)).revision).toBe(0);
+    // No key of tenant-a survives (entries, indexes, user indexes).
+    expect(
+      [...server.values.keys()].filter((key) => key.startsWith('ns:t:tenant-a:')),
+    ).toEqual([]);
     expect(await store.revokeTenant('tenant-a')).toBe(0);
     // Host-only delete finds a namespaced entry through its pointer.
     expect(await store.delete(foreign.snapshot)).toBe(true);
@@ -663,5 +668,5 @@ describe('LiveRuntime with a shared store (two Nest applications, RESP test doub
     // Shutting a replica down closes its connections but keeps shared state.
     await a.app.close();
     expect((await send(b.base, 2)).body).toMatchObject({ state: { count: 3 } });
-  });
+  }, 60_000);
 });

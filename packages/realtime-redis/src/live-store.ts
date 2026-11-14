@@ -331,6 +331,10 @@ export class RedisLiveStore implements LiveStateStore, LiveActionCoordination {
   #tenantKey(space: Space): string {
     return `${space.base}i`;
   }
+  /** User hashes of one tenant (to delete their indexes with the tenant). */
+  #usersKey(space: Space): string {
+    return `${space.base}us`;
+  }
   /** Token hash → tenant, so host-only `delete(token)` finds a namespaced entry. */
   #pointerKey(tokenHash: string): string {
     return `${this.#prefix}p:${tokenHash}`;
@@ -586,6 +590,8 @@ export class RedisLiveStore implements LiveStateStore, LiveActionCoordination {
         indexes.push(
           ['SADD', userIndex, bindingHash],
           ['PEXPIRE', userIndex, ttl],
+          ['SADD', this.#usersKey(space), space.user],
+          ['PEXPIRE', this.#usersKey(space), ttl],
         );
       }
     }
@@ -776,6 +782,17 @@ export class RedisLiveStore implements LiveStateStore, LiveActionCoordination {
       ...(space.tenant === undefined ? [] : [this.#pointerKey(hash)]),
     ]);
   }
+  /** Drop revoked bindings from the tenant (and user) indexes, so counts stay exact. */
+  #groupRemovals(space: Space, bindingHashes: readonly string[]): string[][] {
+    const user = space.user;
+    if (space.tenant === undefined || !bindingHashes.length) return [];
+    return [
+      ['SREM', this.#tenantKey(space), ...bindingHashes],
+      ...(user === undefined
+        ? []
+        : [['SREM', this.#userKey(space, user), ...bindingHashes]]),
+    ];
+  }
   static #hashes(members: RespReply): string[] {
     return Array.isArray(members)
       ? members.filter(
@@ -800,6 +817,7 @@ export class RedisLiveStore implements LiveStateStore, LiveActionCoordination {
             RedisLiveStore.#hashes(await run('SMEMBERS', index)),
           ),
         ],
+        ...this.#groupRemovals(space, [bindingHash]),
       ]);
       if (result) return;
     }
@@ -835,6 +853,10 @@ export class RedisLiveStore implements LiveStateStore, LiveActionCoordination {
         return [
           ['DEL', ...keys],
           ['SREM', group, ...members],
+          // A user revocation also leaves the tenant index exact.
+          ...(group === this.#tenantKey(space)
+            ? []
+            : [['SREM', this.#tenantKey(space), ...members]]),
         ];
       });
       if (result && removed === 0) return bindings;
@@ -853,7 +875,25 @@ export class RedisLiveStore implements LiveStateStore, LiveActionCoordination {
         'revokeTenant requires the Redis Live store namespace option',
       );
     const space = this.#tenantSpace(tenant, undefined);
-    return this.#revokeGroup(space, this.#tenantKey(space));
+    const revoked = await this.#revokeGroup(space, this.#tenantKey(space));
+    // Then the per-user indexes, in rounds as well.
+    const users = this.#usersKey(space);
+    for (let round = 0; round < 10_000; round++) {
+      let done = false;
+      const result = await this.#atomic([users], async (run) => {
+        const members = RedisLiveStore.#hashes(
+          await run('SRANDMEMBER', users, String(revokeBatch)),
+        );
+        done = members.length === 0;
+        if (done) return [['DEL', users]];
+        return [
+          ['DEL', ...members.map((hash) => this.#userKey(space, hash))],
+          ['SREM', users, ...members],
+        ];
+      });
+      if (result && done) return revoked;
+    }
+    unavailable(new Error('Live state revocation did not converge'));
   }
   /**
    * Sign a user out everywhere: delete the entries of every binding (session)
