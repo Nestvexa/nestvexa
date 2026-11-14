@@ -129,6 +129,7 @@ the package can emit is listed with the status it is emitted with.
 | `STREAM_HTTP_ADAPTER`      | 500    | server      | The HTTP adapter cannot stream responses.                                |
 | `DOWNLOAD_CAPACITY`        | 503    | retry-later | Pending download capacity reached.                                       |
 | `STORE_CAPACITY`           | 503    | retry-later | State or in-flight action capacity reached.                              |
+| `STORE_UNAVAILABLE`        | 503    | retry-later | A shared state store is unreachable; stored state is kept.               |
 | `LIVE_SHUTDOWN`            | 503    | retry-later | The application is shutting down.                                        |
 | `STREAM_SHUTDOWN`          | 503    | retry-later | The application is shutting down streams.                                |
 | `COMPUTED_TIMEOUT`         | 504    | retry-later | An async @Computed exceeded its deadline.                                |

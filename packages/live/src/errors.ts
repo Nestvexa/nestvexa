@@ -227,6 +227,11 @@ export const LIVE_ERROR_CODES = Object.freeze({
     'retry-later',
     'State or in-flight action capacity reached.',
   ),
+  STORE_UNAVAILABLE: entry(
+    503,
+    'retry-later',
+    'A shared state store (for example Redis) is unreachable; stored state is kept.',
+  ),
   LIVE_SHUTDOWN: entry(503, 'retry-later', 'The application is shutting down.'),
   STREAM_SHUTDOWN: entry(
     503,
