@@ -209,4 +209,27 @@ showcase itself.
 
 ## Verification (Windows host under heavy shared load)
 
-Commands are listed with their results in the final message of this round.
+- `pnpm --filter @nestvexa/example-showcase build` (tsc, vue-tsc including
+  the `.tsx` island, Vite client and SSR builds with React, Vue and Svelte):
+  passes.
+- `pnpm exec eslint examples/showcase <new specs and test>`,
+  `node scripts/boundaries.mjs`, `prettier --check` on changed files: pass.
+- `pnpm exec tsc -p tsconfig.tests.json --noEmit`: no error in any showcase
+  file.
+- `pnpm exec vitest run tests/showcase-scripts.test.ts`: 4/4 (each case
+  starts several Node processes; about 150 s on this host).
+- Browser, one server of mine on port 4040 (`NV_E2E_SHOWCASE_URL`), one
+  browser at a time:
+  - `showcase-locale.spec.ts`: Chromium 4/4, Firefox 4/4, WebKit 4/4 (the
+    dashboard test first failed in WebKit only on WebKit's "EventSource ...
+    due to access control checks" page error for the stream a navigation
+    tears down; that exact message is now ignored in WebKit only, and the
+    test passed);
+  - `showcase-islands.spec.ts`: Chromium 2/2, Firefox 2/2, WebKit 2/2;
+  - `showcase.spec.ts` (existing): Chromium 12/12 on the final build (an
+    earlier run found the two regressions fixed above: the `dir` helper
+    shadowing the sort field, and the global error filter swallowing Inertia
+    validation errors).
+- `showcase-resilience.spec.ts` (own process, `NV_SHOWCASE_RESILIENCE_PORT=4050`):
+  Chromium 3/3; Firefox and WebKit results are in the final message.
+- Compose smoke run: see SHOWCASE-016 above.
