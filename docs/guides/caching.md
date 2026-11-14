@@ -6,11 +6,11 @@ Runnable example: [`examples/data-cache`](../../examples/data-cache/README.md).
 
 ## Live state stores
 
-| Store                                    | Use                                     | Shared across replicas |
-| ---------------------------------------- | --------------------------------------- | ---------------------- |
-| `MemoryLiveStore` (default)              | development, one process; bounded, lost on restart | no          |
-| `RedisLiveStore` (`@nestvexa/realtime-redis`) | production replicas                 | yes                    |
-| your own `LiveStateStore`                | any database with conditional updates   | if the backend is      |
+| Store                                         | Use                                                | Shared across replicas |
+| --------------------------------------------- | -------------------------------------------------- | ---------------------- |
+| `MemoryLiveStore` (default)                   | development, one process; bounded, lost on restart | no                     |
+| `RedisLiveStore` (`@nestvexa/realtime-redis`) | production replicas                                | yes                    |
+| your own `LiveStateStore`                     | any database with conditional updates              | if the backend is      |
 
 ### Redis: namespacing, versioning and failure behaviour
 
@@ -76,7 +76,8 @@ describe('MyStore', () => {
     shared: true, // instances see the same entries (false for process-local)
     boundsEntriesPerBinding: true,
     advance: (ms) => clock.advance(ms), // the store must read this clock
-    store: ({ ttlMs, maxEntries }) => new MyStore({ ttlMs, maxEntries, now: clock.now }),
+    store: ({ ttlMs, maxEntries }) =>
+      new MyStore({ ttlMs, maxEntries, now: clock.now }),
     dispose: () => database.drop(),
   })))
     it(contract.name, () => contract.run());

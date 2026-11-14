@@ -179,8 +179,7 @@ async function code(promise: unknown): Promise<string> {
 }
 const commit = (state: StateSnapshot['state'], html = '<p>ok</p>') =>
   Promise.resolve({ state: { ...state }, html });
-const sha = (value: string) =>
-  createHash('sha256').update(value).digest('hex');
+const sha = (value: string) => createHash('sha256').update(value).digest('hex');
 
 describe('RedisLiveStore tenant/user namespacing (DATA-004, RESP test double)', () => {
   async function setup() {
@@ -278,16 +277,15 @@ describe('RedisLiveStore tenant/user namespacing (DATA-004, RESP test double)', 
     );
     expect(
       await code(() =>
-        store.peek(
-          many[69]?.snapshot ?? '',
-          'tenant-a/session-69/principal-x',
-        ),
+        store.peek(many[69]?.snapshot ?? '', 'tenant-a/session-69/principal-x'),
       ),
     ).toBe('INVALID_SNAPSHOT:410');
     expect((await store.peek(foreign.snapshot, carol)).revision).toBe(0);
     // No key of tenant-a survives (entries, indexes, user indexes).
     expect(
-      [...server.values.keys()].filter((key) => key.startsWith('ns:t:tenant-a:')),
+      [...server.values.keys()].filter((key) =>
+        key.startsWith('ns:t:tenant-a:'),
+      ),
     ).toEqual([]);
     expect(await store.revokeTenant('tenant-a')).toBe(0);
     // Host-only delete finds a namespaced entry through its pointer.

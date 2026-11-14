@@ -8,18 +8,14 @@
   </head>
   <body>
     <main>
-      {{{account}}}
-      {{{catalog}}}
-      {{#if canEdit}}
-        <form method="post" action="/products">
-          <input type="hidden" name="_csrf" value="{{csrf}}" />
-          <label for="product-name">New product</label>
-          <input id="product-name" name="name" maxlength="60" required />
-          <button type="submit">Add product</button>
-        </form>
-      {{/if}}
-      {{{cart}}}
-      {{{footer}}}
+      {{{account}}} {{{catalog}}} {{#if canEdit}}
+      <form method="post" action="/products">
+        <input type="hidden" name="_csrf" value="{{csrf}}" />
+        <label for="product-name">New product</label>
+        <input id="product-name" name="name" maxlength="60" required />
+        <button type="submit">Add product</button>
+      </form>
+      {{/if}} {{{cart}}} {{{footer}}}
     </main>
   </body>
 </html>

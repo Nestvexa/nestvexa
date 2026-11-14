@@ -78,7 +78,7 @@ and Fastify behind one Redis.
 | `host`, `port`                     | `127.0.0.1:6379` | Redis primary                                                                 |
 | `username`, `password`, `database` | —, —, `0`        | ACL user, AUTH password (never logged), logical database                      |
 | `prefix`                           | `nestvexa:live:` | Key namespace per application/environment (`[a-z0-9:._-]{0,64}`)              |
-| `namespace`                        | none             | `(binding) => ({ tenant, user? })`: per-tenant key spaces, user index          |
+| `namespace`                        | none             | `(binding) => ({ tenant, user? })`: per-tenant key spaces, user index         |
 | `ttlMs`                            | 15 min           | Entry lifetime from creation (Redis `PX` and stored `expiresAt`)              |
 | `lockTtlMs`                        | 30 s             | Transaction lease; an action outliving it fails closed (state invalidated)    |
 | `maxEntriesPerBinding`             | 1000             | Entries one identity may hold (approximate; dead index members pruned lazily) |
@@ -126,15 +126,16 @@ its tenant for host-only `delete(token)`.
 
 ## Failure behaviour
 
-| Failure                                   | Result                                                                |
-| ----------------------------------------- | --------------------------------------------------------------------- |
-| Redis unreachable, timeout, error reply   | `503 STORE_UNAVAILABLE` (retry later); state is kept, never `410`     |
-| Outage after the action callback ran      | `503`; the fence remains, so the retry is `410` (no second execution) |
+| Failure                                   | Result                                                                   |
+| ----------------------------------------- | ------------------------------------------------------------------------ |
+| Redis unreachable, timeout, error reply   | `503 STORE_UNAVAILABLE` (retry later); state is kept, never `410`        |
+| Outage after the action callback ran      | `503`; the fence remains, so the retry is `410` (no second execution)    |
 | Replica crash or lease lapse mid-action   | Other replicas: `409 COMPONENT_BUSY` until the lease expires, then `410` |
-| Tampered, foreign-tenant or undecryptable | `410 INVALID_SNAPSHOT` (indistinguishable from unknown)               |
-| Per-binding capacity / in-flight limit    | `503 STORE_CAPACITY`                                                  |
+| Tampered, foreign-tenant or undecryptable | `410 INVALID_SNAPSHOT` (indistinguishable from unknown)                  |
+| Per-binding capacity / in-flight limit    | `503 STORE_CAPACITY`                                                     |
 
 The original I/O error is attached as `cause` for host logs.
+
 - `close()` (called on Nest shutdown) closes connections; shared state stays for
   the other replicas.
 - The store also implements `LiveActionCoordination`, so `@Action({ idempotent })`

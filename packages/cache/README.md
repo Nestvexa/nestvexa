@@ -26,7 +26,12 @@ where you connect a realtime publisher.
 ## Rendered fragments
 
 ```ts
-import { Cache, MemoryCacheStore, RenderCache, tagChannel } from '@nestvexa/cache';
+import {
+  Cache,
+  MemoryCacheStore,
+  RenderCache,
+  tagChannel,
+} from '@nestvexa/cache';
 
 const cache = new Cache({
   store: new MemoryCacheStore(5000),
@@ -97,21 +102,21 @@ refreshes when that tag is invalidated (see `@nestvexa/realtime`).
 
 ## API
 
-| Export                                                                   | Purpose                                                               |
-| ------------------------------------------------------------------------ | --------------------------------------------------------------------- |
-| `new RenderCache(cache?, { cachePrivate? })`                             | Rendered-HTML cache with required key context                         |
-| `RenderCache#render(request, render)`                                    | `{ html, status }`; private HTML bypasses the cache by default        |
-| `renderCacheKey(request)` / `renderCacheParts(request)`                  | The key / key parts a render request maps to                          |
-| `new Cache({ store?, now?, onInvalidate?, onEvent?, instrumentation? })` | Options form; `new Cache(store?, now?, onInvalidate?)` still works    |
-| `Cache#get(parts, { ttlMs, staleWhileRevalidateMs?, tags? }, compute)`   | Read-through with single flight; values must be JSON                  |
-| `Cache#lookup(...)`                                                      | Same, returning `{ value, status }`                                   |
-| `Cache#invalidate(tags)`                                                 | Delete tagged entries and call the `onInvalidate` hook                |
+| Export                                                                   | Purpose                                                                             |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `new RenderCache(cache?, { cachePrivate? })`                             | Rendered-HTML cache with required key context                                       |
+| `RenderCache#render(request, render)`                                    | `{ html, status }`; private HTML bypasses the cache by default                      |
+| `renderCacheKey(request)` / `renderCacheParts(request)`                  | The key / key parts a render request maps to                                        |
+| `new Cache({ store?, now?, onInvalidate?, onEvent?, instrumentation? })` | Options form; `new Cache(store?, now?, onInvalidate?)` still works                  |
+| `Cache#get(parts, { ttlMs, staleWhileRevalidateMs?, tags? }, compute)`   | Read-through with single flight; values must be JSON                                |
+| `Cache#lookup(...)`                                                      | Same, returning `{ value, status }`                                                 |
+| `Cache#invalidate(tags)`                                                 | Delete tagged entries and call the `onInvalidate` hook                              |
 | `Cache#metrics`                                                          | Hits, misses, stale, coalesced, bypassed, refused, discarded, errors, invalidations |
-| `cacheKey({ scope, namespace, vary })`                                   | Deterministic key; tenant/private scopes hash tenant and binding      |
-| `cacheableJson(value)`, `CacheRefusedError`                              | JSON serialization with the signed-material refusal                   |
-| `MemoryCacheStore(maxEntries = 1000, now?)`                              | Bounded LRU store with a tag index (single process)                   |
-| `CacheStore`, `isCacheStore`                                             | Store interface; methods may be synchronous or asynchronous           |
-| `tagChannel(tag)`                                                        | Realtime channel name for a data tag                                  |
+| `cacheKey({ scope, namespace, vary })`                                   | Deterministic key; tenant/private scopes hash tenant and binding                    |
+| `cacheableJson(value)`, `CacheRefusedError`                              | JSON serialization with the signed-material refusal                                 |
+| `MemoryCacheStore(maxEntries = 1000, now?)`                              | Bounded LRU store with a tag index (single process)                                 |
+| `CacheStore`, `isCacheStore`                                             | Store interface; methods may be synchronous or asynchronous                         |
+| `tagChannel(tag)`                                                        | Realtime channel name for a data tag                                                |
 
 ## Telemetry
 

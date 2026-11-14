@@ -166,9 +166,10 @@ describe('render cache privacy (DATA-006, DATA-008)', () => {
       binding: alice,
     };
     for (let index = 0; index < 3; index++)
-      expect(await renders.render(request, () => `<p>${++calls}</p>`)).toEqual(
-        { html: `<p>${index + 1}</p>`, status: 'bypass' },
-      );
+      expect(await renders.render(request, () => `<p>${++calls}</p>`)).toEqual({
+        html: `<p>${index + 1}</p>`,
+        status: 'bypass',
+      });
     expect(calls).toBe(3);
     expect(store.size).toBe(0);
     expect(renders.cache.metrics.bypassed).toBe(3);
@@ -232,20 +233,21 @@ describe('render cache privacy (DATA-006, DATA-008)', () => {
       html: '<ul>1</ul>',
       status: 'hit',
     });
-    expect(await renders.render({ ...base, tenant: 'tenant-b' }, render)).toEqual(
-      { html: '<ul>2</ul>', status: 'miss' },
-    );
+    expect(
+      await renders.render({ ...base, tenant: 'tenant-b' }, render),
+    ).toEqual({ html: '<ul>2</ul>', status: 'miss' });
     expect(
       await renders.render(
         { ...base, permissions: ['products:read', 'products:write'] },
         render,
       ),
     ).toEqual({ html: '<ul>3</ul>', status: 'miss' });
-    expect((await renders.render({ ...base, locale: 'ar' }, render)).status).toBe(
-      'miss',
-    );
     expect(
-      (await renders.render({ ...base, assetVersion: 'def456' }, render)).status,
+      (await renders.render({ ...base, locale: 'ar' }, render)).status,
+    ).toBe('miss');
+    expect(
+      (await renders.render({ ...base, assetVersion: 'def456' }, render))
+        .status,
     ).toBe('miss');
     expect(calls).toBe(5);
   });
@@ -325,9 +327,9 @@ describe('tags, stale-while-revalidate and stampede protection (DATA-007)', () =
     release();
     expect((await slow).html).toBe('<ul>read-before-write</ul>');
     expect(renders.cache.metrics.discarded).toBe(1);
-    expect(await renders.render({ ...base, tags }, () => '<ul>new</ul>')).toEqual(
-      { html: '<ul>new</ul>', status: 'miss' },
-    );
+    expect(
+      await renders.render({ ...base, tags }, () => '<ul>new</ul>'),
+    ).toEqual({ html: '<ul>new</ul>', status: 'miss' });
   });
 
   it('serves stale tenant HTML while one refresh runs, and keeps serving it when the refresh fails', async () => {
@@ -408,8 +410,10 @@ describe('telemetry and store failures (DATA-007)', () => {
       },
       instrumentation: {
         start(name, attributes) {
-          const span: { name: string; attributes: object; outcome?: string } =
-            { name, attributes };
+          const span: { name: string; attributes: object; outcome?: string } = {
+            name,
+            attributes,
+          };
           spans.push(span);
           return {
             end(outcome) {
@@ -423,11 +427,9 @@ describe('telemetry and store failures (DATA-007)', () => {
       namespace: 'data:orders',
       scope: { kind: 'private' as const, binding: alice, tenant: 'tenant-a' },
     };
-    await cache.get(
-      parts,
-      { ttlMs: 1000, tags: ['orders:tenant-a'] },
-      () => ['secret-row'],
-    );
+    await cache.get(parts, { ttlMs: 1000, tags: ['orders:tenant-a'] }, () => [
+      'secret-row',
+    ]);
     await cache.get(parts, { ttlMs: 1000 }, () => ['other']);
     await cache.invalidate(['orders:tenant-a']);
     await expect(
@@ -508,9 +510,10 @@ describe('telemetry and store failures (DATA-007)', () => {
     await expect(cache.invalidate(['x'])).rejects.toThrow('store down');
     healthy = true;
     await cache.get(parts, { ttlMs: 1000 }, () => 'stored');
-    expect(await cache.lookup(parts, { ttlMs: 1000 }, () => 'unused')).toEqual(
-      { value: 'stored', status: 'hit' },
-    );
+    expect(await cache.lookup(parts, { ttlMs: 1000 }, () => 'unused')).toEqual({
+      value: 'stored',
+      status: 'hit',
+    });
   });
 
   it('keeps the positional constructor and rejects mixing both forms', async () => {

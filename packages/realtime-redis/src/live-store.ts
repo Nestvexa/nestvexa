@@ -161,7 +161,6 @@ function children(
   return freezeChildReferences(copy);
 }
 
-
 /**
  * Shared Live state for multiple replicas, over RESP with no client library.
  * Same contract as `MemoryLiveStore` (identity binding, revision locks, TTL,

@@ -341,29 +341,62 @@ if (env.NESTVEXA_REDIS_PORT)
       const c1 = await store.create('counter', carol, { n: 3 });
       const tenantA = await keys(`${prefix}t:tenant-a:*`);
       const tenantB = await keys(`${prefix}t:tenant-b:*`);
-      expect(tenantA.some((key) => key.includes(':s:')), true, 'tenant-a keys');
+      expect(
+        tenantA.some((key) => key.includes(':s:')),
+        true,
+        'tenant-a keys',
+      );
       expect(tenantB.length > 0, true, 'tenant-b keys');
       const all = (await keys(`${prefix}*`)).join('\n');
-      expect(all.includes(a1.snapshot) || all.includes('alice'), false, 'raw values in keys');
-      step('each tenant has its own key space (SCAN MATCH <prefix>t:<tenant>:*)');
+      expect(
+        all.includes(a1.snapshot) || all.includes('alice'),
+        false,
+        'raw values in keys',
+      );
+      step(
+        'each tenant has its own key space (SCAN MATCH <prefix>t:<tenant>:*)',
+      );
       expect(await store.revokeUser('tenant-a', 'alice'), 2, 'revokeUser');
-      expect(await code(() => store.peek(a1.snapshot, alice)), 'INVALID_SNAPSHOT', 'revoked user');
+      expect(
+        await code(() => store.peek(a1.snapshot, alice)),
+        'INVALID_SNAPSHOT',
+        'revoked user',
+      );
       expect((await store.peek(c1.snapshot, carol)).state.n, 3, 'other tenant');
       for (let index = 0; index < 100; index++)
-        await store.create('counter', `tenant-a/session-x${index}/u${index}`, {});
+        await store.create(
+          'counter',
+          `tenant-a/session-x${index}/u${index}`,
+          {},
+        );
       expect(await store.revokeTenant('tenant-a'), 100, 'revokeTenant');
-      expect((await keys(`${prefix}t:tenant-a:*`)).length, 0, 'tenant-a purged');
-      expect((await store.peek(c1.snapshot, carol)).revision, 0, 'tenant-b kept');
-      step('revokeUser and revokeTenant (100 bindings, batched) delete only their scope');
+      expect(
+        (await keys(`${prefix}t:tenant-a:*`)).length,
+        0,
+        'tenant-a purged',
+      );
+      expect(
+        (await store.peek(c1.snapshot, carol)).revision,
+        0,
+        'tenant-b kept',
+      );
+      step(
+        'revokeUser and revokeTenant (100 bindings, batched) delete only their scope',
+      );
       // A replica process starts an action and is killed before committing.
       const entry = await store.create('counter', carol, { count: 0 });
       const storeUrl = JSON.stringify(
-        new URL('../packages/realtime-redis/dist/index.js', import.meta.url).href,
+        new URL('../packages/realtime-redis/dist/index.js', import.meta.url)
+          .href,
       );
       worker = child(`import { RedisLiveStore } from ${storeUrl};
 const store = new RedisLiveStore({ ...${JSON.stringify(redisOptions(prefix))}, lockTtlMs: 1500, namespace: (b) => { const [tenant, , user] = b.split('/'); return { tenant, user }; } });
 await store.transaction(${JSON.stringify(entry.snapshot)}, ${JSON.stringify(carol)}, 0, async (s) => { console.log('running'); await new Promise(() => {}); return { state: s.state, html: '' }; });`);
-      await waitFor(() => worker.lines.includes('running'), 'worker action', 60_000);
+      await waitFor(
+        () => worker.lines.includes('running'),
+        'worker action',
+        60_000,
+      );
       worker.proc.kill('SIGKILL');
       let ran = false;
       const attempt = () =>
@@ -373,11 +406,17 @@ await store.transaction(${JSON.stringify(entry.snapshot)}, ${JSON.stringify(caro
             return { state: s.state, html: '' };
           }),
         );
-      expect(await attempt(), 'COMPONENT_BUSY', 'lease held by the killed replica');
+      expect(
+        await attempt(),
+        'COMPONENT_BUSY',
+        'lease held by the killed replica',
+      );
       await delay(1700);
       expect(await attempt(), 'INVALID_SNAPSHOT', 'abandoned attempt');
       expect(ran, false, 'callback never re-run');
-      step('a SIGKILLed replica mid-action leaves a fence: the entry is invalidated, never retried');
+      step(
+        'a SIGKILLed replica mid-action leaves a fence: the entry is invalidated, never retried',
+      );
     } finally {
       worker?.proc.kill();
       await store.revokeTenant('tenant-b').catch(() => undefined);

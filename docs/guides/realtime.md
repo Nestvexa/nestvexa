@@ -269,4 +269,4 @@ Example: [`/realtime`](../../examples/starter-live/src/realtime-board.ts) in the
 `@nestvexa/cache` can invalidate realtime subscribers when data changes: pass an
 `onInvalidate` hook that publishes `tagChannel(tag)` and declare the same channels in
 `@RealtimeChannels()`. Dependencies are explicit; nothing is detected automatically.
-See the [cache package](../../packages/cache/README.md).
+See the [cache package](../../packages/cache/README.md) and the [caching and stores guide](caching.md).

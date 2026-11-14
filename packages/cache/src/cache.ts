@@ -182,8 +182,7 @@ export class Cache {
   readonly store: CacheStore;
   readonly #now: () => number;
   readonly #onInvalidate:
-    | ((tags: readonly string[]) => void | Promise<void>)
-    | undefined;
+    ((tags: readonly string[]) => void | Promise<void>) | undefined;
   readonly #onEvent: ((event: CacheEvent) => void) | undefined;
   readonly #instrumentation: CacheInstrumentation | undefined;
   /** In-flight computations resolve JSON text; every caller parses its own copy. */
