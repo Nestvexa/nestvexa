@@ -37,11 +37,47 @@ declare function canonicalRequest(method: string, url: URL, headers: Readonly<Re
     readonly signedHeaders: string;
 };
 
+// CircuitBreaker
+declare class CircuitBreaker {
+    #private;
+    readonly service: string;
+    constructor(service: string, options?: CircuitBreakerOptions);
+    get state(): CircuitState;
+    get failures(): number;
+    run<T>(operation: () => Promise<T>, isFailure?: (error: unknown) => boolean): Promise<T>;
+    attempt(): CircuitCall;
+}
+
+// CircuitBreakerOptions
+interface CircuitBreakerOptions {
+    readonly failureThreshold?: number;
+    readonly cooldownMs?: number;
+    readonly now?: () => number;
+}
+
+// CircuitCall
+interface CircuitCall {
+    succeed(): void;
+    fail(): void;
+    release(): void;
+}
+
+// CircuitOpenError
+declare class CircuitOpenError extends Error {
+    readonly service: string;
+    readonly retryAfterMs: number;
+    constructor(service: string, retryAfterMs: number);
+}
+
+// CircuitState
+type CircuitState = 'closed' | 'open' | 'half-open';
+
 // ClamdScanner
 declare class ClamdScanner implements UploadScanner {
     #private;
     readonly name = "clamd";
     constructor(options?: ClamdScannerOptions);
+    get circuit(): 'closed' | 'open' | 'half-open';
     scan(file: ScanInput, signal: AbortSignal): Promise<ScanVerdict>;
 }
 
@@ -51,6 +87,7 @@ interface ClamdScannerOptions {
     readonly port?: number;
     readonly socketPath?: string;
     readonly timeoutMs?: number;
+    readonly circuitBreaker?: CircuitBreakerOptions | false;
 }
 
 // configureUploads
@@ -227,10 +264,12 @@ declare class S3Storage implements UploadStorage {
     #private;
     readonly kind = "s3";
     constructor(options: S3StorageOptions);
+    get circuit(): 'closed' | 'open' | 'half-open';
     private now;
     private credentials;
     url(key: string): URL;
     private send;
+    private request;
     private static drain;
     put(key: string, source: StorageSource): Promise<StoredObject>;
     open(key: string, range?: ByteRange): Promise<Readable>;
@@ -255,6 +294,7 @@ interface S3StorageOptions {
     readonly forcePathStyle?: boolean;
     readonly prefix?: string;
     readonly requestTimeoutMs?: number;
+    readonly circuitBreaker?: CircuitBreakerOptions | false;
     readonly now?: () => Date;
 }
 

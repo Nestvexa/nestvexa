@@ -12,6 +12,41 @@ Typings: `./dist/index.d.ts`
 // assertHeaderText
 declare function assertHeaderText(value: unknown, field: string): string;
 
+// CircuitBreaker
+declare class CircuitBreaker {
+    #private;
+    readonly service: string;
+    constructor(service: string, options?: CircuitBreakerOptions);
+    get state(): CircuitState;
+    get failures(): number;
+    run<T>(operation: () => Promise<T>, isFailure?: (error: unknown) => boolean): Promise<T>;
+    attempt(): CircuitCall;
+}
+
+// CircuitBreakerOptions
+interface CircuitBreakerOptions {
+    readonly failureThreshold?: number;
+    readonly cooldownMs?: number;
+    readonly now?: () => number;
+}
+
+// CircuitCall
+interface CircuitCall {
+    succeed(): void;
+    fail(): void;
+    release(): void;
+}
+
+// CircuitOpenError
+declare class CircuitOpenError extends Error {
+    readonly service: string;
+    readonly retryAfterMs: number;
+    constructor(service: string, retryAfterMs: number);
+}
+
+// CircuitState
+type CircuitState = 'closed' | 'open' | 'half-open';
+
 // ConsoleMailTransport
 declare class ConsoleMailTransport implements MailTransport {
     #private;
@@ -77,6 +112,7 @@ declare class Mailer {
     #private;
     constructor(options: MailModuleOptions);
     get transport(): string;
+    get circuit(): 'closed' | 'open' | 'half-open';
     send(message: MailMessage): Promise<MailDelivery>;
     sendTemplate(template: string, mail: TemplateMail): Promise<MailDelivery>;
 }
@@ -144,6 +180,8 @@ interface MailModuleOptions {
     readonly templates?: MailTemplates | MailTemplatesOptions;
     readonly limits?: MailLimits;
     readonly onDelivery?: (event: MailDeliveryEvent) => void;
+    readonly sendTimeoutMs?: number;
+    readonly circuitBreaker?: CircuitBreakerOptions | false;
 }
 
 // MailRecipients

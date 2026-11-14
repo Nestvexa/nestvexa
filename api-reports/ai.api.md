@@ -25,6 +25,7 @@ declare class AiAssistant {
     open(identity: string): string;
     ask(identity: string, conversationId: string, prompt: string): void;
     stream(identity: string, conversationId: string, options: AiStreamOptions): AsyncIterable<string>;
+    get circuit(): 'closed' | 'open' | 'half-open';
     approve(identity: string, conversationId: string, callId: string): Promise<AiApprovalResult>;
     reject(identity: string, conversationId: string, callId: string): void;
     view(identity: string, conversationId: string): AiConversationView;
@@ -47,6 +48,7 @@ interface AiAssistantOptions {
     readonly maxConversationsPerIdentity?: number;
     readonly maxIdentities?: number;
     readonly now?: () => number;
+    readonly circuitBreaker?: CircuitBreakerOptions | false;
 }
 
 // AiAuditEvent
@@ -199,6 +201,41 @@ interface ChatStreamOptions {
     readonly signal: AbortSignal;
     readonly tools?: readonly ToolSpec[];
 }
+
+// CircuitBreaker
+declare class CircuitBreaker {
+    #private;
+    readonly service: string;
+    constructor(service: string, options?: CircuitBreakerOptions);
+    get state(): CircuitState;
+    get failures(): number;
+    run<T>(operation: () => Promise<T>, isFailure?: (error: unknown) => boolean): Promise<T>;
+    attempt(): CircuitCall;
+}
+
+// CircuitBreakerOptions
+interface CircuitBreakerOptions {
+    readonly failureThreshold?: number;
+    readonly cooldownMs?: number;
+    readonly now?: () => number;
+}
+
+// CircuitCall
+interface CircuitCall {
+    succeed(): void;
+    fail(): void;
+    release(): void;
+}
+
+// CircuitOpenError
+declare class CircuitOpenError extends Error {
+    readonly service: string;
+    readonly retryAfterMs: number;
+    constructor(service: string, retryAfterMs: number);
+}
+
+// CircuitState
+type CircuitState = 'closed' | 'open' | 'half-open';
 
 // defineTool
 declare function defineTool<Args>(tool: AiTool<Args>): AiTool<Args>;

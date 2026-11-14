@@ -9,6 +9,41 @@
 Typings: `./dist/index.d.ts`
 
 ```ts
+// CircuitBreaker
+declare class CircuitBreaker {
+    #private;
+    readonly service: string;
+    constructor(service: string, options?: CircuitBreakerOptions);
+    get state(): CircuitState;
+    get failures(): number;
+    run<T>(operation: () => Promise<T>, isFailure?: (error: unknown) => boolean): Promise<T>;
+    attempt(): CircuitCall;
+}
+
+// CircuitBreakerOptions
+interface CircuitBreakerOptions {
+    readonly failureThreshold?: number;
+    readonly cooldownMs?: number;
+    readonly now?: () => number;
+}
+
+// CircuitCall
+interface CircuitCall {
+    succeed(): void;
+    fail(): void;
+    release(): void;
+}
+
+// CircuitOpenError
+declare class CircuitOpenError extends Error {
+    readonly service: string;
+    readonly retryAfterMs: number;
+    constructor(service: string, retryAfterMs: number);
+}
+
+// CircuitState
+type CircuitState = 'closed' | 'open' | 'half-open';
+
 // encodeCommand
 declare function encodeCommand(parts: readonly string[]): Buffer;
 
@@ -55,6 +90,7 @@ interface RedisLiveStoreOptions extends RespConnectionOptions {
 declare class RespConnection {
     #private;
     constructor(options?: RespConnectionOptions);
+    get circuit(): 'closed' | 'open' | 'half-open';
     command(...parts: string[]): Promise<RespReply>;
     exclusive<T>(work: () => Promise<T>): Promise<T>;
     close(): Promise<void>;
@@ -68,6 +104,7 @@ interface RespConnectionOptions {
     readonly password?: string;
     readonly database?: number;
     readonly commandTimeoutMs?: number;
+    readonly circuitBreaker?: CircuitBreakerOptions | false;
 }
 
 // RespError

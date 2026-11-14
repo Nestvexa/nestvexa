@@ -39,6 +39,9 @@ declare function describeBudgetWarning(warning: BudgetWarning): string;
 // describeError
 declare function describeError(error: unknown, options?: DevErrorOptions): DevErrorReport;
 
+// describeQueryBudgetWarning
+declare function describeQueryBudgetWarning(warning: QueryBudgetWarning): string;
+
 // DevErrorEditor
 type DevErrorEditor = 'vscode' | 'cursor' | 'idea' | 'file';
 
@@ -312,6 +315,9 @@ interface MetricSummary {
     readonly max: number;
 }
 
+// normalizeQuery
+declare function normalizeQuery(statement: string): string;
+
 // OpenTelemetryBridgeOptions
 interface OpenTelemetryBridgeOptions {
     readonly api?: OtelPropagationApiLike;
@@ -357,6 +363,46 @@ declare function parseTraceparent(value: unknown): TraceContext | undefined;
 
 // parseTraceState
 declare function parseTraceState(value: unknown): string | undefined;
+
+// queryBudget
+declare function queryBudget(options?: QueryBudgetOptions): QueryBudget;
+
+// QueryBudget
+interface QueryBudget {
+    readonly enabled: boolean;
+    record(statement: unknown): void;
+    run<T>(label: string, work: () => T): T;
+    middleware(): (request: object, response: unknown, next: () => void) => void;
+    current(): QueryScopeSnapshot | undefined;
+}
+
+// QueryBudgetOptions
+interface QueryBudgetOptions {
+    readonly maxIdenticalQueries?: number;
+    readonly maxQueries?: number;
+    readonly onWarning?: (warning: QueryBudgetWarning) => void;
+    readonly environment?: string;
+    readonly normalize?: (statement: string) => string;
+}
+
+// QueryBudgetWarning
+interface QueryBudgetWarning {
+    readonly kind: QueryBudgetWarningKind;
+    readonly scope: string;
+    readonly statement: string;
+    readonly count: number;
+    readonly limit: number;
+}
+
+// QueryBudgetWarningKind
+type QueryBudgetWarningKind = 'n-plus-one' | 'query-count';
+
+// QueryScopeSnapshot
+interface QueryScopeSnapshot {
+    readonly scope: string;
+    readonly total: number;
+    readonly statements: ReadonlyMap<string, number>;
+}
 
 // readTraceContext
 declare function readTraceContext(request: object, options?: TraceContextOptions): TraceContext | undefined;

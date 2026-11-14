@@ -138,6 +138,14 @@ declare class DiagnosticsRegistry {
     };
 }
 
+// EarlyHint
+interface EarlyHint {
+    readonly href: string;
+    readonly rel: 'modulepreload' | 'preload' | 'preconnect';
+    readonly as?: 'script' | 'style' | 'font' | 'image' | 'fetch';
+    readonly crossOrigin?: 'anonymous' | 'use-credentials';
+}
+
 // emitDeprecation
 declare function emitDeprecation(code: string, message: string): boolean;
 
@@ -164,6 +172,9 @@ declare class FeatureCapabilityRegistry {
     require(name: string): void;
     report(): Readonly<Record<string, FeatureCapability>>;
 }
+
+// formatEarlyHint
+declare function formatEarlyHint(hint: EarlyHint): string;
 
 // generateRouteModule
 declare function generateRouteModule(routes: readonly RouteDefinition[]): string;
@@ -636,6 +647,9 @@ declare class SecurityPolicyRegistry {
 
 // SecurityPolicyReport
 type SecurityPolicyReport = Readonly<Record<string, Readonly<Partial<Record<SecurityPolicyKind, Readonly<Record<string, unknown>>>>>>>;
+
+// sendEarlyHints
+declare function sendEarlyHints(response: unknown, hints: readonly EarlyHint[]): boolean;
 ```
 
 ## Referenced but not exported

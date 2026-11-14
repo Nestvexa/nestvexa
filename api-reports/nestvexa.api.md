@@ -64,6 +64,7 @@ export { dispatchLiveEvent } from '@nestvexa/live'; // see its report
 export { DispatchOptions } from '@nestvexa/live'; // see its report
 export { downloadLive } from '@nestvexa/live'; // see its report
 export { DownloadOptions } from '@nestvexa/live'; // see its report
+export { EarlyHint } from '@nestvexa/core'; // see its report
 export { emitDeprecation } from '@nestvexa/core'; // see its report
 export { enumSynthesizer } from '@nestvexa/live'; // see its report
 export { ErrorPage } from '@nestvexa/views'; // see its report
@@ -76,6 +77,7 @@ export { expressViewModel } from '@nestvexa/views'; // see its report
 export { FeatureCapability } from '@nestvexa/core'; // see its report
 export { FeatureCapabilityRegistry } from '@nestvexa/core'; // see its report
 export { flashLive } from '@nestvexa/live'; // see its report
+export { formatEarlyHint } from '@nestvexa/core'; // see its report
 export { freezeChildReferences } from '@nestvexa/live'; // see its report
 export { freezeJson } from '@nestvexa/live'; // see its report
 export { freezeStateSnapshot } from '@nestvexa/live'; // see its report
@@ -190,6 +192,8 @@ declare class NestvexaBrowserService implements OnApplicationShutdown {
     getBootUrl(): string;
     scripts(nonce?: string): SafeHtml;
     importMap(nonce?: string): SafeHtml;
+    earlyHints(): readonly EarlyHint[];
+    writeEarlyHints(response: unknown): boolean;
     boot(): string;
     private clientConfig;
     onApplicationShutdown(): void;
@@ -309,6 +313,7 @@ export { SecurityPolicies } from '@nestvexa/core'; // see its report
 export { SecurityPolicyKind } from '@nestvexa/core'; // see its report
 export { SecurityPolicyRegistry } from '@nestvexa/core'; // see its report
 export { SecurityPolicyReport } from '@nestvexa/core'; // see its report
+export { sendEarlyHints } from '@nestvexa/core'; // see its report
 export { Session } from '@nestvexa/live'; // see its report
 export { SessionOptions } from '@nestvexa/live'; // see its report
 export { setSynthesizer } from '@nestvexa/live'; // see its report

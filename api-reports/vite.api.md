@@ -12,6 +12,9 @@ Typings: `./dist/index.d.ts`
 // assertNonce
 declare function assertNonce(nonce: string): string;
 
+// assetEarlyHints
+declare function assetEarlyHints(assets: ViteEntryAssets, options?: Pick<ViteTagOptions, 'crossOrigin'>): readonly ViteEarlyHint[];
+
 // createSsrRenderer
 declare function createSsrRenderer(options: SsrRendererOptions): SsrRenderer;
 
@@ -146,6 +149,7 @@ declare class ViteAssets {
     get apps(): readonly string[];
     entry(app: string): ViteEntryAssets;
     tags(app: string, options?: Pick<ViteTagOptions, 'nonce'>): string;
+    earlyHints(app: string): readonly ViteEarlyHint[];
     version(app: string): string;
     manifestPath(app: string): string | undefined;
 }
@@ -185,6 +189,14 @@ interface ViteDevServerLike {
     ssrLoadModule(url: string): Promise<Record<string, unknown>>;
     ssrFixStacktrace(error: Error): void;
     close(): Promise<void>;
+}
+
+// ViteEarlyHint
+interface ViteEarlyHint {
+    readonly href: string;
+    readonly rel: 'modulepreload' | 'preload';
+    readonly as?: 'style';
+    readonly crossOrigin?: 'anonymous' | 'use-credentials';
 }
 
 // ViteEntryAssets

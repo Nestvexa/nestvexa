@@ -131,6 +131,56 @@ type CacheVaryValue = string | number | boolean | null;
 // canonicalVary
 declare function canonicalVary(vary: Readonly<Record<string, CacheVaryValue>> | undefined): string;
 
+// FragmentCache
+declare class FragmentCache {
+    #private;
+    readonly renders: RenderCache;
+    constructor(options: FragmentCacheOptions);
+    render(request: FragmentRequest): Promise<FragmentResult>;
+    renderAll<Name extends string>(requests: Readonly<Record<Name, FragmentRequest>>): Promise<FragmentSet<Name>>;
+    invalidate(tags: readonly string[]): Promise<number>;
+}
+
+// FragmentCacheOptions
+interface FragmentCacheOptions {
+    readonly engine: FragmentEngine;
+    readonly assetVersion: string | (() => string);
+    readonly renders?: RenderCache;
+    readonly renderer?: string;
+}
+
+// FragmentEngine
+type FragmentEngine = Pick<ViewEngineAdapter, 'name' | 'render'>;
+
+// FragmentRequest
+interface FragmentRequest {
+    readonly key: string;
+    readonly view: string;
+    readonly revision: string | number;
+    readonly audience: RenderAudience;
+    readonly locale: string;
+    readonly tenant: string | null;
+    readonly permissions: readonly string[];
+    readonly vary?: Readonly<Record<string, CacheVaryValue>>;
+    readonly binding?: string;
+    readonly ttlMs: number;
+    readonly staleWhileRevalidateMs?: number;
+    readonly tags?: readonly string[];
+    readonly model: () => ViewModel | Promise<ViewModel>;
+}
+
+// FragmentResult
+interface FragmentResult {
+    readonly html: SafeHtml;
+    readonly status: CacheStatus;
+}
+
+// FragmentSet
+interface FragmentSet<Name extends string> {
+    readonly html: Readonly<Record<Name, SafeHtml>>;
+    readonly status: Readonly<Record<Name, CacheStatus>>;
+}
+
 // isCacheStore
 declare function isCacheStore(value: unknown): value is CacheStore;
 
