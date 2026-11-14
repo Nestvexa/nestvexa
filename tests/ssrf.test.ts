@@ -358,6 +358,10 @@ const outbound: Readonly<Record<string, string>> = {
   // Source text of a generated test file, not executed by the package.
   'packages/cli/src/templates-app.ts:fetch':
     'Template for a generated e2e test hitting the generated app',
+  // Source text of the `make:resource --crud` controller test: it calls the
+  // generated app listening on 127.0.0.1; the CLI never executes it.
+  'packages/cli/src/templates-resource.ts:fetch':
+    'Template for a generated controller test hitting the generated app',
 };
 
 const primitives: readonly (readonly [string, RegExp])[] = [
