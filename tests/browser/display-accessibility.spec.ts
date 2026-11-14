@@ -1,7 +1,10 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { wcagAxe } from './axe.js';
-import { exampleUrl } from './example-url.js';
+import {
+  settle,
+  starterLive,
+  targets,
+} from './display-accessibility-support.js';
 
 // QA-075 display accessibility on the main examples: starter-live, the
 // admin example and its UI kit page, and the showcase app.
@@ -10,81 +13,11 @@ import { exampleUrl } from './example-url.js';
 //   window are 640 and 320 CSS px wide viewports. The page must not scroll
 //   horizontally and no text or control may be cut off; wide data tables may
 //   scroll inside their own container (the 1.4.10 exception).
-// - Forced colors (Windows high contrast): with `forced-colors: active`
-//   emulated, the theme's forced-colors rules apply, every keyboard focus
-//   stop keeps an outline (box shadows are dropped in this mode), and axe
-//   finds no violations against the forced palette.
+// - Forced colors (Windows high contrast) need Chromium's emulation and live
+//   in display-forced-colors.chromium.spec.ts, which runs only there.
 //
 // Screen-reader behaviour is not automated: see
 // docs/testing/accessibility-checklist.md (manual, owner-run).
-
-interface Target {
-  readonly name: string;
-  /** Signs in when needed and opens the page to audit. */
-  readonly open: (page: Page) => Promise<void>;
-}
-
-const starterLive = exampleUrl('starter-live', 3102);
-const admin = exampleUrl('admin-i18n', 3110);
-const showcase = exampleUrl('showcase', 3124);
-
-async function settle(page: Page): Promise<void> {
-  await page.waitForLoadState('load');
-  await page.evaluate(() =>
-    Promise.all(
-      document
-        .getAnimations()
-        .map((animation) => animation.finished.catch(() => undefined)),
-    ),
-  );
-}
-
-const targets: readonly Target[] = [
-  {
-    name: 'starter-live counter',
-    open: async (page) => {
-      await page.goto(starterLive + '/');
-    },
-  },
-  {
-    name: 'starter-live work board',
-    open: async (page) => {
-      await page.goto(starterLive + '/board');
-    },
-  },
-  {
-    name: 'admin dashboard',
-    open: async (page) => {
-      await page.goto(admin + '/admin');
-    },
-  },
-  {
-    name: 'UI kit',
-    open: async (page) => {
-      await page.goto(admin + '/admin/kit');
-      await expect(page.locator('#kit-actions-menu')).toBeHidden();
-    },
-  },
-  {
-    name: 'showcase sign-in',
-    open: async (page) => {
-      await page.goto(showcase + '/login');
-    },
-  },
-  {
-    name: 'showcase tasks',
-    open: async (page) => {
-      await page.goto(showcase + '/login');
-      await page.getByLabel('Email').fill('ada@harbor.test');
-      await page.getByLabel('Password').fill('showcase-demo-2026');
-      await page.getByRole('button', { name: 'Sign in' }).click();
-      await expect(page.locator('.flash').first()).toContainText(
-        'Signed in as',
-      );
-      await page.goto(showcase + '/app/tasks');
-    },
-  },
-];
 
 interface Overflow {
   readonly scrollWidth: number;
@@ -189,75 +122,7 @@ for (const target of targets)
         await page.evaluate(() => window.scrollTo(400, 0));
         expect(await page.evaluate(() => window.scrollX)).toBe(0);
       });
-
-    test('stays operable and accessible with forced colors (high contrast)', async ({
-      page,
-      browserName,
-    }) => {
-      test.skip(
-        browserName !== 'chromium',
-        'forced-colors emulation is implemented by Chromium only',
-      );
-      await page.emulateMedia({ forcedColors: 'active' });
-      await target.open(page);
-      await settle(page);
-      expect(
-        await page.evaluate(
-          () => window.matchMedia('(forced-colors: active)').matches,
-        ),
-      ).toBe(true);
-      // Every keyboard focus stop shows an outline: box-shadow focus rings
-      // disappear in forced colors, outlines do not.
-      const stops: { element: string; outline: string }[] = [];
-      for (let index = 0; index < 12; index++) {
-        await page.keyboard.press('Tab');
-        const stop = await page.evaluate(() => {
-          const element = document.activeElement;
-          if (!element || element === document.body) return null;
-          const style = getComputedStyle(element);
-          return {
-            element: `${element.localName}${element.id ? '#' + element.id : ''} "${(element.textContent ?? '').trim().slice(0, 24)}"`,
-            outline:
-              style.outlineStyle !== 'none' &&
-              parseFloat(style.outlineWidth) >= 1
-                ? 'visible'
-                : `${style.outlineStyle} ${style.outlineWidth}`,
-          };
-        });
-        if (stop) stops.push(stop);
-      }
-      expect(stops.length).toBeGreaterThan(0);
-      expect(stops.filter((stop) => stop.outline !== 'visible')).toEqual([]);
-      // Contrast and the other rules hold against the forced palette.
-      expect((await wcagAxe(page).analyze()).violations).toEqual([]);
-    });
   });
-
-test('the UI kit theme switches to system colors in forced-colors mode', async ({
-  page,
-  browserName,
-}) => {
-  test.skip(
-    browserName !== 'chromium',
-    'forced-colors emulation is implemented by Chromium only',
-  );
-  await page.goto(admin + '/admin/kit');
-  await expect(page.locator('#kit-actions-menu')).toBeHidden();
-  const alert = page.locator('.nv-alert').first();
-  await expect(alert).toBeVisible();
-  const normal = await alert.evaluate(
-    (element) => getComputedStyle(element).borderInlineStartColor,
-  );
-  await page.emulateMedia({ forcedColors: 'active' });
-  // The theme's forced-colors block maps the alert accent to CanvasText,
-  // which is the page text color in this mode.
-  const forced = await alert.evaluate((element) => ({
-    border: getComputedStyle(element).borderInlineStartColor,
-    text: getComputedStyle(document.body).color,
-  }));
-  expect(forced.border).toBe(forced.text);
-  expect(forced.border).not.toBe(normal);
-});
 
 test('the reflow probe reports overflow and clipping when they exist', async ({
   page,
