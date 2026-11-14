@@ -158,6 +158,26 @@ tests remain open).
   sources. No independent review is claimed; that ledger item still needs the
   owner.
 
-## Verification commands (this round)
+## Verification commands (this round, after merging main `4d90152`)
 
-See the final message of the round for exact results.
+- `pnpm exec vitest run tests/<file>` one at a time: `cache-fragments` 11/11,
+  `early-hints` 17/17, `observability-queries` 9/9, `mail-smtp` 5/5,
+  `cache-example` 1/1, and main's `umbrella-dependencies` 4/4, `pr-policy`
+  32/32, `core-deprecation` 8/8.
+- `NV_UI_BROWSERS=firefox` and `=webkit`: `tests/ui-adapters.test.ts` 34/34
+  each, `tests/ui-primitives-browser.test.ts` 22/22 each.
+- `playwright test -c playwright.local.config.ts tests/browser/admin-ui-kit.spec.ts`
+  (admin-i18n on 4249): 7/7 in Chromium, Firefox and WebKit.
+- `pnpm lint` (with `scripts/boundaries.mjs`), `tsc -p tsconfig.tests.json
+--noEmit`, `prettier --check` on changed files, `pnpm docs:build`,
+  `pnpm ledger:check`, `pnpm audit:licenses` and `scripts/pr-check.mjs`
+  against base `4d90152`: all pass.
+
+## Merge notes
+
+- Root `package.json`: new devDependencies `nodemailer` 10.3.1 and
+  `smtp-server` 3.21.3; `test:integration` gains `cache-fragments`,
+  `early-hints`, `observability-queries`, `mail-smtp`; `test:security` gains
+  `mail-smtp`. No new root Playwright entry (the kit spec already runs against
+  the admin-i18n server on 3110).
+- `@nestvexa/cache` gains a workspace dependency on `@nestvexa/views`.
