@@ -1,0 +1,9 @@
+<section id="catalog" aria-labelledby="catalog-title">
+  <h2 id="catalog-title">{{title}}</h2>
+  <ul>
+    {{#each products}}
+      <li>{{this}}{{#if ../canEdit}} <a href="#edit">{{../edit}}</a>{{/if}}</li>
+    {{/each}}
+  </ul>
+  <p><small>Rendered at <time id="catalog-rendered">{{renderedAt}}</time></small></p>
+</section>

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nestvexa data cache: sign in</title>
+  </head>
+  <body>
+    <main>
+      <h1>Sign in as a demo user</h1>
+      {{#each users}}
+        <form method="post" action="/session">
+          <input type="hidden" name="_csrf" value="{{../csrf}}" />
+          <input type="hidden" name="user" value="{{id}}" />
+          <button type="submit">{{name}} ({{role}}, {{tenant}})</button>
+        </form>
+      {{/each}}
+    </main>
+  </body>
+</html>
