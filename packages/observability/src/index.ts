@@ -23,6 +23,8 @@ export {
   devtoolsStylesheet,
   renderDevtools,
   type DevtoolsCapability,
+  type DevtoolsFeature,
+  type DevtoolsPlugin,
   type DevtoolsDiagnostic,
   type DevtoolsKernelSnapshot,
   type DevtoolsKernelSource,

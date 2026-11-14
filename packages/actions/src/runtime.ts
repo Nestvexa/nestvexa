@@ -4,7 +4,7 @@ import type {
   OnApplicationShutdown,
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { ActionError, reject, sanitizeIssues } from './errors.js';
 import { MemoryIdempotencyStore } from './idempotency.js';
 import type {
@@ -27,6 +27,13 @@ import type {
   NormalizedActionsOptions,
 } from './options.js';
 import { ActionsApplicationRegistry } from './registration.js';
+import { kernelIdentityOf } from './kernel.js';
+import {
+  actionPolicyEnforcer,
+  actionReference,
+  actionSecurityPolicies,
+} from './policies.js';
+import type { ActionPolicyEnforcer } from './policies.js';
 import { ActionResult } from './results.js';
 import { runSchema } from './schema.js';
 import { admissionFor, admit, adoptRequestId, requestIdFor } from './state.js';
@@ -110,18 +117,28 @@ function abortError(reason: unknown): ActionError {
   return new ActionError('TIMEOUT', undefined, { reason: 'DEADLINE' });
 }
 
+/** The `_jobs` routes as authorization descriptors (group `_jobs`). */
+const JOB_DESCRIPTORS: Readonly<Record<'status' | 'cancel', ActionDescriptor>> =
+  Object.freeze({
+    status: Object.freeze({
+      group: JOBS_SEGMENT,
+      action: 'status',
+      version: null,
+      idempotent: false,
+    }),
+    cancel: Object.freeze({
+      group: JOBS_SEGMENT,
+      action: 'cancel',
+      version: null,
+      idempotent: false,
+    }),
+  });
+
 function header(request: object, name: string): string | undefined {
   const headers: unknown = Reflect.get(request, 'headers');
   if (typeof headers !== 'object' || headers === null) return undefined;
   const value: unknown = Reflect.get(headers, name);
   return typeof value === 'string' ? value : undefined;
-}
-function digest(value: string): Buffer {
-  return createHash('sha256').update(value, 'utf8').digest();
-}
-/** Constant-time comparison over fixed-length digests (no length oracle). */
-function secretEqual(left: string, right: string): boolean {
-  return timingSafeEqual(digest(left), digest(right));
 }
 function plainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value))
@@ -172,6 +189,10 @@ export class ActionsRuntime
   readonly #ownsStore: boolean;
   readonly #rateLimit: (ActionRateLimit & { clear?: () => void }) | undefined;
   readonly #descriptors = new Map<ActionDefinition, ActionDescriptor>();
+  /** Descriptors by `group` and action reference, for registry decisions. */
+  readonly #references = new Map<string, ActionDescriptor>();
+  /** Origin, CSRF and authorization decisions (the kernel registry when configured). */
+  readonly #policy: ActionPolicyEnforcer;
 
   constructor(
     @Inject(ACTIONS_OPTIONS) readonly options: NormalizedActionsOptions,
@@ -198,6 +219,55 @@ export class ActionsRuntime
             idempotent: action.idempotent,
           }),
         );
+    for (const descriptor of [
+      ...this.#descriptors.values(),
+      ...Object.values(JOB_DESCRIPTORS),
+    ])
+      this.#references.set(
+        `${descriptor.group}\u0000${actionReference(descriptor)}`,
+        descriptor,
+      );
+    this.#policy = actionPolicyEnforcer(
+      actionSecurityPolicies({
+        origins: options.origins,
+        csrfRequired: options.csrfRequired,
+        csrfHeader: options.csrfHeader,
+        authorize: options.authorize,
+        descriptor: (group, reference) =>
+          this.#references.get(`${group}\u0000${reference}`),
+      }),
+      options.policies,
+      options.policyOwner,
+    );
+    options.featureRegistry?.registerFeature({
+      name: options.policyOwner,
+      package: '@nestvexa/actions',
+      actions: [...this.#descriptors.values()].map(
+        (descriptor) => `${descriptor.group}/${actionReference(descriptor)}`,
+      ),
+      capabilities: {
+        idempotency:
+          options.idempotencyStore === undefined
+            ? {
+                supported: true,
+                degraded:
+                  'Process-local idempotency store: use a shared store for multiple replicas',
+              }
+            : { supported: true },
+        jobs: options.jobQueue
+          ? { supported: true }
+          : { supported: false, reason: 'No job queue configured' },
+        csrf: options.csrfRequired
+          ? { supported: true }
+          : {
+              supported: false,
+              reason: 'csrf.required is false (non-cookie authentication)',
+            },
+        'kernel-identity': options.kernelIdentity
+          ? { supported: true }
+          : { supported: false, reason: 'kernelIdentity is not configured' },
+      },
+    });
   }
 
   descriptor(action: ActionDefinition): ActionDescriptor {
@@ -241,10 +311,33 @@ export class ActionsRuntime
       throw new Error(
         'resolveIdentity returned an invalid csrfToken (16-512 characters)',
       );
+    const source = this.options.kernelIdentity;
+    if (!source)
+      return Object.freeze({
+        subject,
+        ...(tenant === undefined ? {} : { tenant }),
+        ...(csrfToken === undefined ? {} : { csrfToken }),
+      });
+    let kernel: ReturnType<typeof kernelIdentityOf>;
+    try {
+      kernel = kernelIdentityOf(await source.identity(request));
+    } catch {
+      kernel = undefined;
+    }
+    if (!kernel) reject('UNAUTHENTICATED', 'IDENTITY_REQUIRED');
+    // One user and tenant: the host may only repeat what the kernel resolved.
+    if (
+      (kernel.principal !== undefined && subject !== kernel.principal.id) ||
+      (tenant !== undefined && tenant !== kernel.tenant)
+    )
+      reject('UNAUTHENTICATED', 'IDENTITY_MISMATCH');
     return Object.freeze({
       subject,
-      ...(tenant === undefined ? {} : { tenant }),
+      ...(kernel.tenant === undefined ? {} : { tenant: kernel.tenant }),
       ...(csrfToken === undefined ? {} : { csrfToken }),
+      ...(kernel.principal === undefined
+        ? {}
+        : { principal: kernel.principal }),
     });
   }
 
@@ -302,12 +395,8 @@ export class ActionsRuntime
     descriptor: ActionDescriptor,
     request: object,
   ): Promise<void> {
-    const allowed: unknown = await this.options.authorize(
-      identity,
-      descriptor,
-      request,
-    );
-    if (allowed !== true) reject('FORBIDDEN', 'POLICY');
+    if (!(await this.#policy.authorize(identity, descriptor, request)))
+      reject('FORBIDDEN', 'POLICY');
   }
 
   /**
@@ -330,8 +419,7 @@ export class ActionsRuntime
     if (this.#closed) reject('INTERNAL', 'SHUTDOWN', 503);
     if (Reflect.get(request, 'method') !== 'POST')
       reject('VALIDATION', 'METHOD', 405);
-    const origin = header(request, 'origin');
-    if (origin === undefined || !this.options.origins.has(origin))
+    if (!this.#policy.originAllowed(header(request, 'origin')))
       reject('FORBIDDEN', 'ORIGIN');
     if (
       !/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(
@@ -347,15 +435,8 @@ export class ActionsRuntime
     )
       reject('PAYLOAD_TOO_LARGE', 'BODY_SIZE');
     const identity = await this.#identity(request);
-    if (this.options.csrfRequired) {
-      const token = header(request, this.options.csrfHeader);
-      if (
-        identity.csrfToken === undefined ||
-        token === undefined ||
-        !secretEqual(token, identity.csrfToken)
-      )
-        reject('FORBIDDEN', 'CSRF');
-    }
+    if (!(await this.#policy.verifyCsrf(request, identity)))
+      reject('FORBIDDEN', 'CSRF');
     if (
       this.#rateLimit &&
       !(await this.#rateLimit({ identity, action: descriptor, request }))
@@ -607,12 +688,7 @@ export class ActionsRuntime
     response: unknown,
     operation: 'status' | 'cancel',
   ): Promise<ActionSuccessEnvelope> {
-    const descriptor: ActionDescriptor = Object.freeze({
-      group: JOBS_SEGMENT,
-      action: operation,
-      version: null,
-      idempotent: false,
-    });
+    const descriptor = JOB_DESCRIPTORS[operation];
     this.#observe(request, response, descriptor);
     const { requestId, identity, input } = await this.#gate(
       request,

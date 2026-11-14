@@ -8,14 +8,25 @@ import type { UploadStorage } from './storage.js';
 import type { UploadScanner } from './scanner.js';
 import { isUploadPolicyRegistry } from './policies.js';
 import type { UploadPolicyRegistry } from './policies.js';
+import { isFeatureRegistry, isKernelIdentitySource } from './kernel.js';
+import type {
+  UploadFeatureRegistry,
+  UploadKernelIdentitySource,
+  UploadKernelPrincipal,
+} from './kernel.js';
 
 /** Host-resolved identity: the same binding/CSRF contract as Live, plus an optional tenant. */
 export interface UploadIdentity {
   /** Stable per session/user/tenant binding, 16–1024 characters. Never from request bodies. */
   readonly binding: string;
   readonly csrfToken: string;
-  /** Tenant quota bucket, 1–256 characters. */
+  /**
+   * Tenant quota bucket, 1–256 characters. With `kernelIdentity` it is the
+   * kernel tenant; a different host value is rejected.
+   */
   readonly tenant?: string;
+  /** The kernel principal, set by uploads only when `kernelIdentity` is configured. */
+  readonly principal?: UploadKernelPrincipal;
 }
 export type UploadOperation = 'upload' | 'finalize' | 'discard';
 
@@ -100,6 +111,22 @@ export interface UploadsHostOptions {
   readonly policies?: UploadPolicyRegistry;
   /** Owner name for `policies` (default `uploads`); a duplicate owner fails startup. */
   readonly policyOwner?: string;
+  /**
+   * Opt-in kernel identity (structural; for example `RequestContextFactory`
+   * from @nestvexa/core). Uploads still calls `resolveIdentity` for the
+   * binding and CSRF token, then attaches the kernel `principal` and
+   * `tenant` (the quota bucket) to the identity every policy receives and
+   * scopes the binding to them, so upload tokens never cross users or
+   * tenants. A failing kernel identity, or a host tenant that differs from
+   * the kernel tenant, answers `401 IDENTITY_REQUIRED`.
+   */
+  readonly kernelIdentity?: UploadKernelIdentitySource;
+  /**
+   * Kernel feature registry (structural; for example `NestvexaRegistry`
+   * from @nestvexa/core). Uploads registers its purposes and capabilities
+   * under `policyOwner` (default `uploads`).
+   */
+  readonly featureRegistry?: UploadFeatureRegistry;
 }
 
 export interface ResolvedPurpose {
@@ -131,6 +158,8 @@ export interface ResolvedOptions {
   readonly instrumentation: UploadInstrumentation | undefined;
   readonly policies: UploadPolicyRegistry | undefined;
   readonly policyOwner: string;
+  readonly kernelIdentity: UploadKernelIdentitySource | undefined;
+  readonly featureRegistry: UploadFeatureRegistry | undefined;
 }
 
 export const PURPOSE_PATTERN =
@@ -250,6 +279,8 @@ export function resolveOptions(options: UploadsHostOptions): ResolvedOptions {
     'instrumentation',
     'policies',
     'policyOwner',
+    'kernelIdentity',
+    'featureRegistry',
     'endpoint',
     'global',
     'imports',
@@ -434,9 +465,28 @@ export function resolveOptions(options: UploadsHostOptions): ResolvedOptions {
     instrumentation: instrumentation(options.instrumentation),
     policies: policyRegistry(options.policies),
     policyOwner: policyOwner(options.policyOwner, options.policies),
+    kernelIdentity: structural(
+      options.kernelIdentity,
+      isKernelIdentitySource,
+      'Uploads kernelIdentity must implement identity(request)',
+    ),
+    featureRegistry: structural(
+      options.featureRegistry,
+      isFeatureRegistry,
+      'Uploads featureRegistry must implement registerFeature(feature)',
+    ),
   });
 }
 
+function structural<T>(
+  value: unknown,
+  check: (value: unknown) => value is T,
+  message: string,
+): T | undefined {
+  if (value === undefined) return undefined;
+  if (!check(value)) throw new Error(message);
+  return value;
+}
 function policyRegistry(value: unknown): UploadPolicyRegistry | undefined {
   if (value === undefined) return undefined;
   if (!isUploadPolicyRegistry(value))

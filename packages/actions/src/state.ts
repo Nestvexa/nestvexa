@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { ActionError } from './errors.js';
+import type { ActionKernelPrincipal } from './kernel.js';
 import type {
   ActionDefinition,
   ActionDescriptor,
@@ -17,6 +18,11 @@ export interface ActionIdentity {
   readonly tenant?: string;
   /** Per-session CSRF secret compared with the CSRF header (required unless CSRF is disabled). */
   readonly csrfToken?: string;
+  /**
+   * The kernel principal, set by the runtime only when `kernelIdentity` is
+   * configured (values a host `resolveIdentity` returns here are ignored).
+   */
+  readonly principal?: ActionKernelPrincipal;
 }
 
 /** Read-only per-request context available through `@ActionContext()`. */
