@@ -44,7 +44,8 @@ export interface DevtoolsOptions {
    * `SecurityPolicyRegistry` and `FeatureCapabilityRegistry` from
    * @nestvexa/core fit). Adds the registered security policies (data only,
    * never functions), declared capabilities and recent kernel diagnostics to
-   * the panel and `data.json`. Use `registerAsync` to inject them.
+   * the panel and `data.json`. `NestvexaRegistry` as `features` adds the
+   * installed features and plugins. Use `registerAsync` to inject them.
    */
   readonly kernel?: DevtoolsKernelSource;
 }
@@ -71,8 +72,40 @@ export type DevtoolsPolicyReport = Readonly<
     Readonly<Record<string, Readonly<Record<string, unknown>> | undefined>>
   >
 >;
+/** An installed feature as the panel shows it (names only). */
+export interface DevtoolsFeature {
+  readonly name: string;
+  readonly package: string;
+  readonly version?: string;
+  readonly components: readonly string[];
+  readonly actions: readonly string[];
+  readonly views: readonly string[];
+  readonly renderers: readonly string[];
+  /** Qualified capability names (`<feature>.<capability>`). */
+  readonly capabilities: readonly string[];
+}
+export interface DevtoolsPlugin {
+  readonly name: string;
+  readonly version?: string;
+}
 export interface DevtoolsKernelSource {
   readonly diagnostics?: { recent(): readonly DevtoolsDiagnostic[] };
+  /** Installed features and plugins (for example `NestvexaRegistry`). */
+  readonly features?: {
+    report(): {
+      readonly features: readonly {
+        readonly name: string;
+        readonly package: string;
+        readonly version?: string;
+        readonly components: readonly string[];
+        readonly actions: readonly string[];
+        readonly views: readonly string[];
+        readonly renderers: readonly string[];
+        readonly capabilities: Readonly<Record<string, unknown>>;
+      }[];
+      readonly plugins: readonly DevtoolsPlugin[];
+    };
+  };
   readonly security?: { report(): DevtoolsPolicyReport };
   readonly capabilities?: {
     report(): Readonly<Record<string, DevtoolsCapability>>;
@@ -84,6 +117,9 @@ export interface DevtoolsKernelSnapshot {
   readonly capabilities: Readonly<Record<string, DevtoolsCapability>>;
   /** Recent kernel diagnostics, newest first. */
   readonly diagnostics: readonly DevtoolsDiagnostic[];
+  /** Installed features (empty without `kernel.features`). */
+  readonly features: readonly DevtoolsFeature[];
+  readonly plugins: readonly DevtoolsPlugin[];
 }
 
 /** Version of the `data.json` contract (see docs/adr/0034-devtools-browser-extension-scope.md). */
@@ -147,7 +183,33 @@ function kernelSnapshot(
     source?.diagnostics && (() => source.diagnostics?.recent() ?? []),
     [],
   );
+  const strings = (value: unknown): readonly string[] =>
+    Array.isArray(value)
+      ? value.filter((entry): entry is string => typeof entry === 'string')
+      : [];
+  const installed = read(
+    source?.features && (() => source.features?.report()),
+    undefined,
+  );
   return {
+    features: (installed?.features ?? []).map((feature) => ({
+      name: String(feature.name),
+      package: String(feature.package),
+      ...(typeof feature.version === 'string'
+        ? { version: feature.version }
+        : {}),
+      components: strings(feature.components),
+      actions: strings(feature.actions),
+      views: strings(feature.views),
+      renderers: strings(feature.renderers),
+      capabilities: Object.keys(feature.capabilities),
+    })),
+    plugins: (installed?.plugins ?? []).map((plugin) => ({
+      name: String(plugin.name),
+      ...(typeof plugin.version === 'string'
+        ? { version: plugin.version }
+        : {}),
+    })),
     policies: read(
       source?.security && (() => source.security?.report() ?? {}),
       {},
@@ -297,7 +359,9 @@ export function renderDevtools(
                 ? `action <code>${escape(render.action ?? '')}</code>`
                 : render.cause === 'sync'
                   ? `model sync of <code>${escape(render.fields.join(', '))}</code>`
-                  : 'mount';
+                  : render.cause === 'refresh'
+                    ? 'read-only refresh'
+                    : 'mount';
             return `<li><h3><code>${escape(render.component)}</code> <small>revision ${render.revision}</small></h3><p>Re-render cause: ${cause}. State ${render.stateBytes} bytes, HTML ${render.htmlBytes} bytes, at ${time(render.at)}${render.requestId === undefined ? '' : `, request <code>${escape(render.requestId.slice(0, 13))}</code>`}.</p>${errors}<details><summary>Public state (redacted)</summary><pre>${escape(JSON.stringify(render.state, null, 2) ?? 'null')}</pre></details></li>`;
           })
           .join('')}</ol>`
@@ -450,6 +514,30 @@ export function renderDevtools(
     ]),
     'No spans recorded yet.',
   );
+  const features = table(
+    'features',
+    'Features',
+    'Installed feature packages and plugins (names only)',
+    [
+      'Feature',
+      'Package',
+      'Components',
+      'Actions',
+      'Renderers',
+      'Capabilities',
+    ],
+    [
+      ...snapshot.kernel.features.map(
+        (feature) =>
+          `<tr><th scope="row"><code>${escape(feature.name)}</code></th><td><code>${escape(feature.package)}${feature.version === undefined ? '' : `@${escape(feature.version)}`}</code></td><td>${escape(feature.components.join(', '))}</td><td>${escape(feature.actions.join(', '))}</td><td>${escape(feature.renderers.join(', '))}</td><td>${escape(feature.capabilities.join(', '))}</td></tr>`,
+      ),
+      ...snapshot.kernel.plugins.map(
+        (plugin) =>
+          `<tr><th scope="row"><code>${escape(plugin.name)}</code></th><td>plugin${plugin.version === undefined ? '' : ` ${escape(plugin.version)}`}</td><td></td><td></td><td></td><td></td></tr>`,
+      ),
+    ],
+    'No kernel feature registry configured.',
+  );
   const policies = table(
     'policies',
     'Security policies',
@@ -498,6 +586,7 @@ export function renderDevtools(
     ['renderers', 'Renderers'],
     ['timings', 'Timings'],
     ['spans', 'Spans'],
+    ['features', 'Features'],
     ['policies', 'Policies'],
     ['capabilities', 'Capabilities'],
     ['diagnostics', 'Diagnostics'],
@@ -510,7 +599,7 @@ export function renderDevtools(
     .map(([id, label]) => `<li><a href="#${id}">${label}</a></li>`)
     .join(
       '',
-    )}</ul></nav></header><main>${components}${renders}${actions}${errors}${requests}${hooks}${realtime}${jobs}${renderers}${summary}${recent}${policies}${capabilities}${diagnostics}</main></body></html>`;
+    )}</ul></nav></header><main>${components}${renders}${actions}${errors}${requests}${hooks}${realtime}${jobs}${renderers}${summary}${recent}${features}${policies}${capabilities}${diagnostics}</main></body></html>`;
 }
 
 /** The panel stylesheet (served from the panel path so the CSP needs no inline styles). */

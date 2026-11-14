@@ -103,6 +103,7 @@ Callbacks must honor host cancellation/timeouts; JavaScript cannot safely forcib
 | `STALE_REVISION`        | 409    | Expected revision is stale or invalid                      |
 | `COMPONENT_BUSY`        | 409    | Another callback is in flight for this token               |
 | `STORE_CAPACITY`        | 503    | Stored-entry or in-flight callback capacity reached        |
+| `STORE_UNAVAILABLE`     | 503    | Shared store (Redis) unreachable; state kept, retry later  |
 | `INVALID_STORE_OPTIONS` | 500    | Invalid trusted configuration, clock or generator          |
 | `STATE_LOCKED`          | 422    | Update targets a locked or unregistered state field        |
 | `STATE_TYPE`            | 422    | Update changes the current JSON value category             |

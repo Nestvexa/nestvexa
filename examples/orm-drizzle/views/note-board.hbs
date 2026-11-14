@@ -1,0 +1,30 @@
+<section aria-labelledby="board-heading">
+  <h2 id="board-heading">Note board (Live)</h2>
+  <p id="board-total">{{total}} notes</p>
+  <p id="board-message" role="status" aria-live="polite">{{message}}</p>
+  <form id="note-form" nv:submit="add" novalidate>
+    <label for="note-draft">New note</label>
+    {{#if error}}
+    <textarea
+      id="note-draft"
+      maxlength="280"
+      aria-invalid="true"
+      aria-describedby="note-error"
+      nv:model="draft"
+    >
+{{draft}}</textarea>
+    <p id="note-error" role="alert">{{error}}</p>
+    {{else}}
+    <textarea id="note-draft" maxlength="280" nv:model="draft">
+{{draft}}</textarea>
+    {{/if}}
+    <button type="submit" nv:loading.attr="disabled" nv:target="add">
+      Save note
+    </button>
+  </form>
+  <ol id="board-notes" aria-label="Notes">
+    {{#each notes}}
+    <li data-note-id="{{id}}">{{body}} — {{author}}</li>
+    {{/each}}
+  </ol>
+</section>

@@ -180,6 +180,12 @@ pnpm --filter @nestvexa/example-browser-lab start       # http://127.0.0.1:3860 
 pnpm --filter @nestvexa/example-client-chunks start     # http://127.0.0.1:3880 on-demand Live client chunks, nonce CSP
 pnpm --filter @nestvexa/example-api-coexistence start   # http://127.0.0.1:3885 REST, GraphQL, TCP microservice, WebSocket
 PORT=3220 pnpm --filter @nestvexa/example-distributed-live start # one replica; REDIS_PORT=6379 for Redis mode (see its README)
+pnpm --filter @nestvexa/example-data-cache start        # http://127.0.0.1:4000 render cache, custom Live store
+pnpm --filter @nestvexa/example-orm-prisma start        # http://127.0.0.1:4020 Prisma (SQLite via libSQL)
+pnpm --filter @nestvexa/example-orm-typeorm start       # http://127.0.0.1:4021 TypeORM (sql.js)
+pnpm --filter @nestvexa/example-orm-drizzle start       # http://127.0.0.1:4022 Drizzle (libSQL)
+pnpm --filter @nestvexa/example-auth-passport start     # http://127.0.0.1:4023 Passport auth starter
+pnpm --filter @nestvexa/example-views-tour start        # http://127.0.0.1:4100 view namespaces, themes, error pages
 ```
 
 `pnpm docs:build` fails when an `examples/*` workspace is missing from this

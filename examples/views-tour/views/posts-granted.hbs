@@ -1,0 +1,12 @@
+<h1>{{title}}</h1>
+<p id="role">Signed in as: {{role}}</p>
+<p>
+  {{#if can.[posts.edit]}}
+  <button type="button" id="granted-edit">Edit post</button>
+  {{/if}} {{#if can.[posts.delete]}}
+  <button type="button" id="granted-delete">Delete post</button>
+  {{/if}}
+</p>
+{{#unless can.[posts.edit]}}
+<p id="granted-none">No edit permission.</p>
+{{/unless}}

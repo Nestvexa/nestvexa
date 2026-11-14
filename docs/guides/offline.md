@@ -155,7 +155,11 @@ if (scope) {
    server, so instead of suspending, the client sends one fresh resync: a
    `$sync` marked `x-nestvexa-resync: 1`, with no field updates. The server
    accepts it only without updates and only for the caller's own snapshot,
-   and re-renders the current state at its current revision. The refused call
+   and re-renders the current state at its current revision as a
+   [read-only refresh](../reference/live-protocol.md#read-only-refresh): no
+   transaction, no new revision. If that render would change stored state or
+   the child tree, the server answers `409 REFRESH_CONFLICT` and the client
+   sends one committing resync (`x-nestvexa-resync: commit`). The refused call
    still rejects, so the user repeats the intent; it is never replayed.
    Local drafts stay local and go with the next request. If the resync itself
    comes back `STALE_REVISION`, the component suspends rather than loop.

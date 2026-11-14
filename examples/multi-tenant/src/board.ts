@@ -11,10 +11,13 @@ import {
   Computed,
   LiveComponent,
   OnEvent,
+  RealtimeChannels,
   Reactive,
   State,
   dispatchLiveEvent,
 } from 'nestvexa';
+import { projectsChannel } from './context.js';
+import { ProjectEvents } from './events.js';
 import { Directory, ProjectRepository, projectNameError } from './tenancy.js';
 import type { Access } from './tenancy.js';
 
@@ -128,8 +131,16 @@ export class TenantBoard {
   constructor(
     @Inject(Directory) private readonly directory: Directory,
     @Inject(ProjectRepository) private readonly projects: ProjectRepository,
+    @Inject(ProjectEvents) private readonly events: ProjectEvents,
     @Inject(REQUEST) private readonly request: object,
   ) {}
+
+  /** Realtime: the server picks the channel from the verified tenant. */
+  @RealtimeChannels() channels(): string[] {
+    return [
+      projectsChannel(requireAccess(this.directory, this.request).tenant.slug),
+    ];
+  }
   @State({ writable: true, validate: nameField }) draftName = '';
   @State() error = '';
   @State() message = '';
@@ -145,7 +156,7 @@ export class TenantBoard {
       .list(access.tenant.slug)
       .map(({ id, name, status }) => ({ id, name, status }));
   }
-  @Action() create(): void {
+  @Action() async create(): Promise<void> {
     const access = requireAccess(this.directory, this.request);
     const name = this.draftName.trim();
     const error = projectNameError(this.projects, access.tenant.slug, name);
@@ -155,6 +166,7 @@ export class TenantBoard {
       return;
     }
     this.projects.add(access.tenant.slug, name);
+    await this.events.changed(access.tenant.slug);
     this.draftName = '';
     this.message = `${name} was created.`;
     this.changes++;
@@ -162,8 +174,11 @@ export class TenantBoard {
   /** A row changed or was deleted: re-render the list from the repository. */
   @Action()
   @OnEvent('project.changed')
-  changed(@ActionInput(ProjectReferencePipe) input: ProjectReference): void {
+  async changed(
+    @ActionInput(ProjectReferencePipe) input: ProjectReference,
+  ): Promise<void> {
     const access = requireAccess(this.directory, this.request);
+    await this.events.changed(access.tenant.slug);
     this.message = this.projects.find(access.tenant.slug, input.id)
       ? 'Project updated.'
       : 'Project deleted.';

@@ -22,6 +22,11 @@ test('an event published by one session refreshes another session through SSE', 
   await alice.goto(url);
   await bob.goto(url);
   expect((await subscribed).status()).toBe(200);
+  const board = bob.locator('[data-nv-name="realtime-board"]');
+  const revision = Number(await board.getAttribute('data-nv-revision'));
+  const refreshed = bob.waitForResponse((response) =>
+    response.url().endsWith('/_nestvexa/live/realtime-board/_sync'),
+  );
   const text = `Hello ${Date.now()} <b>escaped</b>`;
   await alice.locator('#realtime-draft').fill(text);
   await alice.getByRole('button', { name: 'Post update' }).click();
@@ -30,6 +35,12 @@ test('an event published by one session refreshes another session through SSE', 
   await expect(bob.locator('#realtime-feed li').first()).toHaveText(text);
   await expect(bob.locator('#realtime-feed b')).toHaveCount(0);
   await expect(bob.locator('#realtime-posted')).toHaveText('0');
+  // The refresh is read-only: marked, draft-free, and the revision stays.
+  const refresh = await refreshed;
+  expect(refresh.request().headers()['x-nestvexa-resync']).toBe('1');
+  expect(refresh.request().postDataJSON()).toMatchObject({ updates: {} });
+  expect(await refresh.json()).toMatchObject({ component: { revision } });
+  await expect(board).toHaveAttribute('data-nv-revision', String(revision));
   expect(errors).toEqual([]);
   await first.close();
   await second.close();

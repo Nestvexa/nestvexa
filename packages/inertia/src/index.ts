@@ -142,3 +142,18 @@ export type {
   InertiaInstrumentation,
   InertiaSpanAttributes,
 } from './instrumentation.js';
+export { InertiaSecurityGuard } from './security-guard.js';
+export { inertiaSecurityPolicies } from './security.js';
+export type {
+  InertiaPolicyKind,
+  InertiaPolicyRegistry,
+  InertiaSecurityOptions,
+  InertiaSecurityPolicies,
+} from './security.js';
+export type {
+  InertiaFeatureRegistry,
+  InertiaKernelIdentity,
+  InertiaKernelIdentitySource,
+  InertiaKernelPrincipal,
+} from './kernel.js';
+export { KERNEL_IDENTITY_PROP } from './service.js';

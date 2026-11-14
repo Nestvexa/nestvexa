@@ -227,6 +227,25 @@ InertiaModule.forRoot({
   plain-text status line. `props(context)` adds props; `errorPageStatus(error)`
   maps an exception to its status. HTTP only.
 
+### Kernel security, identity and features (opt-in)
+
+- `security: { origin, csrfToken(request), authorize?(identity, component, request) }`
+  builds origin, CSRF and page-authorization policies. With `policies`
+  (structural; `SecurityPolicyRegistry`) they are registered under `policyOwner`
+  (default `inertia`) and every decision is the registry's. `InertiaSecurityGuard`
+  (apply with `@UseGuards` or as `APP_GUARD` when no other transport shares the
+  routes) requires an allowed `Origin` and an `X-XSRF-TOKEN` equal (constant time,
+  URL-decoded) to `csrfToken(request)` on unsafe methods: `403 ORIGIN_REJECTED` /
+  `403 CSRF_REJECTED`. Every page render asks the authorization policy (resource:
+  the component, action `render`): `403 PAGE_FORBIDDEN`. Without `security` CSRF
+  stays host-owned, as before.
+- `kernelIdentity` (structural; `RequestContextFactory`) shares `nvIdentity`
+  (`{ authenticated, tenant? }`, never the principal id or roles) on every page,
+  replacing a shared prop of the same name, and passes the kernel identity to
+  `security.authorize`. A failing kernel identity is `403 IDENTITY_REQUIRED`.
+- `featureRegistry` (`NestvexaRegistry`) receives feature `policyOwner` with the
+  `ssr`, `session`, `security` and `kernel-identity` capabilities.
+
 ### Examples and compatibility
 
 [`examples/inertia-basic`](../../examples/inertia-basic/README.md) (official
