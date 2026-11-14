@@ -434,4 +434,34 @@ took 5–7 minutes, and parallel suites were killed with exit 134/143). The
 
 ### Verification
 
-See the final message for the exact commands and their results on this host.
+Main was merged three times; the last merge brought in `928b2f1`. The
+commands below were run one test file at a time, on the merged tree, unless a
+line says otherwise.
+
+- `pnpm --filter "./packages/**" build`: pass (30 packages).
+- `pnpm exec vitest run tests/cli-doctor.test.ts`: 13/13 (on the first merge;
+  the later merges did not change the CLI).
+- `tests/cli-plugins.test.ts`: 4/4 after the kernel round 4 merge, including
+  the `--legacy-plugin` boot.
+- `tests/cli-resource.test.ts`: 3/3.
+- `tests/cli-jest.test.ts`: 2/2.
+- `tests/cli-routes.test.ts`: 5/5.
+- `tests/cli-format.test.ts`: 6/6.
+- `tests/cli-example.test.ts`: 2/2, after the regeneration that followed the
+  kernel merge.
+- `pnpm --filter @nestvexa/example-cli-generated build`: pass. This covers the
+  server, React/Vue/Svelte client and SSR builds, and the islands bundle with
+  the Vue and Svelte islands.
+- `pnpm exec playwright test -c playwright.local.config.ts cli-generated.spec.ts --project=chromium`:
+  7/7 on port 3973. The example's port is overridable through
+  `NV_CLI_GENERATED_PORT`, which the root suite does not set.
+- `pnpm lint`: pass.
+- `pnpm exec tsc -p tsconfig.tests.json --noEmit`: pass.
+- `pnpm format:check`: three files were reported and then formatted
+  (`88364c2`); `prettier --check` on them now passes.
+  `examples/cli-generated` passes without a `.prettierignore` entry.
+- Not run because of host load: Firefox and WebKit for the example;
+  `tests/cli-generators.test.ts`, `tests/cli-fastify.test.ts`, `tests/cli.test.ts`
+  and `tests/cli-inertia-ssr.test.ts` (their expectations were updated for the
+  new list shape, the seven generated test files and pnpm scripts);
+  `pnpm docs:build`.
