@@ -61,11 +61,24 @@ import type {
   LivePolicyEnforcer,
   LivePolicyRegistry,
 } from './security-policies.js';
+import { kernelIdentityOf, scopeBinding } from './kernel.js';
+import type {
+  LiveFeatureRegistry,
+  LiveKernelIdentitySource,
+  LiveKernelPrincipal,
+} from './kernel.js';
 
 export const LIVE_OPTIONS = Symbol('nv:live-options');
 export interface LiveIdentity {
   readonly binding: string;
   readonly csrfToken: string;
+  /**
+   * The kernel principal, set by Live only when `kernelIdentity` is
+   * configured (values a host `resolveIdentity` returns here are ignored).
+   */
+  readonly principal?: LiveKernelPrincipal;
+  /** The kernel tenant, set by Live only when `kernelIdentity` is configured. */
+  readonly tenant?: string;
 }
 export interface LiveHostOptions {
   readonly origin: string;
@@ -159,6 +172,21 @@ export interface LiveHostOptions {
    * `nestvexa.request_id`, the same ID error bodies and logs use.
    */
   readonly requestContext?: { correlationId(request: object): string };
+  /**
+   * Opt-in kernel identity (structural; for example `RequestContextFactory`
+   * from @nestvexa/core). Live still calls `resolveIdentity` for the session
+   * binding and CSRF token, then attaches the kernel `principal` and
+   * `tenant` to the identity every policy receives and scopes the binding to
+   * them, so snapshots never cross users or tenants. A failing or malformed
+   * kernel identity answers `401 IDENTITY_REQUIRED`.
+   */
+  readonly kernelIdentity?: LiveKernelIdentitySource;
+  /**
+   * Kernel feature registry (structural; for example `NestvexaRegistry`
+   * from @nestvexa/core). Live registers its components, views and
+   * capabilities once under `policyOwner` (default `live`).
+   */
+  readonly featureRegistry?: LiveFeatureRegistry;
 }
 /** Static shape of a registered component, for development inspectors. */
 export interface LiveComponentDescription {
@@ -546,6 +574,27 @@ export class LiveRuntime implements OnApplicationShutdown {
       options.definitions,
       options.endpoint ?? '/_nestvexa/live',
     );
+    options.featureRegistry?.registerFeature({
+      name: options.policyOwner ?? 'live',
+      package: '@nestvexa/live',
+      components: options.definitions.map((component) => component.name),
+      views: [...new Set(options.definitions.map(({ view }) => view))],
+      capabilities: {
+        'state-store': isLiveActionCoordination(this.store)
+          ? { supported: true }
+          : {
+              supported: true,
+              degraded:
+                'Process-local state store: use a shared store such as RedisLiveStore for multiple replicas',
+            },
+        realtime: options.realtime
+          ? { supported: true }
+          : { supported: false, reason: 'No realtime signer configured' },
+        'kernel-identity': options.kernelIdentity
+          ? { supported: true }
+          : { supported: false, reason: 'kernelIdentity is not configured' },
+      },
+    });
     try {
       options.inspector?.registered?.(this.describeComponents());
     } catch {
@@ -594,9 +643,24 @@ export class LiveRuntime implements OnApplicationShutdown {
       identity.csrfToken.length > 256
     )
       fail(401, 'IDENTITY_REQUIRED');
+    const source = this.options.kernelIdentity;
+    if (!source)
+      return Object.freeze({
+        binding: identity.binding,
+        csrfToken: identity.csrfToken,
+      });
+    let kernel: ReturnType<typeof kernelIdentityOf>;
+    try {
+      kernel = kernelIdentityOf(await source.identity(request));
+    } catch {
+      kernel = undefined;
+    }
+    if (this.closed) fail(503, 'LIVE_SHUTDOWN');
+    if (!kernel) return fail(401, 'IDENTITY_REQUIRED');
     return Object.freeze({
-      binding: identity.binding,
+      binding: scopeBinding(identity.binding, kernel),
       csrfToken: identity.csrfToken,
+      ...kernel,
     });
   }
   private limit(identity: LiveIdentity, request: object): void {

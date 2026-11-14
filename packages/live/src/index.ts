@@ -19,6 +19,12 @@ export {
   type LiveSecurityPolicies,
 } from './security-policies.js';
 export type {
+  LiveFeatureRegistry,
+  LiveKernelIdentity,
+  LiveKernelIdentitySource,
+  LiveKernelPrincipal,
+} from './kernel.js';
+export type {
   LiveLifecycleHooks,
   LiveUpdateContext,
   LiveRenderContext,

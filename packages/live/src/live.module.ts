@@ -48,6 +48,7 @@ import {
 import type { LiveHostOptions } from './runtime.js';
 import { isLiveStateStore } from './store.js';
 import { isLivePolicyRegistry, validPolicyOwner } from './security-policies.js';
+import { isFeatureRegistry, isKernelIdentitySource } from './kernel.js';
 import { LIVE_CAPABILITIES, LIVE_PROTOCOL } from './protocol.js';
 
 /**
@@ -263,6 +264,20 @@ function validateHost(options: LiveRuntimeFactoryOptions): void {
     throw new Error(
       'Live requestContext option requires a correlationId(request) method',
     );
+  if (
+    options.kernelIdentity !== undefined &&
+    !isKernelIdentitySource(options.kernelIdentity)
+  )
+    throw new Error(
+      'Live kernelIdentity option requires an identity(request) method',
+    );
+  if (
+    options.featureRegistry !== undefined &&
+    !isFeatureRegistry(options.featureRegistry)
+  )
+    throw new Error(
+      'Live featureRegistry option requires a registerFeature(feature) method',
+    );
 }
 
 function factoryOptions(
@@ -288,6 +303,8 @@ function factoryOptions(
     'policies',
     'policyOwner',
     'requestContext',
+    'kernelIdentity',
+    'featureRegistry',
   ]);
   for (const key of Reflect.ownKeys(options)) {
     if (typeof key !== 'string' || !allowed.has(key))
@@ -351,6 +368,12 @@ function factoryOptions(
     ...(snapshot.requestContext === undefined
       ? {}
       : { requestContext: snapshot.requestContext }),
+    ...(snapshot.kernelIdentity === undefined
+      ? {}
+      : { kernelIdentity: snapshot.kernelIdentity }),
+    ...(snapshot.featureRegistry === undefined
+      ? {}
+      : { featureRegistry: snapshot.featureRegistry }),
   });
 }
 
