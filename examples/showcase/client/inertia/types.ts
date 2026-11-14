@@ -1,9 +1,23 @@
+import type { LocaleHydration } from '@nestvexa/i18n/client';
+
 /** Props shared by every Inertia page (see `share` in src/main.ts). */
 export interface SharedProps {
   readonly appName: string;
   readonly userName: string;
   readonly role: 'member' | 'admin';
+  /** The role in the page's language. */
+  readonly roleLabel: string;
   readonly workspace: string;
+  /** Message subset for @nestvexa/i18n/client, plus locale and direction. */
+  readonly i18n: LocaleHydration;
+  readonly locales: readonly {
+    readonly code: string;
+    readonly label: string;
+    readonly dir: 'ltr' | 'rtl';
+    readonly pressed: 'true' | 'false';
+  }[];
+  /** Session CSRF token for the native language switch form. */
+  readonly csrf: string;
   [key: string]: unknown;
 }
 

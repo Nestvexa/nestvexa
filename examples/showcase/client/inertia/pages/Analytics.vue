@@ -2,9 +2,11 @@
 import { Deferred, Head, router } from '@inertiajs/vue3';
 import { ref } from 'vue';
 import { BarChart } from '../../shared/bar-chart';
+import { useTranslate } from '../i18n';
 import type { AnalyticsProps } from '../types';
 
 defineProps<AnalyticsProps>();
+const t = useTranslate();
 const loading = ref(false);
 
 /** Partial reload: only the optional `breakdown` prop is requested and merged. */
@@ -20,43 +22,50 @@ function loadBreakdown(): void {
 </script>
 
 <template>
-  <Head title="Analytics" />
+  <Head :title="t('common:nav.analytics')" />
   <h1>{{ heading }}</h1>
-  <ul class="tiles" aria-label="Workspace summary">
+  <ul class="tiles" :aria-label="t('insights:summary')">
     <li class="tile">
-      Open tasks <output id="analytics-open">{{ summary.open }}</output>
+      {{ t('insights:open') }}
+      <output id="analytics-open">{{ summary.open }}</output>
     </li>
     <li class="tile">
-      Done tasks <output id="analytics-done">{{ summary.done }}</output>
+      {{ t('insights:done') }}
+      <output id="analytics-done">{{ summary.done }}</output>
     </li>
     <li class="tile">
-      Members <output id="analytics-members">{{ summary.members }}</output>
+      {{ t('insights:members') }}
+      <output id="analytics-members">{{ summary.members }}</output>
     </li>
   </ul>
   <section aria-labelledby="throughput-heading">
-    <h2 id="throughput-heading">Weekly throughput</h2>
+    <h2 id="throughput-heading">{{ t('insights:throughputHeading') }}</h2>
     <Deferred data="throughput">
       <template #fallback>
-        <p id="throughput-loading" role="status">Loading the chart…</p>
+        <p id="throughput-loading" role="status">
+          {{ t('insights:loading') }}
+        </p>
       </template>
       <BarChart
         v-if="throughput"
         id-prefix="analytics-chart"
-        caption="Completed tasks per week"
+        :caption="t('insights:caption')"
         :labels="throughput.labels"
         :values="throughput.values"
       />
     </Deferred>
   </section>
   <section aria-labelledby="breakdown-heading">
-    <h2 id="breakdown-heading">Open tasks by member</h2>
+    <h2 id="breakdown-heading">{{ t('insights:breakdownHeading') }}</h2>
     <button
       type="button"
       id="breakdown-load"
       :disabled="loading"
       @click="loadBreakdown"
     >
-      {{ breakdown ? 'Refresh breakdown' : 'Load breakdown' }}
+      {{
+        breakdown ? t('insights:refreshBreakdown') : t('insights:loadBreakdown')
+      }}
     </button>
     <ul v-if="breakdown" id="breakdown-list">
       <li v-for="row in breakdown" :key="row.name">

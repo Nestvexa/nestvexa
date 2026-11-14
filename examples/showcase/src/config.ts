@@ -117,3 +117,24 @@ export function secret(name: string): string {
   }
   return randomBytes(48).toString('base64url');
 }
+
+export type SessionStoreMode = 'memory' | 'file';
+/**
+ * `memory` (default): sessions end when the process stops. `file`: sessions
+ * survive a restart of this one process (`<data dir>/sessions.json`).
+ */
+export const sessionStore: SessionStoreMode = (() => {
+  const value = env['SESSION_STORE'] ?? 'memory';
+  if (value !== 'memory' && value !== 'file')
+    throw new Error('SESSION_STORE must be memory or file');
+  return value;
+})();
+export const sessionFile = join(dataDirectory, 'sessions.json');
+
+/**
+ * `SHOWCASE_TEST_FAULTS=1` adds `/__faults/error`, a route that fails on
+ * purpose (the browser tests' 500 page). Refused in production.
+ */
+export const testFaults = env['SHOWCASE_TEST_FAULTS'] === '1';
+if (testFaults && env['NODE_ENV'] === 'production')
+  throw new Error('SHOWCASE_TEST_FAULTS must not be set in production');
