@@ -4,6 +4,13 @@ packages:
 minimumReleaseAge: 1440
 onlyBuiltDependencies:
   - esbuild
+# Install scripts deliberately not run. Prisma 7 needs no downloaded engine for
+# `prisma generate` (examples/orm-prisma) and argon2 ships prebuilt binaries
+# (examples/auth-passport).
+ignoredBuiltDependencies:
+  - '@prisma/engines'
+  - argon2
+  - prisma
 overrides:
   multer: 2.5.0
   # GHSA-g3hv-75wg-m249: development-only ESLint glob matcher. See ADR0016.

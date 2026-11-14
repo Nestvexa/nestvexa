@@ -45,12 +45,9 @@ configured origin, `x-nestvexa-csrf` equal to the identity CSRF token.
   capability bound to the identity; it is not signed browser state.
 - `revision`: the revision the client rendered; any other value is `409 STALE_REVISION`.
   That reply carries `x-nestvexa-recovery: resync` (browsers never parse error bodies).
-  The recovery is a `$sync` with the header `x-nestvexa-resync: 1` and empty `updates`.
-  It skips the revision comparison for the caller's own snapshot and re-renders the
-  current state at the current revision. With any other header value, any update, or
-  on an action route, it is rejected with `400 INVALID_REQUEST`. No action runs.
+  The recovery is a [read-only refresh](#read-only-refresh).
   Calls the browser runtime had queued behind the refused one are dropped unsent;
-  the user acts again on the resynchronized view.
+  the user acts again on the refreshed view.
 - `updates`: top-level writable `@State` fields only. Without a synthesizer a value must
   keep its JSON kind; with one, the synthesizer decides (see [synthesizers](#typed-state)).
   For a field declared `@State({ writable: ['city', 'geo.lat'] })` the value is the whole
@@ -111,6 +108,7 @@ the package can emit is listed with the status it is emitted with.
 | `COMPONENT_BUSY`           | 409    | retry-later | Another request for this component instance is running.                  |
 | `ACTION_BUSY`              | 409    | retry-later | An identity-scoped action is already running for this identity.          |
 | `IDEMPOTENCY_CONFLICT`     | 422    | fix-request | A request ID was reused with a different payload.                        |
+| `REFRESH_CONFLICT`         | 409    | resync      | A read-only refresh would change stored state or the child tree.         |
 | `STATE_SCHEMA_CHANGED`     | 409    | reload      | Stored state no longer matches the component class.                      |
 | `REACTIVE_PROP_MUTATED`    | 409    | reload      | A child action changed a parent-owned @Reactive field.                   |
 | `ASSET_VERSION_MISMATCH`   | 409    | reload      | `x-nestvexa-asset-version` is missing or differs from `assetVersion`.    |
@@ -146,6 +144,45 @@ not retry automatically), **reload** (server state is gone; reload the page),
 (transient; send a new request later), **server** (host or server fault). Failures after
 component code started (hooks, action, render) also invalidate the state reference,
 because external effects may already have happened; the next request gets `410`.
+
+## Read-only refresh
+
+A `$sync` with `x-nestvexa-resync: 1` and empty `updates` renders the caller's own
+stored state at its stored revision ([ADR 0037](../adr/0037-server-state-references-and-read-only-refresh.md)).
+It passes the full admission (origin, CSRF, asset version, rate limit, reference
+ownership, `$sync` authorization) but never opens a store transaction: the snapshot,
+revision, state and expiry are unchanged, no action runs, no host session state is
+written, effects queued by hooks are discarded and a failure never invalidates the
+reference. Hooks and computed values run, so the HTML shows current data.
+
+- If the rendered public state differs from the stored state (for example a hook
+  copies a job status into `@State`), or a child would be mounted, removed or
+  re-propped, the refresh fails with `409 REFRESH_CONFLICT` and
+  `x-nestvexa-recovery: commit` before anything is created or stored.
+- `x-nestvexa-resync: commit` is the explicit mutating fallback: a transaction at the
+  current revision with no updates and no action (it may mount or remove children
+  and advances the revision).
+- Any other header value, any update, input, or an action route is
+  `400 INVALID_REQUEST` (`UNEXPECTED_INPUT` for input).
+
+The browser client sends a read-only refresh for realtime invalidations of
+components without a matching `@OnEvent` listener and after `STALE_REVISION`, and
+one committing resync after `REFRESH_CONFLICT`. Drafts stay local and go with the
+next request.
+
+## Data dependencies
+
+`@DependsOn('orders:tenant-a', (component) => [...])` declares, explicitly, the data
+tags a component renders. With `realtime` configured, each tag becomes the channel
+`tag:<tag>` (the channel `tagChannel(tag)` from `@nestvexa/cache` names) in the
+component's subscription token, next to any `@RealtimeChannels`; the realtime policy
+still decides who may read it. `LiveTags.invalidate(tags)` (exported by `LiveModule`)
+publishes one empty event per distinct tag; `LiveTags.listener` fits the
+`onInvalidate` callback of a `Cache`. Subscribed components with a matching tag
+refresh read-only; nothing is inferred from queries or templates, so a component
+without a matching declared tag never refreshes. Tags follow the cache grammar
+(`[a-z0-9][a-z0-9:._-]`, at most 124 characters); a component subscribes to at most 32
+channels in total.
 
 ## Schemas and fixtures
 

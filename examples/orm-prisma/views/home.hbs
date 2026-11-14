@@ -1,0 +1,12 @@
+<h1>{{title}}</h1>
+<section aria-labelledby="latest-heading">
+  <h2 id="latest-heading">Latest notes (server-rendered)</h2>
+  <ul id="latest-notes">
+    {{#each latest}}
+    <li data-note-id="{{id}}">{{body}} — {{author}}</li>
+    {{else}}
+    <li id="latest-empty">No notes yet.</li>
+    {{/each}}
+  </ul>
+</section>
+{{board}}

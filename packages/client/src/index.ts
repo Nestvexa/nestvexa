@@ -1472,8 +1472,11 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     allowRenderless = true,
     /** Render even without dirty fields (lazy first render). */
     force = false,
-    /** Recovery after `STALE_REVISION`: render current server state, send no drafts. */
-    resync = false,
+    /**
+     * Read-only refresh (`true`) or committing resync (`'commit'`) of the
+     * current server state; sends no drafts and accepts the current revision.
+     */
+    resync: boolean | 'commit' = false,
   ): Promise<void> {
     flushResets();
     if (!usable(state)) return;
@@ -1579,7 +1582,9 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
                 ...(assetVersion === null
                   ? {}
                   : { 'x-nestvexa-asset-version': assetVersion }),
-                ...(resync ? { 'x-nestvexa-resync': '1' } : {}),
+                ...(resync
+                  ? { 'x-nestvexa-resync': resync === true ? '1' : resync }
+                  : {}),
               },
               body,
             },
@@ -1639,7 +1644,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         result.component.id !== state.id ||
         result.component.name !== state.name ||
         (resync
-          ? result.component.revision <= state.revision
+          ? result.component.revision < state.revision
           : result.component.revision !== state.revision + 1)
       )
         throw new LiveClientError(
@@ -1921,13 +1926,28 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       // `STALE_REVISION` (another change won; nothing ran) is answered with
       // one fresh resync. The failed call is not replayed and a resync that
       // fails the same way suspends instead of looping.
-      const stale = error instanceof LiveHttpError && error.resync && !resync;
-      // Stale requests queued behind this one share a single resync.
+      const hint = error instanceof LiveHttpError ? error.recovery : null;
+      // A read-only refresh that cannot keep the child tree commits once.
+      const stale =
+        (hint === 'resync' && !resync) ||
+        (hint === 'commit' && resync === true);
+      // Calls already queued behind a refused one targeted the refused view:
+      // they are dropped unsent until the (refresh or commit) resync starts.
       if (stale) discarding.add(state);
-      if (stale && !resyncing.has(state))
+      // Stale requests queued behind this one share a single resync; the
+      // commit runs while its refresh still counts as the pending resync.
+      if (stale && (hint === 'commit' || !resyncing.has(state)))
         try {
           resyncing.add(state);
-          void schedule(state, '_sync', false, null, true, true, true)
+          void schedule(
+            state,
+            '_sync',
+            false,
+            null,
+            true,
+            true,
+            hint === 'commit' ? 'commit' : true,
+          )
             .finally(() => resyncing.delete(state))
             .catch(() => undefined);
         } catch {
@@ -1987,7 +2007,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     input: LiveActionInput = null,
     allowRenderless = true,
     force = false,
-    resync = false,
+    resync: boolean | 'commit' = false,
   ): Promise<void> {
     const failure = failureFor(state);
     if (failure) return Promise.reject(failure);
@@ -2390,7 +2410,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       window.setTimeout(() => {
         realtimeRefresh.delete(state);
         if (usable(state) && !failureFor(state))
-          void schedule(state, '_sync', false, null, false, true).catch(
+          // Read-only: drafts stay local and the revision does not move.
+          void schedule(state, '_sync', false, null, false, true, true).catch(
             () => undefined,
           );
       }, 50),

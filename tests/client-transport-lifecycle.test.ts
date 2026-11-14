@@ -1447,6 +1447,83 @@ describe('bounded browser request lifecycle', () => {
     ).toBe('');
   });
 
+  it('applies a read-only refresh that keeps the current revision', async () => {
+    await mount();
+    const task = await start();
+    await reply(0, staleHint);
+    expect(await result(task)).toEqual({ ok: false, code: 'HTTP' });
+    await expect.poll(async () => (await metrics()).requests.length).toBe(2);
+    // A refresh answers with the stored revision, which may equal the
+    // client's (nothing committed since); it is applied, not rejected.
+    await reply(1, { revision: 0, state: { query: 'server', count: 3 } });
+    expect(await page.locator('#parent-count').textContent()).toBe('3');
+    const next = await start();
+    expect(
+      await page.evaluate(() => window.nvTransportSession.requests[2]?.body),
+    ).toMatchObject({ revision: 0 });
+    await reply(2, { revision: 1, state: { query: 'server', count: 4 } });
+    expect(await result(next)).toEqual({ ok: true, code: null });
+  });
+
+  const conflictHint = {
+    status: 409,
+    mode: 'empty',
+    headers: { 'x-nestvexa-recovery': 'commit' },
+  } as const;
+
+  it('commits once when a read-only refresh would change the child tree', async () => {
+    await mount();
+    const task = await start();
+    await reply(0, staleHint);
+    expect(await result(task)).toEqual({ ok: false, code: 'HTTP' });
+    await expect.poll(async () => (await metrics()).requests.length).toBe(2);
+    await reply(1, conflictHint);
+    await expect.poll(async () => (await metrics()).requests.length).toBe(3);
+    const commit = await page.evaluate(() => {
+      const request = window.nvTransportSession.requests[2];
+      return {
+        url: new URL(request?.url ?? '', location.href).pathname,
+        header: request?.headers.get('x-nestvexa-resync') ?? null,
+        updates: request?.body.updates,
+      };
+    });
+    expect(commit).toEqual({
+      url: '/live/parent/_sync',
+      header: 'commit',
+      updates: {},
+    });
+    await reply(2, { revision: 6, state: { query: 'server', count: 6 } });
+    expect(await page.locator('#parent-count').textContent()).toBe('6');
+    expect(
+      await page.locator('#parent').getAttribute('data-nv-suspended'),
+    ).toBeNull();
+  });
+
+  it('suspends instead of looping when the commit is refused the same way', async () => {
+    await mount();
+    const task = await start();
+    await reply(0, staleHint);
+    expect(await result(task)).toEqual({ ok: false, code: 'HTTP' });
+    await expect.poll(async () => (await metrics()).requests.length).toBe(2);
+    await reply(1, conflictHint);
+    await expect.poll(async () => (await metrics()).requests.length).toBe(3);
+    await reply(2, conflictHint);
+    await page.clock.runFor(1000);
+    expect((await metrics()).requests).toHaveLength(3);
+    expect(
+      await page.locator('#parent').getAttribute('data-nv-suspended'),
+    ).toBe('');
+  });
+
+  it('ignores the commit hint outside a read-only refresh', async () => {
+    await mount();
+    const task = await start();
+    await reply(0, conflictHint);
+    expect(await result(task)).toEqual({ ok: false, code: 'HTTP' });
+    await page.clock.runFor(1000);
+    expect((await metrics()).requests).toHaveLength(1);
+  });
+
   it('ignores the resync hint on statuses other than 409', async () => {
     await mount();
     const task = await start();

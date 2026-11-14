@@ -137,6 +137,11 @@ export const LIVE_ERROR_CODES = Object.freeze({
     'fix-request',
     'A request ID was reused with a different payload.',
   ),
+  REFRESH_CONFLICT: entry(
+    409,
+    'resync',
+    'A read-only refresh would change stored state or the child tree; resync with commit.',
+  ),
   STATE_SCHEMA_CHANGED: entry(
     409,
     'reload',

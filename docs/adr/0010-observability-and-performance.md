@@ -1,6 +1,6 @@
 # ADR 0010: Redacted diagnostics and reproducible performance evidence
 
-Date: 2026-10-25; bounded client transport amendment 2026-10-27. Status: **benchmark/verification and initial client transport limits exist; production diagnostics and broad performance acceptance pending**.
+Date: 2026-10-25; bounded client transport amendment 2026-10-27; status update 2026-11-07. Status: **accepted; benchmark/verification, client transport limits and server diagnostics (`@nestvexa/observability`: spans, OpenTelemetry bridge, trace context, redacted logging, development panel) are implemented (see the status update below); production load, comparative baselines, long-running memory and distributed throughput acceptance remain pending, and no measured performance target is claimed**.
 
 ## Decision
 
