@@ -484,7 +484,9 @@ Typings: `./dist/svelte.d.ts`
 
 ```ts
 // svelteIsland
-declare function svelteIsland(component: Component<Record<string, unknown>>): IslandMount;
+declare function svelteIsland<Props extends object, Services = unknown>(component: Component<Props & {
+    island: IslandContext<Services>;
+}>): IslandMount;
 ```
 
 ## `@nestvexa/islands/svelte-server`
@@ -498,7 +500,9 @@ interface IslandRendererOptions {
 }
 
 // svelteIslandRenderer
-declare function svelteIslandRenderer(component: Component<Record<string, unknown>>, options?: IslandRendererOptions): IslandServerRenderer;
+declare function svelteIslandRenderer<Props extends object, Services = unknown>(component: Component<Props & {
+    island: IslandContext<Services>;
+}>, options?: IslandRendererOptions): IslandServerRenderer;
 ```
 
 ## `@nestvexa/islands/vue`

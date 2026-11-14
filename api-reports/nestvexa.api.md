@@ -64,6 +64,7 @@ export { dispatchLiveEvent } from '@nestvexa/live'; // see its report
 export { DispatchOptions } from '@nestvexa/live'; // see its report
 export { downloadLive } from '@nestvexa/live'; // see its report
 export { DownloadOptions } from '@nestvexa/live'; // see its report
+export { emitDeprecation } from '@nestvexa/core'; // see its report
 export { enumSynthesizer } from '@nestvexa/live'; // see its report
 export { ErrorPage } from '@nestvexa/views'; // see its report
 export { ErrorPageHost } from '@nestvexa/views'; // see its report
@@ -150,6 +151,7 @@ export { MemoryLiveStoreOptions } from '@nestvexa/live'; // see its report
 export { mergeNestvexaOptions } from '@nestvexa/core'; // see its report
 export { Modelable } from '@nestvexa/live'; // see its report
 export { moduleControllers } from '@nestvexa/core'; // see its report
+export { NESTVEXA_DEPRECATIONS } from '@nestvexa/core'; // see its report
 export { NESTVEXA_DIAGNOSTICS_OPTIONS } from '@nestvexa/core'; // see its report
 export { NESTVEXA_ENVIRONMENT_VARIABLES } from '@nestvexa/core'; // see its report
 export { NESTVEXA_ERROR_CODES } from '@nestvexa/core'; // see its report
@@ -196,6 +198,7 @@ declare class NestvexaBrowserService implements OnApplicationShutdown {
 export { NestvexaConfigError } from '@nestvexa/core'; // see its report
 export { NestvexaConfigIssue } from '@nestvexa/core'; // see its report
 export { NestvexaConfigService } from '@nestvexa/core'; // see its report
+export { NestvexaDeprecationCode } from '@nestvexa/core'; // see its report
 export { NestvexaError } from '@nestvexa/core'; // see its report
 export { NestvexaErrorBody } from '@nestvexa/core'; // see its report
 export { NestvexaErrorCode } from '@nestvexa/core'; // see its report

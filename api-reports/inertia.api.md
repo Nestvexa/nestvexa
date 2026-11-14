@@ -32,6 +32,9 @@ declare const BIGINT_MARKER = "$bigint";
 // deepMerge
 declare function deepMerge<T>(value: Lazy<T>): MergeProp;
 
+// DEFAULT_ERROR_PAGE_STATUSES
+declare const DEFAULT_ERROR_PAGE_STATUSES: readonly number[];
+
 // defaultHeaderLimits
 declare const defaultHeaderLimits: InertiaHeaderLimits;
 
@@ -55,6 +58,9 @@ declare class DeferProp extends InertiaProp {
     prepend(path?: boolean | string | readonly string[] | Readonly<Record<string, string>>, matchOn?: string): this;
     matchOn(matchOn: string | readonly string[]): this;
 }
+
+// errorPageStatus
+declare function errorPageStatus(exception: unknown): number;
 
 // escapeHtml
 declare function escapeHtml(value: string): string;
@@ -118,6 +124,30 @@ declare class InertiaBackResult {
 // InertiaConfigurationError
 declare class InertiaConfigurationError extends Error {
     constructor(message: string, options?: ErrorOptions);
+}
+
+// InertiaErrorPageContext
+interface InertiaErrorPageContext {
+    readonly status: number;
+    readonly exception: unknown;
+    readonly request: object;
+    readonly debug: boolean;
+}
+
+// InertiaErrorPageFilter
+declare class InertiaErrorPageFilter extends BaseExceptionFilter {
+    #private;
+    constructor(inertia: InertiaService, options: ResolvedOptions, validation: InertiaValidationFilter, adapterHost?: HttpAdapterHost);
+    catch(exception: unknown, host: ArgumentsHost): Promise<void>;
+}
+
+// InertiaErrorPageOptions
+interface InertiaErrorPageOptions {
+    readonly component: string;
+    readonly statuses?: readonly number[];
+    readonly debug?: boolean;
+    readonly app?: string;
+    readonly props?: (context: InertiaErrorPageContext) => Readonly<Record<string, unknown>> | PromiseLike<Readonly<Record<string, unknown>>>;
 }
 
 // InertiaErrors
@@ -228,6 +258,7 @@ interface InertiaModuleBehaviour {
     readonly isGlobal?: boolean;
     readonly interceptor?: 'global' | 'decorated';
     readonly validationFilter?: boolean;
+    readonly errorPageFilter?: boolean;
 }
 
 // InertiaModuleOptions
@@ -235,6 +266,8 @@ interface InertiaModuleOptions extends InertiaAppOptions {
     readonly apps?: Readonly<Record<string, InertiaAppOptions>>;
     readonly defaultApp?: string;
     readonly share?: InertiaShareResolver;
+    readonly shareOnce?: InertiaShareOnceResolver;
+    readonly errorPage?: InertiaErrorPageOptions;
     readonly session?: InertiaSessionAdapter | false;
     readonly redirects?: {
         readonly allowedOrigins?: readonly string[];
@@ -452,6 +485,7 @@ declare class InertiaService {
     hasSession(request: object): boolean;
     get emptyResponse(): 'back' | 'passthrough';
     share(request: object, key: string | Readonly<Record<string, unknown>>, value?: unknown): void;
+    shareOnce(request: object, key: string, callback: (() => unknown) | OnceProp, options?: OnceOptions): void;
     flash(request: object, key: string | Readonly<Record<string, unknown>>, value?: unknown): void;
     clearHistory(request: object): void;
     encryptHistory(request: object, encrypt?: boolean): void;
@@ -492,6 +526,9 @@ declare const InertiaSessionKey: Readonly<{
     readonly preserveFragment: "nestvexa.inertia.preserveFragment";
     readonly previousUrl: "nestvexa.inertia.previousUrl";
 }>;
+
+// InertiaShareOnceResolver
+type InertiaShareOnceResolver = (request: object) => Readonly<Record<string, (() => unknown) | OnceProp>> | PromiseLike<Readonly<Record<string, (() => unknown) | OnceProp>>>;
 
 // InertiaShareResolver
 type InertiaShareResolver = (request: object) => Record<string, unknown> | PromiseLike<Record<string, unknown>>;
@@ -748,6 +785,8 @@ interface ResolvedOptions {
     readonly defaultApp: string;
     readonly namespaceVersions: boolean;
     readonly share: InertiaShareResolver | undefined;
+    readonly shareOnce: InertiaShareOnceResolver | undefined;
+    readonly errorPage: ResolvedErrorPage | undefined;
     readonly session: InertiaSessionAdapter | undefined;
     readonly allowedOrigins: ReadonlySet<string>;
     readonly fallback: string;
@@ -956,5 +995,14 @@ interface ResolvedApp {
     readonly paths: readonly string[];
     readonly ssr: InertiaSsrOptions | undefined;
     readonly nonce: ((request: object) => string | undefined) | undefined;
+}
+
+// ResolvedErrorPage (dist/options.d.ts)
+interface ResolvedErrorPage {
+    readonly component: string;
+    readonly statuses: ReadonlySet<number>;
+    readonly debug: boolean;
+    readonly app: string | undefined;
+    readonly props: InertiaErrorPageOptions['props'];
 }
 ```

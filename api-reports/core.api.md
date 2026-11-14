@@ -138,6 +138,9 @@ declare class DiagnosticsRegistry {
     };
 }
 
+// emitDeprecation
+declare function emitDeprecation(code: string, message: string): boolean;
+
 // exactOriginPolicy
 declare function exactOriginPolicy(origin: string): SecurityPolicies['origin'];
 
@@ -173,6 +176,12 @@ declare function mergeNestvexaOptions(...layers: readonly (NestvexaOptions | und
 
 // moduleControllers
 declare function moduleControllers(root: Type | DynamicModule): Type[];
+
+// NESTVEXA_DEPRECATIONS
+declare const NESTVEXA_DEPRECATIONS: Readonly<{
+    readonly NVDEP001: "definePlugin() is deprecated; define an extension with defineExtension(), or convert an existing plugin with pluginExtension(plugin).";
+    readonly NVDEP002: "PluginRegistry is deprecated; pass pluginExtension(plugin) (or registry.extensions()) to CoreModule.forRoot(options, { extensions }).";
+}>;
 
 // NESTVEXA_DIAGNOSTICS_OPTIONS
 declare const NESTVEXA_DIAGNOSTICS_OPTIONS: unique symbol;
@@ -243,6 +252,9 @@ declare class NestvexaConfigService {
     readonly value: NormalizedNestvexaOptions;
     constructor(options: NestvexaOptions);
 }
+
+// NestvexaDeprecationCode
+type NestvexaDeprecationCode = keyof typeof NESTVEXA_DEPRECATIONS;
 
 // NestvexaError
 declare class NestvexaError extends Error {
