@@ -1,10 +1,22 @@
 <h1>{{title}}</h1>
 <p>{{summary}}</p>
 <table>
-  <thead><tr><th>Id</th><th>Name</th><th>Status</th><th>Total</th></tr></thead>
+  <thead>
+    <tr>
+      <th>Id</th>
+      <th>Name</th>
+      <th>Status</th>
+      <th>Total</th>
+    </tr>
+  </thead>
   <tbody>
     {{#each rows}}
-      <tr data-id="{{id}}"><td>{{id}}</td><td>{{name}}</td><td>{{status}}</td><td>{{total}}</td></tr>
+    <tr data-id="{{id}}">
+      <td>{{id}}</td>
+      <td>{{name}}</td>
+      <td>{{status}}</td>
+      <td>{{total}}</td>
+    </tr>
     {{/each}}
   </tbody>
 </table>
