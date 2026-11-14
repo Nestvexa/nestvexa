@@ -243,11 +243,17 @@ subset), `SecurityPolicyRegistry` (CSRF, origin, snapshot, action authorization,
 quotas; fail-closed evaluation), `DiagnosticsRegistry` (typed events, metrics and spans
 for tests and devtools) and `NestvexaExceptionFilter` (error envelope with correlation
 IDs and redacted logging). See the [core README](../../packages/core/README.md#kernel-services).
-The registries are the single source of the security policies: Live and uploads register
-their origin, CSRF, authorization, snapshot and upload-quota policies there and ask the
-registry for each decision through structural interfaces (no package imports core,
+The registries are the single source of the security policies: Live, uploads, server
+actions and Inertia (opt-in `security`) register their origin, CSRF, authorization,
+snapshot and upload-quota policies there and ask the registry for each decision through
+structural interfaces (no package imports core,
 [ADR 0030](../adr/0030-live-kernel-boundary.md)); the `nestvexa` umbrella wires Live,
-views (`nvRequest`), and exposes the registries to actions, uploads and devtools.
+views (`nvRequest`), and exposes the registries to actions, uploads, realtime, Inertia
+and devtools. `NestvexaRegistry` lists the installed features (components, safe
+actions, views, renderer adapters, capabilities) and plugins, and
+`RequestContextFactory.identity(request)` is the opt-in `kernelIdentity` source that
+gives MVC, Live, Inertia, server actions, uploads and realtime one principal and tenant
+per request.
 
 `@nestvexa/core` also has a `PluginRegistry`. It validates plugin manifests (name,
 version, supported Nestvexa range and capabilities from `PLUGIN_CAPABILITIES`), refuses

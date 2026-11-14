@@ -205,6 +205,19 @@ UploadsModule.registerAsync({
 });
 ```
 
+### Kernel identity, form CSRF and features
+
+The multipart form path (`receiveForm`) no longer compares the `_csrf` field
+itself: the field is handed to the registered CSRF policy as its `token`
+(`verify(request, identity, token)`), through the registry when `policies` is
+configured, and file writes wait for the decision. `kernelIdentity` (structural;
+`RequestContextFactory`) attaches the kernel `principal` and makes the kernel
+`tenant` the quota bucket; the binding is scoped to them, and a host `tenant`
+that differs from the kernel tenant (or a failing kernel identity) is
+`401 IDENTITY_REQUIRED`. `featureRegistry` (`NestvexaRegistry`) receives feature
+`policyOwner` with the `storage`, `direct`, `scan` and `kernel-identity`
+capabilities.
+
 ## Security model
 
 - **Identity**: the host `resolveIdentity` (same contract as Live) is the only

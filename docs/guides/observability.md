@@ -141,7 +141,8 @@ With `DevtoolsModule.registerAsync` and the `kernel` option (the `@nestvexa/core
 `DiagnosticsRegistry`, `SecurityPolicyRegistry` and `FeatureCapabilityRegistry`), the
 panel and `data.json` also list the registered security policies (configuration only,
 such as Live's snapshot TTL and the upload quotas), declared capabilities and recent
-kernel diagnostics. See the [observability README](../../packages/observability/README.md#development-panel).
+kernel diagnostics; with `features: NestvexaRegistry` it also lists the installed
+features and plugins (`kernel.features`, `kernel.plugins`). See the [observability README](../../packages/observability/README.md#development-panel).
 
 ## Devtools safety
 
