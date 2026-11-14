@@ -18,9 +18,9 @@ a second amendment.
 ### CORE-047: `SecurityPolicyRegistry` is the single source for every transport
 
 - **Contract** (`packages/core/src/security.ts`, additive): `csrf.verify(request,
-  subject?, token?)` and `action-authorization.authorize(subject, resource,
-  action, request?)`; `SecurityPolicyRegistry.verifyCsrf(owner, request,
-  subject?, token?)` and `authorize(owner, subject, resource, action, request?)`
+subject?, token?)` and `action-authorization.authorize(subject, resource,
+action, request?)`; `SecurityPolicyRegistry.verifyCsrf(owner, request,
+subject?, token?)` and `authorize(owner, subject, resource, action, request?)`
   pass them through. Existing policies keep working.
 - **Server actions** (`packages/actions/src/policies.ts`, `runtime.ts`,
   `options.ts`): new `policies`/`policyOwner` (default `actions`).
@@ -33,7 +33,7 @@ a second amendment.
   host `authorize` receives it (a decision without a request is denied).
 - **Inertia** (`packages/inertia/src/security.ts`, `security-guard.ts`,
   `service.ts`, `options.ts`): new opt-in `security: { origin, csrfToken,
-  authorize? }` plus `policies`/`policyOwner` (default `inertia`).
+authorize? }` plus `policies`/`policyOwner` (default `inertia`).
   `InertiaSecurityGuard` (exported and provided by `InertiaModule`; applied by
   the host with `@UseGuards` or `APP_GUARD`) checks `Origin` and `X-XSRF-TOKEN`
   (URL-decoded, constant time) on unsafe methods; every page render asks the
@@ -81,8 +81,8 @@ a second amendment.
   upload tokens and realtime subscriptions never cross users or tenants.
   Server actions reject a host `subject` that differs from the principal id
   or a host tenant that differs from the kernel tenant (`401
-  IDENTITY_MISMATCH`); uploads reject a differing host tenant (`401
-  IDENTITY_REQUIRED`). A failing or malformed kernel identity fails closed
+IDENTITY_MISMATCH`); uploads reject a differing host tenant (`401
+IDENTITY_REQUIRED`). A failing or malformed kernel identity fails closed
   (`401`; Inertia `403`). Host values for `principal`/`tenant` are ignored.
 - **Inertia shared props**: `nvIdentity` (`{ authenticated, tenant? }`, never
   the principal id or roles) on every page, winning over a shared prop of the
@@ -93,7 +93,7 @@ a second amendment.
 - Tests (`tests/kernel-transports.test.ts`, Express and Fastify):
   - one session (alice/acme) with a forged `x-tenant-id`/`x-nestvexa-tenant`
     header: the MVC page shows `acme`, Inertia shares `{ authenticated: true,
-    tenant: 'acme' }` without the user id, the server action context reports
+tenant: 'acme' }` without the user id, the server action context reports
     `alice`/`acme`, and the recorded host decisions of Live, Inertia,
     actions, uploads and realtime are exactly `alice:acme`; bob cannot use
     alice's realtime token and cannot get one for `tenant:acme`.
@@ -122,7 +122,7 @@ a second amendment.
 
 - **Kernel** (`packages/core/src/features.ts`): `NestvexaRegistry` (provided
   and exported by `CoreModule`) with `registerFeature({ name, package,
-  version?, components?, actions?, views?, renderers?, capabilities? })`,
+version?, components?, actions?, views?, renderers?, capabilities? })`,
   `features()`, `components()`, `actions()`, `views()`, `renderers()`,
   `plugins()` (installed extensions, via the new
   `NestvexaExtensionHost.describe()`), `require(name)` and `report()` (frozen
@@ -166,11 +166,60 @@ a second amendment.
   - the uploads form CSRF decision is now made by the registered policy
     (same accept/reject results; with `policies` the registry decides).
 - With `policies`, a throwing host `authorize` in server actions is a `403
-  POLICY` denial (the registry fails closed) instead of a 500.
+POLICY` denial (the registry fails closed) instead of a 500.
 - With `kernelIdentity`, Live/uploads/realtime bindings are scoped. Enable it
   on Live and realtime together when Live signs realtime tokens;
   `RealtimeService.revoke(binding)` then takes the scoped binding.
 
 ## Verification
 
-RESULTS_PLACEHOLDER
+All commands ran in this worktree, one vitest file at a time
+(`--testTimeout=120000` on the loaded shared host).
+
+- `pnpm install --frozen-lockfile` and `pnpm build`: pass. Each changed package
+  was rebuilt with its `tsc -p tsconfig.json` after the edits.
+- `pnpm lint` (ESLint and `scripts/boundaries.mjs`),
+  `pnpm exec tsc -p tsconfig.tests.json --noEmit` and Prettier on every
+  changed file: pass.
+- New tests: `tests/kernel-registry.test.ts` 6/6 and
+  `tests/kernel-transports.test.ts` 12/12 (6 per platform, Express and Fastify).
+- Regression suites, all passing: `kernel-integration` (12), `core-kernel` (15),
+  `core-extensions` (8), `core` (19), `integration` (2), `actions-security` (4),
+  `actions-http` (57), `actions-runtime` (42), `actions-jobs` (14),
+  `forms-actions` (4), `uploads-limits` (8), `uploads-validation` (79),
+  `live-security` (1), `umbrella-live` (45), `umbrella-view-engines` (4),
+  `realtime` (13), `realtime-live` (3), `realtime-hub` (17),
+  `inertia-security` (47), `inertia-http` (40), `inertia-reauthorization` (12),
+  `inertia-protocol` (61), `devtools-inspector` (7) and
+  `observability-tracing` (22).
+- `tests/uploads-http.test.ts`: 31/32 in one full run (Fastify case failed),
+  30/32 in a second full run (both platforms' "uploads, finalizes once and
+  downloads with safe headers and ranges" failed). Both failures were
+  connection resets (`status -1`) on the `GET /host/download/...` route,
+  which this branch does not touch. Run alone with `-t "finalizes once and
+downloads"`, the case passes on both platforms with this branch's sources
+  and with main's uploads sources. I read this as load-dependent flakiness on
+  the shared host, not a regression. Re-run the full file on a quiet machine
+  before merging.
+- Not run: browser specs (no browser code changed), `pnpm size:check` (no
+  client bundle change), `pnpm docs:build`, and
+  `tests/architecture-runtime.test.ts` (its 60 s child-process limit timed out
+  on this host in round 4).
+
+## Coordinator notes for merging
+
+- Root `package.json`: `tests/kernel-registry.test.ts` was added to `test:unit`
+  and `test:security`, and `tests/kernel-transports.test.ts` to
+  `test:integration` and `test:security`. There are no Playwright entries, no
+  new examples and no new dependencies. Port 4061 appears only as an origin
+  string; the tests listen on port 0.
+- Expected conflicts:
+  - `packages/inertia/src/service.ts`, `options.ts` and `index.ts` with any
+    Inertia branch.
+  - `packages/actions/src/runtime.ts`/`options.ts` with an actions branch.
+  - `packages/uploads/src/service.ts` (form path) with an uploads branch.
+  - `packages/core/README.md`, `packages/nestvexa/README.md`,
+    `docs/architecture/overview.md` and ADR 0030 with other kernel docs.
+  - The root `package.json` test lists.
+- `r5-data-orm-auth` can now build its tenant-isolation examples on
+  `kernelIdentity` with `RequestContextFactory`, as shown in the core README.
