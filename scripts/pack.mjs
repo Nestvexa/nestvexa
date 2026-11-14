@@ -13,6 +13,7 @@ import { performance } from 'node:perf_hooks';
 import { resolve, join, relative } from 'node:path';
 import { tmpdir } from 'node:os';
 import { sbomContext, writeSbom } from './sbom.mjs';
+import { scanText } from './secrets.mjs';
 
 const pnpm = process.env.npm_execpath;
 if (!pnpm)
@@ -119,6 +120,29 @@ async function packPackages() {
           !contents.includes('package/' + file.replace(/^\.\//, ''))
         )
           throw new Error(tarball + ' missing ' + key + ' file ' + file);
+    // Every `bin` target must be packed (the `nestvexa` and CLI binaries).
+    const bins =
+      typeof manifest.bin === 'string'
+        ? [manifest.bin]
+        : Object.values(manifest.bin ?? {});
+    for (const target of bins)
+      if (!contents.includes('package/' + target.replace(/^\.\//, '')))
+        throw new Error(tarball + ' missing bin ' + target);
+    // No credential-shaped text in any packed file (same rules as
+    // `pnpm secrets:scan`); findings name the file and line, never the value.
+    for (const entry of contents) {
+      const buffer = await readFile(join(cwd, entry.slice('package/'.length)));
+      if (buffer.includes(0)) continue;
+      const findings = scanText(buffer.toString('utf8'));
+      if (findings.length)
+        throw new Error(
+          tarball +
+            ' contains credential-shaped content: ' +
+            findings
+              .map((finding) => entry + ':' + finding.line + ' ' + finding.rule)
+              .join(', '),
+        );
+    }
     if (
       /^package\/(?:src|tests|node_modules)\/|(?:^|\/)\.env(?:\.|$)/m.test(
         archive.stdout,
