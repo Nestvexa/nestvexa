@@ -15,7 +15,8 @@ import type { InertiaSessionAdapter } from './session.js';
 import { requestSessionAdapter } from './session.js';
 import type { InertiaSsrOptions } from './ssr.js';
 import type { InertiaPageObject } from './page.js';
-import { hasControlCharacter } from './text.js';
+import { OnceProp, once } from './props.js';
+import { hasControlCharacter, validComponent } from './text.js';
 
 /** Asset version: a value or a per-request (possibly async) resolver. */
 export type InertiaVersion =
@@ -30,6 +31,59 @@ export type InertiaVersion =
 export type InertiaShareResolver = (
   request: object,
 ) => Record<string, unknown> | PromiseLike<Record<string, unknown>>;
+
+/**
+ * Once-shared props resolver (the reference adapter's middleware
+ * `shareOnce()`): each value is a zero-argument callback, wrapped in `once()`,
+ * or an existing `once()` prop used as is. Merged after `share`.
+ */
+export type InertiaShareOnceResolver = (
+  request: object,
+) =>
+  | Readonly<Record<string, (() => unknown) | OnceProp>>
+  | PromiseLike<Readonly<Record<string, (() => unknown) | OnceProp>>>;
+
+/** What `errorPage.props` receives for each rendered error page. */
+export interface InertiaErrorPageContext {
+  readonly status: number;
+  readonly exception: unknown;
+  readonly request: object;
+  /** Whether the debug details (`exception` prop) are included. */
+  readonly debug: boolean;
+}
+
+/**
+ * Renders an Inertia component for error responses instead of the framework's
+ * JSON error body (the reference adapter's documented `ErrorPage` pattern).
+ */
+export interface InertiaErrorPageOptions {
+  /** Page component rendered with `{ status, message }`, for example `ErrorPage`. */
+  readonly component: string;
+  /** Statuses rendered as the page (4xx/5xx). Default 403, 404, 500 and 503. */
+  readonly statuses?: readonly number[];
+  /**
+   * Include the exception's own message and an `exception: { name, message,
+   * stack }` prop. Default: only when `NODE_ENV` is `development`. Never
+   * enable in production: stacks reveal source paths and internals.
+   */
+  readonly debug?: boolean;
+  /** Configured app whose root renders the page (otherwise path selection). */
+  readonly app?: string;
+  /** Extra props merged over `{ status, message }` (and `exception` when debugging). */
+  readonly props?: (
+    context: InertiaErrorPageContext,
+  ) =>
+    | Readonly<Record<string, unknown>>
+    | PromiseLike<Readonly<Record<string, unknown>>>;
+}
+
+export interface ResolvedErrorPage {
+  readonly component: string;
+  readonly statuses: ReadonlySet<number>;
+  readonly debug: boolean;
+  readonly app: string | undefined;
+  readonly props: InertiaErrorPageOptions['props'];
+}
 
 /** One Inertia root: its own template, assets, version and optional SSR. */
 export interface InertiaAppOptions {
@@ -55,6 +109,16 @@ export interface InertiaModuleOptions extends InertiaAppOptions {
   /** Root used when neither the decorator nor a path selects one. */
   readonly defaultApp?: string;
   readonly share?: InertiaShareResolver;
+  /**
+   * Once props shared with every page (see `InertiaShareOnceResolver`); for
+   * request-scoped ones call `InertiaService.shareOnce()`.
+   */
+  readonly shareOnce?: InertiaShareOnceResolver;
+  /**
+   * Render this component for selected error statuses through
+   * `InertiaErrorPageFilter` (registered by `forRoot` when set).
+   */
+  readonly errorPage?: InertiaErrorPageOptions;
   /** Host session access; `false` disables session-backed features. */
   readonly session?: InertiaSessionAdapter | false;
   readonly redirects?: {
@@ -122,6 +186,8 @@ export interface ResolvedOptions {
   /** Distinct apps get namespaced versions so cross-root XHR forces a reload. */
   readonly namespaceVersions: boolean;
   readonly share: InertiaShareResolver | undefined;
+  readonly shareOnce: InertiaShareOnceResolver | undefined;
+  readonly errorPage: ResolvedErrorPage | undefined;
   readonly session: InertiaSessionAdapter | undefined;
   readonly allowedOrigins: ReadonlySet<string>;
   readonly fallback: string;
@@ -251,6 +317,8 @@ export function resolveOptions(
     defaultApp: fallbackApp,
     namespaceVersions: apps.size > 1,
     share: options.share,
+    shareOnce: fn(options.shareOnce, 'shareOnce'),
+    errorPage: errorPage(options.errorPage, apps),
     session:
       options.session === false
         ? undefined
@@ -288,6 +356,71 @@ export function resolveOptions(
     emptyResponse,
     previousUrl: options.previousUrl !== false,
   });
+}
+
+function fn<T>(value: T | undefined, label: string): T | undefined {
+  if (value !== undefined && typeof value !== 'function')
+    throw new InertiaConfigurationError(`${label} must be a function`);
+  return value;
+}
+
+/** Default error-page statuses, as in the reference adapter's guide. */
+export const DEFAULT_ERROR_PAGE_STATUSES: readonly number[] = Object.freeze([
+  403, 404, 500, 503,
+]);
+
+function errorPage(
+  value: InertiaErrorPageOptions | undefined,
+  apps: ReadonlyMap<string, ResolvedApp>,
+): ResolvedErrorPage | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'object' || value === null)
+    throw new InertiaConfigurationError('errorPage must be an object');
+  if (typeof value.component !== 'string' || !validComponent(value.component))
+    throw new InertiaConfigurationError(
+      'errorPage.component must be a component name',
+    );
+  const statuses = value.statuses ?? DEFAULT_ERROR_PAGE_STATUSES;
+  if (!Array.isArray(statuses) || statuses.length === 0)
+    throw new InertiaConfigurationError(
+      'errorPage.statuses must be a non-empty list',
+    );
+  for (const status of statuses)
+    if (!Number.isInteger(status) || status < 400 || status > 599)
+      throw new InertiaConfigurationError(
+        'errorPage.statuses must be 4xx or 5xx codes',
+      );
+  if (value.debug !== undefined && typeof value.debug !== 'boolean')
+    throw new InertiaConfigurationError('errorPage.debug must be a boolean');
+  if (value.app !== undefined && !apps.has(value.app))
+    throw new InertiaConfigurationError(
+      'errorPage.app must name a configured app',
+    );
+  return Object.freeze({
+    component: value.component,
+    statuses: new Set(statuses),
+    debug: value.debug ?? process.env['NODE_ENV'] === 'development',
+    app: value.app,
+    props: fn(value.props, 'errorPage.props'),
+  });
+}
+
+/** Wraps once-shared values; anything but a callback or `once()` prop is rejected. */
+export function onceShared(value: unknown): Record<string, OnceProp> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new InertiaConfigurationError('Once-shared props must be an object');
+  // Null prototype: a hostile `__proto__` key cannot reach Object.prototype.
+  const result = Object.create(null) as Record<string, OnceProp>;
+  for (const [key, entry] of Object.entries(value)) {
+    if (entry instanceof OnceProp) result[key] = entry;
+    else if (typeof entry === 'function')
+      result[key] = once(entry as () => unknown);
+    else
+      throw new InertiaConfigurationError(
+        `Once-shared prop "${key}" must be a callback or a once() prop`,
+      );
+  }
+  return result;
 }
 
 function instrumentation(value: unknown): InertiaInstrumentation | undefined {

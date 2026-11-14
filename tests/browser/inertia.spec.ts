@@ -3,7 +3,8 @@ import type { Page, Request } from '@playwright/test';
 
 // Drives examples/inertia-basic, whose browser bundle uses the official
 // @inertiajs/react 3.10.0 / @inertiajs/core 3.10.0 client (no custom router).
-const base = 'http://127.0.0.1:3103';
+const base =
+  process.env['NESTVEXA_INERTIA_BASIC_URL'] ?? 'http://127.0.0.1:3103';
 
 async function markDocument(page: Page): Promise<void> {
   await page.evaluate(() => {
@@ -143,6 +144,87 @@ test.describe('official Inertia client against the Nest adapter', () => {
       return response.status;
     });
     expect(status).toBe(403);
+  });
+
+  test('keeps a once-shared prop on the client and skips it on later visits', async ({
+    page,
+  }) => {
+    const requests = inertiaRequests(page);
+    await page.goto(base);
+    const regions = page.getByTestId('regions');
+    await expect(regions).toHaveText(
+      /^Regions: Europe, Americas \(load \d+\)$/,
+    );
+    const first = await regions.textContent();
+    await markDocument(page);
+    const visit = page.waitForResponse(
+      (response) =>
+        response.url() === `${base}/users` &&
+        response.request().headers()['x-inertia'] === 'true',
+    );
+    await page.getByRole('link', { name: 'Users', exact: true }).click();
+    const response = await visit;
+    await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible();
+    expect(await sameDocument(page)).toBe(true);
+    // The official client reports the once prop it holds; the server skips it.
+    const sent = requests.find((request) => request.url() === `${base}/users`);
+    expect(sent?.headers()['x-inertia-except-once-props']).toBe('regions');
+    const body = (await response.json()) as {
+      props: Record<string, unknown>;
+      onceProps?: Record<string, unknown>;
+    };
+    expect(body.props).not.toHaveProperty('regions');
+    expect(body.onceProps).toEqual({
+      regions: { prop: 'regions', expiresAt: null },
+    });
+    // ...and the page still shows the value resolved on the first visit.
+    await expect(regions).toHaveText(first ?? '');
+  });
+
+  test('renders the configured error page for 404, 403 and 500 without exception details', async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    // A full visit to an unknown URL: an HTML document whose page is ErrorPage.
+    const missing = await page.goto(`${base}/no-such-page`);
+    expect(missing?.status()).toBe(404);
+    expect(missing?.headers()['content-type']).toContain('text/html');
+    await expect(
+      page.getByRole('heading', { name: 'Error 404' }),
+    ).toBeVisible();
+    await expect(page.getByTestId('error-message')).toHaveText('Not Found');
+    await expect(page.getByTestId('app-name')).toHaveText(
+      'Nestvexa Inertia demo',
+    );
+    await markDocument(page);
+    // Inertia visits: the official client swaps in the component (no modal,
+    // no full reload) with the original status.
+    const forbidden = page.waitForResponse(`${base}/admin`);
+    await page.getByRole('link', { name: 'Admin' }).click();
+    const reply = await forbidden;
+    expect(reply.status()).toBe(403);
+    expect(reply.headers()['x-inertia']).toBe('true');
+    await expect(
+      page.getByRole('heading', { name: 'Error 403' }),
+    ).toBeVisible();
+    await expect(page.getByTestId('error-message')).toHaveText('Forbidden');
+    await expect(page).toHaveURL(`${base}/admin`);
+    const broken = page.waitForResponse(`${base}/broken`);
+    await page.getByRole('link', { name: 'Broken' }).click();
+    expect((await broken).status()).toBe(500);
+    await expect(
+      page.getByRole('heading', { name: 'Error 500' }),
+    ).toBeVisible();
+    await expect(page.getByTestId('error-message')).toHaveText('Server Error');
+    expect(await sameDocument(page)).toBe(true);
+    // The production page carries no exception message or stack.
+    const html = await page.content();
+    expect(html).not.toContain('db-internal');
+    expect(html).not.toContain('Administrators only');
+    expect(html).not.toMatch(/\bat .+\.js:\d+/);
+    await expect(page.locator('dialog, iframe')).toHaveCount(0);
+    expect(errors).toEqual([]);
   });
 
   test('performs a full page reload when the asset version changes', async ({

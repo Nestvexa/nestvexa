@@ -101,7 +101,9 @@ reload to a full visit. A version mismatch `409` varies on `X-Inertia` and
   `interceptor: 'global' | 'decorated'` (default `global`: registers
   `InertiaInterceptor` as `APP_INTERCEPTOR` so version checks and redirect
   results work on every route), `validationFilter` (default `true`: registers
-  `InertiaValidationFilter` as `APP_FILTER`).
+  `InertiaValidationFilter` as `APP_FILTER`), `errorPageFilter` (registers
+  `InertiaErrorPageFilter` as `APP_FILTER`; `forRoot` defaults it to whether
+  `errorPage` is set, `forRootAsync` needs `errorPageFilter: true`).
 
 | Option                     | Default                                                    | Meaning                                                                                                                                                                                                                                                         |
 | -------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -114,6 +116,8 @@ reload to a full visit. A version mismatch `409` varies on `X-Inertia` and
 | `ssr`                      | none                                                       | `{ renderer, mode: 'fallback' \| 'strict', onError }` (see SSR).                                                                                                                                                                                                |
 | `apps` / `defaultApp`      | single `default` app                                       | Named roots, each with the options above plus `paths` prefixes.                                                                                                                                                                                                 |
 | `share`                    | none                                                       | `(request) => props`; called for every page response, never cached.                                                                                                                                                                                             |
+| `shareOnce`                | none                                                       | `(request) => ({ key: () => value \| once(...) })`: once props shared with every page (the reference middleware's `shareOnce()`), merged after `share`. Values must be callbacks or `once()` props.                                                             |
+| `errorPage`                | none                                                       | `{ component, statuses?, debug?, app?, props? }`: render `component` with `{ status, message }` for 403/404/500/503 (see [Error pages](#error-pages)).                                                                                                          |
 | `session`                  | `request.session` adapter                                  | `InertiaSessionAdapter` or `false`.                                                                                                                                                                                                                             |
 | `redirects`                | `{ allowedOrigins: [], fallback: '/' }`                    | Absolute redirect allowlist and `back()` fallback.                                                                                                                                                                                                              |
 | `encryptHistory`           | `false`                                                    | Global `encryptHistory: true`.                                                                                                                                                                                                                                  |
@@ -136,8 +140,15 @@ reload to a full visit. A version mismatch `409` varies on `X-Inertia` and
   `location(url)` (409 + `X-Inertia-Location` for Inertia requests, 302 otherwise).
 - `InertiaService`: `render(request, response, component, props, options)` and
   `respond(request, response, result)` write through Nest's HTTP adapter (for
-  `@Res()` handlers and exception filters); `share`, `flash`, `clearHistory`,
-  `encryptHistory`, `storeErrors`, `version`, `appFor`, `buildPage`, `build`.
+  `@Res()` handlers and exception filters); `share`, `shareOnce`, `flash`,
+  `clearHistory`, `encryptHistory`, `storeErrors`, `version`, `appFor`,
+  `buildPage`, `build`.
+- `shareOnce(request, key, callback | once(...), { as?, until?, fresh? }?)`
+  shares a request-scoped once prop (for guards, interceptors and
+  middleware), like the reference adapter's `Inertia::shareOnce(key, fn)`. The
+  options replace its chained `->as()`/`->until()`/`->fresh()`, because props
+  here are immutable. Request-scoped `share()`/`shareOnce()` values win over the
+  module options.
 - Render options: `app`, `status`, `flash`, `errors`, `encryptHistory`,
   `clearHistory`, `preserveBigIntegers`, `viewData` (root template only).
 
@@ -184,6 +195,37 @@ switches scroll props to `prependProps`. Top-level dotted keys
   [guide](../../docs/guides/inertia.md#files-validatefiles).
 - `back()` resolves the same-host `Referer`, then the session's previous URL
   (`InertiaService.previousUrl(request)`), then the fallback.
+
+### Error pages
+
+The reference adapter's guide renders an `ErrorPage` component with the
+original status for 403, 404, 500 and 503 outside local development.
+`errorPage` does that through `InertiaErrorPageFilter`:
+
+```ts
+InertiaModule.forRoot({
+  errorPage: {
+    component: 'ErrorPage', // receives { status, message }
+    // statuses: [403, 404, 500, 503], // default
+    // debug: process.env.NODE_ENV === 'development', // default
+  },
+});
+```
+
+- Full visits get an HTML document and Inertia visits a JSON page, both with
+  the original status, so the official client swaps in the component instead of
+  showing its error modal. Shared props and the root template apply as usual.
+- Production (`debug: false`): `message` is the fixed status text
+  (`Not Found`, `Server Error`, ...). No exception message or stack leaves the
+  server. `debug: true` uses the exception's own message and adds
+  `exception: { name, message, stack }`; never enable it in production.
+- Left to Nest's default handling: other statuses, clients whose `Accept` has
+  no `text/html` (JSON APIs), Precognition requests and responses already sent.
+  `InertiaValidationException` is passed to `InertiaValidationFilter`.
+- Non-`HttpException` errors are logged. If rendering the page itself fails
+  (for example a throwing `share` resolver), the status is answered with a
+  plain-text status line. `props(context)` adds props; `errorPageStatus(error)`
+  maps an exception to its status. HTTP only.
 
 ### Examples and compatibility
 
@@ -246,12 +288,15 @@ SSR is never invoked for `X-Inertia` visits.
 ## Status and limits
 
 Status: **Partial**. The protocol, props, validation, flash, redirects,
-Precognition, SSR contract, empty-response `back()`, previous URL and testing
-helpers are implemented and tested over Express and Fastify and with the
-official React, Vue and Svelte clients; the two parity rows below are missing.
+Precognition, SSR contract, empty-response `back()`, previous URL, testing
+helpers, `shareOnce` and error pages are implemented and tested over Express
+and Fastify and with the official React, Vue and Svelte clients (`shareOnce`
+and error pages in a browser with the React client in `inertia-basic`).
 
-- Not implemented: `shareOnce` sugar (use `once()` in `share`) and error-page
-  rendering helpers (use a Nest filter with `InertiaService.render`).
+- `shareOnce` takes options instead of the reference adapter's chained
+  `as()`/`until()`/`fresh()` (props are immutable here).
+- `InertiaErrorPageFilter` handles HTTP only; register your own filter for
+  WebSocket or microservice contexts.
 - Empty-response handling only treats a handler result of `undefined` as
   empty; handlers that inject `@Res()`/`@Next()` or declare `@HttpCode`,
   `@Redirect`, `@Render` or `@Sse` are never redirected.
