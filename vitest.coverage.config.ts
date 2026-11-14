@@ -103,6 +103,16 @@ export const browserOnlyExclusions: readonly {
     reason:
       'Inertia client boot (createInertiaApp with createRoot/hydrateRoot, mount or hydrate) and client error boundaries, exercised by the Inertia Playwright specs. The SSR entry points and page registries stay gated.',
   },
+  {
+    glob: 'packages/actions/src/client/element.ts',
+    reason:
+      'bindActionElement wires a server-rendered form or button to an action through DOM attributes, aria-invalid fields and bubbling nv:action events; exercised in Chromium by tests/actions-client-state. The framework-neutral controller (client/state.ts) stays gated.',
+  },
+  {
+    glob: 'packages/ai/src/browser/index.ts',
+    reason:
+      'connectAssistant binds the Live assistant panel (stream start, stop button) to DOM elements; exercised in Chromium by tests/ai-browser. The assistant service and providers stay gated.',
+  },
 ];
 
 export default defineConfig({
