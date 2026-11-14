@@ -97,11 +97,28 @@ test('report job progress reaches only its owner and completes', async ({
   page,
 }) => {
   await page.goto(url);
+  // Progress events refresh the board read-only: the job is an async
+  // computed value, so no refresh is refused and the revision stays.
+  const refreshes: number[] = [];
+  page.on('response', (response) => {
+    if (response.url().endsWith('/_nestvexa/live/realtime-board/_sync'))
+      refreshes.push(response.status());
+  });
+  const started = page.waitForResponse((response) =>
+    response.url().endsWith('/_nestvexa/live/realtime-board/startReport'),
+  );
   await page.getByRole('button', { name: 'Generate report' }).click();
+  const revision = Number((await (await started).json()).component.revision);
   await expect(page.locator('#report-status')).toHaveText('succeeded', job);
   await expect(page.locator('#report-progress')).toHaveAttribute(
     'value',
     '100',
+  );
+  expect(refreshes.length).toBeGreaterThan(0);
+  expect(refreshes.every((status) => status === 201)).toBe(true);
+  await expect(page.locator('[data-nv-name="realtime-board"]')).toHaveAttribute(
+    'data-nv-revision',
+    String(revision),
   );
 });
 

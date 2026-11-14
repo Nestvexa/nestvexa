@@ -300,35 +300,39 @@ test('browsers reconnect after the load balancer drops them, without duplicates 
   const start = await total(onA.page);
   // Both pages refresh on the event. Let those refreshes finish first: a drop
   // that cuts a committed `$sync` lets the browser resend it on a new
-  // connection, which the server refuses as a stale revision. The board copies
-  // the shared total into state, so a page whose total changed gets
-  // `409 REFRESH_CONFLICT` (recovery `commit`) for its read-only refresh and
-  // then commits; wait for the successful `$sync` and allow only that 409.
-  const refreshes: { status: number; recovery: string | undefined }[] = [];
+  // connection, which the server refuses as a stale revision. The board reads
+  // the shared total through an async computed value, so every refresh is
+  // read-only: marked `x-nestvexa-resync: 1`, answered 201 (never
+  // `409 REFRESH_CONFLICT`), and the revision does not move.
+  const board = onA.page.locator('[data-nv-name="replica-board"]');
+  const revisionA = Number(await board.getAttribute('data-nv-revision'));
+  const refreshes: { status: number; resync: string | undefined }[] = [];
   for (const page of [onA.page, onD.page])
     page.on('response', (response) => {
       if (response.url().includes('/_nestvexa/live/replica-board/_sync'))
         refreshes.push({
           status: response.status(),
-          recovery: response.headers()['x-nestvexa-recovery'],
+          resync: response.request().headers()['x-nestvexa-resync'],
         });
     });
   const synced = [onA.page, onD.page].map((page) =>
-    page.waitForResponse(
-      (response) =>
-        response.url().includes('/_nestvexa/live/replica-board/_sync') &&
-        response.status() === 201,
+    page.waitForResponse((response) =>
+      response.url().includes('/_nestvexa/live/replica-board/_sync'),
     ),
   );
   await increment(onD.page);
   await expect(onA.page.locator('#total')).toHaveText(String(start + 1));
-  await Promise.all(synced);
+  const [refreshA] = await Promise.all(synced);
+  expect(await refreshA?.json()).toMatchObject({
+    component: { revision: revisionA },
+  });
+  await expect(board).toHaveAttribute('data-nv-revision', String(revisionA));
+  expect(refreshes.length).toBeGreaterThanOrEqual(2);
   for (const refresh of refreshes)
-    expect(
-      refresh.status === 201 ||
-        (refresh.status === 409 && refresh.recovery === 'commit'),
-      JSON.stringify(refresh),
-    ).toBe(true);
+    expect(refresh, JSON.stringify(refresh)).toEqual({
+      status: 201,
+      resync: '1',
+    });
   // Every open connection is cut, like a load balancer restart.
   const reconnectedStream = sseOpened(onA.page);
   const reconnectedSocket = websocketReady(onD.page);
