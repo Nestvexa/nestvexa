@@ -1,6 +1,6 @@
 # Versioning and deprecation policy
 
-Status: proposed for 1.0 (2026-11-06). It takes effect with the first `1.0.0`
+Status: proposed for 1.0 (2026-11-06; LTS/backport rules added 2026-11-14). It takes effect with the first `1.0.0`
 publication; until then every artifact is `0.1.0-alpha.*` and experimental (see
 [SECURITY.md](../../SECURITY.md)). It refines
 [ADR 0008](../adr/0008-compatibility-and-upgrades.md).
@@ -67,6 +67,31 @@ a deploy that changes component state schemas; they fail closed with
 - Supported runtimes: maintained Node LTS lines (22 and 24 at 1.0), NestJS 12,
   TypeScript 6 and the browser versions in the tested matrix. Support for a line
   ends no earlier than its upstream end of life.
+
+## LTS lines and backports
+
+There is no long-term-support (LTS) line before 1.0, and none is promised
+for 1.0 itself. "LTS" in this document refers only to Node.js LTS lines. The
+support windows above are the whole commitment:
+
+- **Where fixes land.** Every fix lands on `main` first, with a test and a
+  changeset. A fix for an older line is a cherry-pick of that commit onto a
+  maintenance branch `release/<major>.x`. The branch is created from the last
+  tag of that major when the first backport is needed. A backport never
+  contains changes that are not on `main`.
+- **What is backported.** To the previous major, during its 6-month window:
+  security fixes (P0–P2) and fixes for data loss or cross-tenant exposure.
+  Nothing else. To the latest minor of the current major: every patch-level
+  fix. Features are never backported.
+- **How it ships.** The maintenance branch has its own changesets and its own
+  coordinated patch version of every package. It is published through the
+  same [release workflow](release-process.md) from a `v<major>.<minor>.<patch>`
+  tag. Because the dist-tag `latest` must stay on the current major, a
+  backport release passes `--tag v<major>-lts` instead. That flag must be
+  added to `scripts/release-publish.mjs` before the first backport release.
+- **Ending a line.** When a window ends, the last release of that line is
+  announced in the changelog and the security policy table, and
+  `npm deprecate` is not used for supported-but-old versions.
 
 ## Release cadence
 

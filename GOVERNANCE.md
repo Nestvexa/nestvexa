@@ -65,14 +65,21 @@ required delivery.
   Node line ends no earlier than its upstream end of life. Tested versions are in
   [upstream compatibility](docs/architecture/upstream-compatibility.md).
 
-> **Known gap:** the deprecation-warning helper and a codemod/migration scaffold
-> (spec 29.3) do not exist yet. `nestvexa migrate` only reports that no migrations
-> are needed.
+- **Migrations**: `nestvexa migrate` applies versioned, reversible, AST-based project
+  migrations (`MigrationStep` in `packages/cli/src/migrate.ts`) and records them in
+  `.nestvexa/manifest.json`; `--revert <id>` restores the latest one. Release and
+  upgrade-note drafts are generated from changesets by `pnpm release:notes`.
+
+> **Known gap:** there is no shared runtime deprecation-warning helper yet; deprecated
+> APIs (for example `definePlugin` and `PluginRegistry` in `@nestvexa/core`) carry
+> `@deprecated` JSDoc only. There are no codemods for `nv:*` directive or decorator
+> renames because none has been renamed; `nestvexa migrate` is the place to add them.
 
 ## Release cadence
 
 There is no fixed cadence before 1.0. Releases happen when the owner approves a green
-[release process](docs/contributing/release-process.md) run. The publishing steps
+[release process](docs/contributing/release-process.md) run, following the
+[release checklist](docs/release/release-checklist.md). The publishing steps
 (manual workflow dispatch, protected `npm-release` environment, npm trusted
 publishing with provenance, SBOM per tarball) are in the
 [release runbook](docs/release/release-process.md). After 1.0 the target is
@@ -94,5 +101,6 @@ Third-party engines, storage adapters, realtime brokers, island renderers and UI
 should depend only on the public package exports, never on `dist` internals or
 `src/internal` paths. They must declare Nestvexa packages as peer dependencies and
 state the tested versions. Extensions run with full application privileges; Nestvexa
-does not sandbox them. A first-party plugin SDK with capability negotiation is a
-[known gap](docs/architecture/overview.md#extensibility).
+does not sandbox them. Extensions use `NestvexaExtension` / `defineExtension` from
+`@nestvexa/core`, which may declare a supported `nestvexa` range checked against
+`NESTVEXA_VERSION` at startup; see the core README.
