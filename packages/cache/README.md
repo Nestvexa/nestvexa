@@ -44,7 +44,10 @@ await cache.invalidate(['orders:tenant-a']);
 ```
 
 A Live component that declares `@RealtimeChannels() channels() { return [tagChannel('orders:tenant-a')]; }`
-refreshes when that tag is invalidated (see `@nestvexa/realtime`).
+refreshes when that tag is invalidated (see `@nestvexa/realtime`). With
+`@nestvexa/live`, declare `@DependsOn('orders:tenant-a')` instead and pass
+`LiveTags.listener` as the `onInvalidate` hook; the shape is structural, so neither
+package imports the other (`tests/live-dependencies.test.ts`).
 
 ## API
 

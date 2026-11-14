@@ -266,7 +266,37 @@ Example: [`/realtime`](../../examples/starter-live/src/realtime-board.ts) in the
 
 ## Caching with declared dependencies
 
-`@nestvexa/cache` can invalidate realtime subscribers when data changes: pass an
-`onInvalidate` hook that publishes `tagChannel(tag)` and declare the same channels in
-`@RealtimeChannels()`. Dependencies are explicit; nothing is detected automatically.
-See the [cache package](../../packages/cache/README.md).
+Declare the data tags a Live component renders with `@DependsOn` and invalidate
+them with `LiveTags` (both from `@nestvexa/live`). Each tag becomes the realtime
+channel `tag:<tag>` (the same name `tagChannel(tag)` from `@nestvexa/cache` returns)
+in the component's subscription token, next to any `@RealtimeChannels()`:
+
+```ts
+@DependsOn('orders:tenant-a')
+@LiveComponent({ name: 'orders-panel', view: 'orders-panel' })
+class OrdersPanel {
+  constructor(@Inject(Orders) private readonly orders: Orders) {}
+  // Read through the cache on every render, so a refresh stays read-only.
+  @Computed({ async: true }) async total(): Promise<number> {
+    return this.orders.total();
+  }
+}
+
+// Tag functions see the hydrated component (for example its tenant).
+@DependsOn<InvoicesPanel>((panel) => [`invoices:${panel.tenant}`])
+class InvoicesPanel {
+  /* … */
+}
+
+// Wire the cache once: invalidating a tag refreshes exactly its dependents.
+const cache = new Cache(new MemoryCacheStore(), Date.now, liveTags.listener);
+await cache.invalidate(['orders:tenant-a']);
+```
+
+`LiveTags.invalidate(tags)` publishes one empty event per distinct tag (an invalid
+tag fails the whole batch before anything is published). Subscribed components with
+a matching tag refresh through their own [read-only refresh](../reference/live-protocol.md#read-only-refresh);
+components that declared no matching tag are never refreshed. Nothing is inferred
+from queries, templates or cache reads: dependencies are explicit and invalidation is
+conservative. Authorize `tag:` channels in `authorizeChannel` like any other channel
+(tenant-scoped tags keep tenants apart). Tests: `tests/live-dependencies.test.ts`.

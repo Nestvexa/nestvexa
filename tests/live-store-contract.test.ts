@@ -530,6 +530,65 @@ describe('RedisLiveStore storage hardening (RESP test double)', () => {
     );
   });
 
+  it('rotates encryption keys without invalidating open pages and rejects retired keys', async () => {
+    const previous = randomBytes(32);
+    const current = randomBytes(32);
+    const { server, store: before } = await setup({
+      encryptionKeys: [previous],
+    });
+    const open = await before.create('counter', alice, { count: 0 });
+    const idle = await before.create('counter', alice, { count: 0 });
+    // Grace window: replicas run [current, previous]; open pages keep working.
+    const rotating = new RedisLiveStore({
+      port: server.port,
+      password: 'store-password-123',
+      prefix: 'hard:',
+      encryptionKeys: [current, previous],
+    });
+    cleanup.push(() => rotating.close());
+    expect((await rotating.peek(open.snapshot, alice)).state).toEqual({
+      count: 0,
+    });
+    // Every commit re-encrypts the record under the current key.
+    const committed = await rotating.transaction(
+      open.snapshot,
+      alice,
+      0,
+      async (snapshot) => ({
+        state: { count: Number(snapshot.state['count']) + 1 },
+        html: '',
+      }),
+    );
+    expect(committed.revision).toBe(1);
+    // A replica still on the old key alone cannot read the re-encrypted record.
+    expect(await code(() => before.peek(open.snapshot, alice))).toBe(
+      'INVALID_SNAPSHOT:410',
+    );
+    // After the window the previous key is retired: re-encrypted records stay
+    // readable, a record still sealed with the retired key fails closed.
+    const retired = new RedisLiveStore({
+      port: server.port,
+      password: 'store-password-123',
+      prefix: 'hard:',
+      encryptionKeys: [current],
+    });
+    cleanup.push(() => retired.close());
+    expect((await retired.peek(open.snapshot, alice)).state).toEqual({
+      count: 1,
+    });
+    expect(await code(() => retired.peek(idle.snapshot, alice))).toBe(
+      'INVALID_SNAPSHOT:410',
+    );
+    expect(
+      await code(() =>
+        retired.transaction(idle.snapshot, alice, 0, async () => ({
+          state: { count: 9 },
+          html: '',
+        })),
+      ),
+    ).toBe('INVALID_SNAPSHOT:410');
+  });
+
   it('rejects wrong credentials and invalid options', async () => {
     const server = await respDouble({ password: 'right-password-1' });
     cleanup.push(() => server.close());
