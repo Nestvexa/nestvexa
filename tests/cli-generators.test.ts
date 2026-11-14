@@ -334,7 +334,9 @@ describe(
         root,
       );
       expect(svelteIslands.status, svelteIslands.output).toBe(0);
-      expect(svelteIslands.output).toMatch(/COMPLETED d+ FILES/);
+      expect(svelteIslands.output).toMatch(
+        /COMPLETED \d+ FILES 0 ERRORS 0 WARNINGS/,
+      );
       const check = run(['check', '--json'], root);
       expect(json(check), check.stdout.join('\n')).toMatchObject({ ok: true });
     }, 240_000);

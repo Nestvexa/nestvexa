@@ -423,10 +423,82 @@ describe.each(['express', 'fastify'] as const)(
 );
 
 /**
+ * Counts SSE `invalidate` frames incrementally (no unbounded text buffer) and
+ * checks their `index` payload field arrives strictly in order.
+ */
+function counter(url: string, user: string, paused: boolean) {
+  return new Promise<{
+    readonly state: {
+      ready: boolean;
+      count: number;
+      inOrder: boolean;
+      lastIndex: number;
+      bytes: number;
+      closeReason: string | undefined;
+      ended: boolean;
+    };
+    readonly resume: () => void;
+    readonly close: () => void;
+  }>((done, reject) => {
+    const state = {
+      ready: false,
+      count: 0,
+      inOrder: true,
+      lastIndex: -1,
+      bytes: 0,
+      closeReason: undefined as string | undefined,
+      ended: false,
+    };
+    let rest = '';
+    const request = httpRequest(
+      url,
+      { headers: { 'x-user': user } },
+      (response) => {
+        if (paused) response.pause();
+        response.on('data', (chunk: Buffer) => {
+          state.bytes += chunk.length;
+          const frames = (rest + chunk.toString()).split('\n\n');
+          rest = frames.pop() ?? '';
+          for (const frame of frames) {
+            if (frame.includes('event: ready')) state.ready = true;
+            const closed = /"reason":"([a-z-]+)"/.exec(frame);
+            if (frame.includes('event: close') && closed)
+              state.closeReason = closed[1];
+            if (!frame.includes('event: invalidate')) continue;
+            const index = Number(/"index":(\d+)/.exec(frame)?.[1] ?? NaN);
+            if (index !== state.lastIndex + 1) state.inOrder = false;
+            state.lastIndex = index;
+            state.count++;
+          }
+        });
+        response.on('end', () => (state.ended = true));
+        response.on('close', () => (state.ended = true));
+        done({
+          state,
+          resume: () => response.resume(),
+          close: () => request.destroy(),
+        });
+      },
+    );
+    cleanup.push(() => {
+      request.destroy();
+    });
+    request.on('error', (error) => (state.bytes ? undefined : reject(error)));
+    request.end();
+  });
+}
+
+/**
  * A subscriber whose socket stops reading, on a different replica than the
- * publisher. Its replica buffers at most the transport bound (256 KiB plus
- * the stream and socket buffers), then disconnects it as `slow-consumer`;
- * a healthy subscriber on the same replica receives every event meanwhile.
+ * publisher. What it can absorb before its replica notices is the transport
+ * bound (256 KiB of stream buffer) plus the kernel send and receive buffers,
+ * which are platform dependent: a few hundred KiB on Windows loopback, several
+ * MiB with Linux autotuning. So the test does not fix a byte count; it
+ * publishes until the replica disconnects the stalled subscriber and asserts
+ * the guarantees that do not depend on the host: the disconnect happens
+ * (buffering is bounded, far below the cap), with reason `slow-consumer`,
+ * nothing published afterwards reaches it, and a healthy subscriber on the
+ * same replica receives every event, in order, throughout.
  */
 describe.each(['express', 'fastify'] as const)(
   'slow consumers across replicas, receiving on %s',
@@ -441,75 +513,57 @@ describe.each(['express', 'fastify'] as const)(
         { broker: broker() },
       );
       const receiver = await replica(platform, { broker: broker() });
-      const alice = { binding: users['alice'] ?? '' };
-      const bob = { binding: users['bob'] ?? '' };
       const channel = 'tenant-a:bulk';
-      const healthy = await sse(
-        `${receiver.base}/_nestvexa/realtime/sse?t=${(await receiver.service.sign(alice, [channel])) ?? ''}`,
+      const sign = async (user: string) =>
+        (await receiver.service.sign({ binding: users[user] ?? '' }, [
+          channel,
+        ])) ?? '';
+      const endpoint = `${receiver.base}/_nestvexa/realtime/sse?t=`;
+      const healthy = await counter(
+        endpoint + (await sign('alice')),
         'alice',
+        false,
       );
-      await until(() => healthy.read().includes('event: ready'));
+      await until(() => healthy.state.ready);
       // Bob's client stops reading as soon as the stream opens.
-      const bobToken = (await receiver.service.sign(bob, [channel])) ?? '';
-      let stalledBytes = 0;
-      let stalledText = '';
-      let stalledEnded = false;
-      const stalledResponse = await new Promise<IncomingMessage>(
-        (done, reject) => {
-          const request = httpRequest(
-            `${receiver.base}/_nestvexa/realtime/sse?t=${bobToken}`,
-            { headers: { 'x-user': 'bob' } },
-            (response) => {
-              response.pause();
-              done(response);
-            },
-          );
-          cleanup.push(() => {
-            request.destroy();
-          });
-          request.on('error', (error) =>
-            stalledBytes ? undefined : reject(error),
-          );
-          request.end();
-        },
+      const stalled = await counter(
+        endpoint + (await sign('bob')),
+        'bob',
+        true,
       );
       await until(() => receiver.service.hub.size === 2);
-      const count = 300;
       const blob = 'x'.repeat(15_000);
-      for (let index = 0; index < count; index++)
-        await publisher.service.publish(channel, { index, blob });
-      // The healthy subscriber received every event, in order.
-      await until(
-        () =>
-          (healthy.read().match(/event: invalidate/g) ?? []).length === count,
-        30_000,
-      );
-      const indexes = [...healthy.read().matchAll(/"index":(\d+)/g)].map(
-        (match) => Number(match[1]),
-      );
-      expect(indexes).toEqual(Array.from({ length: count }, (_, at) => at));
-      // The stalled one was dropped by its replica; the healthy one remains.
-      await until(() => receiver.service.hub.size === 1, 30_000);
-      // Draining what was buffered shows the bound and the closing reason.
-      stalledResponse.on('data', (chunk: Buffer) => {
-        stalledBytes += chunk.length;
-        stalledText += chunk.toString();
-      });
-      stalledResponse.on('end', () => (stalledEnded = true));
-      stalledResponse.resume();
-      await until(() => stalledEnded, 30_000);
-      expect(stalledText).toContain('event: close');
-      expect(stalledText).toContain('"reason":"slow-consumer"');
-      const published = count * blob.length;
-      expect(stalledBytes).toBeLessThan(published / 2);
-      const delivered = (stalledText.match(/event: invalidate/g) ?? []).length;
-      expect(delivered).toBeLessThan(count);
-      // The healthy stream is still open and still receives.
-      await publisher.service.publish(channel, { index: count, blob: '' });
-      await until(() => healthy.read().includes(`"index":${count}`));
+      // 4,000 × 15 KB = 60 MB: an order of magnitude above any kernel buffering.
+      const cap = 4000;
+      let published = 0;
+      const batch = async () => {
+        for (let index = 0; index < 50; index++)
+          await publisher.service.publish(channel, {
+            index: published++,
+            blob,
+          });
+        // The healthy subscriber keeps up batch by batch.
+        await until(() => healthy.state.count === published, 30_000);
+      };
+      while (receiver.service.hub.size === 2 && published < cap) await batch();
+      // Bounded: the replica dropped the stalled subscriber before the cap.
+      expect(receiver.service.hub.size).toBe(1);
+      expect(published).toBeLessThan(cap);
+      const atDisconnect = published;
+      // Events published afterwards reach the healthy subscriber only.
+      await batch();
+      expect(healthy.state.count).toBe(published);
+      expect(healthy.state.inOrder).toBe(true);
+      // Draining the stalled stream shows what it was sent and why it ended.
+      stalled.resume();
+      await until(() => stalled.state.ended, 30_000);
+      expect(stalled.state.closeReason).toBe('slow-consumer');
+      expect(stalled.state.inOrder).toBe(true);
+      expect(stalled.state.count).toBeLessThanOrEqual(atDisconnect);
+      expect(stalled.state.lastIndex).toBeLessThan(atDisconnect);
       healthy.close();
       await until(() => receiver.service.hub.size === 0);
-    }, 120_000);
+    }, 180_000);
   },
 );
 
