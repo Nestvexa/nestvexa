@@ -166,7 +166,7 @@ mail outage does not drop the realtime update.
 
 Status: **Shipped (alpha)**. Template rendering, message validation, the
 module, all listed transports and the notification bridge work and are tested
-(19 tests); there is no stability promise before 1.0.
+(see Testing); there is no stability promise before 1.0.
 
 - No attachments, inline images or calendar parts yet; send those through your
   provider directly (EXT-029).
@@ -174,9 +174,12 @@ module, all listed transports and the notification bridge work and are tested
   `@nestvexa/realtime`, BullMQ, ...): call `Mailer.send` from the job.
 - The address check is deliberately stricter than RFC 5322; internationalized
   (non-ASCII) addresses are rejected.
-- `nodemailerTransport` and `nestMailerTransport` are tested against structural
-  stand-ins, not real nodemailer or `@nestjs-modules/mailer` instances or a
-  live SMTP server.
+- `nodemailerTransport` is tested with a real nodemailer SMTP transporter
+  against an in-process `smtp-server` on loopback (delivery, recipient
+  rejection, unreachable server, greeting timeout, header injection:
+  `tests/mail-smtp.test.ts`). `nestMailerTransport` is still tested only
+  against a structural `sendMail` stand-in, not a real `@nestjs-modules/mailer`
+  `MailerService`. No TLS or SMTP authentication path is tested.
 - No runnable example application uses this package yet.
 
 ## Testing
@@ -195,6 +198,13 @@ Arabic and English with `@nestvexa/i18n` helpers), wires `MailModule` with
 `@nestjs/testing`, and covers the transports and the notification bridge.
 `tests/mail-security.test.ts` covers header injection, reserved headers, address
 validation, limits and the production refusal of non-delivering transports.
+`tests/mail-smtp.test.ts` drives `nodemailerTransport` with a real nodemailer
+SMTP transporter against an in-process `smtp-server` (both exact-pinned root
+devDependencies, never runtime dependencies) on loopback ports 4246-4248: the
+delivered message (envelope, Bcc only in the envelope, headers, text and HTML
+parts, Message-ID as the delivery id), a 550 recipient rejection and a refused
+connection as `TRANSPORT_FAILED` with the SMTP error as `cause`, a greeting
+timeout, and header injection refused before any connection is opened.
 
 ## Maintainers
 

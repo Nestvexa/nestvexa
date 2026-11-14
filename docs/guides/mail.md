@@ -126,4 +126,10 @@ from the [UI kit](ui-kit.md). Channel authorization stays in the
 
 Use `MemoryMailTransport` (a labeled test transport) and assert on
 `transport.last()` or `transport.to(address)`. Run your templates through the real
-engine in tests, as [the package tests](../../tests/mail.test.ts) do.
+engine in tests, as [the package tests](../../tests/mail.test.ts) do. To test the
+SMTP path itself, point a nodemailer SMTP transporter at an in-process
+[`smtp-server`](https://nodemailer.com/extras/smtp-server/) on loopback, as
+[`tests/mail-smtp.test.ts`](../../tests/mail-smtp.test.ts) does (delivery,
+rejection, timeouts and header injection). Set `greetingTimeout`,
+`connectionTimeout` and `socketTimeout` on production transporters: a stalled
+SMTP server then surfaces as `TRANSPORT_FAILED` instead of a hanging request.
