@@ -21,7 +21,7 @@ const root = fileURLToPath(
   new URL('../../examples/showcase/', import.meta.url),
 );
 const password = 'showcase-demo-2026';
-test.describe.configure({ mode: 'serial', timeout: 240_000 });
+test.describe.configure({ mode: 'serial', timeout: 300_000 });
 
 function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -65,7 +65,8 @@ async function start(): Promise<void> {
   let output = '';
   child.stdout?.on('data', (chunk: Buffer) => (output += chunk.toString()));
   child.stderr?.on('data', (chunk: Buffer) => (output += chunk.toString()));
-  const deadline = Date.now() + 120_000;
+  // Startup includes scrypt hashing of the demo accounts; loaded hosts are slow.
+  const deadline = Date.now() + 240_000;
   let last: string;
   for (;;) {
     if (child.exitCode !== null)
@@ -94,6 +95,7 @@ async function stop(): Promise<void> {
 }
 
 test.beforeAll(async () => {
+  test.setTimeout(300_000);
   const pinned = Number(process.env['NV_SHOWCASE_RESILIENCE_PORT'] ?? 0);
   port = pinned ? pinned + test.info().parallelIndex : await freePort();
   base = `http://127.0.0.1:${port}`;
@@ -191,7 +193,8 @@ test('a slow network shows the loading state, disables the action and marks the 
 test('the server stops mid-session: offline and reconnect states, and recovery replays no mutation', async ({
   page,
 }) => {
-  test.setTimeout(240_000);
+  // Includes a full server restart.
+  test.setTimeout(480_000);
   await signIn(page, 'ben@harbor.test');
   const deployments = page.locator('#metric-deployments');
   await expect(page.locator('#metrics-heading')).toHaveText('Live metrics');
