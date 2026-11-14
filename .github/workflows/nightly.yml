@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10.26.1
       - uses: actions/setup-node@v4
@@ -51,7 +51,7 @@ jobs:
       NV_FUZZ_BROWSERS: chromium,firefox,webkit
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10.26.1
       - uses: actions/setup-node@v4
@@ -73,7 +73,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10.26.1
       - uses: actions/setup-node@v4
@@ -97,7 +97,7 @@ jobs:
       STRYKER_CONCURRENCY: '4'
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10.26.1
       - uses: actions/setup-node@v4
@@ -124,7 +124,7 @@ jobs:
       LOAD_LATENCY_GATE: advisory
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10.26.1
       - uses: actions/setup-node@v4
@@ -145,7 +145,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10.26.1
       - uses: actions/setup-node@v4
