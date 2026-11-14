@@ -151,6 +151,9 @@ export class RedisJobQueue implements JobQueue {
       ...(options.commandTimeoutMs === undefined
         ? {}
         : { commandTimeoutMs: options.commandTimeoutMs }),
+      ...(options.circuitBreaker === undefined
+        ? {}
+        : { circuitBreaker: options.circuitBreaker }),
     };
     this.#commands = new RespConnection(connection);
     this.#transactions = new RespConnection(connection);

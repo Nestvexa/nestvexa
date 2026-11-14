@@ -258,6 +258,9 @@ export class RedisLiveStore implements LiveStateStore, LiveActionCoordination {
       ...(options.commandTimeoutMs === undefined
         ? {}
         : { commandTimeoutMs: options.commandTimeoutMs }),
+      ...(options.circuitBreaker === undefined
+        ? {}
+        : { circuitBreaker: options.circuitBreaker }),
     };
     this.#commands = new RespConnection(connection);
     this.#transactions = new RespConnection(connection);

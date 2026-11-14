@@ -1,6 +1,13 @@
 export { AiAssistant } from './assistant.js';
 export { MemoryAuditSink, auditSubject } from './audit.js';
 export { AiError, type AiErrorCode } from './errors.js';
+export {
+  CircuitBreaker,
+  CircuitOpenError,
+  type CircuitBreakerOptions,
+  type CircuitCall,
+  type CircuitState,
+} from './circuit-breaker.js';
 export { AI_OPTIONS, AiModule, type AiModuleAsyncOptions } from './module.js';
 export {
   TestProvider,
