@@ -16,6 +16,7 @@ import {
 import type { InertiaRootContext } from './document.js';
 import { InertiaConfigurationError } from './errors.js';
 import { ssrErrorType, startSpan, traced } from './instrumentation.js';
+import { onceShared } from './options.js';
 import type { ResolvedApp, ResolvedOptions } from './options.js';
 import type { InertiaPageObject } from './page.js';
 import {
@@ -25,7 +26,8 @@ import {
   selectPrecognitionErrors,
 } from './precognition.js';
 import type { PrecognitionRequestInfo } from './precognition.js';
-import { always } from './props.js';
+import { OnceProp, always, once } from './props.js';
+import type { OnceOptions } from './props.js';
 import {
   assertSafeRedirect,
   refererPath,
@@ -319,6 +321,30 @@ export class InertiaService {
   }
 
   /**
+   * Shares a once prop for this request (the reference adapter's
+   * `Inertia::shareOnce(key, callback)`): resolved on the first page that
+   * includes it, then skipped while the client reports it loaded through
+   * `X-Inertia-Except-Once-Props`. `options` replaces the reference adapter's
+   * chained `as()`/`until()`/`fresh()`, since props here are immutable. For
+   * app-wide once props use the `shareOnce` module option.
+   */
+  shareOnce(
+    request: object,
+    key: string,
+    callback: (() => unknown) | OnceProp,
+    options?: OnceOptions,
+  ): void {
+    let prop: OnceProp;
+    if (callback instanceof OnceProp) {
+      prop = callback;
+      if (options?.as !== undefined) prop = prop.as(options.as);
+      if (options?.until !== undefined) prop = prop.until(options.until);
+      if (options?.fresh !== undefined) prop = prop.fresh(options.fresh);
+    } else prop = once(callback, options);
+    this.share(request, key, prop);
+  }
+
+  /**
    * Flashes one-time data. Stored in the host session (so it survives the
    * redirect) when available; otherwise kept for the current response only.
    * Consumed by the next rendered page.
@@ -593,6 +619,12 @@ export class InertiaService {
     const shared = this.#options.share
       ? assertProps(await this.#options.share(request), 'Shared props')
       : {};
+    const sharedOnce = this.#options.shareOnce
+      ? assertProps(
+          onceShared(await this.#options.shareOnce(request)),
+          'Once-shared props',
+        )
+      : {};
     // The kernel's public identity wins over shared props of the same name.
     const kernelShared = this.#options.kernelIdentity
       ? {
@@ -627,7 +659,13 @@ export class InertiaService {
       },
     });
     const resolved = await resolver.resolve(
-      { errors: always(errors), ...shared, ...state.shared, ...kernelShared },
+      {
+        errors: always(errors),
+        ...shared,
+        ...sharedOnce,
+        ...state.shared,
+        ...kernelShared,
+      },
       props,
     );
     const preserveBigIntegers =

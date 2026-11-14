@@ -64,3 +64,21 @@ jobs:
         with:
           name: supply-chain-reports
           path: artifacts/reports/
+  docker:
+    # Builds the documented showcase image (docs/deployment/docker.md#ci) from
+    # the repository root exactly as `docker compose build` does, and checks
+    # that the Compose file resolves. Nothing is pushed or started.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose -f examples/showcase/docker-compose.yml config --quiet
+      - run: >-
+          docker build
+          --file examples/showcase/Dockerfile
+          --tag nestvexa-showcase:ci
+          .
+      # The image runs as the unprivileged `node` user and declares the health check.
+      - run: |
+          test "$(docker image inspect --format '{{.Config.User}}' nestvexa-showcase:ci)" = node
+          docker image inspect --format '{{json .Config.Healthcheck}}' nestvexa-showcase:ci | grep -q '/api/health'

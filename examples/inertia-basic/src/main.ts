@@ -45,6 +45,7 @@ type SessionRequest = {
 const port = Number(process.env['PORT'] ?? 3103);
 const testControls = process.argv.includes('--test-controls');
 const baseVersion = 'inertia-basic-1';
+let regionLoads = 0;
 const users: { id: number; name: string }[] = [
   { id: 1, name: 'Ada Lovelace' },
   { id: 2, name: 'Grace Hopper' },
@@ -141,6 +142,22 @@ class PagesController {
     return redirect('/users');
   }
 
+  /** Always forbidden: renders the configured Inertia error page with 403. */
+  @Get('admin')
+  @InertiaPage('Admin')
+  admin(): never {
+    throw new ForbiddenException('Administrators only (user lacks role admin)');
+  }
+
+  /** A programming error: the error page shows 500 without the message or stack. */
+  @Get('broken')
+  @InertiaPage('Broken')
+  broken(): never {
+    throw new Error(
+      'Simulated failure: connection to db-internal:5432 refused',
+    );
+  }
+
   /** Test-only control: bumps this session's asset version (enabled with --test-controls). */
   @Post('__test/version')
   bump(@Req() request: SessionRequest) {
@@ -158,6 +175,20 @@ class PagesController {
       title: (page) => `${page.component} · Nestvexa Inertia`,
       entry: { scripts: ['/assets/app.js'] },
       share: () => ({ appName: 'Nestvexa Inertia demo' }),
+      // Resolved on the first visit only; the official client then reports it
+      // in X-Inertia-Except-Once-Props and keeps its copy.
+      shareOnce: () => ({
+        regions: () => {
+          regionLoads += 1;
+          return { names: ['Europe', 'Americas'], load: regionLoads };
+        },
+      }),
+      // 403/404/500/503 render the ErrorPage component instead of Nest's
+      // JSON error. Exception details only in development.
+      errorPage: {
+        component: 'ErrorPage',
+        debug: process.env['NODE_ENV'] === 'development',
+      },
     }),
   ],
   controllers: [PagesController],

@@ -40,8 +40,10 @@ Without it, Nest does not run `onModuleDestroy`/`onApplicationShutdown` on
 - The umbrella disposes its shared HBS renderer and clears the client-asset
   snapshot. After that, `getManifest()` rejects.
 - `RealtimeService` closes open SSE/WebSocket connections and its broker.
-  Browsers then reconnect to another process or wait for the restart. This
-  shutdown path is implemented but has no test at the service level yet.
+  Browsers then reconnect to another process or wait for the restart.
+  `tests/realtime-hub.test.ts` closes a real Nest app and asserts that open
+  SSE streams receive `event: close` with reason `shutdown`, the hub is
+  empty and the broker is closed with no subscriptions left.
 - Live state in `MemoryLiveStore` is discarded. Users with an open page get
   `410` ("Live state is unavailable; reload the page") on their next action.
 

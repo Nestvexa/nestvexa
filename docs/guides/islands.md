@@ -225,7 +225,7 @@ not permission.
 pnpm build
 pnpm vitest run tests/islands.test.ts tests/islands-client.test.ts tests/islands-bundle.test.ts tests/islands-vite.test.ts
 pnpm size:islands
-pnpm exec playwright test tests/browser/islands.spec.ts tests/browser/islands-vite.spec.ts
+pnpm exec playwright test tests/browser/islands.spec.ts tests/browser/islands-deferral.spec.ts tests/browser/islands-vite.spec.ts
 ```
 
 `tests/islands-vite.test.ts` drives the Vite plugin hooks (metafile, manifest,

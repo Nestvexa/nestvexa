@@ -10,6 +10,7 @@ import type {
 } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { INERTIA_OPTIONS } from './constants.js';
+import { InertiaErrorPageFilter } from './error-page.js';
 import { InertiaInterceptor } from './interceptor.js';
 import { InertiaSecurityGuard } from './security-guard.js';
 import { resolveOptions } from './options.js';
@@ -33,6 +34,12 @@ export interface InertiaModuleBehaviour {
   readonly interceptor?: 'global' | 'decorated';
   /** Register `InertiaValidationFilter` as `APP_FILTER`. Default true. */
   readonly validationFilter?: boolean;
+  /**
+   * Register `InertiaErrorPageFilter` as `APP_FILTER`. Default: `forRoot`
+   * registers it when the `errorPage` option is set; `forRootAsync` (whose
+   * options are not known yet) only when this is `true`.
+   */
+  readonly errorPageFilter?: boolean;
 }
 
 export interface InertiaModuleAsyncOptions extends InertiaModuleBehaviour {
@@ -59,6 +66,7 @@ function providers(
     InertiaService,
     InertiaInterceptor,
     InertiaValidationFilter,
+    InertiaErrorPageFilter,
     PrecognitionGuard,
     InertiaSecurityGuard,
     // Keeps Precognition labels on guard rejections of @Precognitive routes.
@@ -69,6 +77,9 @@ function providers(
     ...(behaviour.validationFilter === false
       ? []
       : [{ provide: APP_FILTER, useExisting: InertiaValidationFilter }]),
+    ...(behaviour.errorPageFilter === true
+      ? [{ provide: APP_FILTER, useExisting: InertiaErrorPageFilter }]
+      : []),
   ];
 }
 
@@ -77,6 +88,7 @@ const exported = [
   InertiaService,
   InertiaInterceptor,
   InertiaValidationFilter,
+  InertiaErrorPageFilter,
   InertiaSecurityGuard,
 ];
 
@@ -93,12 +105,19 @@ export class InertiaModule implements NestModule {
   static forRoot(
     options: InertiaModuleOptions & InertiaModuleBehaviour = {},
   ): DynamicModule {
-    const { isGlobal, interceptor, validationFilter, ...config } = options;
+    const {
+      isGlobal,
+      interceptor,
+      validationFilter,
+      errorPageFilter,
+      ...config
+    } = options;
     // Validate synchronously so configuration errors surface at module definition.
     resolveOptions(config);
     const behaviour = {
       ...(interceptor === undefined ? {} : { interceptor }),
       ...(validationFilter === undefined ? {} : { validationFilter }),
+      errorPageFilter: errorPageFilter ?? config.errorPage !== undefined,
     };
     return {
       module: InertiaModule,
@@ -119,6 +138,9 @@ export class InertiaModule implements NestModule {
       ...(options.validationFilter === undefined
         ? {}
         : { validationFilter: options.validationFilter }),
+      ...(options.errorPageFilter === undefined
+        ? {}
+        : { errorPageFilter: options.errorPageFilter }),
     };
     return {
       module: InertiaModule,

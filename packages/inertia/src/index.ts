@@ -98,6 +98,7 @@ export type {
   ValidationErrorLike,
 } from './validation.js';
 export { InertiaService } from './service.js';
+export { InertiaErrorPageFilter, errorPageStatus } from './error-page.js';
 export type { InertiaHttpReply } from './service.js';
 export { InertiaInterceptor } from './interceptor.js';
 export { InertiaPage, Precognitive, UseInertia } from './decorators.js';
@@ -126,9 +127,12 @@ export type {
   InertiaModuleAsyncOptions,
   InertiaModuleBehaviour,
 } from './module.js';
-export { resolveOptions } from './options.js';
+export { DEFAULT_ERROR_PAGE_STATUSES, resolveOptions } from './options.js';
 export type {
   InertiaAppOptions,
+  InertiaErrorPageContext,
+  InertiaErrorPageOptions,
+  InertiaShareOnceResolver,
   InertiaModuleOptions,
   InertiaShareResolver,
   InertiaVersion,
