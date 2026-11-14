@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // LEDGER-025: the ledger checker itself. `check` must reject Done rows whose
@@ -202,5 +203,21 @@ describe('ledger script commands', () => {
     const result = run('publish');
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain('Usage: node scripts/ledger.mjs');
+  });
+});
+
+describe('ci.yml ledger job', () => {
+  it('runs the self-test and the check on every CI run', () => {
+    const workflow = readFileSync(
+      join(repository, '.github/workflows/ci.yml'),
+      'utf8',
+    );
+    const job = /\n {2}ledger:\n([\s\S]*?)(?=\n {2}[a-z-]+:\n|$)/.exec(
+      workflow,
+    )?.[1];
+    expect(job).toBeDefined();
+    expect(job).not.toContain('if:');
+    expect(job).toContain('run: node scripts/ledger.mjs --self-test');
+    expect(job).toContain('run: node scripts/ledger.mjs check');
   });
 });
