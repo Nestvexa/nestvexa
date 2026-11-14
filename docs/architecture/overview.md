@@ -152,8 +152,12 @@ two-replica browser run.
 
 > **Known gap:** the Redis store supports a single Redis primary only. There is no
 > Sentinel discovery or tested failover, and Redis Cluster is not supported (DATA-004).
-> Cross-replica idempotent replay and identity locks are tested only against the
-> in-process RESP test double (LIVE-007).
+
+Cross-replica idempotent replay and identity locks run against real Redis:
+`tests/services/distributed.spec.ts` replays an idempotent retry on another replica
+without repeating its side effect and holds one identity lock across replicas, and the
+`redis-live-coordination` step of `scripts/services-check.mjs` checks replay records,
+lease exclusion and expiry of a crashed holder's lease (`pnpm test:services`).
 
 ### Inertia visit
 
@@ -255,16 +259,20 @@ actions, views, renderer adapters, capabilities) and plugins, and
 gives MVC, Live, Inertia, server actions, uploads and realtime one principal and tenant
 per request.
 
-`@nestvexa/core` also has a `PluginRegistry`. It validates plugin manifests (name,
-version, supported Nestvexa range and capabilities from `PLUGIN_CAPABILITIES`), refuses
-incompatible ranges and installs after `seal()`, and never loads code from a name or URL
-([core README](../../packages/core/README.md)).
+Plugins and extensions are one model. `NestvexaExtension` (`defineExtension`) is the
+public contract: capabilities, `register`, `contributeContext`, `shutdown`, an optional
+`version` and a supported `nestvexa` range checked at startup. The older
+`PluginRegistry` and plugin manifests (name, version, range and capabilities from
+`PLUGIN_CAPABILITIES`) are a deprecated adapter over it: `pluginExtension(plugin)` or
+`registry.extensions()` turns plugins into extensions that join the same capability,
+security and diagnostics registries through `CoreModule.forRoot(options, { extensions })`.
+Nothing resolves package names or URLs or loads code
+([core README](../../packages/core/README.md#extensions-and-legacy-plugins)).
 
 > **Known gap:** section 29.1 of the specification asks for a stable, versioned plugin
-> SDK with a third-party example package consumed from tarballs. The plugin registry is
-> separate from the extension hooks, the other contracts above remain package-level
-> interfaces, and no out-of-tree plugin package has been consumed from a tarball yet
-> (MAINT rows). CLI generators are not pluggable.
+> SDK with a third-party example package consumed from tarballs. The other contracts
+> above remain package-level interfaces, and no out-of-tree extension package has been
+> consumed from a tarball yet (MAINT rows). CLI generators are not pluggable.
 
 ## Where to go next
 

@@ -104,3 +104,58 @@ describe('safe Live data bindings', () => {
     ).toBeNull();
   });
 });
+
+describe('CSP-safe class bindings (nv:class)', () => {
+  it('parses class:field pairs with dotted paths into frozen data', () => {
+    const binding = parseBindingDirective(
+      'nv:class',
+      ' active:selected   is-done:task.finished ',
+    );
+    expect(binding).toEqual({
+      kind: 'class',
+      classes: [
+        { token: 'active', field: 'selected' },
+        { token: 'is-done', field: 'task.finished' },
+      ],
+    });
+    expect(binding.kind === 'class' && Object.isFrozen(binding.classes)).toBe(
+      true,
+    );
+  });
+  it.each([
+    ['empty', ''],
+    ['blank', '   '],
+    ['missing field', 'active'],
+    ['missing token', ':selected'],
+    ['extra segment', 'active:selected:other'],
+    ['expression field', 'active:!selected'],
+    ['call field', 'active:selected()'],
+    ['prototype field', 'active:__proto__'],
+    ['quote in token', 'a"b:selected'],
+    ['url-like token', 'url(x):selected'],
+    ['digit-leading token', '1st:selected'],
+    ['duplicate token', 'active:a active:b'],
+    [
+      'too many pairs',
+      Array.from({ length: 17 }, (_, i) => `c${i}:f`).join(' '),
+    ],
+  ])('rejects %s', (_label, value) => {
+    expect(() => parseBindingDirective('nv:class', value)).toThrow();
+  });
+  it('rejects modifiers and does not evaluate as a single value', () => {
+    expect(() => parseBindingDirective('nv:class.toggle', 'a:b')).toThrow();
+    const binding = parseBindingDirective('nv:class', 'active:selected');
+    expect(() =>
+      evaluateBinding(binding, true, 'https://example.com'),
+    ).toThrow();
+  });
+  it('keeps style and event properties out of nv:bind', () => {
+    for (const value of [
+      'style:css',
+      'class:name',
+      'innerHTML:html',
+      'value:x',
+    ])
+      expect(() => parseBindingDirective('nv:bind', value)).toThrow();
+  });
+});

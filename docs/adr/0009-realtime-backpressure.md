@@ -1,6 +1,6 @@
 # ADR 0009: Authorized invalidation events with bounded delivery
 
-Date: 2026-10-25; implementation recorded 2026-11-01, distributed acceptance 2026-11-05. Status: **implemented in `@nestvexa/realtime` and `@nestvexa/realtime-redis` (experimental); broker, Live store and two-replica browser acceptance pass against real Redis; load testing remains open**. Distributed state and the Redis adapters: [ADR 0032](0032-distributed-state-and-redis.md).
+Date: 2026-10-25; implementation recorded 2026-11-01, distributed acceptance 2026-11-05. Status: **implemented in `@nestvexa/realtime` and `@nestvexa/realtime-redis` (experimental); broker, Live store and two-replica browser acceptance pass against real Redis; load testing and browser reconnect/deduplication across a replica restart remain open**. Distributed state and the Redis adapters: [ADR 0032](0032-distributed-state-and-redis.md).
 
 ## Decision
 
@@ -20,7 +20,9 @@ Costs include heartbeat/refresh traffic, revocation tracking and deployment-spec
 
 ## Acceptance gates
 
-No existing MVC test proves realtime behavior. Required evidence is two server processes, a real Redis test service, multiple users/tenants, SSE and WebSocket adapter checks, revocation mid-connection, broker restart, slow-client pressure, deduplication and listener cleanup. The local Linux Docker daemon was unavailable at the compatibility checkpoint; distributed/container tests remain unrun. All realtime feature-ledger units remain unmet until implementation and these tests exist.
+Required evidence is two server processes, a real Redis test service, multiple users/tenants, SSE and WebSocket adapter checks, revocation mid-connection, broker restart, slow-client pressure, deduplication and listener cleanup.
+
+_As of 2026-10-25 (superseded):_ no test proved realtime behavior and the Docker daemon was unavailable, so the distributed tests were unrun. The implementation and update sections below record the evidence that now exists: real Redis 7 runs of `scripts/services-check.mjs` and the two- and four-replica browser suite `tests/services/distributed.spec.ts` (`pnpm test:services`). Load tests and reconnect/deduplication across a replica restart in a browser remain unrun.
 
 ## Implementation (2026-11-01)
 

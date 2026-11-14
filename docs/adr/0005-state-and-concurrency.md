@@ -1,6 +1,6 @@
 # ADR 0005: Owner-bound state, revisions and uncertain action effects
 
-Date: 2026-10-25. Status: **accepted initial state model; runtime implementation and verification pending**.
+Date: 2026-10-25; status updates 2026-11-07 and 2026-11-14. Status: **accepted and implemented in `@nestvexa/live` (experimental), including the Redis store, opt-in idempotent replay and identity locks verified on real Redis (see the status updates below); cross-replica `download` replay and full release acceptance remain open**.
 
 ## Decision
 
@@ -37,3 +37,17 @@ requirement above through the same contract suite
 
 Still open: fault tests for lock expiry and replica loss against real Redis,
 and replay of `download` URLs on a replica other than the one that created them.
+
+## Status update (2026-11-14)
+
+Lock expiry now has a real-Redis fault test: the `redis-live-coordination` step
+of `scripts/services-check.mjs` (`pnpm test:services`) shows a replay record
+written on one store instance is read on another and expires by `PX`, an
+identity lease held on one replica excludes the other until released, and a
+crashed holder's lease lapses while a stale owner cannot release its
+successor's lease. Entry TTL and transaction lease expiry are covered by the
+same script. `tests/services/distributed.spec.ts` drives replay and the
+identity lock through the Live runtime across Express and Fastify replicas.
+
+Still open: replay of `download` URLs on a replica other than the one that
+created them, and full release acceptance.

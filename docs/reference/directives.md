@@ -1,6 +1,6 @@
 # Live directives: current implementation
 
-This alpha implements the following configuration grammar. Names identify registered actions or public state. State-reading directives (`nv:model`, `nv:text`, `nv:show`, `nv:bind`, `nv:dirty`) accept a field or a dotted path of at most eight identifier segments ([nested models](../guides/nested-models.md)); action names stay single identifiers. Expressions, array indices, executable JavaScript and unrecognized modifiers are rejected explicitly. The [directive combination matrix](directive-matrix.md) lists every supported modifier combination, the table-driven tests that prove it and the documented gaps.
+This alpha implements the following configuration grammar. Names identify registered actions or public state. State-reading directives (`nv:model`, `nv:text`, `nv:show`, `nv:bind`, `nv:class`, `nv:dirty`) accept a field or a dotted path of at most eight identifier segments ([nested models](../guides/nested-models.md)); action names stay single identifiers. Expressions, array indices, executable JavaScript and unrecognized modifiers are rejected explicitly. The [directive combination matrix](directive-matrix.md) lists every supported modifier combination, the table-driven tests that prove it and the documented gaps.
 
 Additional implemented references: [poll](nv-poll.md), [intersect](nv-intersect.md),
 [offline](nv-offline.md), [current](nv-current.md), [transition](nv-transition.md),
@@ -15,27 +15,32 @@ reload through the host route rather than replaying an old action snapshot. Nest
 child components are mounted with the `nvChild` template helper; see the
 [nested components guide](../guides/nested-components.md).
 
-| Directive                   | Current behavior                                                                                    |
-| --------------------------- | --------------------------------------------------------------------------------------------------- |
-| `nv:click="increment"`      | Calls a registered action; disabled controls are ignored                                            |
-| `nv:submit="save"`          | Prevents native submission and suppresses duplicate pending submits                                 |
-| `nv:keydown.enter="save"`   | Calls a registered action when the selected keyboard event matches                                  |
-| `nv:model="name"`           | Holds native form-control edits until an action; explicit modifiers enable synchronization          |
-| `nv:loading=""`             | Displays pending status; optional targets/classes/allowlisted attributes track queued requests      |
-| `nv:target="save,$sync"`    | Selects 1–16 action/synchronization identifiers for loading directives on the same element          |
-| `nv:replace=""`             | Replaces children of an owned inner wrapper; `.self` replaces the wrapper too                       |
-| `nv:ignore=""`              | Preserves the subtree; put independently owned Alpine widgets here                                  |
-| `nv:ignore.self=""`         | Retains an inner wrapper's attributes while descendants remain Live-owned                           |
-| `nv:text="name"`            | Sets primitive `textContent`; rejects targets containing elements or form controls                  |
-| `nv:show="visible"`         | Requires a boolean; toggles visibility/ARIA and moves focus before hiding focused content           |
-| `nv:bind="title:name"`      | Binds one allowed attribute to public state                                                         |
-| `nv:dirty="name"`           | Shows an indicator for pending local edits; empty value targets any field                           |
-| `nv:cloak=""`               | Removed after successful initialization; add matching CSS to prevent initial flashing               |
-| `nv:ref="name"`             | Declares a unique owned reference returned by `client.refs(element)`                                |
-| `nv:confirm="Remove item?"` | Requires native or custom async approval before an event action; see [reference](nv-confirm.md)     |
-| `nv:init="load"`            | One eager registered-action attempt per component registration; see [timing and limits](nv-init.md) |
+| Directive                    | Current behavior                                                                                    |
+| ---------------------------- | --------------------------------------------------------------------------------------------------- |
+| `nv:click="increment"`       | Calls a registered action; disabled controls are ignored                                            |
+| `nv:submit="save"`           | Prevents native submission and suppresses duplicate pending submits                                 |
+| `nv:keydown.enter="save"`    | Calls a registered action when the selected keyboard event matches                                  |
+| `nv:model="name"`            | Holds native form-control edits until an action; explicit modifiers enable synchronization          |
+| `nv:loading=""`              | Displays pending status; optional targets/classes/allowlisted attributes track queued requests      |
+| `nv:target="save,$sync"`     | Selects 1–16 action/synchronization identifiers for loading directives on the same element          |
+| `nv:replace=""`              | Replaces children of an owned inner wrapper; `.self` replaces the wrapper too                       |
+| `nv:ignore=""`               | Preserves the subtree; put independently owned Alpine widgets here                                  |
+| `nv:ignore.self=""`          | Retains an inner wrapper's attributes while descendants remain Live-owned                           |
+| `nv:text="name"`             | Sets primitive `textContent`; rejects targets containing elements or form controls                  |
+| `nv:show="visible"`          | Requires a boolean; toggles visibility/ARIA and moves focus before hiding focused content           |
+| `nv:bind="title:name"`       | Binds one allowed attribute to public state                                                         |
+| `nv:class="active:selected"` | Toggles 1–16 simple class tokens, each from a boolean field (`done:task.done`); see below           |
+| `nv:dirty="name"`            | Shows an indicator for pending local edits; empty value targets any field                           |
+| `nv:cloak=""`                | Removed after successful initialization; add matching CSS to prevent initial flashing               |
+| `nv:ref="name"`              | Declares a unique owned reference returned by `client.refs(element)`                                |
+| `nv:confirm="Remove item?"`  | Requires native or custom async approval before an event action; see [reference](nv-confirm.md)     |
+| `nv:init="load"`             | One eager registered-action attempt per component registration; see [timing and limits](nv-init.md) |
 
 Attribute bindings allow `title`, `aria-label`, `aria-expanded`, `aria-disabled`, `href`, `src`, `disabled` and `readonly`. Boolean attributes require booleans. URLs accept HTTP(S) or relative URLs, rejecting credentials, whitespace/control characters and executable schemes. No style, event-handler, `srcdoc` or HTML binding exists.
+
+`nv:class="is-urgent:urgent is-archived:archived"` is the styling channel. Each space-separated pair names a class token (`/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/`) and a field or dotted path whose value must be a boolean; tokens are unique and at most 16. The client calls `classList.toggle` only for those tokens, so server-rendered classes on the element are kept, and it never writes `style`, which keeps a strict `style-src 'self'` policy intact. Render the initial classes in the template too, so the first paint matches state. Like other bindings, every value is validated before any DOM change; a non-boolean fails the whole pass. Loading (`nv:loading.class`) and presentation (`nv:offline.class`, `nv:current`, transition stages) effects that would own the same class on the element are rejected, and `nv:ignore.self` wrappers cannot carry `nv:class`.
+
+Arbitrary property and style binding is intentionally unsupported: properties such as `innerHTML`, `srcdoc`, `on*` handlers or `value` are script or ownership sinks (`value`/`checked` belong to `nv:model`), and inline styles are blocked by strict CSP and can carry `url()` requests or overlay content. The reflected properties that are safe (`disabled`, `readonly`, ARIA states) are bindable through their attributes.
 
 ## Request deadlines and suspended transport
 

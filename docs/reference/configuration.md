@@ -7,16 +7,18 @@ to pass and in which order.
 
 ## Options and defaults
 
-| Path                                | Type                    | Default     | Notes                                                                                   |
-| ----------------------------------- | ----------------------- | ----------- | --------------------------------------------------------------------------------------- |
-| `views.engine`                      | lowercase name          | `'hbs'`     | The umbrella supports `hbs` only; other engines register explicitly.                    |
-| `views.root`                        | non-empty string        | `src/views` | Resolved by the host process; Windows paths are kept verbatim.                          |
-| `views.cache`                       | boolean                 | `false`     | Use `true` for immutable deployed templates.                                            |
-| `views.layout`                      | string or `false`       | `false`     | Default layout view.                                                                    |
-| `live.enabled`                      | boolean                 | `false`     | Must match an explicit umbrella Live registration.                                      |
-| `live.client`                       | `'alpine'` / `'manual'` | unset       | When set, must equal the umbrella browser mode (`live.browser.mode`, default `alpine`). |
-| `security.csrf`                     | boolean                 | `true`      | Integrated Live requires `true`.                                                        |
-| `security.requireAuthorizedActions` | boolean                 | `true`      | Integrated Live requires `true`.                                                        |
+| Path                                | Type                      | Default     | Notes                                                                                                                                                                       |
+| ----------------------------------- | ------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `views.engine`                      | lowercase name            | `'hbs'`     | The umbrella supports `hbs` only; other engines register explicitly.                                                                                                        |
+| `views.root`                        | non-empty string          | `src/views` | Resolved by the host process; Windows paths are kept verbatim.                                                                                                              |
+| `views.cache`                       | boolean                   | `false`     | Use `true` for immutable deployed templates.                                                                                                                                |
+| `views.layout`                      | string or `false`         | `false`     | Default layout view.                                                                                                                                                        |
+| `views.namespaces`                  | object: name -> directory | absent      | `admin::users/index` resolves in that directory; the app overrides at `<root>/vendor/<name>/`. Names match `/^[a-z][a-z0-9-]{0,63}$/`, at most 64. No environment variable. |
+| `views.themes`                      | object: name -> directory | absent      | Theme override directories selected per render (`RenderOptions.theme`). Same name rules. No environment variable.                                                           |
+| `live.enabled`                      | boolean                   | `false`     | Must match an explicit umbrella Live registration.                                                                                                                          |
+| `live.client`                       | `'alpine'` / `'manual'`   | unset       | When set, must equal the umbrella browser mode (`live.browser.mode`, default `alpine`).                                                                                     |
+| `security.csrf`                     | boolean                   | `true`      | Integrated Live requires `true`.                                                                                                                                            |
+| `security.requireAuthorizedActions` | boolean                   | `true`      | Integrated Live requires `true`.                                                                                                                                            |
 
 Unknown keys, accessor properties, non-plain objects and wrong types are rejected.
 
