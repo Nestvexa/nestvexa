@@ -318,3 +318,9 @@ The pnpm _minimal_ consumer then failed at
   default manifest.
 
 **Coordinator finding 4.**
+
+**Coordinator finding 5.** `pnpm test:pack` copies the root
+`THIRD_PARTY_NOTICES.md` into `packages/nestvexa/`. On main, the committed
+copy differs from the root file. I restored it and did not commit it,
+because it is out of scope here. Commit the refreshed copy on main, or
+gitignore it.
