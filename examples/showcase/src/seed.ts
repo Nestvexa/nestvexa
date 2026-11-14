@@ -63,6 +63,14 @@ export interface ShowcaseState {
   profiles: Record<string, Profile>;
   /** Completed tasks per ISO week, oldest first, per workspace (the chart data). */
   throughput: Record<string, number[]>;
+  /**
+   * Dashboard counters per workspace when no Redis is configured, so they
+   * survive a restart of the single process (absent in older data files).
+   */
+  metrics?: Record<
+    string,
+    { deployments: number; created: number; completed: number; last: string }
+  >;
   nextId: number;
 }
 

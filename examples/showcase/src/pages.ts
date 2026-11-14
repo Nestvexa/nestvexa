@@ -1,10 +1,13 @@
 import {
+  BadRequestException,
   Catch,
   Controller,
   ForbiddenException,
   Get,
   Header,
+  HttpException,
   Inject,
+  Logger,
   NotFoundException,
   Param,
   Post,
@@ -17,6 +20,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { ArgumentsHost, ExceptionFilter } from '@nestjs/common';
+import { BaseExceptionFilter } from '@nestjs/core';
 import {
   FORM_ERROR,
   consumeFlash,
@@ -35,11 +39,19 @@ import { RealtimeService } from '@nestvexa/realtime';
 import { UploadsService } from '@nestvexa/uploads';
 import { ViteAssets } from '@nestvexa/vite';
 import { LiveRuntime, SafeHtml, consumeLiveFlash } from 'nestvexa';
+import { randomUUID } from 'node:crypto';
 import { instance, origin } from './config.js';
 import { ShowcaseData } from './data.js';
+import {
+  i18n,
+  localeChoices,
+  localeCookie,
+  safeReturn,
+  translator,
+} from './i18n.js';
 import { Directory, SignedInGuard, bindingOf } from './identity.js';
 import type { SessionRequest } from './identity.js';
-import { islands } from './islands.js';
+import { dashboardIslands } from './islands.js';
 import { MetricsPanel } from './metrics.js';
 import {
   ProfileService,
@@ -83,9 +95,83 @@ export class PageAccessFilter implements ExceptionFilter {
       response.redirect(303, '/login');
       return;
     }
+    response.status(403).render('forbidden', {
+      title: 'Access denied',
+      i18n: translator(host.switchToHttp().getRequest<object>()).view,
+      instance,
+    });
+  }
+}
+
+interface ErrorRequest {
+  readonly method?: string;
+  readonly path?: string;
+  readonly headers?: Record<string, string | string[] | undefined>;
+}
+interface ErrorResponse {
+  readonly headersSent: boolean;
+  status(code: number): ErrorResponse;
+  setHeader(name: string, value: string): void;
+  render(
+    view: string,
+    model: Record<string, unknown>,
+    callback: (error: Error | null, html?: string) => void,
+  ): void;
+  send(body: string): void;
+  type(value: string): ErrorResponse;
+}
+const errorLogger = new Logger('Errors');
+
+/**
+ * Page controllers: guests and wrong roles as in `PageAccessFilter`; any
+ * other unexpected error on a document request renders a translated 500
+ * page with a short reference that matches the server log line. The error
+ * text and stack never reach the browser. Other HTTP exceptions and
+ * non-document requests keep Nest's default handling (JSON bodies).
+ */
+@Catch()
+export class ErrorPageFilter extends BaseExceptionFilter {
+  readonly #access = new PageAccessFilter();
+  override catch(exception: unknown, host: ArgumentsHost): void {
+    if (
+      exception instanceof UnauthorizedException ||
+      exception instanceof ForbiddenException
+    ) {
+      this.#access.catch(exception, host);
+      return;
+    }
+    const http = host.switchToHttp();
+    const request = http.getRequest<ErrorRequest>();
+    const response = http.getResponse<ErrorResponse>();
+    const accept = request.headers?.['accept'];
+    const page =
+      (request.method === 'GET' || request.method === 'HEAD') &&
+      typeof accept === 'string' &&
+      accept.includes('text/html');
+    if (exception instanceof HttpException || !page || response.headersSent) {
+      super.catch(exception, host);
+      return;
+    }
+    const reference = randomUUID().slice(0, 8);
+    errorLogger.error(
+      `Unhandled error ${reference} on ${request.method ?? 'GET'} ${request.path ?? ''}`,
+      exception instanceof Error ? exception.stack : undefined,
+    );
+    const t = translator(request);
+    response.setHeader('Cache-Control', 'no-store');
+    response.setHeader('Content-Security-Policy', csp);
     response
-      .status(403)
-      .render('forbidden', { title: 'Access denied', instance });
+      .status(500)
+      .render(
+        'error',
+        { title: t.t('error.title'), i18n: t.view, instance, reference },
+        (error, html) => {
+          // The error page itself failed: a minimal text answer, still no detail.
+          if (error || html === undefined)
+            response.type('text/plain').send(`Internal error ${reference}`);
+          else response.type('text/html').send(html);
+        },
+      );
   }
 }
 
@@ -119,7 +205,7 @@ function regenerate(request: SessionRequest): Promise<void> {
 }
 
 @Controller()
-@UseFilters(PageAccessFilter)
+@UseFilters(ErrorPageFilter)
 export class PagesController {
   constructor(
     @Inject(Directory) private readonly directory: Directory,
@@ -132,23 +218,33 @@ export class PagesController {
     @Inject(ProfileService) private readonly profileService: ProfileService,
   ) {}
 
-  /** Layout data for every HBS page. */
+  /** Layout data for every HBS page, in the negotiated locale. */
   private chrome(request: SessionRequest, current: string) {
     const access = this.directory.access(request);
-    const nav = [
-      ['/app', 'Dashboard'],
-      ['/app/tasks', 'Tasks'],
-      ['/app/profile', 'Profile'],
-      ['/insights', 'Analytics'],
-      ['/insights/goals', 'Goals'],
-      ['/app/outbox', 'Mail outbox'],
-    ].map(([href, label]) => ({ href, label, current: href === current }));
+    const t = translator(request);
+    const nav = (
+      [
+        ['/app', 'nav.dashboard'],
+        ['/app/tasks', 'nav.tasks'],
+        ['/app/profile', 'nav.profile'],
+        ['/insights', 'nav.analytics'],
+        ['/insights/goals', 'nav.goals'],
+        ['/app/outbox', 'nav.outbox'],
+      ] as const
+    ).map(([href, key]) => ({
+      href,
+      label: t.t(key),
+      current: href === current,
+    }));
     return {
+      i18n: t.view,
+      locales: localeChoices(request),
+      returnTo: current,
       csrf: csrfToken(request),
       flash: [...consumeFlash(request), ...consumeLiveFlash(request)],
       signedIn: access !== undefined,
       userName: access?.user.name ?? '',
-      role: access?.role ?? '',
+      role: access ? t.t(`roles.${access.role}`) : '',
       workspaceName: access?.workspace.name ?? '',
       nav: access ? nav : [],
       instance,
@@ -161,11 +257,16 @@ export class PagesController {
   @Header('Content-Security-Policy', csp)
   @Render('home')
   home(@Req() request: SessionRequest) {
+    const t = translator(request);
     return {
-      title: 'Nestvexa Showcase',
-      description:
-        'A team workspace built with NestJS and Nestvexa: Live task board, realtime dashboard, multi-step forms, uploads, Vue Inertia analytics and islands.',
+      title: t.t('site.name'),
+      description: t.t('home.description'),
       canonical: `${origin}/`,
+      // One URL per language for search engines (the query wins negotiation).
+      alternates: i18n.locales.map((locale) => ({
+        code: locale,
+        href: `${origin}/?lang=${locale}`,
+      })),
       ...this.chrome(request, '/'),
       workspaces: workspaces.map((workspace) => ({ ...workspace })),
     };
@@ -178,14 +279,15 @@ export class PagesController {
   loginPage(@Req() request: SessionRequest) {
     const state = consumeFormState(request, 'login');
     const fields = ['email', 'password'];
+    const t = translator(request);
     return {
-      title: 'Sign in',
+      title: t.t('login.title'),
       ...this.chrome(request, '/login'),
       old: state.old,
       fields: formView(state.errors, fields, { idPrefix: 'login-' }),
       summary: errorSummary(state.errors, {
         idPrefix: 'login-',
-        labels: { email: 'Email', password: 'Password' },
+        labels: { email: t.t('login.email'), password: t.t('login.password') },
         order: fields,
       }),
       accounts: accounts.map((account) => ({
@@ -212,7 +314,9 @@ export class PagesController {
         // One generic message: never reveal whether the email has an account.
         if (!account)
           return {
-            errors: { [FORM_ERROR]: ['The email or password is incorrect.'] },
+            errors: {
+              [FORM_ERROR]: [translator(request).t('login.incorrect')],
+            },
           };
         await regenerate(request);
         request.session.userId = account.id;
@@ -235,7 +339,39 @@ export class PagesController {
     return { url: '/', statusCode: 303 };
   }
 
-  /** Dashboard: a Live realtime panel next to an independent Vue island (SSR). */
+  /**
+   * Switches the display language: an allowlisted locale in the `nv-locale`
+   * cookie, then back to the page the form was on. Works without JavaScript.
+   */
+  @Post('locale')
+  @Redirect()
+  setLocale(
+    @Req() request: SessionRequest,
+    @Res({ passthrough: true })
+    response: { append(name: string, value: string): unknown },
+  ) {
+    if (!verifyCsrf(request))
+      throw new ForbiddenException('Invalid or missing CSRF token');
+    const body: unknown = request.body;
+    const value = (name: string): unknown =>
+      body && typeof body === 'object' && Object.hasOwn(body, name)
+        ? Reflect.get(body, name)
+        : undefined;
+    const requested = value('locale');
+    const locale =
+      typeof requested === 'string' && requested.length <= 35
+        ? i18n.match(requested)
+        : undefined;
+    if (!locale) throw new BadRequestException('Unsupported locale');
+    response.append('Set-Cookie', localeCookie(locale));
+    return { url: safeReturn(value('return')), statusCode: 303 };
+  }
+
+  /**
+   * Dashboard: a Live realtime panel next to three independent islands, all
+   * server-rendered: a Vue chart, a React chart (the @nestvexa/ui chart
+   * wrapper) and a Svelte widget.
+   */
   @Get('app')
   @UseGuards(SignedInGuard)
   @Header('Cache-Control', 'no-store')
@@ -243,24 +379,27 @@ export class PagesController {
   @Render('dashboard')
   async dashboard(@Req() request: SessionRequest) {
     const access = this.directory.require(request);
-    const values = [...this.data.throughput(access.workspace.slug)];
+    const t = translator(request);
+    const tasks = this.data.tasks(access.workspace.slug);
+    const dashboard = await dashboardIslands(t, {
+      throughput: this.data.throughput(access.workspace.slug),
+      members: this.directory.members(access.workspace.slug).map((member) => {
+        const assigned = tasks.filter((task) => task.assignee === member.id);
+        return {
+          name: member.name,
+          open: assigned.filter((task) => !task.done).length,
+          done: assigned.filter((task) => task.done).length,
+        };
+      }),
+    });
     return {
-      title: 'Dashboard',
+      title: t.t('dashboard.title'),
       ...this.chrome(request, '/app'),
-      islandTags: SafeHtml.trusted(this.assets.tags('islands')),
-      panel: await this.live.mount(MetricsPanel, request),
-      chart: await islands.renderSsr(
-        'throughput-chart',
-        {
-          title: 'Completed tasks per week',
-          labels: values.map((_, index) => `W${index + 1}`),
-          values,
-        },
-        {
-          label: 'Weekly throughput chart (Vue island)',
-          fallback: 'Loading the chart…',
-        },
+      islandTags: SafeHtml.trusted(
+        this.assets.tags('islands') + dashboard.head,
       ),
+      panel: await this.live.mount(MetricsPanel, request),
+      ...dashboard.islands,
     };
   }
 

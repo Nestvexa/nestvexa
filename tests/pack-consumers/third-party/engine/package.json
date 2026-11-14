@@ -1,0 +1,19 @@
+{
+  "name": "nestvexa-engine-mini",
+  "version": "1.0.0",
+  "description": "Out-of-tree Nestvexa view-engine adapter fixture (MAINT-007)",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "peerDependencies": {
+    "@nestvexa/views": "^0.1.0-alpha.0"
+  }
+}

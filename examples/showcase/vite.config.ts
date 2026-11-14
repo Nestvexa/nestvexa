@@ -1,14 +1,19 @@
+import { svelte } from '@sveltejs/vite-plugin-svelte';
+import react from '@vitejs/plugin-react';
 import vue from '@vitejs/plugin-vue';
 import { defineConfig } from 'vite';
 
 // Two builds from one config:
 //  - `vite build`: browser entries (the Inertia app and the islands loader)
 //    with one manifest (dist/client/.vite/manifest.json) read by ViteAssets;
+//    each island (Vue, React, Svelte) is a lazy chunk of the loader;
 //  - `vite build --ssr client/ssr.ts`: dist/ssr/ssr.js with the Inertia
 //    `render` and the island `renderers`.
+// Svelte components carry no <style> blocks (the strict CSP has no
+// 'unsafe-inline' styles); their styles live in public/app.css.
 export default defineConfig(({ isSsrBuild }) => ({
   base: '/build/',
-  plugins: [vue()],
+  plugins: [vue(), react(), svelte()],
   define: {
     __VUE_OPTIONS_API__: 'false',
     __VUE_PROD_DEVTOOLS__: 'false',

@@ -14,3 +14,31 @@ body:
     attributes:
       label: Proposal
       description: The API or behavior you suggest, including security implications.
+    validations:
+      required: true
+  - type: input
+    id: platforms
+    attributes:
+      label: Supported platforms affected
+      description: Node line, NestJS version, HTTP adapter, browsers, template engine or frontend adapter.
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility and migration
+      description: Does this change a public API, default, directive, protocol or CLI output? What would existing users have to change (see docs/release/versioning-and-deprecation.md)?
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Security, privacy and performance implications
+      description: New trust boundaries, data exposure, request cost, bundle size. Write "none" only after checking.
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: How it would be tested
+      description: Unit, integration, security (negative) and browser tests that would prove the behavior.

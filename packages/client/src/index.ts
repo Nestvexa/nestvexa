@@ -1931,9 +1931,11 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       const stale =
         (hint === 'resync' && !resync) ||
         (hint === 'commit' && resync === true);
-      // Calls already queued behind a refused one targeted the refused view:
-      // they are dropped unsent until the (refresh or commit) resync starts.
-      if (stale) discarding.add(state);
+      // Calls already queued behind a `STALE_REVISION` reply targeted the
+      // refused view: they are dropped unsent until the resync starts. A
+      // refresh conflict refuses no revision, so queued calls stay valid.
+      if (stale && hint === 'resync') discarding.add(state);
+      let committing = false;
       // Stale requests queued behind this one share a single resync; the
       // commit runs while its refresh still counts as the pending resync.
       if (stale && (hint === 'commit' || !resyncing.has(state)))
@@ -1950,12 +1952,16 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           )
             .finally(() => resyncing.delete(state))
             .catch(() => undefined);
+          committing = hint === 'commit';
         } catch {
           // A full queue: no resync is pending, so queued requests are sent
           // and a later one meets the same hint.
           resyncing.delete(state);
           discarding.delete(state);
         }
+      // A refresh that must commit is not a failure: the queued committing
+      // resync renders the result, so nothing is reported.
+      if (committing) return;
       const recoverable =
         stale ||
         (networkFailure && (unsent || action === '_sync')) ||

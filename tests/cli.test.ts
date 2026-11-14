@@ -202,6 +202,22 @@ describe('nestvexa init and generators on a fresh CommonJS Nest app', () => {
     ).toBe(2);
     expect(run(['make:policy', 'Editors'], root).exitCode).toBe(0);
     expect(run(['make:resource', 'Invoice'], root).exitCode).toBe(0);
+    // The Zod DTOs need @nestvexa/forms and zod: the generator declares them,
+    // and the install the fixture skips is simulated with a junction (zod
+    // resolves from the repository root).
+    const declared = JSON.parse(read(root, 'package.json')) as {
+      dependencies: Record<string, string>;
+    };
+    expect(declared.dependencies).toMatchObject({
+      '@nestvexa/forms': '^0.1.0-alpha.0',
+      zod: expect.any(String),
+    });
+    mkdirSync(join(root, 'node_modules', '@nestvexa'), { recursive: true });
+    symlinkSync(
+      join(repo, 'packages', 'forms'),
+      join(root, 'node_modules', '@nestvexa', 'forms'),
+      'junction',
+    );
     writeFileSync(
       join(root, 'views/components/stock-ticker.hbs'),
       '<p>edited by the user</p>',

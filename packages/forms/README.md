@@ -285,14 +285,22 @@ forms, PRG, autofill and history behavior).
 
 ## Status and limits
 
-Status: **Partial**. Adapters, hardening, Live validation, view helpers, the
-form state object, wizard, drafts, the actions bridge, client hints and the
-no-JS fallback are implemented and tested; framework-adapter portability is
-incomplete.
+Status: **Implemented** (`0.1.0-alpha.0`, experimental). Adapters, hardening,
+Live validation, view helpers, the form state object, wizard, drafts, the
+actions bridge, client hints and the no-JS fallback are implemented and tested.
+The view helpers (`defineForm().view()`, `fieldView`, `errorSummary`) render
+identically through the Handlebars, EJS, Pug and Nunjucks adapters, with
+hostile messages, labels and values escaped and `aria-invalid`,
+`aria-describedby` and summary links wired
+(`tests/forms-view-engines.test.ts`). Inertia React/Vue/Svelte use the same
+error bags through `inertiaValidate` in `@nestvexa/inertia`, and the UI kit
+field wrappers accept `fieldView()` output.
 
-- Form view helpers are not tested from EJS, Pug or Nunjucks templates; only
-  HBS/Live and Inertia (`inertiaValidate` in `@nestvexa/inertia`) use them in
-  tests (FORM-012).
+- View data is plain text: output it with the engine's escaping form
+  (`{{ }}`, `<%= %>`, Pug `=`/`#{}`/attribute values, Nunjucks autoescape),
+  never `{{{ }}}`, `<%- %>`, `!=` or `| safe`. In Pug, write
+  `aria-describedby=view.describedBy || undefined` so a valid field gets no
+  empty attribute.
 - Live `nv:model` accepts dotted object paths (allowlisted with
   `@State({ writable: [...] })`) but rejects array-index paths by design, so Live
   repeaters need actions or child components; nested array paths are fully

@@ -22,6 +22,7 @@ import {
 import { constantTimeEqual } from '@nestvexa/forms';
 import { randomBytes } from 'node:crypto';
 import { ShowcaseData } from './data.js';
+import { translator } from './i18n.js';
 import { Directory, Roles, SignedInGuard } from './identity.js';
 import type { SessionRequest } from './identity.js';
 import { PageAccessFilter } from './pages.js';
@@ -96,7 +97,9 @@ export class InsightsController {
     const workspace = access.workspace.slug;
     const tasks = this.data.tasks(workspace);
     return {
-      heading: `${access.workspace.name} analytics`,
+      heading: translator(request).t('insights:heading', {
+        workspace: access.workspace.name,
+      }),
       summary: {
         open: tasks.filter((task) => !task.done).length,
         done: tasks.filter((task) => task.done).length,

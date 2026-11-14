@@ -95,6 +95,32 @@ Expose `formView(this.errors, fields, { idPrefix, hints, visible })` and
 {{/if}}
 ```
 
+The view data is plain text, so it works in every engine adapter as long as you
+use the escaping output form. The same control in EJS, Pug and Nunjucks
+(`tests/forms-view-engines.test.ts` renders one form through all four engines
+and checks they produce the same elements, attributes and text):
+
+```ejs
+<input id="<%= fields.email.id %>" aria-invalid="<%= fields.email.ariaInvalid %>"
+  <% if (fields.email.describedBy) { %>aria-describedby="<%= fields.email.describedBy %>"<% } %>>
+<% if (fields.email.invalid) { %><p id="<%= fields.email.errorId %>" role="alert"><%= fields.email.message %></p><% } %>
+```
+
+```pug
+input(id=fields.email.id aria-invalid=fields.email.ariaInvalid aria-describedby=fields.email.describedBy || undefined)
+if fields.email.invalid
+  p(id=fields.email.errorId role="alert")= fields.email.message
+```
+
+```njk
+<input id="{{ fields.email.id }}" aria-invalid="{{ fields.email.ariaInvalid }}"
+  {% if fields.email.describedBy %}aria-describedby="{{ fields.email.describedBy }}"{% endif %}>
+{% if fields.email.invalid %}<p id="{{ fields.email.errorId }}" role="alert">{{ fields.email.message }}</p>{% endif %}
+```
+
+Never use the raw forms (`{{{ }}}`, `<%- %>`, Pug `!=`, Nunjucks `| safe`) for
+messages, labels or values: validation messages often echo user input.
+
 `visibleFields(meta, fields)` hides errors of untouched fields until the first
 submit. After an `nv:submit` response that leaves `[aria-invalid="true"]`
 controls in the submitted form, the client focuses the first available one —

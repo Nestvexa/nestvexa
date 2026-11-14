@@ -1,17 +1,22 @@
-import { computed, defineComponent, h, onMounted, ref } from 'vue';
+import { defineComponent, h, onMounted, ref } from 'vue';
 import type { PropType } from 'vue';
 import type { IslandContext } from '@nestvexa/islands/client';
 import { vueIsland } from '@nestvexa/islands/vue';
 import { BarChart } from '../shared/bar-chart.js';
 
 /**
- * Dashboard island: server-rendered (SSR) and hydrated. The range toggle is
+ * Dashboard island (Vue): server-rendered (SSR) and hydrated. The range toggle is
  * local framework state; Live re-renders of the metrics panel next to it never
- * touch it (islands are separate ownership boundaries).
+ * touch it (islands are separate ownership boundaries). Captions and labels
+ * arrive translated in the props.
  */
 export const ThroughputChart = defineComponent({
   props: {
-    title: { type: String, required: true },
+    captionAll: { type: String, required: true },
+    captionRecent: { type: String, required: true },
+    rangeLabel: { type: String, required: true },
+    allLabel: { type: String, required: true },
+    recentLabel: { type: String, required: true },
     labels: { type: Array as PropType<string[]>, required: true },
     values: { type: Array as PropType<number[]>, required: true },
     // Declared so the loader's context is not rendered as a fallthrough attribute.
@@ -23,9 +28,6 @@ export const ThroughputChart = defineComponent({
     onMounted(() => {
       hydrated.value = true;
     });
-    const count = computed(() =>
-      recent.value ? Math.min(4, props.values.length) : props.values.length,
-    );
     const toggle = (value: boolean) =>
       h(
         'button',
@@ -37,29 +39,33 @@ export const ThroughputChart = defineComponent({
             recent.value = value;
           },
         },
-        value ? 'Last 4 weeks' : 'All weeks',
+        value ? props.recentLabel : props.allLabel,
       );
-    return () =>
-      h(
+    return () => {
+      const count = recent.value
+        ? Math.min(4, props.values.length)
+        : props.values.length;
+      return h(
         'div',
         {
           class: 'island-chart',
           'data-hydrated': hydrated.value ? 'true' : 'false',
         },
         [
-          h('p', { role: 'group', 'aria-label': 'Chart range' }, [
+          h('p', { role: 'group', 'aria-label': props.rangeLabel }, [
             toggle(false),
             ' ',
             toggle(true),
           ]),
           h(BarChart, {
             idPrefix: 'dashboard-chart',
-            caption: `${props.title} (${count.value} weeks)`,
-            labels: props.labels.slice(-count.value),
-            values: props.values.slice(-count.value),
+            caption: recent.value ? props.captionRecent : props.captionAll,
+            labels: props.labels.slice(-count),
+            values: props.values.slice(-count),
           }),
         ],
       );
+    };
   },
 });
 

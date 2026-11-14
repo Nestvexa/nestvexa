@@ -329,7 +329,9 @@ client hydration are implemented and tested.
 
 - Browser hydration is explicit (`hydration()` + `@nestvexa/i18n/client`); no
   catalog is published automatically. It is tested with a server payload and a
-  DOM document; no island or Inertia example consumes it yet. The client entry
+  DOM document, and consumed by `examples/showcase` (a Svelte island formats
+  an Arabic plural sentence; the Vue Inertia pages translate through the
+  shared `i18n` prop during SSR and in the browser). The client entry
   is not a separate single-file bundle: serve it through your bundler (it has
   relative imports).
 - ICU subset only (see above). Output depends on the Node ICU/CLDR data version;

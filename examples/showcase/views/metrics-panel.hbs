@@ -1,26 +1,28 @@
 <section aria-labelledby="metrics-heading" class="card">
-  <h2 id="metrics-heading">Live metrics</h2>
+  <h2 id="metrics-heading">{{t "metrics.heading"}}</h2>
   <p id="metrics-notice" class="notice" role="status" aria-live="polite">
-    {{notice}}
+    {{noticeText}}
   </p>
-  <ul class="tiles" aria-label="Workspace metrics">
+  <ul class="tiles" aria-label="{{t 'metrics.tiles'}}">
     <li class="tile">
-      Deployments
+      {{t "metrics.deployments"}}
       <output id="metric-deployments">{{metrics.deployments}}</output>
     </li>
     <li class="tile">
-      Tasks created <output id="metric-created">{{metrics.created}}</output>
+      {{t "metrics.created"}}
+      <output id="metric-created">{{metrics.created}}</output>
     </li>
     <li class="tile">
-      Tasks completed
+      {{t "metrics.completed"}}
       <output id="metric-completed">{{metrics.completed}}</output>
     </li>
   </ul>
   <p>
-    Latest:
-    <span id="metric-last"
-      >{{#if metrics.last}}{{metrics.last}}{{else}}nothing yet{{/if}}</span
-    >
+    {{t "metrics.latest"}} {{#if metrics.last}}
+    <span id="metric-last" lang="en">{{metrics.last}}</span>
+    {{else}}
+    <span id="metric-last">{{t "metrics.nothing"}}</span>
+    {{/if}}
   </p>
   <button
     type="button"
@@ -29,33 +31,42 @@
     nv:loading.attr="disabled"
     nv:target="logDeployment"
   >
-    Log a deployment
+    {{t "metrics.log"}}
   </button>
-  <h3>Online on this instance</h3>
+  <span
+    id="metrics-saving"
+    class="loading"
+    role="status"
+    nv:loading=""
+    nv:target="logDeployment"
+    hidden
+    >{{t "metrics.saving"}}</span
+  >
+  <h3>{{t "metrics.onlineHeading"}}</h3>
   <p>
-    <output id="presence-count">{{onlineCount}}</output> teammates connected to
-    instance <span id="rendered-by">{{renderedBy}}</span>
+    <output id="presence-count">{{onlineCount}}</output>
+    {{t "metrics.presence"}}
+    <span id="rendered-by">{{renderedBy}}</span>
   </p>
-  <ul id="presence-list" aria-label="Online teammates">
+  <ul id="presence-list" aria-label="{{t 'metrics.onlineList'}}">
     {{#each online}}
     <li>{{this}}</li>
     {{/each}}
   </ul>
-  <h3>Your notifications</h3>
-  <ul id="inbox" aria-label="Your notifications">
+  <h3>{{t "metrics.inboxHeading"}}</h3>
+  <ul id="inbox" aria-label="{{t 'metrics.inboxHeading'}}">
     {{#each inbox}}
-    <li data-nv-key="inbox-{{id}}">{{text}}</li>
+    <li data-nv-key="inbox-{{id}}" lang="en">{{text}}</li>
     {{else}}
-    <li id="inbox-empty">No notifications.</li>
+    <li id="inbox-empty">{{t "metrics.inboxEmpty"}}</li>
     {{/each}}
   </ul>
   {{#if inbox.length}}
   <button type="button" id="inbox-clear" nv:click="clearNotifications">
-    Clear notifications
+    {{t "metrics.inboxClear"}}
   </button>
   {{/if}}
   <p id="metrics-offline" nv:offline="" role="status" hidden>
-    You are offline. These numbers may be out of date until the connection
-    returns.
+    {{t "metrics.offline"}}
   </p>
 </section>

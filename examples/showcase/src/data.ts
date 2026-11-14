@@ -117,6 +117,24 @@ export class ShowcaseData implements OnApplicationShutdown {
     this.#changed();
   }
 
+  /** Persisted dashboard counters (single process without Redis). */
+  metrics(workspace: string) {
+    const stored = this.#state.metrics ?? {};
+    return Object.hasOwn(stored, workspace) ? stored[workspace] : undefined;
+  }
+  saveMetrics(
+    workspace: string,
+    metrics: {
+      deployments: number;
+      created: number;
+      completed: number;
+      last: string;
+    },
+  ): void {
+    this.#state.metrics = { ...this.#state.metrics, [workspace]: metrics };
+    this.#changed();
+  }
+
   /** Weekly completed-task counts, oldest first (the chart series). */
   throughput(workspace: string): readonly number[] {
     return this.#state.throughput[workspace] ?? [];

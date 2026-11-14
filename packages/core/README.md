@@ -122,6 +122,30 @@ duplicates, incompatible ranges and installs after `seal()`, and defaults
 (`=`, `>`, `>=`, `<`, `<=`, `^`, `~`, spaces, `||`, prerelease precedence) and is not
 deprecated.
 
+`definePlugin` and `new PluginRegistry()` emit a Node `DeprecationWarning` once per
+process (codes `NVDEP001` and `NVDEP002`); `pluginExtension` and `registry.extensions()`
+do not warn. Run Node with `--no-deprecation` to silence them or `--throw-deprecation`
+to find the callers.
+
+### Deprecation warnings
+
+`emitDeprecation(code, message)` emits `process.emitWarning(message, { type:
+'DeprecationWarning', code })` the first time a code is used in a process and returns
+`true`; later calls, and calls under `--no-deprecation`, return `false`. Codes are
+an uppercase prefix, `DEP` and three digits: `NVDEP` is reserved for the framework
+(`NESTVEXA_DEPRECATIONS` holds its messages), and an extension uses its own prefix:
+
+```ts
+import { emitDeprecation } from '@nestvexa/core';
+
+export function oldHelper(): void {
+  emitDeprecation('ACMEDEP001', 'oldHelper() is deprecated; use newHelper().');
+}
+```
+
+The codes table is in the
+[deprecation policy](../../docs/release/versioning-and-deprecation.md#runtime-deprecation-warnings).
+
 ## Kernel services
 
 `CoreModule.forRoot(options, registration)` (and `forRootAsync`, and the third
@@ -279,7 +303,7 @@ Status: **Shipped (alpha)**. Configuration, registries, typed routes, the plugin
 - The kernel identity is opt-in per transport (`kernelIdentity`); hosts wire actions, uploads, realtime and Inertia themselves because the umbrella does not own those modules. Islands have no server transport of their own; they use server actions or Inertia props.
 - Feature packages register in `NestvexaRegistry` only when given the registry; extra view engines added with `registerViewEngine` are not listed.
 - `DiagnosticsRegistry` has no exporter (OpenTelemetry stays in `@nestvexa/observability`).
-- `PluginRegistry` is a deprecated adapter over the extension model (`pluginExtension`, `registry.extensions()`); no out-of-tree extension package has been consumed from a tarball.
+- `PluginRegistry` is a deprecated adapter over the extension model (`pluginExtension`, `registry.extensions()`) and warns once per process (`NVDEP002`). An out-of-tree extension package built against the packed `@nestvexa/core` is installed from its own tarball and booted by `pnpm test:pack` (`tests/pack-consumers/third-party`).
 - Typed routes do not reflect controllers added inside `forRootAsync` factories, Nest versioning or host constraints, and do not generate permission-aware links.
 
 ## Testing

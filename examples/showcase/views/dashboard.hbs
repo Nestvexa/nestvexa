@@ -1,12 +1,17 @@
 <h1>{{title}}</h1>
-<p>
-  The metrics panel is a Live component subscribed to your workspace channel;
-  the chart is an independent Vue island. Updating one never resets the other.
-</p>
+<p>{{t "dashboard.intro"}}</p>
 <div class="dashboard">
   {{panel}}
   <section aria-labelledby="chart-heading" class="card">
-    <h2 id="chart-heading">Throughput</h2>
+    <h2 id="chart-heading">{{t "dashboard.throughputHeading"}}</h2>
     {{chart}}
+  </section>
+  <section aria-labelledby="members-heading" class="card">
+    <h2 id="members-heading">{{t "dashboard.membersHeading"}}</h2>
+    {{members}}
+  </section>
+  <section aria-labelledby="pulse-heading" class="card">
+    <h2 id="pulse-heading">{{t "dashboard.pulseHeading"}}</h2>
+    {{pulse}}
   </section>
 </div>

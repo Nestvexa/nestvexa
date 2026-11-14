@@ -1,0 +1,15 @@
+{
+  "heading": "{workspace} analytics",
+  "summary": "Workspace summary",
+  "open": "Open tasks",
+  "done": "Done tasks",
+  "members": "Members",
+  "throughputHeading": "Weekly throughput",
+  "loading": "Loading the chart…",
+  "caption": "Completed tasks per week",
+  "breakdownHeading": "Open tasks by member",
+  "loadBreakdown": "Load breakdown",
+  "refreshBreakdown": "Refresh breakdown",
+  "goals": "Goals",
+  "signedInAs": "Signed in as {name} ({role})"
+}

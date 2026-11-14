@@ -281,6 +281,10 @@ A third-party adapter implements `ViewEngineAdapter` (`name`, `extensions`, hone
 
 The [custom engine example](../../examples/custom-engine/README.md) is a complete adapter for a tiny `{{ path }}` language (escaped output, no raw syntax, layouts and slots, no partials) running a Live counter inside a Nest MVC page. It rejects `RenderOptions.partials`/`helpers` with `UNSUPPORTED_CAPABILITY` because it declares no such capability, and its main module performs the startup `requireAll` check. Its behavior is covered by [unit tests](../../tests/custom-engine.test.ts) and the shared [Live integration suite](../../tests/engine-live.test.ts).
 
+### Publishing an adapter as its own package
+
+An adapter package depends on `@nestvexa/views` as a **peer** (`^0.1.0-alpha.0`), imports only its public exports and ships compiled `dist` with declarations. `pnpm test:pack` proves this end to end with [an out-of-tree fixture](../../tests/pack-consumers/third-party): a small adapter (`nestvexa-engine-mini`) and an extension (`nestvexa-extension-mini`) are compiled against the packed Nestvexa tarballs in a temporary directory outside the repository, packed with `npm pack`, installed from those tarballs into a fresh Nest application and booted there. The application renders an MVC page through the adapter (`app.engine` bridge) and a Live counter whose action fragment comes back through the same adapter, and the extension's capability, diagnostics event, request-context field and shutdown hook are checked ([scripts/pack-consumers.mjs](../../scripts/pack-consumers.mjs)).
+
 Checklist for adapter authors: declare only capabilities you implement; never pass model data as engine options; keep caches per instance and clear them in `dispose()`; restrict every file the engine can load to the root; keep escaping on by default and document the raw syntax; wrap failures in `ViewError('RENDER_FAILED')` with the original `cause`.
 
 ## Not yet available

@@ -24,6 +24,11 @@ For browser tests run `pnpm exec playwright install chromium firefox webkit` and
    or update an [ADR](docs/adr/README.md) first ([governance](GOVERNANCE.md#decision-process)).
 2. Keep the pull request small. Use [Conventional Commits](https://www.conventionalcommits.org/)
    (`feat(live): ...`, `fix(uploads): ...`, `docs: ...`).
+   The pull-request title must be one too, because squash merges use it: a type
+   (`feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`,
+   `chore` or `revert`), an optional lowercase scope, `!` for a breaking change,
+   then `: ` and a subject without a final period, at most 100 characters. The
+   `pr-policy` CI job (`scripts/pr-check.mjs`) checks it.
 3. Add tests:
    - every behaviour change needs one;
    - security-relevant behaviour needs negative tests;
@@ -32,6 +37,10 @@ For browser tests run `pnpm exec playwright install chromium firefox webkit` and
    the [feature matrix](docs/feature-matrix.md) when a feature's status changes.
 5. Add a Changeset (`pnpm changeset`) for any change to published behaviour: `minor`
    for features, `patch` for fixes ([release process](docs/contributing/release-process.md)).
+   The `pr-policy` CI job fails a pull request that changes `packages/<name>/src/` of
+   a published package without a changeset naming that package. When no published
+   behaviour changes (an internal refactor, a comment), a maintainer adds the
+   `no-changeset` label and re-runs the job.
 6. Run `pnpm format` (or `pnpm exec prettier --write <files>`), `pnpm lint` and the
    tests you touched before pushing.
 

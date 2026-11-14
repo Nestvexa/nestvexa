@@ -64,3 +64,59 @@ jobs:
         with:
           name: supply-chain-reports
           path: artifacts/reports/
+  docker:
+    # Builds the documented showcase image (docs/deployment/docker.md#ci) from
+    # the repository root exactly as `docker compose build` does, and checks
+    # that the Compose file resolves. Nothing is pushed or started.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose -f examples/showcase/docker-compose.yml config --quiet
+      - run: >-
+          docker build
+          --file examples/showcase/Dockerfile
+          --tag nestvexa-showcase:ci
+          .
+      # The image runs as the unprivileged `node` user and declares the health check.
+      - run: |
+          test "$(docker image inspect --format '{{.Config.User}}' nestvexa-showcase:ci)" = node
+          docker image inspect --format '{{json .Config.Healthcheck}}' nestvexa-showcase:ci | grep -q '/api/health'
+  pr-policy:
+    # MAINT-010: the pull-request title is a Conventional Commit, and every
+    # published package whose src/ changes is named by a changeset in the PR
+    # (or the PR has the `no-changeset` label). PR text reaches the script
+    # only through env, never through the shell. Editing the title or labels
+    # does not start a new run: re-run this job afterwards.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The merge base with the target branch must be reachable.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/pr-check.mjs
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+  ledger:
+    # LEDGER-025: the feature ledger's coverage and Done-evidence checks
+    # (missing files, stubs, skipped tests, unfinished-work markers) and the
+    # checker's own self-test. Node built-ins only, so no install.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/ledger.mjs --self-test
+      - run: node scripts/ledger.mjs check

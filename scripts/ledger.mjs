@@ -72,6 +72,24 @@ const packages = {
 };
 const hash = (text) => createHash('sha256').update(text).digest('hex');
 
+/**
+ * Unfinished-work markers that make cited Done evidence suspect (LEDGER-025):
+ * the upper-case to-do, fix-me, triple-x and stub words, and "not yet
+ * implemented". Upper case only, so the Live runtime's `data-nv-stub` markup
+ * and test doubles named `stub` are not reported. The character classes
+ * keep this file free of the markers it detects, so it can cite itself.
+ */
+const workMarker =
+  /\b(?:TO[D]O|FIX[M]E|X[X]X|ST[U]B)\b|\b[Nn]ot ye[t] implemented\b/;
+/** `<line>: <text>` for every line of `contents` carrying a work marker. */
+export function findWorkMarkers(contents) {
+  const hits = [];
+  for (const [index, line] of contents.split(/\r?\n/).entries())
+    if (workMarker.test(line))
+      hits.push(index + 1 + ': ' + line.trim().slice(0, 80));
+  return hits;
+}
+
 export function extractRequirements(source) {
   const rows = [];
   let section = -1;
@@ -227,6 +245,17 @@ export function validateLedger(
           )
             errors.push(
               id + ' contains skipped/focused test evidence: ' + path,
+            );
+          const markers = findWorkMarkers(contents);
+          if (markers.length)
+            errors.push(
+              id +
+                ' cites evidence with unfinished-work markers: ' +
+                path +
+                ' (line ' +
+                markers.slice(0, 3).join('; line ') +
+                (markers.length > 3 ? '; ...' : '') +
+                ')',
             );
         }
       }
@@ -416,20 +445,80 @@ function selfTest() {
   );
   invalid.features[0].implementationFiles = ['packages/example/src/index.ts'];
   invalid.features[0].testFiles = ['tests/example.test.ts'];
+  // Fixtures are assembled at run time so this file never contains the
+  // stubs and markers it rejects (it is cited as evidence itself).
+  const evidenceOf = (implementation, test) => ({
+    fileExists: () => true,
+    readEvidence: (path) => (path.endsWith('.test.ts') ? test : implementation),
+  });
+  const clean = 'export const ready = true;\n';
   assert.ok(
-    validateLedger(invalid, source, {
-      fileExists: () => true,
-      readEvidence: () => 'throw new Error("Not implemented")',
-    }).some((message) => message.includes('unimplemented runtime')),
+    validateLedger(
+      invalid,
+      source,
+      evidenceOf('throw new Error(' + '"Not implemented")', clean),
+    ).some((message) => message.includes('unimplemented runtime')),
   );
   assert.ok(
-    validateLedger(invalid, source, {
-      fileExists: () => true,
-      readEvidence: () => 'test.skip("security", () => {});',
-    }).some((message) => message.includes('skipped/focused')),
+    validateLedger(
+      invalid,
+      source,
+      evidenceOf(clean, 'test.' + 'skip("security", () => {});'),
+    ).some((message) => message.includes('skipped/focused')),
+  );
+  const marker = (head, tail) => head + tail;
+  for (const [implementation, test, path] of [
+    [
+      clean + '// ' + marker('TO', 'DO') + ': persist the queue\n',
+      clean,
+      'packages/example/src/index.ts (line 2: // ',
+    ],
+    [clean, '/* ' + marker('FIX', 'ME') + ' flaky */', 'tests/example.test.ts'],
+    [clean + 'return null; // ' + marker('X', 'XX'), clean, 'src/index.ts'],
+    [marker('ST', 'UB') + ' adapter', clean, 'src/index.ts'],
+    ['// Not ye' + 't implemented upstream', clean, 'src/index.ts'],
+  ]) {
+    const messages = validateLedger(
+      invalid,
+      source,
+      evidenceOf(implementation, test),
+    ).filter((message) => message.includes('unfinished-work markers'));
+    assert.equal(messages.length, 1, implementation + test);
+    assert.ok(messages[0].includes(path), messages[0]);
+  }
+  // Lower-case `stub` (markup attributes, test doubles) is not a marker.
+  assert.deepEqual(
+    findWorkMarkers(
+      'const stub = vi.fn();\nel.hasAttribute("data-nv-stub");\n// todo-list example\n',
+    ),
+    [],
+  );
+  assert.deepEqual(findWorkMarkers('a\n' + marker('TO', 'DO') + ' b\nc'), [
+    '2: ' + marker('TO', 'DO') + ' b',
+  ]);
+  assert.ok(
+    !validateLedger(invalid, source, evidenceOf(clean, clean)).some((message) =>
+      message.includes('unfinished-work markers'),
+    ),
+  );
+  // Only cited Done evidence is read: a Pending row's files are not checked.
+  assert.deepEqual(
+    validateLedger(
+      ledger,
+      source,
+      evidenceOf(marker('TO', 'DO'), marker('TO', 'DO')),
+    ),
+    [],
+  );
+  // This script passes its own evidence checks.
+  const self = readFileSync(fileURLToPath(import.meta.url), 'utf8');
+  assert.deepEqual(findWorkMarkers(self), []);
+  assert.ok(
+    !/throw\s+new\s+Error\s*\(\s*['"`]not implemented/i.test(self) &&
+      !/\b(?:it|test|describe)\.(?:skip|only)\s*\(/.test(self),
   );
   console.log(
-    'Ledger self-test passed: extraction, pending release rejection, missing evidence, missing requirements, traversal, failed command, source drift, runtime stub, skipped test.',
+    'Ledger self-test passed: extraction, pending release rejection, missing evidence, missing requirements, traversal, failed command, source drift, runtime stub, skipped test, unfinished-work markers.',
   );
 }
 
