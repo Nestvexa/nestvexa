@@ -298,8 +298,36 @@ declare class NestvexaExtensionHost implements OnModuleInit, OnApplicationShutdo
     private readonly context;
     constructor(capabilities: FeatureCapabilityRegistry, security: SecurityPolicyRegistry, diagnostics: DiagnosticsRegistry, context: RequestContextFactory, extensions?: readonly NestvexaExtension[] | null);
     names(): readonly string[];
+    describe(): readonly {
+        readonly name: string;
+        readonly version?: string;
+    }[];
     onModuleInit(): Promise<void>;
     onApplicationShutdown(): Promise<void>;
+}
+
+// NestvexaFeature
+interface NestvexaFeature {
+    readonly name: string;
+    readonly package: string;
+    readonly version?: string;
+    readonly components?: readonly string[];
+    readonly actions?: readonly string[];
+    readonly views?: readonly string[];
+    readonly renderers?: readonly string[];
+    readonly capabilities?: Readonly<Record<string, FeatureCapability>>;
+}
+
+// NestvexaFeatureReport
+interface NestvexaFeatureReport {
+    readonly name: string;
+    readonly package: string;
+    readonly version?: string;
+    readonly components: readonly string[];
+    readonly actions: readonly string[];
+    readonly views: readonly string[];
+    readonly renderers: readonly string[];
+    readonly capabilities: Readonly<Record<string, FeatureCapability>>;
 }
 
 // NestvexaLiveClient
@@ -312,6 +340,8 @@ interface NestvexaOptions {
         readonly root?: string;
         readonly cache?: boolean;
         readonly layout?: string | false;
+        readonly namespaces?: Readonly<Record<string, string>>;
+        readonly themes?: Readonly<Record<string, string>>;
     };
     readonly live?: {
         readonly enabled?: boolean;
@@ -346,6 +376,40 @@ interface NestvexaPluginManifest {
     readonly description?: string;
 }
 
+// NestvexaPluginReport
+interface NestvexaPluginReport {
+    readonly name: string;
+    readonly version?: string;
+}
+
+// NestvexaRegistry
+declare class NestvexaRegistry implements OnApplicationBootstrap {
+    #private;
+    private readonly capabilities;
+    private readonly extensions;
+    constructor(capabilities: FeatureCapabilityRegistry, extensions?: NestvexaExtensionHost | null);
+    registerFeature(feature: NestvexaFeature): void;
+    has(name: string): boolean;
+    get(name: string): NestvexaFeatureReport;
+    features(): readonly NestvexaFeatureReport[];
+    components(): readonly string[];
+    actions(): readonly string[];
+    views(): readonly string[];
+    renderers(): readonly string[];
+    plugins(): readonly NestvexaPluginReport[];
+    require(name: string): void;
+    report(): NestvexaRegistryReport;
+    seal(): void;
+    get sealed(): boolean;
+    onApplicationBootstrap(): void;
+}
+
+// NestvexaRegistryReport
+interface NestvexaRegistryReport {
+    readonly features: readonly NestvexaFeatureReport[];
+    readonly plugins: readonly NestvexaPluginReport[];
+}
+
 // NestvexaRequestContext
 interface NestvexaRequestContext {
     readonly correlationId: string;
@@ -364,6 +428,8 @@ interface NormalizedNestvexaOptions {
         readonly root: string;
         readonly cache: boolean;
         readonly layout: string | false;
+        readonly namespaces?: Readonly<Record<string, string>>;
+        readonly themes?: Readonly<Record<string, string>>;
     };
     readonly live: {
         readonly enabled: boolean;
@@ -462,6 +528,7 @@ declare class RequestContextFactory {
     contribute(name: string, contributor: RequestContextContributor): void;
     correlationId(request: object): string;
     create(request: object): Promise<NestvexaRequestContext>;
+    identity(request: object): Promise<RequestIdentity>;
 }
 
 // RequestContextOptions
@@ -471,6 +538,13 @@ interface RequestContextOptions {
     readonly resolveTenant?: (request: object) => string | undefined | Promise<string | undefined>;
     readonly resolveSession?: (request: object) => string | undefined | Promise<string | undefined>;
     readonly resolvePrincipal?: (request: object) => RequestPrincipal | undefined | Promise<RequestPrincipal | undefined>;
+}
+
+// RequestIdentity
+interface RequestIdentity {
+    readonly authenticated: boolean;
+    readonly principal?: RequestPrincipal;
+    readonly tenant?: string;
 }
 
 // RequestPrincipal
@@ -509,7 +583,7 @@ declare const SECURITY_POLICY_KINDS: readonly SecurityPolicyKind[];
 // SecurityPolicies
 interface SecurityPolicies {
     readonly csrf: {
-        verify(request: object, subject?: unknown): boolean | Promise<boolean>;
+        verify(request: object, subject?: unknown, token?: string): boolean | Promise<boolean>;
     };
     readonly origin: {
         allowed(origin: string | undefined): boolean;
@@ -520,7 +594,7 @@ interface SecurityPolicies {
         readonly bindsIdentity: true;
     };
     readonly 'action-authorization': {
-        authorize(subject: unknown, resource: string, action: string): boolean | Promise<boolean>;
+        authorize(subject: unknown, resource: string, action: string, request?: object): boolean | Promise<boolean>;
     };
     readonly 'upload-quota': {
         readonly maxFileBytes: number;
@@ -539,9 +613,9 @@ declare class SecurityPolicyRegistry {
     has(kind: SecurityPolicyKind, owner: string): boolean;
     get<Kind extends SecurityPolicyKind>(kind: Kind, owner: string): SecurityPolicies[Kind];
     require(owner: string, kinds: readonly SecurityPolicyKind[]): void;
-    verifyCsrf(owner: string, request: object, subject?: unknown): Promise<boolean>;
+    verifyCsrf(owner: string, request: object, subject?: unknown, token?: string): Promise<boolean>;
     originAllowed(owner: string, origin: string | undefined): boolean;
-    authorize(owner: string, subject: unknown, resource: string, action: string): Promise<boolean>;
+    authorize(owner: string, subject: unknown, resource: string, action: string, request?: object): Promise<boolean>;
     uploadAllowed(owner: string, sizes: readonly number[]): boolean;
     seal(): void;
     get sealed(): boolean;

@@ -12,13 +12,25 @@ Typings: `./dist/index.d.ts`
 // Cache
 declare class Cache {
     #private;
-    readonly store: CacheStore;
-    private readonly now;
-    private readonly onInvalidate?;
     readonly metrics: CacheMetrics;
-    constructor(store?: CacheStore, now?: () => number, onInvalidate?: ((tags: readonly string[]) => void | Promise<void>) | undefined);
+    readonly store: CacheStore;
+    constructor(storeOrConfig?: CacheStore | CacheConfig, now?: () => number, onInvalidate?: (tags: readonly string[]) => void | Promise<void>);
+    emit(event: CacheEvent): void;
     get<T>(parts: CacheKeyParts, options: CacheOptions, compute: () => Promise<T> | T): Promise<T>;
+    lookup<T>(parts: CacheKeyParts, options: CacheOptions, compute: () => Promise<T> | T): Promise<CacheLookup<T>>;
     invalidate(tags: readonly string[]): Promise<number>;
+}
+
+// cacheableJson
+declare function cacheableJson(value: unknown): string;
+
+// CacheConfig
+interface CacheConfig {
+    readonly store?: CacheStore;
+    readonly now?: () => number;
+    readonly onInvalidate?: (tags: readonly string[]) => void | Promise<void>;
+    readonly onEvent?: (event: CacheEvent) => void;
+    readonly instrumentation?: CacheInstrumentation;
 }
 
 // CacheEntry
@@ -29,6 +41,24 @@ interface CacheEntry<T> {
     readonly tags: readonly string[];
 }
 
+// CacheEvent
+interface CacheEvent {
+    readonly type: 'hit' | 'miss' | 'stale' | 'coalesced' | 'bypass' | 'refused' | 'discarded' | 'compute-error' | 'refresh-error' | 'store-error' | 'invalidate';
+    readonly namespace?: string;
+    readonly scope?: CacheScope['kind'];
+    readonly durationMs?: number;
+    readonly reason?: string;
+    readonly tags?: readonly string[];
+    readonly removed?: number;
+}
+
+// CacheInstrumentation
+interface CacheInstrumentation {
+    start(name: string, attributes: Readonly<Record<string, string | number | boolean>>): {
+        end(outcome: 'ok' | 'error', attributes?: Readonly<Record<string, string | number | boolean>>): void;
+    };
+}
+
 // cacheKey
 declare function cacheKey(parts: CacheKeyParts): string;
 
@@ -36,7 +66,13 @@ declare function cacheKey(parts: CacheKeyParts): string;
 interface CacheKeyParts {
     readonly scope: CacheScope;
     readonly namespace: string;
-    readonly vary?: Readonly<Record<string, string | number | boolean | null>>;
+    readonly vary?: Readonly<Record<string, CacheVaryValue>>;
+}
+
+// CacheLookup
+interface CacheLookup<T> {
+    readonly value: T;
+    readonly status: CacheStatus;
 }
 
 // CacheMetrics
@@ -45,6 +81,11 @@ interface CacheMetrics {
     misses: number;
     stale: number;
     coalesced: number;
+    bypassed: number;
+    refused: number;
+    discarded: number;
+    errors: number;
+    invalidations: number;
 }
 
 // CacheOptions
@@ -54,23 +95,44 @@ interface CacheOptions {
     readonly tags?: readonly string[];
 }
 
+// CacheRefusedError
+declare class CacheRefusedError extends Error {
+    readonly reason: string;
+    constructor(reason: string);
+}
+
 // CacheScope
 type CacheScope = {
     readonly kind: 'public';
+} | {
+    readonly kind: 'tenant';
+    readonly tenant: string;
 } | {
     readonly kind: 'private';
     readonly binding: string;
     readonly tenant?: string;
 };
 
+// CacheStatus
+type CacheStatus = 'hit' | 'miss' | 'stale' | 'coalesced' | 'bypass';
+
 // CacheStore
 interface CacheStore {
-    get<T>(key: string): CacheEntry<T> | undefined;
-    set<T>(key: string, entry: CacheEntry<T>): void;
-    delete(key: string): void;
-    invalidateTags(tags: readonly string[]): number;
-    clear(): void;
+    get<T>(key: string): Awaitable<CacheEntry<T> | undefined>;
+    set<T>(key: string, entry: CacheEntry<T>): Awaitable<void>;
+    delete(key: string): Awaitable<void>;
+    invalidateTags(tags: readonly string[]): Awaitable<number>;
+    clear(): Awaitable<void>;
 }
+
+// CacheVaryValue
+type CacheVaryValue = string | number | boolean | null;
+
+// canonicalVary
+declare function canonicalVary(vary: Readonly<Record<string, CacheVaryValue>> | undefined): string;
+
+// isCacheStore
+declare function isCacheStore(value: unknown): value is CacheStore;
 
 // MemoryCacheStore
 declare class MemoryCacheStore implements CacheStore {
@@ -86,6 +148,65 @@ declare class MemoryCacheStore implements CacheStore {
     get size(): number;
 }
 
+// RenderAudience
+type RenderAudience = 'public' | 'tenant' | 'private';
+
+// RenderCache
+declare class RenderCache {
+    #private;
+    readonly cache: Cache;
+    constructor(cache?: Cache, options?: RenderCacheOptions);
+    render(request: RenderCacheRequest, render: () => string | Promise<string>): Promise<RenderResult>;
+    invalidate(tags: readonly string[]): Promise<number>;
+}
+
+// RenderCacheContext
+interface RenderCacheContext {
+    readonly component: string;
+    readonly revision: string | number;
+    readonly renderer: string;
+    readonly locale: string;
+    readonly tenant: string | null;
+    readonly permissions: readonly string[];
+    readonly assetVersion: string;
+    readonly vary?: Readonly<Record<string, CacheVaryValue>>;
+}
+
+// renderCacheKey
+declare function renderCacheKey(request: RenderCacheRequest): string;
+
+// RenderCacheOptions
+interface RenderCacheOptions {
+    readonly cachePrivate?: boolean;
+}
+
+// renderCacheParts
+declare function renderCacheParts(request: RenderCacheRequest): CacheKeyParts;
+
+// RenderCacheRequest
+interface RenderCacheRequest extends RenderCacheContext {
+    readonly audience: RenderAudience;
+    readonly binding?: string;
+    readonly ttlMs: number;
+    readonly staleWhileRevalidateMs?: number;
+    readonly tags?: readonly string[];
+}
+
+// RenderResult
+interface RenderResult {
+    readonly html: string;
+    readonly status: CacheStatus;
+}
+
 // tagChannel
 declare function tagChannel(tag: string): string;
+```
+
+## Referenced but not exported
+
+Public signatures use these declarations; changing them changes the public API.
+
+```ts
+// Awaitable (dist/store.d.ts)
+type Awaitable<T> = T | Promise<T>;
 ```

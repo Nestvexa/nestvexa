@@ -28,7 +28,12 @@ export { ComponentOptions } from '@nestvexa/live'; // see its report
 export { Computed } from '@nestvexa/live'; // see its report
 export { ComputedOptions } from '@nestvexa/live'; // see its report
 // configureNestvexa
-declare function configureNestvexa(app: INestApplication): Promise<void>;
+declare function configureNestvexa(app: INestApplication, options?: ConfigureNestvexaOptions): Promise<void>;
+
+// ConfigureNestvexaOptions
+interface ConfigureNestvexaOptions {
+    readonly errorPages?: NestvexaErrorPageOptions;
+}
 
 export { consumeLiveFlash } from '@nestvexa/live'; // see its report
 export { ContextValue } from '@nestvexa/core'; // see its report
@@ -44,6 +49,7 @@ export { DEFAULT_SENSITIVE_KEYS } from '@nestvexa/core'; // see its report
 export { defineExtension } from '@nestvexa/core'; // see its report
 export { definePlugin } from '@nestvexa/core'; // see its report
 export { defineSynthesizer } from '@nestvexa/live'; // see its report
+export { DependsOn } from '@nestvexa/live'; // see its report
 export { describeLiveState } from '@nestvexa/live'; // see its report
 export { DiagnosticAttributes } from '@nestvexa/core'; // see its report
 export { DiagnosticDefinition } from '@nestvexa/core'; // see its report
@@ -97,6 +103,7 @@ export { liveBindingHash } from '@nestvexa/live'; // see its report
 export { LiveCapability } from '@nestvexa/live'; // see its report
 export { LiveComponent } from '@nestvexa/live'; // see its report
 export { LiveComponentDescription } from '@nestvexa/live'; // see its report
+export { LiveDependency } from '@nestvexa/live'; // see its report
 export { liveDomainEvent } from '@nestvexa/live'; // see its report
 export { LiveDomainEventMessage } from '@nestvexa/live'; // see its report
 export { LiveErrorCode } from '@nestvexa/live'; // see its report
@@ -104,9 +111,13 @@ export { LiveErrorDescription } from '@nestvexa/live'; // see its report
 export { LiveErrorRecovery } from '@nestvexa/live'; // see its report
 export { LiveEvent } from '@nestvexa/live'; // see its report
 export { LiveEvents } from '@nestvexa/live'; // see its report
+export { LiveFeatureRegistry } from '@nestvexa/live'; // see its report
 export { LiveHostOptions } from '@nestvexa/live'; // see its report
 export { LiveIdentity } from '@nestvexa/live'; // see its report
 export { LiveInspector } from '@nestvexa/live'; // see its report
+export { LiveKernelIdentity } from '@nestvexa/live'; // see its report
+export { LiveKernelIdentitySource } from '@nestvexa/live'; // see its report
+export { LiveKernelPrincipal } from '@nestvexa/live'; // see its report
 export { LiveLifecycleHooks } from '@nestvexa/live'; // see its report
 export { LiveModule } from '@nestvexa/live'; // see its report
 export { LiveModuleAsyncOptions } from '@nestvexa/live'; // see its report
@@ -124,6 +135,9 @@ export { LiveSecurityPolicies } from '@nestvexa/live'; // see its report
 export { LiveStateDescription } from '@nestvexa/live'; // see its report
 export { LiveStateStore } from '@nestvexa/live'; // see its report
 export { liveStateUnavailable } from '@nestvexa/live'; // see its report
+export { liveTagChannel } from '@nestvexa/live'; // see its report
+export { LiveTagListener } from '@nestvexa/live'; // see its report
+export { LiveTags } from '@nestvexa/live'; // see its report
 export { LiveTransactionCallback } from '@nestvexa/live'; // see its report
 export { LiveTransactionCommit } from '@nestvexa/live'; // see its report
 export { LiveTransactionResult } from '@nestvexa/live'; // see its report
@@ -185,19 +199,25 @@ export { NestvexaConfigService } from '@nestvexa/core'; // see its report
 export { NestvexaError } from '@nestvexa/core'; // see its report
 export { NestvexaErrorBody } from '@nestvexa/core'; // see its report
 export { NestvexaErrorCode } from '@nestvexa/core'; // see its report
+// NestvexaErrorPageOptions
+type NestvexaErrorPageOptions = Omit<ViewErrorPageFilterOptions, 'render'>;
+
 export { NestvexaExceptionFilter } from '@nestvexa/core'; // see its report
 export { NestvexaExtension } from '@nestvexa/core'; // see its report
 export { NestvexaExtensionContext } from '@nestvexa/core'; // see its report
 export { NestvexaExtensionHost } from '@nestvexa/core'; // see its report
+export { NestvexaFeature } from '@nestvexa/core'; // see its report
+export { NestvexaFeatureReport } from '@nestvexa/core'; // see its report
 export { NestvexaLiveClient } from '@nestvexa/core'; // see its report
 // NestvexaLiveOptions
 interface NestvexaLiveOptions<Dependencies extends unknown[] = unknown[]> extends Omit<LiveModuleAsyncOptions<Dependencies>, 'useFactory'> {
     readonly browser?: NestvexaBrowserOptions;
+    readonly kernelIdentity?: boolean;
     readonly useFactory: (...dependencies: Dependencies) => NestvexaLivePolicies | Promise<NestvexaLivePolicies>;
 }
 
 // NestvexaLivePolicies
-type NestvexaLivePolicies = Omit<LiveRuntimeFactoryOptions, 'renderer' | 'policies' | 'policyOwner' | 'requestContext'>;
+type NestvexaLivePolicies = Omit<LiveRuntimeFactoryOptions, 'renderer' | 'policies' | 'policyOwner' | 'requestContext' | 'kernelIdentity' | 'featureRegistry'>;
 
 // NestvexaModule
 declare class NestvexaModule {
@@ -210,6 +230,9 @@ export { NestvexaOptionsFactory } from '@nestvexa/core'; // see its report
 export { nestvexaOptionsFromEnvironment } from '@nestvexa/core'; // see its report
 export { NestvexaPlugin } from '@nestvexa/core'; // see its report
 export { NestvexaPluginManifest } from '@nestvexa/core'; // see its report
+export { NestvexaPluginReport } from '@nestvexa/core'; // see its report
+export { NestvexaRegistry } from '@nestvexa/core'; // see its report
+export { NestvexaRegistryReport } from '@nestvexa/core'; // see its report
 export { NestvexaRequestContext } from '@nestvexa/core'; // see its report
 // NestvexaViewContextInterceptor
 declare class NestvexaViewContextInterceptor implements NestInterceptor {
@@ -262,6 +285,7 @@ export { RenderOptions } from '@nestvexa/views'; // see its report
 export { RequestContextContributor } from '@nestvexa/core'; // see its report
 export { RequestContextFactory } from '@nestvexa/core'; // see its report
 export { RequestContextOptions } from '@nestvexa/core'; // see its report
+export { RequestIdentity } from '@nestvexa/core'; // see its report
 export { RequestPrincipal } from '@nestvexa/core'; // see its report
 export { resolveTemplateReference } from '@nestvexa/views'; // see its report
 export { RouteDefinition } from '@nestvexa/core'; // see its report

@@ -149,6 +149,22 @@ interface ActionFailureEnvelope {
     readonly error: ActionErrorBody;
 }
 
+// ActionFeatureRegistry
+interface ActionFeatureRegistry {
+    registerFeature(feature: {
+        readonly name: string;
+        readonly package: string;
+        readonly actions: readonly string[];
+        readonly capabilities: Readonly<Record<string, {
+            readonly supported: true;
+            readonly degraded?: string;
+        } | {
+            readonly supported: false;
+            readonly reason: string;
+        }>>;
+    }): void;
+}
+
 // ActionGroup
 declare function ActionGroup(id: string): ClassDecorator;
 
@@ -181,6 +197,7 @@ interface ActionIdentity {
     readonly subject: string;
     readonly tenant?: string;
     readonly csrfToken?: string;
+    readonly principal?: ActionKernelPrincipal;
 }
 
 // ActionInput
@@ -259,6 +276,23 @@ interface ActionJobTicket {
     };
 }
 
+// ActionKernelIdentity
+interface ActionKernelIdentity {
+    readonly principal?: ActionKernelPrincipal;
+    readonly tenant?: string;
+}
+
+// ActionKernelIdentitySource
+interface ActionKernelIdentitySource {
+    identity(request: object): PromiseLike<unknown>;
+}
+
+// ActionKernelPrincipal
+interface ActionKernelPrincipal {
+    readonly id: string;
+    readonly roles?: readonly string[];
+}
+
 // actionKey
 declare function actionKey(id: string, version: number | null): string;
 
@@ -281,6 +315,19 @@ interface ActionNotification {
 // ActionNotificationLevel
 type ActionNotificationLevel = 'info' | 'success' | 'warning' | 'error';
 
+// ActionPolicyKind
+type ActionPolicyKind = 'origin' | 'csrf' | 'action-authorization';
+
+// ActionPolicyRegistry
+interface ActionPolicyRegistry {
+    register(kind: 'origin', owner: string, policy: ActionSecurityPolicies['origin']): void;
+    register(kind: 'csrf', owner: string, policy: NonNullable<ActionSecurityPolicies['csrf']>): void;
+    register(kind: 'action-authorization', owner: string, policy: ActionSecurityPolicies['action-authorization']): void;
+    originAllowed(owner: string, origin: string | undefined): boolean;
+    verifyCsrf(owner: string, request: object, subject?: unknown, token?: string): boolean | Promise<boolean>;
+    authorize(owner: string, subject: unknown, resource: string, action: string, request?: object): boolean | Promise<boolean>;
+}
+
 // ActionRateLimit
 type ActionRateLimit = (context: ActionRateLimitContext) => boolean | Promise<boolean>;
 
@@ -295,6 +342,9 @@ interface ActionRateLimitContext {
 interface ActionRedirect {
     readonly location: string;
 }
+
+// actionReference
+declare function actionReference(descriptor: ActionDescriptor): string;
 
 // ActionResult
 declare class ActionResult<T> {
@@ -335,6 +385,28 @@ type ActionSchemaParseResult<T> = {
     };
 };
 
+// actionSecurityPolicies
+declare function actionSecurityPolicies(options: {
+    readonly origins: ReadonlySet<string>;
+    readonly csrfRequired: boolean;
+    readonly csrfHeader: string;
+    readonly authorize: (identity: ActionIdentity, descriptor: ActionDescriptor, request: object) => boolean | Promise<boolean>;
+    readonly descriptor: (group: string, reference: string) => ActionDescriptor | undefined;
+}): ActionSecurityPolicies;
+
+// ActionSecurityPolicies
+interface ActionSecurityPolicies {
+    readonly origin: {
+        allowed(origin: string | undefined): boolean;
+    };
+    readonly csrf?: {
+        verify(request: object, subject?: unknown, token?: string): boolean | Promise<boolean>;
+    };
+    readonly 'action-authorization': {
+        authorize(subject: unknown, resource: string, action: string, request?: object): boolean | Promise<boolean>;
+    };
+}
+
 // ActionsErrorEnvelopeMode
 type ActionsErrorEnvelopeMode = 'actions' | 'host';
 
@@ -355,6 +427,10 @@ interface ActionsHostOptions {
     readonly requestContext?: {
         correlationId(request: object): string;
     };
+    readonly policies?: ActionPolicyRegistry;
+    readonly policyOwner?: string;
+    readonly kernelIdentity?: ActionKernelIdentitySource;
+    readonly featureRegistry?: ActionFeatureRegistry;
 }
 
 // ActionSignal
@@ -1078,5 +1154,9 @@ interface NormalizedActionsOptions {
     readonly jobOwner: ActionJobsOptions['owner'];
     readonly jobPollAfterMs: number;
     readonly requestContext: ActionsHostOptions['requestContext'];
+    readonly policies: ActionPolicyRegistry | undefined;
+    readonly policyOwner: string;
+    readonly kernelIdentity: ActionKernelIdentitySource | undefined;
+    readonly featureRegistry: ActionFeatureRegistry | undefined;
 }
 ```

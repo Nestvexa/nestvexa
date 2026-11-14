@@ -27,6 +27,8 @@ declare class RedisLiveStore implements LiveStateStore, LiveActionCoordination {
     peek(token: string, binding: string): Promise<StateSnapshot>;
     transaction(token: string, binding: string, revision: number, callback: LiveTransactionCallback): Promise<LiveTransactionResult>;
     revoke(binding: string): Promise<void>;
+    revokeTenant(tenant: string): Promise<number>;
+    revokeUser(tenant: string, user: string): Promise<number>;
     delete(token: string): Promise<boolean>;
     readReplay(key: string): Promise<string | undefined>;
     writeReplay(key: string, value: string, ttlMs: number): Promise<void>;
@@ -38,6 +40,7 @@ declare class RedisLiveStore implements LiveStateStore, LiveActionCoordination {
 // RedisLiveStoreOptions
 interface RedisLiveStoreOptions extends RespConnectionOptions {
     readonly prefix?: string;
+    readonly namespace?: (binding: string) => RedisLiveNamespace;
     readonly ttlMs?: number;
     readonly lockTtlMs?: number;
     readonly maxEntriesPerBinding?: number;
@@ -123,4 +126,16 @@ interface RedisPresenceStoreOptions extends RespConnectionOptions {
 
 export { RespRealtimeBroker as RedisRealtimeBroker } from '@nestvexa/realtime'; // see its report
 export { RespBrokerOptions as RedisRealtimeBrokerOptions } from '@nestvexa/realtime'; // see its report
+```
+
+## Referenced but not exported
+
+Public signatures use these declarations; changing them changes the public API.
+
+```ts
+// RedisLiveNamespace (dist/live-store.d.ts)
+interface RedisLiveNamespace {
+    readonly tenant: string;
+    readonly user?: string;
+}
 ```

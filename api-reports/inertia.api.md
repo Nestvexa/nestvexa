@@ -123,6 +123,21 @@ declare class InertiaConfigurationError extends Error {
 // InertiaErrors
 type InertiaErrors = Readonly<Record<string, string | readonly string[]>>;
 
+// InertiaFeatureRegistry
+interface InertiaFeatureRegistry {
+    registerFeature(feature: {
+        readonly name: string;
+        readonly package: string;
+        readonly capabilities: Readonly<Record<string, {
+            readonly supported: true;
+            readonly degraded?: string;
+        } | {
+            readonly supported: false;
+            readonly reason: string;
+        }>>;
+    }): void;
+}
+
 // InertiaHeader
 declare const InertiaHeader: Readonly<{
     readonly inertia: "X-Inertia";
@@ -169,6 +184,23 @@ declare class InertiaInterceptor implements NestInterceptor {
     private readonly moduleRef?;
     constructor(inertia: InertiaService, reflector: Reflector, moduleRef?: ModuleRef | undefined);
     intercept(context: ExecutionContext, next: CallHandler): Observable<unknown>;
+}
+
+// InertiaKernelIdentity
+interface InertiaKernelIdentity {
+    readonly principal?: InertiaKernelPrincipal;
+    readonly tenant?: string;
+}
+
+// InertiaKernelIdentitySource
+interface InertiaKernelIdentitySource {
+    identity(request: object): PromiseLike<unknown>;
+}
+
+// InertiaKernelPrincipal
+interface InertiaKernelPrincipal {
+    readonly id: string;
+    readonly roles?: readonly string[];
 }
 
 // InertiaLocationResult
@@ -221,6 +253,11 @@ interface InertiaModuleOptions extends InertiaAppOptions {
     readonly instrumentation?: InertiaInstrumentation;
     readonly emptyResponse?: 'back' | 'passthrough';
     readonly previousUrl?: boolean;
+    readonly security?: InertiaSecurityOptions;
+    readonly policies?: InertiaPolicyRegistry;
+    readonly policyOwner?: string;
+    readonly kernelIdentity?: InertiaKernelIdentitySource;
+    readonly featureRegistry?: InertiaFeatureRegistry;
 }
 
 // InertiaPage
@@ -265,6 +302,19 @@ declare class InertiaPageResult {
     readonly props: Readonly<Record<string, unknown>>;
     readonly options: InertiaRenderOptions;
     constructor(component: string, props: Readonly<Record<string, unknown>>, options?: InertiaRenderOptions);
+}
+
+// InertiaPolicyKind
+type InertiaPolicyKind = 'origin' | 'csrf' | 'action-authorization';
+
+// InertiaPolicyRegistry
+interface InertiaPolicyRegistry {
+    register(kind: 'origin', owner: string, policy: InertiaSecurityPolicies['origin']): void;
+    register(kind: 'csrf', owner: string, policy: InertiaSecurityPolicies['csrf']): void;
+    register(kind: 'action-authorization', owner: string, policy: InertiaSecurityPolicies['action-authorization']): void;
+    originAllowed(owner: string, origin: string | undefined): boolean;
+    verifyCsrf(owner: string, request: object, subject?: unknown, token?: string): boolean | Promise<boolean>;
+    authorize(owner: string, subject: unknown, resource: string, action: string, request?: object): boolean | Promise<boolean>;
 }
 
 // InertiaProp
@@ -351,6 +401,36 @@ interface InertiaRootContext {
 // InertiaRootView
 type InertiaRootView = (context: InertiaRootContext) => string | Promise<string>;
 
+// InertiaSecurityGuard
+declare class InertiaSecurityGuard implements CanActivate {
+    private readonly inertia;
+    constructor(inertia: InertiaService);
+    canActivate(context: ExecutionContext): Promise<boolean>;
+}
+
+// InertiaSecurityOptions
+interface InertiaSecurityOptions {
+    readonly origin: string | readonly string[];
+    readonly csrfToken: (request: object) => string | undefined | PromiseLike<string | undefined>;
+    readonly authorize?: (identity: InertiaKernelIdentity, component: string, request: object) => boolean | PromiseLike<boolean>;
+}
+
+// inertiaSecurityPolicies
+declare function inertiaSecurityPolicies(options: InertiaSecurityOptions): InertiaSecurityPolicies;
+
+// InertiaSecurityPolicies
+interface InertiaSecurityPolicies {
+    readonly origin: {
+        allowed(origin: string | undefined): boolean;
+    };
+    readonly csrf: {
+        verify(request: object, subject?: unknown, token?: string): boolean | Promise<boolean>;
+    };
+    readonly 'action-authorization': {
+        authorize(subject: unknown, resource: string, action: string, request?: object): boolean | Promise<boolean>;
+    };
+}
+
 // InertiaSerializationError
 declare class InertiaSerializationError extends Error {
     readonly path: string;
@@ -361,6 +441,8 @@ declare class InertiaSerializationError extends Error {
 declare class InertiaService {
     #private;
     constructor(options: ResolvedOptions, host?: HttpAdapterHost);
+    kernelIdentity(request: object): Promise<InertiaKernelIdentity>;
+    admit(request: object): Promise<void>;
     claim(request: object): boolean;
     requestInfo(request: object): InertiaRequestInfo;
     isInertia(request: object): boolean;
@@ -509,6 +591,9 @@ declare function isPrecognitionRequest(request: object): boolean;
 type JsonValue = null | boolean | number | string | JsonValue[] | {
     [key: string]: JsonValue;
 };
+
+// KERNEL_IDENTITY_PROP
+declare const KERNEL_IDENTITY_PROP = "nvIdentity";
 
 // Lazy
 type Lazy<T> = T | (() => T | PromiseLike<T>);
@@ -678,6 +763,11 @@ interface ResolvedOptions {
     readonly instrumentation: InertiaInstrumentation | undefined;
     readonly emptyResponse: 'back' | 'passthrough';
     readonly previousUrl: boolean;
+    readonly security: InertiaSecurityPolicies | undefined;
+    readonly policies: InertiaPolicyRegistry | undefined;
+    readonly policyOwner: string;
+    readonly kernelIdentity: InertiaKernelIdentitySource | undefined;
+    readonly featureRegistry: InertiaFeatureRegistry | undefined;
 }
 
 // resolveOptions

@@ -95,6 +95,18 @@ interface DevtoolsDiagnostic {
     readonly outcome?: 'ok' | 'error';
 }
 
+// DevtoolsFeature
+interface DevtoolsFeature {
+    readonly name: string;
+    readonly package: string;
+    readonly version?: string;
+    readonly components: readonly string[];
+    readonly actions: readonly string[];
+    readonly views: readonly string[];
+    readonly renderers: readonly string[];
+    readonly capabilities: readonly string[];
+}
+
 // DevtoolsInspector
 declare class DevtoolsInspector {
     #private;
@@ -118,12 +130,29 @@ interface DevtoolsKernelSnapshot {
     readonly policies: DevtoolsPolicyReport;
     readonly capabilities: Readonly<Record<string, DevtoolsCapability>>;
     readonly diagnostics: readonly DevtoolsDiagnostic[];
+    readonly features: readonly DevtoolsFeature[];
+    readonly plugins: readonly DevtoolsPlugin[];
 }
 
 // DevtoolsKernelSource
 interface DevtoolsKernelSource {
     readonly diagnostics?: {
         recent(): readonly DevtoolsDiagnostic[];
+    };
+    readonly features?: {
+        report(): {
+            readonly features: readonly {
+                readonly name: string;
+                readonly package: string;
+                readonly version?: string;
+                readonly components: readonly string[];
+                readonly actions: readonly string[];
+                readonly views: readonly string[];
+                readonly renderers: readonly string[];
+                readonly capabilities: Readonly<Record<string, unknown>>;
+            }[];
+            readonly plugins: readonly DevtoolsPlugin[];
+        };
     };
     readonly security?: {
         report(): DevtoolsPolicyReport;
@@ -156,6 +185,12 @@ interface DevtoolsOptions {
     readonly path?: string;
     readonly environment?: string;
     readonly kernel?: DevtoolsKernelSource;
+}
+
+// DevtoolsPlugin
+interface DevtoolsPlugin {
+    readonly name: string;
+    readonly version?: string;
 }
 
 // DevtoolsPolicyReport
@@ -220,7 +255,7 @@ interface InspectedRender {
     readonly at: number;
     readonly requestId?: string;
     readonly component: string;
-    readonly cause: 'mount' | 'action' | 'sync';
+    readonly cause: 'mount' | 'action' | 'sync' | 'refresh';
     readonly action?: string;
     readonly fields: readonly string[];
     readonly revision: number;
@@ -236,7 +271,7 @@ interface InspectedRender {
 // InspectedRenderInput
 interface InspectedRenderInput {
     readonly component: string;
-    readonly cause: 'mount' | 'action' | 'sync';
+    readonly cause: 'mount' | 'action' | 'sync' | 'refresh';
     readonly action?: string;
     readonly fields: readonly string[];
     readonly revision: number;

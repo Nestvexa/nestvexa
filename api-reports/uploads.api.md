@@ -360,11 +360,27 @@ declare class UploadError extends HttpException {
 // UploadErrorCode
 type UploadErrorCode = 'ORIGIN_REJECTED' | 'CSRF_REJECTED' | 'IDENTITY_REQUIRED' | 'UPLOAD_FORBIDDEN' | 'RATE_LIMIT' | 'UNKNOWN_PURPOSE' | 'CONTENT_TYPE' | 'CONTENT_ENCODING' | 'LENGTH_REQUIRED' | 'INVALID_REQUEST' | 'INVALID_FILENAME' | 'MISSING_EXTENSION' | 'DANGEROUS_EXTENSION' | 'TYPE_NOT_ALLOWED' | 'MIME_MISMATCH' | 'CONTENT_MISMATCH' | 'DANGEROUS_CONTENT' | 'EMPTY_FILE' | 'FILE_TOO_LARGE' | 'TOO_MANY_FILES' | 'QUOTA_EXCEEDED' | 'CONCURRENCY_LIMIT' | 'SIZE_MISMATCH' | 'UPLOAD_INTERRUPTED' | 'UPLOAD_TIMEOUT' | 'INVALID_UPLOAD_TOKEN' | 'UPLOAD_NOT_FOUND' | 'UPLOAD_EXPIRED' | 'UPLOAD_BUSY' | 'UPLOAD_ALREADY_FINALIZED' | 'PURPOSE_MISMATCH' | 'UPLOAD_TAMPERED' | 'UPLOAD_INCOMPLETE' | 'CHUNK_OUT_OF_ORDER' | 'CHUNK_ALREADY_RECEIVED' | 'CHUNK_OFFSET' | 'CHUNK_SIZE' | 'CHUNK_DIGEST' | 'DIGEST_MISMATCH' | 'DIRECT_UPLOAD_UNAVAILABLE' | 'UPLOAD_INFECTED' | 'SCAN_FAILED' | 'SCANNER_REQUIRED' | 'STORAGE_FAILED' | 'UPLOADS_SHUTDOWN' | 'HTTP_ADAPTER';
 
+// UploadFeatureRegistry
+interface UploadFeatureRegistry {
+    registerFeature(feature: {
+        readonly name: string;
+        readonly package: string;
+        readonly capabilities: Readonly<Record<string, {
+            readonly supported: true;
+            readonly degraded?: string;
+        } | {
+            readonly supported: false;
+            readonly reason: string;
+        }>>;
+    }): void;
+}
+
 // UploadIdentity
 interface UploadIdentity {
     readonly binding: string;
     readonly csrfToken: string;
     readonly tenant?: string;
+    readonly principal?: UploadKernelPrincipal;
 }
 
 // UploadInstrumentation
@@ -372,6 +388,23 @@ interface UploadInstrumentation {
     start(name: string, attributes: UploadSpanAttributes): {
         end(outcome: 'ok' | 'error', attributes?: UploadSpanAttributes): void;
     };
+}
+
+// UploadKernelIdentity
+interface UploadKernelIdentity {
+    readonly principal?: UploadKernelPrincipal;
+    readonly tenant?: string;
+}
+
+// UploadKernelIdentitySource
+interface UploadKernelIdentitySource {
+    identity(request: object): PromiseLike<unknown>;
+}
+
+// UploadKernelPrincipal
+interface UploadKernelPrincipal {
+    readonly id: string;
+    readonly roles?: readonly string[];
 }
 
 // UploadOperation
@@ -387,7 +420,7 @@ interface UploadPolicyRegistry {
     register(kind: 'action-authorization', owner: string, policy: UploadSecurityPolicies['action-authorization']): void;
     register(kind: 'upload-quota', owner: string, policy: UploadSecurityPolicies['upload-quota']): void;
     originAllowed(owner: string, origin: string | undefined): boolean;
-    verifyCsrf(owner: string, request: object, subject?: unknown): boolean | Promise<boolean>;
+    verifyCsrf(owner: string, request: object, subject?: unknown, token?: string): boolean | Promise<boolean>;
     authorize(owner: string, subject: unknown, resource: string, action: string): boolean | Promise<boolean>;
 }
 
@@ -450,7 +483,7 @@ interface UploadSecurityPolicies {
         allowed(origin: string | undefined): boolean;
     };
     readonly csrf: {
-        verify(request: object, subject?: unknown): boolean | Promise<boolean>;
+        verify(request: object, subject?: unknown, token?: string): boolean | Promise<boolean>;
     };
     readonly 'action-authorization': {
         authorize(subject: unknown, resource: string, action: string): boolean | Promise<boolean>;
@@ -481,6 +514,8 @@ interface UploadsHostOptions {
     readonly instrumentation?: UploadInstrumentation;
     readonly policies?: UploadPolicyRegistry;
     readonly policyOwner?: string;
+    readonly kernelIdentity?: UploadKernelIdentitySource;
+    readonly featureRegistry?: UploadFeatureRegistry;
 }
 
 // UploadsModule
@@ -656,6 +691,8 @@ interface ResolvedOptions {
     readonly instrumentation: UploadInstrumentation | undefined;
     readonly policies: UploadPolicyRegistry | undefined;
     readonly policyOwner: string;
+    readonly kernelIdentity: UploadKernelIdentitySource | undefined;
+    readonly featureRegistry: UploadFeatureRegistry | undefined;
 }
 
 // ResolvedPurpose (dist/options.d.ts)

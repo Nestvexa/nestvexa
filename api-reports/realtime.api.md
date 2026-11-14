@@ -237,6 +237,21 @@ interface RealtimeEvent {
     readonly data: unknown;
 }
 
+// RealtimeFeatureRegistry
+interface RealtimeFeatureRegistry {
+    registerFeature(feature: {
+        readonly name: string;
+        readonly package: string;
+        readonly capabilities: Readonly<Record<string, {
+            readonly supported: true;
+            readonly degraded?: string;
+        } | {
+            readonly supported: false;
+            readonly reason: string;
+        }>>;
+    }): void;
+}
+
 // RealtimeHandler
 type RealtimeHandler = (event: RealtimeEvent) => void;
 
@@ -266,11 +281,30 @@ declare class RealtimeHub {
 // RealtimeIdentity
 interface RealtimeIdentity {
     readonly binding: string;
+    readonly principal?: RealtimeKernelPrincipal;
+    readonly tenant?: string;
 }
 
 // RealtimeInstrumentation
 interface RealtimeInstrumentation {
     start(name: string, attributes: RealtimeSpanAttributes): RealtimeSpan;
+}
+
+// RealtimeKernelIdentity
+interface RealtimeKernelIdentity {
+    readonly principal?: RealtimeKernelPrincipal;
+    readonly tenant?: string;
+}
+
+// RealtimeKernelIdentitySource
+interface RealtimeKernelIdentitySource {
+    identity(request: object): PromiseLike<unknown>;
+}
+
+// RealtimeKernelPrincipal
+interface RealtimeKernelPrincipal {
+    readonly id: string;
+    readonly roles?: readonly string[];
 }
 
 // RealtimeModule
@@ -302,6 +336,8 @@ interface RealtimeModuleOptions {
     readonly tokenTtlMs?: number;
     readonly limits?: Partial<HubLimits>;
     readonly instrumentation?: RealtimeInstrumentation;
+    readonly kernelIdentity?: RealtimeKernelIdentitySource;
+    readonly featureRegistry?: RealtimeFeatureRegistry;
 }
 
 // RealtimePolicy
@@ -339,6 +375,7 @@ declare class RealtimeService implements BeforeApplicationShutdown, OnApplicatio
     }): Promise<RealtimeEvent>;
     presence(identity: RealtimeIdentity, channel: string): Promise<PresenceSnapshot>;
     sign(identity: RealtimeIdentity, channels: readonly string[]): Promise<string | undefined>;
+    identity<Request extends object>(request: Request, resolve: (request: Request) => RealtimeIdentity | Promise<RealtimeIdentity>): Promise<RealtimeIdentity>;
     revoke(binding: string): number;
     closeChannel(channel: string): void;
     beforeApplicationShutdown(): void;

@@ -130,8 +130,8 @@ interface LiveEvent {
 declare class LiveHttpError extends LiveClientError {
     readonly status: number;
     readonly reload: boolean;
-    readonly resync: boolean;
-    constructor(status: number, reload?: boolean, resync?: boolean);
+    readonly recovery?: string | null | undefined;
+    constructor(status: number, reload?: boolean, recovery?: string | null | undefined);
 }
 
 // LiveInspection
@@ -354,7 +354,16 @@ type BindingDirective = {
 } | {
     readonly kind: 'ref';
     readonly name: string;
+} | {
+    readonly kind: 'class';
+    readonly classes: readonly ClassBinding[];
 };
+
+// ClassBinding (dist/bindings.d.ts)
+interface ClassBinding {
+    readonly token: string;
+    readonly field: string;
+}
 
 // InitializationTiming (dist/initialization.d.ts)
 type InitializationTiming = 'eager' | 'visible' | 'idle';

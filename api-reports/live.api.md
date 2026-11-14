@@ -80,6 +80,9 @@ declare const DateSynthesizer: StateSynthesizer<Date>;
 // defineSynthesizer
 declare function defineSynthesizer<T>(definition: SynthesizerDefinition<T>): StateSynthesizer<T>;
 
+// DependsOn
+declare function DependsOn<T extends object = object>(...dependencies: readonly LiveDependency<T>[]): ClassDecorator;
+
 // describeLiveState
 declare function describeLiveState(component: object, field: string): LiveStateDescription | undefined;
 
@@ -162,6 +165,7 @@ declare const LIVE_ERROR_CODES: Readonly<{
     readonly COMPONENT_BUSY: LiveErrorDescription;
     readonly ACTION_BUSY: LiveErrorDescription;
     readonly IDEMPOTENCY_CONFLICT: LiveErrorDescription;
+    readonly REFRESH_CONFLICT: LiveErrorDescription;
     readonly STATE_SCHEMA_CHANGED: LiveErrorDescription;
     readonly REACTIVE_PROP_MUTATED: LiveErrorDescription;
     readonly ASSET_VERSION_MISMATCH: LiveErrorDescription;
@@ -180,6 +184,7 @@ declare const LIVE_ERROR_CODES: Readonly<{
     readonly STREAM_HTTP_ADAPTER: LiveErrorDescription;
     readonly DOWNLOAD_CAPACITY: LiveErrorDescription;
     readonly STORE_CAPACITY: LiveErrorDescription;
+    readonly STORE_UNAVAILABLE: LiveErrorDescription;
     readonly LIVE_SHUTDOWN: LiveErrorDescription;
     readonly STREAM_SHUTDOWN: LiveErrorDescription;
     readonly COMPUTED_TIMEOUT: LiveErrorDescription;
@@ -242,6 +247,9 @@ interface LiveComponentDescription {
     readonly realtime: boolean;
 }
 
+// LiveDependency
+type LiveDependency<T extends object = object> = string | ((component: T) => readonly string[]);
+
 // liveDomainEvent
 declare function liveDomainEvent(name: string, payload?: JsonValue): LiveDomainEventMessage;
 
@@ -281,6 +289,23 @@ declare class LiveEvents {
     private publisher;
 }
 
+// LiveFeatureRegistry
+interface LiveFeatureRegistry {
+    registerFeature(feature: {
+        readonly name: string;
+        readonly package: string;
+        readonly components: readonly string[];
+        readonly views: readonly string[];
+        readonly capabilities: Readonly<Record<string, {
+            readonly supported: true;
+            readonly degraded?: string;
+        } | {
+            readonly supported: false;
+            readonly reason: string;
+        }>>;
+    }): void;
+}
+
 // LiveHostOptions
 interface LiveHostOptions {
     readonly origin: string;
@@ -310,18 +335,39 @@ interface LiveHostOptions {
     readonly requestContext?: {
         correlationId(request: object): string;
     };
+    readonly kernelIdentity?: LiveKernelIdentitySource;
+    readonly featureRegistry?: LiveFeatureRegistry;
 }
 
 // LiveIdentity
 interface LiveIdentity {
     readonly binding: string;
     readonly csrfToken: string;
+    readonly principal?: LiveKernelPrincipal;
+    readonly tenant?: string;
 }
 
 // LiveInspector
 interface LiveInspector {
     registered?(components: readonly LiveComponentDescription[]): void;
     rendered?(inspection: LiveRenderInspection): void;
+}
+
+// LiveKernelIdentity
+interface LiveKernelIdentity {
+    readonly principal?: LiveKernelPrincipal;
+    readonly tenant?: string;
+}
+
+// LiveKernelIdentitySource
+interface LiveKernelIdentitySource {
+    identity(request: object): PromiseLike<unknown>;
+}
+
+// LiveKernelPrincipal
+interface LiveKernelPrincipal {
+    readonly id: string;
+    readonly roles?: readonly string[];
 }
 
 // LiveLifecycleHooks
@@ -392,7 +438,7 @@ interface LiveRenderContext {
 // LiveRenderInspection
 interface LiveRenderInspection {
     readonly component: string;
-    readonly cause: 'mount' | 'action' | 'sync';
+    readonly cause: 'mount' | 'action' | 'sync' | 'refresh';
     readonly action?: string;
     readonly fields: readonly string[];
     readonly revision: number;
@@ -453,6 +499,7 @@ declare class LiveRuntime implements OnApplicationShutdown {
     private mountUntraced;
     execute(request: object, input: unknown): Promise<unknown>;
     private executeUntraced;
+    private refresh;
     private storeDownload;
     download(request: object, component: ComponentDefinition, token: unknown): Promise<StreamableFile>;
     private validatedUpdates;
@@ -510,6 +557,22 @@ interface LiveStateStore {
 
 // liveStateUnavailable
 declare function liveStateUnavailable(): never;
+
+// liveTagChannel
+declare function liveTagChannel(tag: string): string;
+
+// LiveTagListener
+type LiveTagListener = (tags: readonly string[]) => Promise<void>;
+
+// LiveTags
+declare class LiveTags {
+    private readonly options;
+    constructor(options: RuntimeOptions);
+    get enabled(): boolean;
+    readonly listener: LiveTagListener;
+    invalidate(tags: readonly string[]): Promise<void>;
+    private publisher;
+}
 
 // LiveTransactionCallback
 type LiveTransactionCallback = (snapshot: StateSnapshot) => Promise<LiveTransactionCommit>;
@@ -798,6 +861,33 @@ declare const WRITABLE_PATH_LIMITS: Readonly<{
 }>;
 ```
 
+## `@nestvexa/live/testing`
+
+Typings: `./dist/testing.d.ts`
+
+```ts
+// liveStoreContract
+declare function liveStoreContract(factory: () => LiveStoreContractHarness | Promise<LiveStoreContractHarness>): readonly LiveStoreContractCase[];
+
+// LiveStoreContractCase
+interface LiveStoreContractCase {
+    readonly name: string;
+    run(): Promise<void>;
+}
+
+// LiveStoreContractHarness
+interface LiveStoreContractHarness {
+    store(options: {
+        readonly ttlMs: number;
+        readonly maxEntries?: number;
+    }): LiveStateStore | Promise<LiveStateStore>;
+    advance(ms: number): void;
+    readonly shared: boolean;
+    readonly boundsEntriesPerBinding: boolean;
+    dispose?(): void | Promise<void>;
+}
+```
+
 ## Referenced but not exported
 
 Public signatures use these declarations; changing them changes the public API.
@@ -827,6 +917,7 @@ interface ComponentDefinition {
     readonly props: ReadonlyMap<string, PropMode>;
     readonly listeners: ReadonlyMap<string, readonly string[]>;
     readonly realtime?: string;
+    readonly dependencies?: readonly LiveDependency[];
     readonly title?: string;
     readonly states: ReadonlyMap<string, StateOptions>;
     readonly computed: ReadonlyMap<string, ComputedDefinition>;
@@ -848,7 +939,7 @@ interface ComputedDefinition {
 type EnumValue = string | number;
 
 // Identity (dist/security-policies.d.ts)
-interface Identity {
+interface Identity extends LiveKernelIdentity {
     readonly binding: string;
     readonly csrfToken: string;
 }
