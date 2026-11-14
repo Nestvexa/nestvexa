@@ -4,6 +4,7 @@ import {
   CoreModule,
   DiagnosticsRegistry,
   NestvexaConfigService,
+  NestvexaRegistry,
   RequestContextFactory,
   SecurityPolicyRegistry,
 } from '@nestvexa/core';
@@ -41,13 +42,24 @@ export type { NestvexaBrowserOptions } from './browser.module.js';
  */
 export type NestvexaLivePolicies = Omit<
   LiveRuntimeFactoryOptions,
-  'renderer' | 'policies' | 'policyOwner' | 'requestContext'
+  | 'renderer'
+  | 'policies'
+  | 'policyOwner'
+  | 'requestContext'
+  | 'kernelIdentity'
+  | 'featureRegistry'
 >;
 /** Route structure is available synchronously, even when host policy configuration is async. */
 export interface NestvexaLiveOptions<
   Dependencies extends unknown[] = unknown[],
 > extends Omit<LiveModuleAsyncOptions<Dependencies>, 'useFactory'> {
   readonly browser?: NestvexaBrowserOptions;
+  /**
+   * Opt in to the kernel identity: Live attaches the `RequestContextFactory`
+   * principal and tenant to every identity its policies receive and scopes
+   * snapshots to them (`LiveHostOptions.kernelIdentity`). Default false.
+   */
+  readonly kernelIdentity?: boolean;
   readonly useFactory: (
     ...dependencies: Dependencies
   ) => NestvexaLivePolicies | Promise<NestvexaLivePolicies>;
@@ -95,9 +107,18 @@ function integrated<Dependencies extends unknown[]>(
       'inject',
       'useFactory',
       'browser',
+      'kernelIdentity',
     ],
     'umbrella Live registration',
   );
+  if (
+    live.kernelIdentity !== undefined &&
+    typeof live.kernelIdentity !== 'boolean'
+  )
+    throw new Error(
+      'Invalid umbrella Live kernelIdentity (expected a boolean)',
+    );
+  const kernelIdentity = live.kernelIdentity === true;
   const factory = live.useFactory;
   if (typeof factory !== 'function')
     throw new Error('Live policy useFactory is required');
@@ -113,6 +134,7 @@ function integrated<Dependencies extends unknown[]>(
       DiagnosticsRegistry,
       SecurityPolicyRegistry,
       RequestContextFactory,
+      NestvexaRegistry,
       ...Dependencies,
     ]
   >({
@@ -126,6 +148,7 @@ function integrated<Dependencies extends unknown[]>(
       DiagnosticsRegistry,
       SecurityPolicyRegistry,
       RequestContextFactory,
+      NestvexaRegistry,
       ...(live.inject ?? []),
     ],
     useFactory: async (
@@ -134,6 +157,7 @@ function integrated<Dependencies extends unknown[]>(
       diagnostics,
       security,
       context,
+      registry,
       ...dependencies
     ) => {
       if (!config.value.live.enabled)
@@ -178,6 +202,9 @@ function integrated<Dependencies extends unknown[]>(
         // origin, CSRF and authorization decision through this registry.
         policies: security,
         requestContext: context,
+        // Live lists its components and capabilities in the kernel registry.
+        featureRegistry: registry,
+        ...(kernelIdentity ? { kernelIdentity: context } : {}),
         renderer: engine,
       };
     },

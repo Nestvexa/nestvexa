@@ -6,7 +6,12 @@ import type {
   Provider,
 } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
-import { CoreModule, NestvexaConfigService } from '@nestvexa/core';
+import {
+  CoreModule,
+  NestvexaConfigService,
+  NestvexaRegistry,
+} from '@nestvexa/core';
+import type { FeatureCapability } from '@nestvexa/core';
 import { HbsEngine } from '@nestvexa/engine-hbs';
 import { resolve } from 'node:path';
 import {
@@ -21,10 +26,12 @@ function engineProvider(withLive: boolean): Provider {
     provide: HbsEngine,
     inject: [
       NestvexaConfigService,
+      NestvexaRegistry,
       ...(withLive ? [NestvexaBrowserService] : []),
     ],
     useFactory: (
       config: NestvexaConfigService,
+      registry: NestvexaRegistry,
       browser?: NestvexaBrowserService,
     ) => {
       const { views, live } = config.value;
@@ -42,7 +49,7 @@ function engineProvider(withLive: boolean): Provider {
           !config.value.security.requireAuthorizedActions)
       )
         throw new Error('Integrated Live requires CSRF and authorized actions');
-      return new HbsEngine({
+      const engine = new HbsEngine({
         root: views.root,
         cache: views.cache,
         ...(views.layout ? { defaultLayout: views.layout } : {}),
@@ -55,7 +62,30 @@ function engineProvider(withLive: boolean): Provider {
             }
           : {}),
       });
+      registry.registerFeature(viewsFeature(engine));
+      return engine;
     },
+  };
+}
+
+/** The default renderer and its declared capabilities, as a kernel feature. */
+function viewsFeature(engine: HbsEngine) {
+  const capabilities: Record<string, FeatureCapability> = {};
+  for (const [name, supported] of Object.entries(engine.capabilities))
+    capabilities[
+      `${engine.name}.${name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`
+    ] =
+      supported === true
+        ? { supported: true }
+        : {
+            supported: false,
+            reason: `Not supported by the ${engine.name} adapter`,
+          };
+  return {
+    name: 'views',
+    package: 'nestvexa',
+    renderers: [engine.name],
+    capabilities,
   };
 }
 
