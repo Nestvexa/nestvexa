@@ -236,3 +236,17 @@ showcase itself.
   while the host was saturated); the server start deadline (240 s) and the
   test timeouts were raised, and both browsers then passed.
 - Compose smoke run: see SHOWCASE-016 above.
+
+## After merging main (`bb1527b`)
+
+- The merge touched only `package.json` (resolved: main's scripts plus
+  `tests/showcase-scripts.test.ts` in `test:integration`) and
+  `pnpm-lock.yaml` (regenerated from main's lockfile with the showcase
+  importer; `pnpm install --frozen-lockfile` passes).
+  `git diff --name-only main HEAD` lists only showcase files, the three
+  showcase specs, the scripts test, the two guides, `packages/i18n/README.md`,
+  this report, `package.json` and `pnpm-lock.yaml`.
+- `pnpm --filter @nestvexa/example-showcase... build`: passes.
+- ESLint on the showcase and the new tests: passes.
+- Chromium against the merged build: `showcase-locale` 4/4,
+  `showcase-islands` 2/2, `showcase` 12/12.
