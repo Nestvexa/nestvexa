@@ -45,6 +45,15 @@ interface SessionRequest {
   body?: unknown;
 }
 const port = Number(process.env['PORT'] ?? 3860);
+/**
+ * The client build this server expects back from every Live request. A page
+ * rendered by another build (for example cached before a deploy) gets
+ * `409 ASSET_VERSION_MISMATCH` and the browser reloads it.
+ */
+const assetVersion = process.env['ASSET_VERSION'] ?? 'lab-build-1';
+// The leak checks mount hundreds of components per minute per session.
+const store = new MemoryLiveStore({ maxEntries: 50_000, ttlMs: 600_000 });
+const binding = (sessionID: string) => `guest-session:${sessionID}`;
 const root = fileURLToPath(new URL('../views', import.meta.url));
 const policy = [
   "default-src 'self'",
@@ -307,6 +316,25 @@ class LabPages {
   health() {
     return { status: 'ok' };
   }
+  /**
+   * Sign out: drop every Live state entry of this session, then the session
+   * itself. Open pages keep their DOM, but their next Live request is refused
+   * (no identity) and their old state references are gone for good.
+   */
+  @Post('logout')
+  async logout(@Req() request: SessionRequest) {
+    if (request.headers['origin'] !== `http://127.0.0.1:${port}`)
+      throw new ForbiddenException();
+    await store.revoke(binding(request.sessionID));
+    await new Promise<void>((resolve, reject) =>
+      request.session.destroy((error: unknown) =>
+        error
+          ? reject(error instanceof Error ? error : new Error('logout'))
+          : resolve(),
+      ),
+    );
+    return { signedOut: true };
+  }
   @Get('lab.css')
   @Header('Content-Type', 'text/css; charset=utf-8')
   styles() {
@@ -353,15 +381,15 @@ class LabPages {
         components: [LabCounter, LabListener, LabTicker, LabCell],
         useFactory: () => ({
           origin: `http://127.0.0.1:${port}`,
-          // The leak checks mount hundreds of components per minute per session.
           maxRequestsPerMinute: 5000,
-          store: new MemoryLiveStore({ maxEntries: 50_000, ttlMs: 600_000 }),
+          store,
+          assetVersion,
           resolveIdentity(request: object) {
             const value = request as Partial<SessionRequest>;
             if (!value.session?.csrf || !value.sessionID)
               throw new UnauthorizedException();
             return {
-              binding: `guest-session:${value.sessionID}`,
+              binding: binding(value.sessionID),
               csrfToken: value.session.csrf,
             };
           },
