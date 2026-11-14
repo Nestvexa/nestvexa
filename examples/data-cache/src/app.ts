@@ -16,8 +16,13 @@ import {
 } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { Cache, MemoryCacheStore, RenderCache } from '@nestvexa/cache';
-import type { CacheEvent, RenderCacheContext } from '@nestvexa/cache';
+import {
+  Cache,
+  FragmentCache,
+  MemoryCacheStore,
+  RenderCache,
+} from '@nestvexa/cache';
+import type { CacheEvent, FragmentRequest } from '@nestvexa/cache';
 import {
   Action,
   LiveComponent,
@@ -25,7 +30,6 @@ import {
   LiveRuntime,
   State,
 } from '@nestvexa/live';
-import { SafeHtml } from '@nestvexa/views';
 import session from 'express-session';
 import { HbsEngine, NestvexaModule, configureNestvexa } from 'nestvexa';
 import { NestvexaAssetsModule, NestvexaAssetsService } from 'nestvexa/assets';
@@ -178,79 +182,84 @@ export async function createDataCacheApp(
       const locale = negotiate(request);
       const text = messages[locale];
       const permissions = permissionsOf(current.role);
-      const context = (
-        component: string,
+      // Explicit scope and key inputs shared by every fragment of the page.
+      const scope = (
         tenant: string | null,
-      ): RenderCacheContext => ({
-        component,
-        revision: 'v1',
-        renderer: 'hbs',
-        locale,
-        tenant,
-        permissions,
+      ): Pick<
+        FragmentRequest,
+        'revision' | 'locale' | 'tenant' | 'permissions'
+      > => ({ revision: 'v1', locale, tenant, permissions });
+      const fragments = new FragmentCache({
+        engine: renderer,
+        renders: this.catalog.renders,
         assetVersion,
       });
-      // Shared by every user of the tenant with the same permission scope.
-      const catalog = await this.catalog.renders.render(
-        {
-          ...context('catalog', current.tenant),
+      const {
+        html: { catalog, footer, account },
+        status,
+      } = await fragments.renderAll({
+        // Shared by every user of the tenant with the same permission scope.
+        catalog: {
+          ...scope(current.tenant),
+          key: 'catalog',
+          view: 'catalog',
           audience: 'tenant',
           ttlMs: 60_000,
           staleWhileRevalidateMs: 30_000,
           tags: [`products:${current.tenant}`],
+          model: () => {
+            this.catalog.renderCounts.catalog++;
+            return {
+              title: text.catalog,
+              edit: text.edit,
+              canEdit: permissions.includes('products:write'),
+              products: this.catalog.products(current.tenant),
+              renderedAt: new Date().toISOString(),
+            };
+          },
         },
-        () => {
-          this.catalog.renderCounts.catalog++;
-          return renderer.render('catalog', {
-            title: text.catalog,
-            edit: text.edit,
-            canEdit: permissions.includes('products:write'),
-            products: this.catalog.products(current.tenant),
-            renderedAt: new Date().toISOString(),
-          });
-        },
-      );
-      // Identical for everyone: no tenant, no permissions.
-      const footer = await this.catalog.renders.render(
-        {
-          ...context('footer', null),
+        // Identical for everyone: no tenant, no permissions.
+        footer: {
+          ...scope(null),
           permissions: [],
+          key: 'footer',
+          view: 'footer',
           audience: 'public',
           ttlMs: 300_000,
           staleWhileRevalidateMs: 60_000,
+          model: () => {
+            this.catalog.renderCounts.footer++;
+            return { text: text.footer };
+          },
         },
-        () => {
-          this.catalog.renderCounts.footer++;
-          return renderer.render('footer', { text: text.footer });
-        },
-      );
-      // Personal HTML: rendered for every request, never stored (the default).
-      const account = await this.catalog.renders.render(
-        {
-          ...context('account', current.tenant),
+        // Personal HTML: rendered for every request, never stored (the default).
+        account: {
+          ...scope(current.tenant),
+          key: 'account',
+          view: 'account',
           audience: 'private',
           binding: `${current.tenant}/${request.sessionID}/${current.id}`,
           ttlMs: 10_000,
+          model: () => {
+            this.catalog.renderCounts.account++;
+            return {
+              name: current.name,
+              role: current.role,
+              tenant: current.tenant,
+            };
+          },
         },
-        () => {
-          this.catalog.renderCounts.account++;
-          return renderer.render('account', {
-            name: current.name,
-            role: current.role,
-            tenant: current.tenant,
-          });
-        },
-      );
-      reply.setHeader('X-Cache-Catalog', catalog.status);
-      reply.setHeader('X-Cache-Account', account.status);
+      });
+      reply.setHeader('X-Cache-Catalog', status.catalog);
+      reply.setHeader('X-Cache-Account', status.account);
       return renderer.render('page', {
         locale,
         dir: locale === 'ar' ? 'rtl' : 'ltr',
         csrf: request.session.csrf,
         canEdit: permissions.includes('products:write'),
-        catalog: SafeHtml.trusted(catalog.html),
-        footer: SafeHtml.trusted(footer.html),
-        account: SafeHtml.trusted(account.html),
+        catalog,
+        footer,
+        account,
         // Live components carry per-user signed snapshots: mounted per
         // request, outside every cached fragment.
         cart: await this.live.mount(Cart, request),

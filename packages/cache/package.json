@@ -41,9 +41,12 @@
     "README.md",
     "LICENSE"
   ],
+  "dependencies": {
+    "@nestvexa/views": "workspace:*"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run --root ../.. tests/cache.test tests/cache-render.test tests/cache-example.test",
+    "test": "vitest run --root ../.. tests/cache.test tests/cache-render.test tests/cache-fragments.test tests/cache-example.test",
     "lint": "eslint src"
   }
 }

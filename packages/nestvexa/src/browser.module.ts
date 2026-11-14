@@ -9,6 +9,8 @@ import {
   VERSION_NEUTRAL,
 } from '@nestjs/common';
 import type { DynamicModule, OnApplicationShutdown } from '@nestjs/common';
+import { sendEarlyHints } from '@nestvexa/core';
+import type { EarlyHint } from '@nestvexa/core';
 import { SafeHtml } from '@nestvexa/views';
 import { NestvexaAssetsModule, NestvexaAssetsService } from './assets.js';
 import { assetIntegrity, normalizeAssetOptions } from './asset-catalog.js';
@@ -201,6 +203,32 @@ export class NestvexaBrowserService implements OnApplicationShutdown {
     return SafeHtml.trusted(
       `<script type="importmap"${nonceAttribute}>${json}</script>`,
     );
+  }
+  /**
+   * `103 Early Hints` links for the content-addressed client modules that
+   * `scripts()` loads (client, Alpine and the adapter), as `modulepreload`
+   * with `crossorigin` when `integrity` is enabled so the hinted fetch
+   * matches the integrity-checked tags. The boot module is generated from
+   * the configuration and served `no-store`, so it is never hinted.
+   */
+  earlyHints(): readonly EarlyHint[] {
+    this.getBootUrl();
+    const { entries } = this.assets.getManifest();
+    return Object.freeze(
+      [entries.live, entries.alpine, entries.alpineAdapter].map(
+        (href): EarlyHint =>
+          this.options.integrity
+            ? { href, rel: 'modulepreload', crossOrigin: 'anonymous' }
+            : { href, rel: 'modulepreload' },
+      ),
+    );
+  }
+  /**
+   * Opt-in: send `103 Early Hints` for `earlyHints()` on an Express response
+   * or a Fastify reply before the page renders (see `sendEarlyHints`).
+   */
+  writeEarlyHints(response: unknown): boolean {
+    return sendEarlyHints(response, this.earlyHints());
   }
   /** Generated trusted module imports only the current installed allowlist; no inline application code. */
   boot(): string {

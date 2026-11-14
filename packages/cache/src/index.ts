@@ -34,3 +34,11 @@ export {
   type RenderCacheRequest,
   type RenderResult,
 } from './render.js';
+export {
+  FragmentCache,
+  type FragmentCacheOptions,
+  type FragmentEngine,
+  type FragmentRequest,
+  type FragmentResult,
+  type FragmentSet,
+} from './fragments.js';

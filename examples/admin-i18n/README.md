@@ -3,15 +3,15 @@
 A small catalog admin built with the `nestvexa` umbrella (HBS + Live) and every
 optional Phase 14 extension:
 
-| Feature                                                                                               | Package                   | Where                                                                          |
-| ----------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------ |
-| English / Arabic (RTL) switch                                                                         | `@nestvexa/i18n`          | `locales/`, `views/layout.hbs`, `POST /locale`                                 |
-| Dialog, tabs, combobox, toast, table, ...                                                             | `@nestvexa/ui`            | `views/admin.hbs`, `views/product-*.hbs`                                       |
-| Server-enforced feature flags                                                                         | `@nestvexa/flags`         | `ai-assistant` (on), `bulk-export` (off)                                       |
-| Assistant with approval-required tool                                                                 | `@nestvexa/ai`            | `src/assistant.ts`, `POST /admin/assistant-stream`                             |
-| Offline drafts, read-only snapshot                                                                    | `@nestvexa/offline`       | `public/admin.js`, `views/product-form.hbs`                                    |
-| Menu, popover, tooltip, drawer, accordion, date picker, uploader, wizard, searchable/selectable table | `@nestvexa/ui`            | `GET /admin/kit` (`views/kit.hbs`), `POST /admin/kit/archive`                  |
-| Render budget warnings, trace context                                                                 | `@nestvexa/observability` | `renderBudgetInstrumentation()` in the Live policy, `traceContextMiddleware()` |
+| Feature                                                                                                                       | Package                   | Where                                                                                     |
+| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------- |
+| English / Arabic (RTL) switch                                                                                                 | `@nestvexa/i18n`          | `locales/`, `views/layout.hbs`, `POST /locale`                                            |
+| Dialog, tabs, combobox, toast, table, ...                                                                                     | `@nestvexa/ui`            | `views/admin.hbs`, `views/product-*.hbs`                                                  |
+| Server-enforced feature flags                                                                                                 | `@nestvexa/flags`         | `ai-assistant` (on), `bulk-export` (off)                                                  |
+| Assistant with approval-required tool                                                                                         | `@nestvexa/ai`            | `src/assistant.ts`, `POST /admin/assistant-stream`                                        |
+| Offline drafts, read-only snapshot                                                                                            | `@nestvexa/offline`       | `public/admin.js`, `views/product-form.hbs`                                               |
+| Menu, popover, tooltip, drawer, accordion, date picker, uploader, wizard, searchable/selectable table, bar chart, form fields | `@nestvexa/ui`            | `GET /admin/kit` (`views/kit.hbs`), `POST /admin/kit/archive`, `POST /admin/kit/feedback` |
+| Render budget warnings, trace context                                                                                         | `@nestvexa/observability` | `renderBudgetInstrumentation()` in the Live policy, `traceContextMiddleware()`            |
 
 The assistant uses the deterministic **test provider**. It replays scripted
 text and is labeled in the UI as "not an AI model". Try "archive the desk lamp"
@@ -34,7 +34,13 @@ The UI kit page (`/admin/kit`, linked from the admin page) shows the second
 UI kit slice over your session's catalog: the table filters rows in the
 browser, and its checkboxes post the selection to `POST /admin/kit/archive`
 (CSRF-checked, at most 100 ids, only your own active products). The wizard is
-driven by `?step=`. The uploader demonstrates selection, drag and drop and the
+driven by `?step=`. A `uiChart` bar chart (with its data table) counts
+active and archived products per category and follows archiving; the feedback
+form uses `uiTextField`, `uiSelectField`, `uiRadioGroupField`,
+`uiTextareaField` and `uiCheckboxField` and validates on the server
+(`POST /admin/kit/feedback`, CSRF-checked, post/redirect/get), so errors appear
+in `role="alert"` messages wired with `aria-describedby` and `aria-invalid`.
+The uploader demonstrates selection, drag and drop and the
 announced count only; this example has no upload endpoint. While developing,
 `renderBudgetInstrumentation()` prints `NESTVEXA_RENDER_BUDGET` warnings (for
 example a slow first render) to stderr; it is disabled when

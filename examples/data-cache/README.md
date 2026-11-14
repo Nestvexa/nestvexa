@@ -1,7 +1,10 @@
 # Data cache and custom store example
 
 A small multi-tenant catalog showing `@nestvexa/cache` render caching and a
-custom Live state store.
+custom Live state store. The page's three HBS partials are cached with
+`FragmentCache#renderAll` (explicit `key` and `audience` per fragment; each
+`model()` loader runs only when the fragment is rendered) and passed to the
+page as `SafeHtml`.
 
 - **Tenant-shared catalog fragment** (`audience: 'tenant'`): one render per
   tenant, permission scope and locale; `X-Cache-Catalog` shows `miss`, `hit`,

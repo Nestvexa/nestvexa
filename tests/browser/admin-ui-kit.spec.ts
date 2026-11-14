@@ -151,3 +151,113 @@ test('mirrors the kit in Arabic and opens the drawer from the inline end', async
   await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
   expect(errors).toEqual([]);
 });
+
+test('charts the session catalog and keeps the chart in step with the data', async ({
+  page,
+}) => {
+  const errors = await open(page);
+  const chart = page.locator('#kit-overview');
+  await expect(chart.locator('figcaption')).toHaveText('Catalog overview');
+  const image = chart.getByRole('img', { name: 'Catalog overview' });
+  await expect(image).toBeVisible();
+  await expect(image).toHaveAttribute('aria-describedby', /kit-overview-desc/);
+  // One bar per category and status, in the scripted, CSP-safe SVG.
+  expect(await chart.locator('svg rect.nv-chart__bar').count()).toBe(10);
+  const table = page.locator('#kit-overview-data');
+  const lighting = table.getByRole('row', { name: /Lighting/ });
+  const activeBefore = Number(
+    await lighting.locator('td').nth(0).textContent(),
+  );
+  const archivedBefore = Number(
+    await lighting.locator('td').nth(1).textContent(),
+  );
+  expect(activeBefore).toBeGreaterThan(0);
+  // Archive one active lighting product through the data table.
+  await page.getByLabel('Category').selectOption('lighting');
+  const row = page
+    .locator('#kit-products tbody tr:visible')
+    .filter({ hasText: 'Active' })
+    .first();
+  await row.locator('input[type="checkbox"]').check();
+  await page.getByRole('button', { name: 'Archive selected' }).click();
+  await expect(page.locator('#kit-archived')).toContainText('archived');
+  const after = page
+    .locator('#kit-overview-data')
+    .getByRole('row', { name: /Lighting/ });
+  await expect(after.locator('td').nth(0)).toHaveText(String(activeBefore - 1));
+  await expect(after.locator('td').nth(1)).toHaveText(
+    String(archivedBefore + 1),
+  );
+  await axe(page);
+  expect(errors).toEqual([]);
+});
+
+test('validates the feedback form on the server and wires errors to the fields', async ({
+  page,
+}) => {
+  const errors = await open(page);
+  const form = page.locator('#kit-feedback');
+  await page.locator('#kit-email').fill('not-an-email');
+  await page.locator('#kit-message').fill('short');
+  await form.getByRole('radio', { name: 'High' }).check();
+  await form.getByRole('button', { name: 'Send feedback' }).click();
+  await expect(page).toHaveURL(/\/admin\/kit#kit-feedback$/);
+  const email = page.locator('#kit-email');
+  await expect(email).toHaveAttribute('aria-invalid', 'true');
+  await expect(email).toHaveAttribute('aria-describedby', /kit-email-error/);
+  await expect(email).toHaveValue('not-an-email');
+  await expect(page.locator('#kit-email-error')).toHaveAttribute(
+    'role',
+    'alert',
+  );
+  await expect(page.locator('#kit-email-error')).toHaveText(
+    'Enter a valid email address.',
+  );
+  await expect(page.locator('#kit-topic-error')).toHaveText('Choose a topic.');
+  await expect(page.locator('#kit-message-error')).toHaveText(
+    'Write between 10 and 500 characters.',
+  );
+  // Valid choices survive the round trip; the radio group keeps its value.
+  await expect(form.getByRole('radio', { name: 'High' })).toBeChecked();
+  await expect(page.locator('#kit-message')).toHaveValue('short');
+  await axe(page);
+  // Fix the fields and send.
+  await email.fill('ada@example.test');
+  await page.locator('#kit-topic').selectOption('pricing');
+  await page
+    .locator('#kit-message')
+    .fill('The price filter could remember my last choice.');
+  await form.getByRole('checkbox', { name: 'Email me a reply' }).check();
+  await form.getByRole('button', { name: 'Send feedback' }).click();
+  await expect(page.locator('#kit-archived')).toContainText(
+    'Thanks, your feedback was sent.',
+  );
+  await expect(page.locator('#kit-email')).not.toHaveAttribute(
+    'aria-invalid',
+    'true',
+  );
+  await expect(page.locator('#kit-email-error')).toHaveCount(0);
+  await expect(page.locator('#kit-email')).toHaveValue('');
+  expect(errors).toEqual([]);
+});
+
+test('renders the chart and form fields in Arabic', async ({ page }) => {
+  const errors = await open(page);
+  await page.getByRole('button', { name: 'العربية', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await expect(
+    page.getByRole('img', { name: 'نظرة عامة على الكتالوج' }),
+  ).toBeVisible();
+  await expect(page.locator('label[for="kit-email"]')).toContainText(
+    'البريد الإلكتروني',
+  );
+  await page
+    .locator('#kit-feedback')
+    .getByRole('button', { name: 'إرسال الملاحظات' })
+    .click();
+  await expect(page.locator('#kit-topic-error')).toHaveText('اختر موضوعًا.');
+  await axe(page);
+  await page.getByRole('button', { name: 'English', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
+  expect(errors).toEqual([]);
+});

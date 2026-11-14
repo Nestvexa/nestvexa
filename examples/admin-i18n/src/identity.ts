@@ -6,6 +6,11 @@ declare module 'express-session' {
   interface SessionData {
     csrf?: string;
     notice?: string;
+    /** Last rejected kit feedback form: submitted values and error keys. */
+    feedback?: {
+      readonly values: Readonly<Record<string, string>>;
+      readonly errors: Readonly<Record<string, string>>;
+    };
   }
 }
 

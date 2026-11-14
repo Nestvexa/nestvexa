@@ -1,6 +1,7 @@
 export * from './instrumentation.js';
 export * from './trace-context.js';
 export * from './budget.js';
+export * from './queries.js';
 export {
   currentRequestId,
   requestTracingMiddleware,
