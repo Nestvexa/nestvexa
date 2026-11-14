@@ -49,6 +49,8 @@ configured origin, `x-nestvexa-csrf` equal to the identity CSRF token.
   It skips the revision comparison for the caller's own snapshot and re-renders the
   current state at the current revision. With any other header value, any update, or
   on an action route, it is rejected with `400 INVALID_REQUEST`. No action runs.
+  Calls the browser runtime had queued behind the refused one are dropped unsent;
+  the user acts again on the resynchronized view.
 - `updates`: top-level writable `@State` fields only. Without a synthesizer a value must
   keep its JSON kind; with one, the synthesizer decides (see [synthesizers](#typed-state)).
   For a field declared `@State({ writable: ['city', 'geo.lat'] })` the value is the whole

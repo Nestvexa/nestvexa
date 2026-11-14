@@ -714,6 +714,13 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   const handledEvents = new WeakSet<Event>();
   /** Components with a queued `STALE_REVISION` resync. */
   const resyncing = new WeakSet<Component>();
+  /**
+   * Components whose already-queued mutations were issued against a revision
+   * the server has refused: they are dropped unsent until the resync starts.
+   */
+  const discarding = new WeakSet<Component>();
+  /** Rejections of dropped calls: surfaced to callers, never reported as page errors. */
+  const discarded = new WeakSet<Error>();
   const direct = createDirectEventListeners((event, element, attribute) => {
     try {
       const value = element.getAttribute(attribute);
@@ -1199,6 +1206,17 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     if (!usable(state)) return;
     const failure = failureFor(state);
     if (failure) throw failure;
+    if (resync) discarding.delete(state);
+    else if (discarding.has(state)) {
+      // Queued behind a `STALE_REVISION` reply: it targets a view the server
+      // has refused, so it is never sent; the user acts again after the resync.
+      const dropped = new LiveClientError(
+        'ABORTED',
+        'Live call dropped: queued before a stale-revision resync',
+      );
+      discarded.add(dropped);
+      throw dropped;
+    }
     for (const [element] of state.invalid)
       if (!contains(element) || owner(element) !== state.root)
         state.invalid.delete(element);
@@ -1616,6 +1634,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       // fails the same way suspends instead of looping.
       const stale = error instanceof LiveHttpError && error.resync && !resync;
       // Stale requests queued behind this one share a single resync.
+      if (stale) discarding.add(state);
       if (stale && !resyncing.has(state))
         try {
           resyncing.add(state);
@@ -1623,8 +1642,10 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
             .finally(() => resyncing.delete(state))
             .catch(() => undefined);
         } catch {
-          // A full queue: a later queued request meets the same hint.
+          // A full queue: no resync is pending, so queued requests are sent
+          // and a later one meets the same hint.
           resyncing.delete(state);
+          discarding.delete(state);
         }
       const recoverable =
         stale ||
@@ -1733,7 +1754,12 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       });
     state.waiting = task;
     state.queue = task.catch((error: unknown) => {
-      if (state.active && mounted && error !== failureFor(state))
+      if (
+        state.active &&
+        mounted &&
+        error !== failureFor(state) &&
+        !(error instanceof Error && discarded.has(error))
+      )
         report(error, state.root);
     });
     return task;

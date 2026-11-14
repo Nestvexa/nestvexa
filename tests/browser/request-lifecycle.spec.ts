@@ -81,9 +81,13 @@ test('an actual stale-revision response stops queued mutations without repeated 
     },
   });
   expect(change.ok()).toBe(true);
-  let requests = 0;
+  const posts: { path: string; resync: boolean }[] = [];
   page.on('request', (request) => {
-    if (request.method() === 'POST') requests++;
+    if (request.method() === 'POST')
+      posts.push({
+        path: new URL(request.url()).pathname,
+        resync: request.headers()['x-nestvexa-resync'] === '1',
+      });
   });
   await page
     .getByRole('button', { name: 'Increase', exact: true })
@@ -95,11 +99,24 @@ test('an actual stale-revision response stops queued mutations without repeated 
       element.click();
     });
   await expect(page.locator('#status')).toContainText('409');
+  // One refused call and one resync: the two clicks queued behind the stale
+  // call targeted a view the server refused, so they are never sent.
+  await expect.poll(() => posts.length).toBe(2);
   await expect(marker).toHaveAttribute('aria-busy', 'false');
-  expect(requests).toBe(1);
+  expect(posts[0]).toEqual({
+    path: '/_nestvexa/live/counter/increment',
+    resync: false,
+  });
+  expect(posts[1]).toEqual({
+    path: '/_nestvexa/live/counter/_sync',
+    resync: true,
+  });
+  // The resync rendered the server's state (the out-of-band increment).
+  await expect(page.locator('#count')).toHaveText('1');
+  // The component stays usable afterwards: one new action, one request.
   await page.getByRole('button', { name: 'Decrease', exact: true }).click();
-  expect(requests).toBe(1);
   await expect(page.locator('#count')).toHaveText('0');
+  expect(posts).toHaveLength(3);
 });
 
 test('a failed connection after an actual server response is not retried automatically', async ({

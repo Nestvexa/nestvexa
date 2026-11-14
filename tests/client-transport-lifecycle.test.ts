@@ -1379,14 +1379,12 @@ describe('bounded browser request lifecycle', () => {
     const queued = await start('save');
     await reply(0, staleHint);
     expect(await result(task)).toEqual({ ok: false, code: 'HTTP' });
-    // The queued request still carries the stale revision: it fails the same
-    // way and shares the single resync instead of scheduling another.
+    // The queued request was issued against the refused revision: it is
+    // dropped unsent (the caller sees ABORTED), and only the resync follows.
+    expect(await result(queued)).toEqual({ ok: false, code: 'ABORTED' });
     await expect.poll(async () => (await metrics()).requests.length).toBe(2);
-    await reply(1, staleHint);
-    expect(await result(queued)).toEqual({ ok: false, code: 'HTTP' });
-    await expect.poll(async () => (await metrics()).requests.length).toBe(3);
     const resync = await page.evaluate(() => {
-      const request = window.nvTransportSession.requests[2];
+      const request = window.nvTransportSession.requests[1];
       return {
         url: new URL(request?.url ?? '', location.href).pathname,
         header: request?.headers.get('x-nestvexa-resync') ?? null,
@@ -1402,13 +1400,13 @@ describe('bounded browser request lifecycle', () => {
       revision: 0,
     });
     // The server answers with its current revision, which may be any newer one.
-    await reply(2, { revision: 5, state: { query: 'server', count: 5 } });
+    await reply(1, { revision: 5, state: { query: 'server', count: 5 } });
     expect(await page.locator('#parent-count').textContent()).toBe('5');
     // The local draft survives and goes with the next request, at the new revision.
     expect(await page.locator('#parent-edit').inputValue()).toBe('kept draft');
     const next = await start();
     const sent = await page.evaluate(
-      () => window.nvTransportSession.requests[3]?.body,
+      () => window.nvTransportSession.requests[2]?.body,
     );
     expect(sent).toMatchObject({
       revision: 5,
@@ -1417,15 +1415,15 @@ describe('bounded browser request lifecycle', () => {
     expect(
       await page.evaluate(
         () =>
-          window.nvTransportSession.requests[3]?.headers.get(
+          window.nvTransportSession.requests[2]?.headers.get(
             'x-nestvexa-resync',
           ) ?? null,
       ),
     ).toBeNull();
-    await reply(3, { state: { query: 'kept draft', count: 6 } });
+    await reply(2, { state: { query: 'kept draft', count: 6 } });
     expect(await result(next)).toEqual({ ok: true, code: null });
+    // Only the refused call is reported; the dropped call is not a page error.
     expect((await metrics()).errors.map((error) => error.code)).toEqual([
-      'HTTP',
       'HTTP',
     ]);
   });
