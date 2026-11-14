@@ -23,6 +23,8 @@ import type {
 } from '../packages/realtime/dist/index.js';
 import { RedisPresenceStore } from '../packages/realtime-redis/dist/realtime.js';
 import { respDouble } from './support/resp-double.js';
+// Fails the test on any server-side unhandled promise rejection (QA-073).
+import './support/no-unhandled-rejections.js';
 
 /*
  * Cross-replica realtime: presence shared through a store (RedisPresenceStore

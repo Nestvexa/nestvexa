@@ -12,14 +12,6 @@ const record = (reason: unknown): void => {
   seen.push(reason);
 };
 
-/**
- * Remove and return the rejections recorded so far. Only the guard's own
- * self-test uses it, to prove a real unhandled rejection is caught.
- */
-export function takeUnhandledRejections(): unknown[] {
-  return seen.splice(0);
-}
-
 beforeAll(() => {
   process.on('unhandledRejection', record);
 });

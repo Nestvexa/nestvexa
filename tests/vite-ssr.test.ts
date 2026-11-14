@@ -16,6 +16,8 @@ import {
   isMainModule,
   moduleSsrRenderer,
 } from '../packages/vite/dist/index.js';
+// Fails the test on any server-side unhandled promise rejection (QA-073).
+import './support/no-unhandled-rejections.js';
 
 // Boots several Nest hosts: allow for slow CI/developer machines.
 vi.setConfig({ testTimeout: 60000, hookTimeout: 60000 });
