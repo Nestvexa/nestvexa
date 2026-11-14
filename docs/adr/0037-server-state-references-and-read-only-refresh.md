@@ -126,6 +126,12 @@ lazy first renders and actions remain mutating requests.
 - Components that copy external data into `@State` in a hook pay one extra
   request (refresh, then commit) when that data changes; reading it through
   `@Computed` keeps the refresh read-only.
+  The realtime examples follow this (round 6): `ReplicaBoard` in
+  `examples/distributed-live` reads the shared total and viewers, and the
+  starter-live realtime board reads the owner's job, through
+  `@Computed({ async: true })`; their realtime refreshes are one read-only
+  request with no new revision (`tests/services/distributed.spec.ts`,
+  `tests/browser/realtime.spec.ts`).
 
 Evidence: `tests/live-refresh.test.ts` and `tests/live-stale-revision.test.ts`
 (Express and Fastify), `tests/client-transport-lifecycle.test.ts`,

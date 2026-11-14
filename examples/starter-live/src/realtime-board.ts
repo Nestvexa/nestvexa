@@ -102,6 +102,11 @@ export const REPORT_JOBS = Symbol('report-jobs');
 })
 export class RealtimeDemoModule {}
 
+/** A failed or cancelled report may be started again by its owner. */
+function retryable(job: { readonly status: string } | undefined): boolean {
+  return job?.status === 'failed' || job?.status === 'cancelled';
+}
+
 export function guestBinding(request: unknown): string {
   const id: unknown =
     request && typeof request === 'object'
@@ -130,8 +135,6 @@ export class RealtimeBoard {
   draft = '';
   @State() jobId = '';
   @State() posted = 0;
-  /** Owner-only job view, refreshed before every render. */
-  @State() job = { status: '', progress: 0, attempts: 0, error: '' };
 
   @RealtimeChannels() channels(): string[] {
     return this.jobId
@@ -141,19 +144,32 @@ export class RealtimeBoard {
   @Computed() get feedItems(): { id: number; text: string }[] {
     return this.feed.list().map((item) => ({ ...item }));
   }
-  async dehydrate(): Promise<void> {
-    const job = this.jobId
-      ? await this.jobs.get({ binding: guestBinding(this.request) }, this.jobId)
-      : undefined;
-    this.job = {
+  /**
+   * Owner-only job view, read on every render rather than copied into
+   * `@State`: job progress events then refresh the board read-only (one
+   * request, no new revision).
+   */
+  @Computed({ async: true }) async job(): Promise<{
+    status: string;
+    progress: number;
+    attempts: number;
+    error: string;
+  }> {
+    const job = await this.#job();
+    return {
       status: job?.status ?? '',
       progress: job?.progress ?? 0,
       attempts: job?.attempts ?? 0,
       error: job?.error ?? '',
     };
   }
-  @Computed() get canRetry(): boolean {
-    return this.job.status === 'failed' || this.job.status === 'cancelled';
+  @Computed({ async: true }) async canRetry(): Promise<boolean> {
+    return retryable(await this.#job());
+  }
+  #job() {
+    return this.jobId
+      ? this.jobs.get({ binding: guestBinding(this.request) }, this.jobId)
+      : Promise.resolve(undefined);
   }
 
   @Action() async post(): Promise<void> {
@@ -206,7 +222,7 @@ export class RealtimeBoard {
   }
   /** User-initiated retry after a failed or cancelled report. */
   @Action() async retryReport(): Promise<void> {
-    if (this.canRetry) await this.#start(false);
+    if (retryable(await this.#job())) await this.#start(false);
   }
   @Action() async cancelReport(): Promise<void> {
     if (this.jobId)
