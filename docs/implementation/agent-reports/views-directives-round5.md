@@ -132,15 +132,28 @@ through the umbrella and adds a runnable example with browser tests.
 - `pnpm exec vitest run tests/client-directive-grammar.test.ts`: 195 passed
 - `pnpm exec vitest run tests/umbrella-views.test.ts`: 13 passed
 - `pnpm exec vitest run tests/core-config.test.ts`: 25 passed
-- `pnpm exec vitest run tests/client-loading.test.ts`, `tests/client-presentation.test.ts`: see the final message
-- `pnpm size:check`: 48,040 / 49,152
-- `pnpm exec playwright test -c playwright.local.config.ts views-tour`: 8/8 each in chromium, firefox and webkit
+- `pnpm exec vitest run tests/client-loading.test.ts`: 46 passed. First run: timeouts, because the fixture did not serve `bindings.js`, which `loading.js` now imports. The fixture was fixed in `e30f198`.
+- `pnpm exec vitest run tests/client-presentation.test.ts`: 44 passed (same fixture fix).
+- `pnpm exec vitest run tests/umbrella-live.test.ts`: 45 passed.
+- `pnpm exec vitest run tests/docs-site.test.ts`: 18 passed.
+- `pnpm exec tsc -p tsconfig.tests.json --noEmit`: exit 0.
+- `pnpm lint` (eslint and boundaries): exit 0.
+- `pnpm size:check`: 48,040 / 49,152 on this branch.
+- `pnpm exec playwright test -c playwright.local.config.ts views-tour`: 8/8 each in chromium, firefox and webkit.
+- **Throwaway local merge with current main** (`1131243`, which includes the client chunk split, ADR 0036):
+  - Client sources merge cleanly.
+  - The Live core `index.js` is 39,638 gzip, against 39,306 on main (+332; budget 45,056). All Live code is 54,890 / 61,440.
+  - `tests/client-bindings.test.ts` and `tests/client-bindings-dom.test.ts` pass on the merged tree (53/53).
+  - The merged-tree browser run was not completed: main's `pnpm-lock.yaml` lacks the `examples/auth-passport` importer, so a frozen install fails on main itself.
 
 ## Merge notes
 
 - Root `playwright.config.ts`: new webServer `@nestvexa/example-views-tour` on `http://127.0.0.1:4100/api/health`.
 - `package.json`: `tests/umbrella-views.test.ts` added to `test:integration`.
 - `pnpm-lock.yaml`: new importer `examples/views-tour`, no new packages.
-- Possible conflicts:
-  - `packages/core/src/config.ts` (new view keys), if the kernel branch edits the config schema.
-  - `packages/client/src/{bindings,loading,presentation,protocol,morph}.ts`: small, local edits, but the client chunk-splitting branch may move these files.
+- Conflicts against main `1131243` (checked with `git merge-tree`):
+  - `package.json`: test-group lists; use the union script.
+  - `packages/client/README.md`: keep main's chunk paragraph and this branch's directive and `$live` sentence.
+  - Everything else, including `packages/client/src`, `pnpm-lock.yaml` and `playwright.config.ts`, auto-merges.
+- After merging, regenerate the lockfile with `pnpm install`, because main's lockfile is already missing `examples/auth-passport`.
+- After merging, re-run `pnpm size:check` and `tests/browser/views-tour.spec.ts`.
