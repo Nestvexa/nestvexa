@@ -122,6 +122,30 @@ duplicates, incompatible ranges and installs after `seal()`, and defaults
 (`=`, `>`, `>=`, `<`, `<=`, `^`, `~`, spaces, `||`, prerelease precedence) and is not
 deprecated.
 
+`definePlugin` and `new PluginRegistry()` emit a Node `DeprecationWarning` once per
+process (codes `NVDEP001` and `NVDEP002`); `pluginExtension` and `registry.extensions()`
+do not warn. Run Node with `--no-deprecation` to silence them or `--throw-deprecation`
+to find the callers.
+
+### Deprecation warnings
+
+`emitDeprecation(code, message)` emits `process.emitWarning(message, { type:
+'DeprecationWarning', code })` the first time a code is used in a process and returns
+`true`; later calls, and calls under `--no-deprecation`, return `false`. Codes are
+an uppercase prefix, `DEP` and three digits: `NVDEP` is reserved for the framework
+(`NESTVEXA_DEPRECATIONS` holds its messages), and an extension uses its own prefix:
+
+```ts
+import { emitDeprecation } from '@nestvexa/core';
+
+export function oldHelper(): void {
+  emitDeprecation('ACMEDEP001', 'oldHelper() is deprecated; use newHelper().');
+}
+```
+
+The codes table is in the
+[deprecation policy](../../docs/release/versioning-and-deprecation.md#runtime-deprecation-warnings).
+
 ## Kernel services
 
 `CoreModule.forRoot(options, registration)` (and `forRootAsync`, and the third
