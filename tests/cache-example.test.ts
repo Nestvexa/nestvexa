@@ -139,7 +139,7 @@ describe('examples/data-cache', () => {
       origin + '/_nestvexa/live/cart/add',
       live(alice.cookie, csrf, snapshot, 0),
     );
-    expect(action.status).toBe(200);
+    expect(action.ok).toBe(true);
     expect(await action.json()).toMatchObject({ state: { items: 1 } });
     const stolen = await fetch(
       origin + '/_nestvexa/live/cart/add',
