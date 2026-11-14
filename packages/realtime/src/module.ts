@@ -42,6 +42,16 @@ import type {
 } from './hub.js';
 import type { PresenceEntry, RealtimePresenceOptions } from './presence.js';
 import { createTokenSigner, parseChannel } from './token.js';
+import {
+  isFeatureRegistry,
+  isKernelIdentitySource,
+  kernelIdentityOf,
+  scopeBinding,
+} from './kernel.js';
+import type {
+  RealtimeFeatureRegistry,
+  RealtimeKernelIdentitySource,
+} from './kernel.js';
 import type { TokenSigner } from './token.js';
 
 export const REALTIME_OPTIONS = Symbol('nv:realtime-options');
@@ -92,6 +102,22 @@ export interface RealtimeModuleOptions {
    * with transports, channel kinds, counts, sizes and rejection codes only.
    */
   readonly instrumentation?: RealtimeInstrumentation;
+  /**
+   * Opt-in kernel identity (structural; for example `RequestContextFactory`
+   * from @nestvexa/core). Realtime still calls `resolveIdentity` (or
+   * `resolveUpgradeIdentity`) for the binding, then attaches the kernel
+   * `principal` and `tenant` to the identity `authorizeChannel` receives at
+   * connect and on every revalidation, and scopes the binding to them, so
+   * subscription tokens never cross users or tenants. Configure it on Live
+   * too when Live signs realtime tokens: both scope bindings identically.
+   */
+  readonly kernelIdentity?: RealtimeKernelIdentitySource;
+  /**
+   * Kernel feature registry (structural; for example `NestvexaRegistry`
+   * from @nestvexa/core): realtime registers its transports and
+   * capabilities as feature `realtime`.
+   */
+  readonly featureRegistry?: RealtimeFeatureRegistry;
 }
 const defaults: Required<HubLimits> = {
   maxConnections: 1000,
@@ -127,6 +153,18 @@ function validate(options: RealtimeModuleOptions): HubLimits {
   )
     throw new Error(
       'Realtime identity and channel authorization policies are required',
+    );
+  if (
+    options.kernelIdentity !== undefined &&
+    !isKernelIdentitySource(options.kernelIdentity)
+  )
+    throw new Error('Realtime kernelIdentity must implement identity(request)');
+  if (
+    options.featureRegistry !== undefined &&
+    !isFeatureRegistry(options.featureRegistry)
+  )
+    throw new Error(
+      'Realtime featureRegistry must implement registerFeature(feature)',
     );
   const limits = { ...defaults, ...options.limits };
   for (const [name, value] of Object.entries(limits))
@@ -217,6 +255,41 @@ export class RealtimeService
       options.instrumentation,
       shared ? { onPresenceChange: (channel) => this.#changed(channel) } : {},
     );
+    const transports = options.transports ?? allTransports;
+    const offered = (name: RealtimeTransportName) =>
+      transports.includes(name)
+        ? { supported: true as const }
+        : {
+            supported: false as const,
+            reason: 'Disabled by the transports option',
+          };
+    options.featureRegistry?.registerFeature({
+      name: 'realtime',
+      package: '@nestvexa/realtime',
+      capabilities: {
+        broker:
+          options.broker === undefined
+            ? {
+                supported: true,
+                degraded:
+                  'Process-local memory broker: use a shared broker such as RedisRealtimeBroker for multiple replicas',
+              }
+            : { supported: true },
+        // Advertised to clients only after attachRealtimeWebSocket.
+        websocket: offered('websocket'),
+        sse: offered('sse'),
+        polling: offered('polling'),
+        presence: options.presence
+          ? { supported: true }
+          : {
+              supported: true,
+              degraded: 'Presence covers this replica only (no presence store)',
+            },
+        'kernel-identity': options.kernelIdentity
+          ? { supported: true }
+          : { supported: false, reason: 'kernelIdentity is not configured' },
+      },
+    });
     if (shared) {
       // Rewrite live entries every third of the TTL so they never lapse
       // while this replica runs, and lapse soon after it stops.
@@ -380,6 +453,32 @@ export class RealtimeService
       ? this.signer.sign(identity.binding, allowed)
       : undefined;
   }
+  /**
+   * The identity the hub sees for a request: the host binding, scoped to the
+   * kernel principal and tenant when `kernelIdentity` is configured. Host
+   * values for `principal` and `tenant` are never kept.
+   */
+  async identity<Request extends object>(
+    request: Request,
+    resolve: (request: Request) => RealtimeIdentity | Promise<RealtimeIdentity>,
+  ): Promise<RealtimeIdentity> {
+    const identity: unknown = await resolve(request);
+    const binding: unknown =
+      typeof identity === 'object' && identity !== null
+        ? Reflect.get(identity, 'binding')
+        : undefined;
+    if (
+      typeof binding !== 'string' ||
+      binding.length < 16 ||
+      binding.length > 1024
+    )
+      throw new RealtimeRejection(401, 'IDENTITY_REQUIRED');
+    const source = this.options.kernelIdentity;
+    if (!source) return Object.freeze({ binding });
+    const kernel = kernelIdentityOf(await source.identity(request));
+    if (!kernel) throw new RealtimeRejection(401, 'IDENTITY_REQUIRED');
+    return Object.freeze({ binding: scopeBinding(binding, kernel), ...kernel });
+  }
   revoke(binding: string): number {
     return this.hub.revoke(binding);
   }
@@ -524,7 +623,11 @@ function controller(endpoint: string): Type<object> {
       let subscription: Awaited<ReturnType<RealtimeHub['connect']>>;
       try {
         subscription = await this.service.hub.connect(
-          () => this.service.options.resolveIdentity(request),
+          () =>
+            this.service.identity(
+              request,
+              this.service.options.resolveIdentity,
+            ),
           tokensOf(tokens),
           sink,
           cursor,
@@ -579,7 +682,11 @@ function controller(endpoint: string): Type<object> {
       let subscription: Awaited<ReturnType<RealtimeHub['connect']>>;
       try {
         subscription = await this.service.hub.connect(
-          () => this.service.options.resolveIdentity(request),
+          () =>
+            this.service.identity(
+              request,
+              this.service.options.resolveIdentity,
+            ),
           tokensOf(tokens),
           sink,
           cursor,
@@ -761,7 +868,7 @@ export async function attachRealtimeWebSocket(
                 ? Reflect.get(parsed, 'cursor')
                 : undefined;
             subscription = await service.hub.connect(
-              () => resolveUpgrade(request),
+              () => service.identity(request, resolveUpgrade),
               tokensOf(tokens),
               sink,
               parseCursor(cursor),

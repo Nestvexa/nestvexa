@@ -137,6 +137,11 @@ export const LIVE_ERROR_CODES = Object.freeze({
     'fix-request',
     'A request ID was reused with a different payload.',
   ),
+  REFRESH_CONFLICT: entry(
+    409,
+    'resync',
+    'A read-only refresh would change stored state or the child tree; resync with commit.',
+  ),
   STATE_SCHEMA_CHANGED: entry(
     409,
     'reload',
@@ -226,6 +231,11 @@ export const LIVE_ERROR_CODES = Object.freeze({
     503,
     'retry-later',
     'State or in-flight action capacity reached.',
+  ),
+  STORE_UNAVAILABLE: entry(
+    503,
+    'retry-later',
+    'A shared state store (for example Redis) is unreachable; stored state is kept.',
   ),
   LIVE_SHUTDOWN: entry(503, 'retry-later', 'The application is shutting down.'),
   STREAM_SHUTDOWN: entry(

@@ -85,7 +85,7 @@ export function validateIgnore(element: Element, root = false): void {
     );
   for (const attribute of element.attributes)
     if (
-      /^nv:(?:bind|show|dirty|cloak|model|loading|target|replace)(?:\.|$)/.test(
+      /^nv:(?:bind|class|show|dirty|cloak|model|loading|target|replace)(?:\.|$)/.test(
         attribute.name,
       )
     )

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{title}}</title>
+    <link rel="stylesheet" href="/tour.css" />
+    {{nvScripts}}
+  </head>
+  <body data-theme="default">
+    <header>
+      <nav aria-label="Tour">
+        <a href="/">Home</a>
+        <a href="/?theme=dark">Dark theme</a>
+        <a href="/lazy">Lazy component</a>
+        <a href="/posts?role=editor">Posts (editor)</a>
+        <a href="/posts?role=viewer">Posts (viewer)</a>
+        <a href="/admin">Admin</a>
+        <a href="/admin/settings">Admin settings</a>
+        <a href="/missing">Missing page</a>
+      </nav>
+    </header>
+    <main>{{body}}</main>
+  </body>
+</html>

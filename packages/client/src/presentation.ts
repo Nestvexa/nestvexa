@@ -1,4 +1,5 @@
 import { LiveClientError } from './grammar.js';
+import { boundClasses } from './bindings.js';
 import { createFocusController } from './focus.js';
 import type { FocusController } from './focus.js';
 import { parseLoadingDirective } from './loading.js';
@@ -200,6 +201,11 @@ function plan(root: Element, element: Element): Plan | undefined {
     invalid(
       'Binding and presentation effects cannot control the same attribute',
     );
+  for (const token of boundClasses(element))
+    if (claimed.has(`class:${token}`) || transitionTokens.has(`class:${token}`))
+      invalid(
+        'nv:class and presentation effects cannot control the same class',
+      );
   return {
     root,
     element,
@@ -208,6 +214,7 @@ function plan(root: Element, element: Element): Plan | undefined {
       attrs.map((attribute) => [attribute.name, attribute.value]).sort(),
       element.getAttribute('href'),
       element.getAttribute('nv:bind'),
+      element.getAttribute('nv:class'),
       element.getAttribute('nv:show'),
       element.getAttribute('nv:dirty'),
       [...element.attributes]

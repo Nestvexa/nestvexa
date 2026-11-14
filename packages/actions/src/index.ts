@@ -100,3 +100,16 @@ export type {
 } from './shared/protocol.js';
 export { inspectJsonInput, toJsonSafe } from './shared/json.js';
 export type { JsonInputLimits, JsonOutputLimits } from './shared/json.js';
+export {
+  actionReference,
+  actionSecurityPolicies,
+  type ActionPolicyKind,
+  type ActionPolicyRegistry,
+  type ActionSecurityPolicies,
+} from './policies.js';
+export type {
+  ActionFeatureRegistry,
+  ActionKernelIdentity,
+  ActionKernelIdentitySource,
+  ActionKernelPrincipal,
+} from './kernel.js';

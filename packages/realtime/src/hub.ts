@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import type { RealtimeBroker, RealtimeEvent } from './broker.js';
 import { parseChannel, RealtimeTokenError } from './token.js';
 import type { TokenSigner } from './token.js';
+import { kernelIdentityOf } from './kernel.js';
+import type { RealtimeKernelPrincipal } from './kernel.js';
 import { channelKind, startSpan } from './instrumentation.js';
 import type {
   RealtimeInstrumentation,
@@ -10,6 +12,13 @@ import type {
 
 export interface RealtimeIdentity {
   readonly binding: string;
+  /**
+   * The kernel principal, set by realtime only when `kernelIdentity` is
+   * configured (the binding is then scoped to the principal and tenant).
+   */
+  readonly principal?: RealtimeKernelPrincipal;
+  /** The kernel tenant, set by realtime only when `kernelIdentity` is configured. */
+  readonly tenant?: string;
 }
 export type IdentityResolver = () =>
   RealtimeIdentity | Promise<RealtimeIdentity>;
@@ -201,7 +210,10 @@ export class RealtimeHub {
       identity.binding.length > 1024
     )
       throw new RealtimeRejection(401, 'IDENTITY_REQUIRED');
-    return Object.freeze({ binding: identity.binding });
+    // Kernel fields come from the service resolver (never from the host's).
+    const kernel = kernelIdentityOf(identity);
+    if (!kernel) throw new RealtimeRejection(401, 'IDENTITY_REQUIRED');
+    return Object.freeze({ binding: identity.binding, ...kernel });
   }
   /**
    * Verify tokens and current authorization, then attach a transport sink.

@@ -1,6 +1,6 @@
 # ADR 0002: Versioned Live requests with opaque server-state references
 
-Date: 2026-10-25; model synchronization amendment2026-10-26. Status: **accepted initial protocol, partially implemented; full acceptance pending**. The implementation uses opaque server-state references; signed browser snapshots and distributed stores remain outside the current slice.
+Date: 2026-10-25; model synchronization amendment 2026-10-26; status updates 2026-11-07 and 2026-11-14. Status: **accepted and implemented in `@nestvexa/live` (experimental); distributed state, protocol negotiation and idempotent replay ship (see the status updates below); signed browser snapshots are not implemented; full release acceptance pending**. The implementation uses opaque server-state references.
 
 ## Decision and boundary
 
@@ -46,6 +46,14 @@ Since the status line was written:
 - Signed browser snapshots are still not implemented. The browser never holds
   authoritative state.
 
-Still open: full release acceptance, and replay and identity locks across
-replicas against real Redis (tested only against the in-process RESP test
-double).
+Still open: full release acceptance.
+
+## Status update (2026-11-14)
+
+Replay and identity locks across replicas now run against real Redis, not only
+the in-process RESP test double: `tests/services/distributed.spec.ts` ("an
+idempotent retry replays on another replica (Express → Fastify) without
+repeating the side effect" and "an identity-scoped action holds one lock across
+replicas and releases it") and the `LiveActionCoordination` step of
+`scripts/services-check.mjs`, both run by `pnpm test:services`. Redis Cluster
+and Sentinel failover remain unsupported ([ADR 0032](0032-distributed-state-and-redis.md)).

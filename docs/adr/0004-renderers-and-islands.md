@@ -1,6 +1,6 @@
 # ADR 0004: Explicit renderer ownership and document transitions
 
-Date: 2026-10-25; replacement/loading and self-ignore amendments 2026-10-27. Status: **MVC and an initial Live/client ownership slice implemented; complete acceptance, framework islands and Inertia remain unmet**.
+Date: 2026-10-25; replacement/loading and self-ignore amendments 2026-10-27; status update 2026-11-07; teleport amendment 2026-11-14. Status: **accepted; MVC, Live/client ownership, framework islands (`@nestvexa/islands`) and Inertia (`@nestvexa/inertia`) are implemented as experimental alpha packages (see the status update below); heterogeneous enhanced navigation and complete external-widget lifecycle parity remain open; Live teleports are out of scope for 1.0**.
 
 ## Decision
 
@@ -83,3 +83,43 @@ therefore accurate:
 
 Still open: heterogeneous enhanced navigation (Live and Inertia sharing one
 client-side navigation) and complete external-widget lifecycle parity.
+
+## Amendment (2026-11-14): Live teleports are out of scope for 1.0
+
+Section 8.4 of the specification lists teleports among the morphing cases
+(BROW-013). Nestvexa 1.0 does not ship a Live teleport (`nv:teleport` or
+equivalent). The 2026-11-06 portal rules above stay the contract: markup moved
+out of its Live root is not owned, and portal targets belong to Alpine or an
+island inside `nv:ignore`.
+
+Rationale:
+
+- **One owner per node.** A teleported Live subtree would live outside its
+  component root but still be patched by that root. Every ownership walk
+  (bindings, models, loading, refs, `nv:ignore`, nested roots, island markers)
+  is a descendant walk from the root; a teleport adds a second, non-descendant
+  owner region to each of them, and to removal cleanup, which must then find
+  and tear down detached regions exactly once.
+- **Events and forms.** Delegated listeners sit on the component root. A
+  teleported button no longer bubbles through it, and a teleported control is
+  no longer inside its `<form>`, so `nv:submit`, form reset and dirty tracking
+  would need parallel registration paths with their own security review.
+- **Morph identity.** The server renders one fragment per component. Moving part
+  of it elsewhere means the next response must be split, matched to a target
+  that the server does not know, and reconciled in two places in one commit;
+  out-of-order and failed responses must roll both back together.
+- **Accessibility.** The common use (dialogs, menus, toasts at `<body>`) needs
+  focus trapping, `inert` background and return-focus rules that differ per
+  widget. Alpine's `x-teleport` (inside `nv:ignore`), a framework island or a
+  native `<dialog>` (which reaches the top layer without moving in the DOM)
+  already own those rules.
+- **Client budget.** The ownership changes above touch the morph engine,
+  listeners and every directive walker, which a size-budgeted client split into
+  chunks cannot absorb as a "minimal" change.
+
+Supported alternatives: a native `<dialog>` or `popover` element inside the
+component (top-layer rendering without moving nodes), CSS positioning, or a
+portal owned by Alpine or an island inside `nv:ignore`. A teleport can be added
+later as its own ADR if it defines an owner registry for detached regions,
+event and form association, split-fragment morphing and teardown, with browser
+tests for each.

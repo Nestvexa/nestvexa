@@ -198,7 +198,9 @@ timing and network batching (use the browser's developer tools and the client
 (owner, kind and configuration such as upload quotas; functions are never
 listed), **Capabilities** and **Kernel diagnostics** (recent events, metrics and
 spans, newest first) to the panel and `data.json` (`kernel.policies`,
-`kernel.capabilities`, `kernel.diagnostics`; empty without `kernel`):
+`kernel.capabilities`, `kernel.diagnostics`; empty without `kernel`) and, with `features` (`NestvexaRegistry`), `kernel.features` (name, package,
+version, components, actions, views, renderers and qualified capability names)
+and `kernel.plugins`, shown in the panel's Features section:
 
 ```ts
 DevtoolsModule.registerAsync({

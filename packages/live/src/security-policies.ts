@@ -1,7 +1,9 @@
 import { timingSafeEqual } from 'node:crypto';
+import { kernelIdentityOf } from './kernel.js';
+import type { LiveKernelIdentity } from './kernel.js';
 
 /** Host-resolved identity shared by every Live check (see `LiveHostOptions`). */
-interface Identity {
+interface Identity extends LiveKernelIdentity {
   readonly binding: string;
   readonly csrfToken: string;
 }
@@ -103,14 +105,20 @@ function identityOf(value: unknown): Identity | undefined {
   if (typeof value !== 'object' || value === null) return undefined;
   const binding: unknown = Reflect.get(value, 'binding');
   const csrfToken: unknown = Reflect.get(value, 'csrfToken');
-  return typeof binding === 'string' &&
-    binding.length >= 16 &&
-    binding.length <= 1024 &&
-    typeof csrfToken === 'string' &&
-    csrfToken.length >= 32 &&
-    csrfToken.length <= 256
-    ? { binding, csrfToken }
-    : undefined;
+  if (
+    typeof binding !== 'string' ||
+    binding.length < 16 ||
+    binding.length > 1024 ||
+    typeof csrfToken !== 'string' ||
+    csrfToken.length < 32 ||
+    csrfToken.length > 256
+  )
+    return undefined;
+  // The kernel principal and tenant Live attached travel with the identity.
+  const kernel = kernelIdentityOf(value);
+  return kernel === undefined
+    ? undefined
+    : Object.freeze({ binding, csrfToken, ...kernel });
 }
 
 /**

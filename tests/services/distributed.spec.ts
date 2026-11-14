@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test';
+import { request as httpRequest } from 'node:http';
+import type { IncomingMessage } from 'node:http';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 
 /*
@@ -480,4 +482,102 @@ test('an identity-scoped action holds one lock across replicas and releases it',
   expect(after.headers()['x-nestvexa-replica']).toBe('d');
   await owner.context.close();
   await other.context.close();
+});
+
+/** An SSE subscription from this process that never reads until drained. */
+function stalledStream(url: string, cookie: string) {
+  return new Promise<{
+    drain: () => Promise<{ bytes: number; text: string }>;
+    close: () => void;
+  }>((resolve, reject) => {
+    const request = httpRequest(url, { headers: { cookie } }, (response) => {
+      response.pause();
+      resolve({
+        drain: () => drain(response),
+        close: () => request.destroy(),
+      });
+    });
+    request.on('error', reject);
+    request.end();
+  });
+}
+function drain(response: IncomingMessage) {
+  return new Promise<{ bytes: number; text: string }>((resolve) => {
+    let bytes = 0;
+    let text = '';
+    response.on('data', (chunk: Buffer) => {
+      bytes += chunk.length;
+      text += chunk.toString();
+    });
+    response.on('end', () => resolve({ bytes, text }));
+    response.on('close', () => resolve({ bytes, text }));
+    response.resume();
+  });
+}
+
+test('a stalled subscriber is disconnected by its replica without slowing other browsers', async ({
+  browser,
+}) => {
+  test.setTimeout(240_000);
+  // A healthy browser on Fastify replica c (SSE) records every event.
+  const healthy = await pinned(browser, 'c');
+  const events = await recordEvents(healthy.page);
+  const opened = sseOpened(healthy.page);
+  await healthy.page.goto(proxy);
+  await opened;
+  // A second guest's identity and subscription token drive a client that
+  // stops reading: the same replica, the same channel.
+  const donor = await pinned(browser, 'c');
+  await donor.page.goto(proxy);
+  const token =
+    (await donor.page
+      .locator('[data-nv-name="replica-board"]')
+      .getAttribute('data-nv-realtime')) ?? '';
+  expect(token).not.toBe('');
+  const cookie = (await donor.context.cookies(proxy))
+    .map(({ name, value }) => `${name}=${value}`)
+    .join('; ');
+  await donor.context.close();
+  await expect.poll(() => connections('c', healthy.page)).toBe(1);
+  const stalled = await stalledStream(
+    `${direct.c}/_nestvexa/realtime/sse?t=${encodeURIComponent(token)}`,
+    cookie,
+  );
+  await expect.poll(() => connections('c', healthy.page)).toBe(2);
+  const before = (await events()).length;
+  // Express replica a publishes ~4.5 MB through Redis.
+  const count = 300;
+  const published = await healthy.page.request.post(
+    `${direct.a}/api/load/broadcast?count=${count}`,
+  );
+  expect(await published.json()).toMatchObject({ published: count });
+  // The healthy browser receives every event and stays connected…
+  await expect
+    .poll(async () => (await events()).length - before, { timeout: 120_000 })
+    .toBeGreaterThanOrEqual(count);
+  // …while replica c dropped the stalled subscriber instead of buffering.
+  await expect
+    .poll(() => connections('c', healthy.page), { timeout: 60_000 })
+    .toBe(1);
+  const drained = await stalled.drain();
+  expect(drained.text).toContain('"reason":"slow-consumer"');
+  expect(drained.bytes).toBeLessThan((count * 15_000) / 2);
+  stalled.close();
+  // Live keeps working for the healthy browser.
+  const start = await total(healthy.page);
+  await increment(healthy.page);
+  await expect(healthy.page.locator('#total')).toHaveText(String(start + 1));
+  await healthy.context.close();
+  const probe = await browser.newContext();
+  await expect
+    .poll(
+      async () =>
+        Number(
+          (await (await probe.request.get(`${direct.c}/api/health`)).json())
+            .connections,
+        ),
+      { timeout: 30_000 },
+    )
+    .toBe(0);
+  await probe.close();
 });

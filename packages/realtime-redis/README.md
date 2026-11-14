@@ -78,6 +78,7 @@ and Fastify behind one Redis.
 | `host`, `port`                     | `127.0.0.1:6379` | Redis primary                                                                 |
 | `username`, `password`, `database` | —, —, `0`        | ACL user, AUTH password (never logged), logical database                      |
 | `prefix`                           | `nestvexa:live:` | Key namespace per application/environment (`[a-z0-9:._-]{0,64}`)              |
+| `namespace`                        | none             | `(binding) => ({ tenant, user? })`: per-tenant key spaces, user index         |
 | `ttlMs`                            | 15 min           | Entry lifetime from creation (Redis `PX` and stored `expiresAt`)              |
 | `lockTtlMs`                        | 30 s             | Transaction lease; an action outliving it fails closed (state invalidated)    |
 | `maxEntriesPerBinding`             | 1000             | Entries one identity may hold (approximate; dead index members pruned lazily) |
@@ -98,7 +99,43 @@ Same contract as `MemoryLiveStore` (see `LiveStateStore` in `@nestvexa/live`):
   invalidates the entry instead of allowing a retry.
 - Keys contain SHA-256 hashes of snapshot tokens and bindings, never the raw
   values. Records are validated on read with the browser-input limits.
-- A Redis outage surfaces as an error (HTTP 500), never as missing state.
+- A fence key (`f:<token hash>`) is written before the action callback runs
+  and removed by the same `EXEC` that commits. If a replica crashes, Redis
+  becomes unreachable after the callback, or the lease lapses, the fence stays
+  and the next attempt invalidates the entry (410) instead of running the
+  callback a second time: callbacks run at most once per revision.
+
+## Tenant and user namespacing
+
+With `namespace: (binding) => ({ tenant, user })` (the host built the binding,
+so it resolves both; never from request input), every key of a tenant lives
+under `<prefix>t:<tenant>:` — state `s:`, lease `l:`, fence `f:`, binding
+index `b:`, user index `u:<sha256(user)>`, tenant index `i` and user list `us`
+— so one tenant can be listed with `SCAN MATCH <prefix>t:<tenant>:*` or
+restricted with Redis ACL key patterns. Only the tenant id appears in clear
+(1–64 `[A-Za-z0-9._-]`; pass an opaque id if it is sensitive); tokens, bindings
+and users are SHA-256 hashes. Each record stores its tenant and a read through
+another tenant's key space is refused. `<prefix>p:<token hash>` maps a token to
+its tenant for host-only `delete(token)`.
+
+- `revokeTenant(tenant)` deletes every entry, index and lease of the tenant
+  (tenant offboarding), in atomic rounds of 64 bindings that WATCH the indexes,
+  so entries created meanwhile are caught by the next round.
+- `revokeUser(tenant, user)` signs a user out everywhere (all sessions).
+- Changing the option makes existing entries unreadable (browsers reload).
+
+## Failure behaviour
+
+| Failure                                   | Result                                                                   |
+| ----------------------------------------- | ------------------------------------------------------------------------ |
+| Redis unreachable, timeout, error reply   | `503 STORE_UNAVAILABLE` (retry later); state is kept, never `410`        |
+| Outage after the action callback ran      | `503`; the fence remains, so the retry is `410` (no second execution)    |
+| Replica crash or lease lapse mid-action   | Other replicas: `409 COMPONENT_BUSY` until the lease expires, then `410` |
+| Tampered, foreign-tenant or undecryptable | `410 INVALID_SNAPSHOT` (indistinguishable from unknown)                  |
+| Per-binding capacity / in-flight limit    | `503 STORE_CAPACITY`                                                     |
+
+The original I/O error is attached as `cause` for host logs.
+
 - `close()` (called on Nest shutdown) closes connections; shared state stays for
   the other replicas.
 - The store also implements `LiveActionCoordination`, so `@Action({ idempotent })`
@@ -110,8 +147,8 @@ Same contract as `MemoryLiveStore` (see `LiveStateStore` in `@nestvexa/live`):
   against real Redis by `pnpm test:services`, with two store instances and in
   the four-replica browser suite (Express and Fastify replicas).
 
-Cost: about seven round trips per Live action (read, lease, re-read, watched
-commit). Clocks of all replicas must be NTP-synchronized.
+Cost: about eight round trips per Live action (read, lease, re-read, fence,
+watched commit). Clocks of all replicas must be NTP-synchronized.
 
 ## Realtime
 
@@ -177,7 +214,9 @@ Status: **Shipped (alpha)**. `RedisLiveStore` passes the shared store contract s
 - Cross-replica idempotent replay and identity locks are covered by the real-Redis service run (`redis-live-coordination`, PROT-017).
 - The broker implementation lives in `@nestvexa/realtime`; this package re-exports it (REAL-002, recorded in ADR 0032).
 - Realtime delivery is at-most-once and replay windows are per replica; presence is shared through `RedisPresenceStore`. Distributed load testing is not done (REAL-014).
-- About seven round trips per Live action; replica clocks must be NTP-synchronized.
+- About eight round trips per Live action; replica clocks must be NTP-synchronized.
+- Tenant/user namespacing, revocation and the fence after a SIGKILLed replica are checked against real Redis (`redis-live-namespace` in `pnpm test:services`).
+- All replicas sharing a prefix must use the same `ttlMs`: index lifetimes follow the newest entry.
 
 ## Testing
 

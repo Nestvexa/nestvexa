@@ -1,0 +1,14 @@
+<h1>{{title}}</h1>
+<p id="role">Signed in as: {{role}}</p>
+<ul>
+  {{#if (can "posts.view")}}
+  <li id="post-view"><a href="/posts">Read posts</a></li>
+  {{/if}} {{#if (can "posts.edit")}}
+  <li id="post-edit"><button type="button">Edit post</button></li>
+  {{/if}} {{#if (cannot "posts.edit")}}
+  <li id="post-readonly">Read-only access</li>
+  {{/if}}
+</ul>
+<p>
+  Hiding a control is presentation only: the route or action still authorizes.
+</p>

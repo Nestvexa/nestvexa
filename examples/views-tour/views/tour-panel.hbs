@@ -1,0 +1,20 @@
+<section aria-labelledby="panel-heading">
+  <h2 id="panel-heading">Live panel</h2>
+  <div id="tour-cloaked" nv:cloak="">
+    <p
+      id="tour-status"
+      class="tour-status{{#if urgent}} is-urgent{{/if}}{{#if archived}} is-archived{{/if}}"
+      nv:class="is-urgent:urgent is-archived:archived"
+    >
+      Status card
+    </p>
+    <p>Toggles: <span id="tour-toggles" nv:text="toggles">{{toggles}}</span></p>
+    <button type="button" id="toggle-urgent" nv:click="toggleUrgent">
+      Toggle urgent
+    </button>
+    <button type="button" id="toggle-archived" nv:click="toggleArchived">
+      Toggle archived
+    </button>
+  </div>
+  <noscript><p>The interactive panel needs JavaScript.</p></noscript>
+</section>

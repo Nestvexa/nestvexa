@@ -14,6 +14,13 @@ export interface NestvexaOptions {
     readonly root?: string;
     readonly cache?: boolean;
     readonly layout?: string | false;
+    /**
+     * Namespace -> trusted template directory, addressed as `admin::users/index`.
+     * Applications override a namespaced view at `<root>/vendor/<namespace>/...`.
+     */
+    readonly namespaces?: Readonly<Record<string, string>>;
+    /** Theme -> trusted override directory, selected per render (`RenderOptions.theme`). */
+    readonly themes?: Readonly<Record<string, string>>;
   };
   readonly live?: {
     readonly enabled?: boolean;
@@ -31,6 +38,10 @@ export interface NormalizedNestvexaOptions {
     readonly root: string;
     readonly cache: boolean;
     readonly layout: string | false;
+    /** Present only when configured. */
+    readonly namespaces?: Readonly<Record<string, string>>;
+    /** Present only when configured. */
+    readonly themes?: Readonly<Record<string, string>>;
   };
   readonly live: {
     readonly enabled: boolean;
@@ -45,7 +56,14 @@ export interface NormalizedNestvexaOptions {
 
 /** Accepted keys per section; the single source for validation, merging and docs. */
 const schema = Object.freeze({
-  views: Object.freeze(['engine', 'root', 'cache', 'layout']),
+  views: Object.freeze([
+    'engine',
+    'root',
+    'cache',
+    'layout',
+    'namespaces',
+    'themes',
+  ]),
   live: Object.freeze(['enabled', 'client']),
   security: Object.freeze(['csrf', 'requireAuthorizedActions']),
 });
@@ -134,6 +152,45 @@ function string(
   return value;
 }
 
+/** Namespace and theme names: lowercase identifiers such as `admin` or `dark-mode`. */
+const scopeName = /^[a-z][a-z0-9-]{0,63}$/;
+const reservedScopes = new Set(['constructor', 'prototype']);
+
+/** A name -> directory map (view namespaces, themes); frozen null-prototype copy. */
+function directories(
+  value: unknown,
+  path: string,
+  issues: Issues,
+): Readonly<Record<string, string>> | undefined {
+  if (value === undefined) return undefined;
+  const expected = 'an object of lowercase name -> directory strings';
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    return issues.add(path, expected);
+  const prototype: unknown = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null)
+    return issues.add(path, expected);
+  const keys = Reflect.ownKeys(value);
+  if (keys.length > 64) return issues.add(path, 'at most 64 entries');
+  const result = Object.create(null) as Record<string, string>;
+  for (const key of keys) {
+    if (
+      typeof key !== 'string' ||
+      !scopeName.test(key) ||
+      reservedScopes.has(key)
+    ) {
+      issues.add(path, 'lowercase names such as "admin" or "dark-mode"');
+      continue;
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (!descriptor || !('value' in descriptor)) {
+      issues.add(`${path}.${key}`, 'a data property (accessors are not read)');
+      continue;
+    }
+    result[key] = string(descriptor.value, '', `${path}.${key}`, issues);
+  }
+  return Object.freeze(result);
+}
+
 /** Validates one partial layer (unknown keys, accessors and types) without applying defaults. */
 function layer(
   input: unknown,
@@ -170,6 +227,12 @@ export function normalizeOptions(
     views['layout'] === undefined || views['layout'] === false
       ? false
       : string(views['layout'], '', 'views.layout', issues);
+  const namespaces = directories(
+    views['namespaces'],
+    'views.namespaces',
+    issues,
+  );
+  const themes = directories(views['themes'], 'views.themes', issues);
   const client = live['client'];
   if (client !== undefined && client !== 'alpine' && client !== 'manual')
     issues.add('live.client', '"alpine" or "manual"');
@@ -179,6 +242,8 @@ export function normalizeOptions(
       root: string(views['root'], 'src/views', 'views.root', issues),
       cache: bool(views['cache'], false, 'views.cache', issues),
       layout,
+      ...(namespaces === undefined ? {} : { namespaces }),
+      ...(themes === undefined ? {} : { themes }),
     }),
     live: Object.freeze({
       enabled: bool(live['enabled'], false, 'live.enabled', issues),

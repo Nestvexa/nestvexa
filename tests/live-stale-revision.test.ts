@@ -2,7 +2,7 @@
  * `STALE_REVISION` recovery: the reply carries `x-nestvexa-recovery: resync`
  * (browsers never parse error bodies), and a `$sync` marked
  * `x-nestvexa-resync: 1` without updates re-renders the caller's current state
- * at its current revision. Nothing from the client is written, no action runs.
+ * at its current revision, read-only (see tests/live-refresh.test.ts). Nothing from the client is written, no action runs.
  */
 import 'reflect-metadata';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -134,7 +134,8 @@ describe.each(platforms)('stale revision recovery: %s', (platform) => {
     expect(resync.status).toBe(201);
     expect(resync.recovery).toBeNull();
     expect(resync.body).toMatchObject({
-      component: { revision: reference.revision + 2 },
+      // Read-only: the committed revision, not a new one.
+      component: { revision: reference.revision + 1 },
       state: { count: 1, note: '' },
     });
     expect(String(resync.body['html'])).toContain('<p>1 </p>');

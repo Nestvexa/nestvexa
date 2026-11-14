@@ -1,0 +1,23 @@
+// Prisma schema for the notes example. `prisma generate` (part of the build)
+// writes a typed client to src/generated/prisma; the SQLite connection is a
+// driver adapter created in src/database.ts.
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+  runtime             = "nodejs"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Note {
+  id        Int      @id @default(autoincrement())
+  author    String
+  body      String
+  createdAt DateTime @map("created_at")
+
+  @@map("notes")
+}

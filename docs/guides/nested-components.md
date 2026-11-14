@@ -180,6 +180,14 @@ client requests the first full render through the component's `$sync` route,
 immediately (`lazy: true`) or when the root intersects the viewport
 (`'visible'`). Hosts must authorize `$sync` for lazy components.
 
+Browser evidence for `'visible'`: `tests/browser/views-tour.spec.ts` against
+[the views tour](../../examples/views-tour/README.md) checks in Chromium,
+Firefox and WebKit that the component below the fold sends no request while
+off-screen (its `role="status"`/`aria-busy` placeholder passes axe), loads
+with exactly one `_sync` when scrolled into view, removes `data-nv-lazy`, and
+is not loaded again when it leaves and re-enters the viewport. Without
+`IntersectionObserver` the client loads it immediately.
+
 ## Redirects
 
 `redirectLive(this, '/path?query#hash')` navigates the browser after the action

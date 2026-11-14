@@ -80,6 +80,8 @@ const replica = (
       REPLICA: name,
       HTTP_ADAPTER: adapter,
       REALTIME_TRANSPORT: transport,
+      // POST /api/load/broadcast for the slow-subscriber scenario.
+      ACCEPTANCE_LOAD_TOOLS: '1',
     },
   );
 

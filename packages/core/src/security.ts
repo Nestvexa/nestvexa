@@ -5,10 +5,17 @@ import { NestvexaError } from './errors.js';
 export interface SecurityPolicies {
   /**
    * Verifies the request's anti-CSRF proof. `subject` is the identity the
-   * feature already resolved for this request, when it has one.
+   * feature already resolved for this request, when it has one. `token` is a
+   * proof the feature read from somewhere other than the policy's own
+   * header (for example a multipart form field); the policy then compares
+   * it instead of the header.
    */
   readonly csrf: {
-    verify(request: object, subject?: unknown): boolean | Promise<boolean>;
+    verify(
+      request: object,
+      subject?: unknown,
+      token?: string,
+    ): boolean | Promise<boolean>;
   };
   /** Decides whether a request `Origin` may perform unsafe requests. */
   readonly origin: {
@@ -21,12 +28,17 @@ export interface SecurityPolicies {
     /** Must be true: state references are bound to the identity. */
     readonly bindsIdentity: true;
   };
-  /** Per-action authorization of a subject on a resource. */
+  /**
+   * Per-action authorization of a subject on a resource. `request` is the
+   * request being authorized, for policies whose host callback reads it
+   * (server actions pass it to the host `authorize`).
+   */
   readonly 'action-authorization': {
     authorize(
       subject: unknown,
       resource: string,
       action: string,
+      request?: object,
     ): boolean | Promise<boolean>;
   };
   /** Upload limits. */
@@ -159,10 +171,13 @@ export class SecurityPolicyRegistry {
     owner: string,
     request: object,
     subject?: unknown,
+    token?: string,
   ): Promise<boolean> {
     if (!this.has('csrf', owner)) return false;
     try {
-      return (await this.get('csrf', owner).verify(request, subject)) === true;
+      return (
+        (await this.get('csrf', owner).verify(request, subject, token)) === true
+      );
     } catch {
       return false;
     }
@@ -180,6 +195,7 @@ export class SecurityPolicyRegistry {
     subject: unknown,
     resource: string,
     action: string,
+    request?: object,
   ): Promise<boolean> {
     if (!this.has('action-authorization', owner)) return false;
     try {
@@ -188,6 +204,7 @@ export class SecurityPolicyRegistry {
           subject,
           resource,
           action,
+          request,
         )) === true
       );
     } catch {
@@ -240,10 +257,11 @@ export class SecurityPolicyRegistry {
         const verify = Reflect.get(policy, 'verify') as (
           request: object,
           subject?: unknown,
+          token?: string,
         ) => boolean | Promise<boolean>;
         return Object.freeze({
-          verify: (request: object, subject?: unknown) =>
-            Reflect.apply(verify, policy, [request, subject]),
+          verify: (request: object, subject?: unknown, token?: string) =>
+            Reflect.apply(verify, policy, [request, subject, token]),
         });
       }
       case 'origin': {
@@ -262,10 +280,21 @@ export class SecurityPolicyRegistry {
           subject: unknown,
           resource: string,
           action: string,
+          request?: object,
         ) => boolean | Promise<boolean>;
         return Object.freeze({
-          authorize: (subject: unknown, resource: string, action: string) =>
-            Reflect.apply(authorize, policy, [subject, resource, action]),
+          authorize: (
+            subject: unknown,
+            resource: string,
+            action: string,
+            request?: object,
+          ) =>
+            Reflect.apply(authorize, policy, [
+              subject,
+              resource,
+              action,
+              request,
+            ]),
         });
       }
       case 'snapshot': {

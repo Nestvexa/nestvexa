@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import {
   INERTIA_JSON_VARY,
@@ -51,6 +57,14 @@ import { pull } from './session.js';
 import { normalizeErrors, readStoredBags } from './validation-types.js';
 import type { InertiaErrors, StoredErrorBags } from './validation-types.js';
 import { validComponent } from './text.js';
+import { kernelIdentityOf } from './kernel.js';
+import type { InertiaKernelIdentity } from './kernel.js';
+import { inertiaPolicyEnforcer } from './security.js';
+import type { InertiaPolicyEnforcer } from './security.js';
+
+/** Shared prop holding the public kernel identity (with `kernelIdentity`). */
+export const KERNEL_IDENTITY_PROP = 'nvIdentity';
+const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 /** A complete, platform-neutral HTTP reply produced by the adapter. */
 export interface InertiaHttpReply {
@@ -104,6 +118,8 @@ export class InertiaService {
   readonly #host: HttpAdapterHost | undefined;
   readonly #requests = new WeakMap<object, RequestState>();
   readonly #logger = new Logger('Inertia');
+  /** Origin, CSRF and page decisions (with `security`; the registry when configured). */
+  readonly #policy: InertiaPolicyEnforcer | undefined;
 
   constructor(
     @Inject(INERTIA_OPTIONS) options: ResolvedOptions,
@@ -111,6 +127,81 @@ export class InertiaService {
   ) {
     this.#options = options;
     this.#host = host;
+    this.#policy =
+      options.security === undefined
+        ? undefined
+        : inertiaPolicyEnforcer(
+            options.security,
+            options.policies,
+            options.policyOwner,
+          );
+    const apps = [...options.apps.values()];
+    options.featureRegistry?.registerFeature({
+      name: options.policyOwner,
+      package: '@nestvexa/inertia',
+      capabilities: {
+        ssr: apps.some((app) => app.ssr !== undefined)
+          ? { supported: true }
+          : { supported: false, reason: 'No app configures SSR' },
+        session: options.session
+          ? { supported: true }
+          : {
+              supported: false,
+              reason: 'Session disabled: no flash, validation bags or back()',
+            },
+        security: options.security
+          ? { supported: true }
+          : {
+              supported: false,
+              reason:
+                'CSRF and origin checks are host-owned (no security option)',
+            },
+        'kernel-identity': options.kernelIdentity
+          ? { supported: true }
+          : { supported: false, reason: 'kernelIdentity is not configured' },
+      },
+    });
+  }
+
+  /**
+   * The request's kernel identity (with `kernelIdentity`), otherwise empty.
+   * A failing or malformed kernel identity rejects (403), so pages never
+   * render with a guessed user or tenant.
+   */
+  async kernelIdentity(request: object): Promise<InertiaKernelIdentity> {
+    const source = this.#options.kernelIdentity;
+    if (!source) return Object.freeze({});
+    let identity: InertiaKernelIdentity | undefined;
+    try {
+      identity = kernelIdentityOf(await source.identity(request));
+    } catch {
+      identity = undefined;
+    }
+    if (!identity)
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: 'IDENTITY_REQUIRED',
+      });
+    return identity;
+  }
+
+  /**
+   * Origin and CSRF admission for unsafe methods (`InertiaSecurityGuard`),
+   * decided by the `security` policies (through the kernel registry when
+   * configured). Safe methods and hosts without `security` pass.
+   */
+  async admit(request: object): Promise<void> {
+    const policy = this.#policy;
+    const method: unknown = Reflect.get(request, 'method');
+    if (!policy || (typeof method === 'string' && safeMethods.has(method)))
+      return;
+    if (!policy.originAllowed(plainHeader(request, 'origin')))
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: 'ORIGIN_REJECTED',
+      });
+    if (!(await policy.verifyCsrf(request)))
+      throw new ForbiddenException({ statusCode: 403, code: 'CSRF_REJECTED' });
   }
 
   #state(request: object): RequestState {
@@ -491,9 +582,27 @@ export class InertiaService {
     const info = this.requestInfo(request);
     const app = this.#app(this.appFor(request, options.app ?? defaultApp));
     const state = this.#state(request);
+    const identity = await this.kernelIdentity(request);
+    // Every page component is re-authorized server-side for this request.
+    if (
+      this.#policy &&
+      !(await this.#policy.authorize(identity, component, request))
+    )
+      throw new ForbiddenException({ statusCode: 403, code: 'PAGE_FORBIDDEN' });
     const version = await this.version(request, app.key);
     const shared = this.#options.share
       ? assertProps(await this.#options.share(request), 'Shared props')
+      : {};
+    // The kernel's public identity wins over shared props of the same name.
+    const kernelShared = this.#options.kernelIdentity
+      ? {
+          [KERNEL_IDENTITY_PROP]: Object.freeze({
+            authenticated: identity.principal !== undefined,
+            ...(identity.tenant === undefined
+              ? {}
+              : { tenant: identity.tenant }),
+          }),
+        }
       : {};
     const errors = this.#errors(request, info, options.errors);
     const resolver = new PropsResolver({
@@ -518,7 +627,7 @@ export class InertiaService {
       },
     });
     const resolved = await resolver.resolve(
-      { errors: always(errors), ...shared, ...state.shared },
+      { errors: always(errors), ...shared, ...state.shared, ...kernelShared },
       props,
     );
     const preserveBigIntegers =

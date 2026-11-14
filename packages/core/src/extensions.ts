@@ -145,6 +145,14 @@ export class NestvexaExtensionHost
   names(): readonly string[] {
     return Object.freeze(this.#installed.map((extension) => extension.name));
   }
+  /** Installed extensions as data (name and version), in order. */
+  describe(): readonly { readonly name: string; readonly version?: string }[] {
+    return Object.freeze(
+      this.#installed.map(({ name, version }) =>
+        Object.freeze({ name, ...(version === undefined ? {} : { version }) }),
+      ),
+    );
+  }
 
   async onModuleInit(): Promise<void> {
     const context: NestvexaExtensionContext = Object.freeze({

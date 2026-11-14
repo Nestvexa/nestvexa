@@ -118,6 +118,20 @@ or the umbrella `browser.realtime` option.
 - Pushed data is never applied as server state; components re-render through the
   normal Live security pipeline.
 
+### Kernel identity and features
+
+`kernelIdentity` (structural; `RequestContextFactory` from `@nestvexa/core`)
+makes `RealtimeService.identity(request, resolver)` attach the kernel `principal`
+and `tenant` to the identity `authorizeChannel` receives at connect and on every
+revalidation (`revalidateMs`), and scope the binding to them, so a subscription
+token signed for one user or tenant is refused (403) for another. A failing kernel
+identity is `401 IDENTITY_REQUIRED`; host values for `principal`/`tenant` are
+never kept. Enable it on Live too when Live signs tokens (both scope bindings
+identically). `revoke(binding)` takes the binding the hub sees
+(`identity.binding` in `authorizeChannel`). `featureRegistry`
+(`NestvexaRegistry`) receives feature `realtime` with the `broker`, `websocket`,
+`sse`, `polling`, `presence` and `kernel-identity` capabilities.
+
 ## Delivery semantics
 
 At-most-once per connected subscriber. The memory broker replays the last 100

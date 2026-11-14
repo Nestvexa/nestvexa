@@ -166,7 +166,10 @@ The [auth example](../../examples/auth-forms/README.md) shows a host-owned
 policy: scrypt hashes with per-user salts compared with `timingSafeEqual`, one
 generic sign-in error, a dummy hash for unknown accounts, failed-attempt
 throttling, session regeneration and CSRF rotation on sign-in, sign-out by POST
-with CSRF. It is illustrative, not a production identity provider.
+with CSRF. It is illustrative, not a production identity provider. For the
+standard Nest stack (Passport sessions and JWT, argon2id, email verification
+and password reset) see the [Passport starter](../../examples/auth-passport/README.md)
+and the [databases and authentication guide](auth-and-data.md).
 
 ## 7. One form-state object
 

@@ -1,8 +1,46 @@
 # Upstream compatibility
 
-Research performed **2026-10-24**; implementation reconciliation **2026-10-29**; registry snapshot **2026-11-05**. Registry metadata establishes available versions, not runtime compatibility. The lockfile and executed test reports determine the tested matrix. No optional renderer is supported merely because its documentation was read. Checkpoint calendar dates follow Africa/Cairo; verification timestamps remain UTC.
+Research performed **2026-10-24**; implementation reconciliation **2026-10-29**; registry snapshots **2026-11-05** and **2026-11-14**. Registry metadata establishes available versions, not runtime compatibility. The lockfile and executed test reports determine the tested matrix. No optional renderer is supported merely because its documentation was read. Checkpoint calendar dates follow Africa/Cairo; verification timestamps remain UTC.
 
-## Registry snapshot (2026-11-05)
+## Registry snapshot (2026-11-14, after rounds 2–4)
+
+On **2026-11-14** each upstream below was compared with the registry `latest` tag
+(`npm view <package> version`; Node lines from `https://nodejs.org/dist/index.json`).
+**Locked** is the version in `pnpm-lock.yaml` at `928b2f1`, which every round 2–4 test
+run used; rounds 2–4 upgraded nothing. A newer `latest` is untested.
+
+| Upstream                                                              | Locked (tested)                            | Registry latest (2026-11-14)               | Assessment                                                                                     |
+| --------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| Node.js                                                               | 22.x / 24.x (CI 22/24)                     | 22.23.5, 24.22.3, 26.13.1                  | `engines` stays `^22.13.0 \|\| ^24.0.0`; Node 26 unrun.                                        |
+| `@nestjs/*`                                                           | 12.2.0                                     | 12.5.0                                     | Two minors inside the `^12.0.0` peers; untested.                                               |
+| `fastify` / `express`                                                 | 5.12.7 / 5.3.0                             | 5.12.8 / 5.3.0                             | Fastify patch untested.                                                                        |
+| `@inertiajs/core`, `react`, `vue3`, `svelte`                          | 3.10.0                                     | 3.11.0                                     | Minor inside the adapters' `^3.10.0` peers; browser runs used 3.10.0 only.                     |
+| `vite` / `@vitejs/plugin-react` / `plugin-vue` / `vite-plugin-svelte` | 8.3.5 / 6.1.2 / 6.0.10 / 7.3.1             | 8.3.8 / 6.3.0 / 6.0.11 / 7.3.1             | Untested.                                                                                      |
+| `react` / `vue` / `svelte`                                            | 19.3.1 / 3.5.44 / 5.57.3                   | 19.3.1 / 3.5.45 / 5.57.3                   | Vue patch untested.                                                                            |
+| `@alpinejs/csp`, `handlebars`, `ejs`, `pug`, `nunjucks`               | 3.17.5, 4.7.10, 7.0.2, 3.0.4, 3.2.4        | same                                       | Current.                                                                                       |
+| `typescript` / `typescript-eslint` / `eslint`                         | 6.0.3 / 8.72.0 / 10.13.0                   | 7.0.2 / 8.72.2 / 10.15.0                   | TypeScript held on 6.0: `typescript-eslint@8.72.2` still declares `typescript >=4.8.4 <6.1.0`. |
+| `vitest` / `@playwright/test` / `prettier` / `tsx` / `esbuild`        | 5.0.5 / 1.64.1 / 3.9.10 / 4.23.15 / 0.28.2 | 5.1.0 / 1.65.1 / 3.10.1 / 4.23.15 / 0.28.2 | Tooling minors untested; a Playwright upgrade also changes the downloaded browser builds.      |
+| `zod` / `class-validator` / `busboy` / `express-session`              | 4.6.7 / 0.15.1 / 1.6.0 / 1.19.0            | same                                       | Current.                                                                                       |
+| `ws`                                                                  | 8.22.0                                     | 8.23.0                                     | Minor untested (optional WebSocket transport peer).                                            |
+| `@fastify/cookie` / `@fastify/session` (examples)                     | 11.1.5 / 11.1.6                            | same                                       | Current; not in the 2026-11-05 table.                                                          |
+| `@stryker-mutator/*`, `fast-check`, `autocannon` (test tooling)       | 10.1.1, 4.10.2, 8.0.0                      | 10.1.1, 4.10.2, 9.0.0                      | `autocannon` major available; the load scripts were not run against it.                        |
+| `svelte-check` / `vue-tsc` (type-check tooling)                       | 4.7.7 / 3.3.14                             | 4.7.8 / 3.3.14                             | Patch untested.                                                                                |
+| `marked` (docs site) / `@axe-core/playwright` / `@changesets/cli`     | 18.1.3 / 4.14.0 / 3.0.3                    | 18.2.0 / 4.14.0 / 3.0.3                    | `marked` minor untested.                                                                       |
+
+Rounds 2–4 added behavior on the locked versions: the Inertia Vue and Svelte
+clients and the React SSR process have browser specs
+(`tests/browser/inertia-vue.spec.ts`, `inertia-svelte.spec.ts`, `inertia-react.spec.ts`),
+and Precognition is implemented against the official v3 clients
+(`tests/inertia-precognition.test.ts`, [Inertia guide](../guides/inertia.md#precognition-live-validation)).
+Live replay, identity locks, jobs and presence run against real Redis 7 in
+`pnpm test:services`. No new runtime dependency entered a published package, and
+`pnpm audit:licenses` checks the production closure ([ADR 0007](../adr/0007-packaging-and-release.md)).
+
+> **Known gap:** none of the newer releases above has been run against this
+> repository. Upgrading is a separate change that must pass `pnpm checkpoint:check`
+> on Windows and Linux before the locked column changes.
+
+## Registry snapshot (2026-11-05, historical)
 
 On **2026-11-05** each version in `pnpm-lock.yaml` was compared with the registry
 `latest` tag (`npm view <package> version`, publish dates from `npm view <package>
@@ -258,4 +296,4 @@ Research and implementation on **2026-11-01**. The [protocol specification](http
 | `inertia-laravel` (reference) | v3.6.0 (git tag) | Source and tests read, not installed: `PropsResolver`, `Middleware`, `Response`, `Support/Header.php` and `tests/{ResponseTest,MiddlewareTest,HistoryTest}.php` vectors reproduced in `tests/fixtures/inertia/`.                           |
 | `express-session`             | 1.19.0           | Also a root devDependency now, for the Inertia Vitest suites (host-owned session).                                                                                                                                                         |
 
-`@nestvexa/inertia` has no runtime dependency on any client package or framework; `scripts/boundaries.mjs` enforces this and keeps `@nestvexa/views` free of adapter imports. Supported: protocol v3 / clients 3.x on Nest 12 Express and Fastify. Not claimed: Inertia v1/v2, the Vue and Svelte clients (not yet exercised), Precognition, or a running SSR process (only the HTTP contract and fallback are tested, against a local contract fake). The server/client parity matrix lives in the [Inertia guide](../guides/inertia.md#parity-matrix). Read results from executed test reports, not from this table.
+`@nestvexa/inertia` has no runtime dependency on any client package or framework; `scripts/boundaries.mjs` enforces this and keeps `@nestvexa/views` free of adapter imports. Supported: protocol v3 / clients 3.x on Nest 12 Express and Fastify. Not claimed: Inertia v1/v2. _As of 2026-11-01 (superseded):_ the Vue and Svelte clients, Precognition and a running SSR process were not exercised; rounds 2–4 added browser specs for all three clients, the React SSR process and Precognition (see the 2026-11-14 snapshot above). The server/client parity matrix lives in the [Inertia guide](../guides/inertia.md#parity-matrix). Read results from executed test reports, not from this table.

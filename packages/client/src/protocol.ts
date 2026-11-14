@@ -100,7 +100,7 @@ export function parseDirective(name: string, value: string): LiveDirective {
   if (name.startsWith('nv:loading.')) return parseLoadingDirective(name, value);
   if ((name === 'nv:replace' || name === 'nv:replace.self') && value === '')
     return { kind: 'replace', self: name === 'nv:replace.self' };
-  if (['text', 'show', 'bind', 'dirty', 'cloak', 'ref'].includes(kind))
+  if (['text', 'show', 'bind', 'dirty', 'cloak', 'ref', 'class'].includes(kind))
     return parseBindingDirective(name, value);
   throw new LiveClientError(
     'DIRECTIVE',

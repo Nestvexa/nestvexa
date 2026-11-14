@@ -4,6 +4,13 @@ import type { ActionRateLimit } from './limits.js';
 import type { ActionDescriptor, ActionGroupDefinition } from './metadata.js';
 import type { ActionIdentity } from './state.js';
 import type { ActionErrorCode } from './shared/protocol.js';
+import { isFeatureRegistry, isKernelIdentitySource } from './kernel.js';
+import type {
+  ActionFeatureRegistry,
+  ActionKernelIdentitySource,
+} from './kernel.js';
+import { isActionPolicyRegistry } from './policies.js';
+import type { ActionPolicyRegistry } from './policies.js';
 
 /**
  * Span attributes are small primitives chosen by the runtime (group, action,
@@ -119,6 +126,32 @@ export interface ActionsHostOptions {
    * correlation ID instead of a random one. Malformed IDs are ignored.
    */
   readonly requestContext?: { correlationId(request: object): string };
+  /**
+   * Kernel security policy registry (structural; for example
+   * `SecurityPolicyRegistry` from @nestvexa/core). Actions register their
+   * origin, CSRF (when required) and action-authorization policies under
+   * `policyOwner` at startup and ask the registry for every origin, CSRF
+   * and authorization decision, so the registry is the single source of
+   * truth. Without it the same policies are enforced directly.
+   */
+  readonly policies?: ActionPolicyRegistry;
+  /** Owner name for `policies` (default `actions`); a duplicate owner fails startup. */
+  readonly policyOwner?: string;
+  /**
+   * Opt-in kernel identity (structural; for example `RequestContextFactory`
+   * from @nestvexa/core). Actions still call `resolveIdentity` for the
+   * subject and CSRF token, then attach the kernel `principal` and use the
+   * kernel `tenant` (rate limits, job owners, serial keys). A host subject
+   * that differs from the kernel principal id, or a host tenant that differs
+   * from the kernel tenant, is `401 UNAUTHENTICATED` (`IDENTITY_MISMATCH`).
+   */
+  readonly kernelIdentity?: ActionKernelIdentitySource;
+  /**
+   * Kernel feature registry (structural; for example `NestvexaRegistry`
+   * from @nestvexa/core): actions register their safe actions and
+   * capabilities under `policyOwner` (default `actions`).
+   */
+  readonly featureRegistry?: ActionFeatureRegistry;
 }
 
 export type ActionsErrorEnvelopeMode = 'actions' | 'host';
@@ -150,6 +183,10 @@ export interface NormalizedActionsOptions {
   readonly jobOwner: ActionJobsOptions['owner'];
   readonly jobPollAfterMs: number;
   readonly requestContext: ActionsHostOptions['requestContext'];
+  readonly policies: ActionPolicyRegistry | undefined;
+  readonly policyOwner: string;
+  readonly kernelIdentity: ActionKernelIdentitySource | undefined;
+  readonly featureRegistry: ActionFeatureRegistry | undefined;
 }
 
 export const HOST_KEYS: ReadonlySet<string> = new Set([
@@ -166,6 +203,10 @@ export const HOST_KEYS: ReadonlySet<string> = new Set([
   'logger',
   'jobs',
   'requestContext',
+  'policies',
+  'policyOwner',
+  'kernelIdentity',
+  'featureRegistry',
 ]);
 
 function hasMethods(value: unknown, names: readonly string[]): boolean {
@@ -340,6 +381,29 @@ export function normalizeHostOptions(
     throw new Error(
       'Actions requestContext must implement correlationId(request)',
     );
+  const policies = options['policies'];
+  if (policies !== undefined && !isActionPolicyRegistry(policies))
+    throw new Error(
+      'Actions policies must implement register, originAllowed, verifyCsrf and authorize',
+    );
+  const policyOwner = options['policyOwner'];
+  if (
+    policyOwner !== undefined &&
+    (policies === undefined ||
+      typeof policyOwner !== 'string' ||
+      !/^[a-z][a-z0-9._-]{0,63}$/.test(policyOwner))
+  )
+    throw new Error(
+      'Actions policyOwner must be a lowercase name (a-z0-9._-) used with policies',
+    );
+  const kernelIdentity = options['kernelIdentity'];
+  if (kernelIdentity !== undefined && !isKernelIdentitySource(kernelIdentity))
+    throw new Error('Actions kernelIdentity must implement identity(request)');
+  const featureRegistry = options['featureRegistry'];
+  if (featureRegistry !== undefined && !isFeatureRegistry(featureRegistry))
+    throw new Error(
+      'Actions featureRegistry must implement registerFeature(feature)',
+    );
   return Object.freeze({
     origins: origins(options['origin']),
     resolveIdentity: options[
@@ -408,5 +472,9 @@ export function normalizeHostOptions(
       60_000,
     ),
     requestContext: requestContext as ActionsHostOptions['requestContext'],
+    policies,
+    policyOwner: typeof policyOwner === 'string' ? policyOwner : 'actions',
+    kernelIdentity,
+    featureRegistry,
   });
 }

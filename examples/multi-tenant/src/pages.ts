@@ -32,6 +32,7 @@ import {
 } from '@nestvexa/forms';
 import { TenantBoard } from './board.js';
 import { allowedOrigins } from './config.js';
+import { statsIsland } from './islands.js';
 import { Directory, ProjectRepository, TenantGuard } from './tenancy.js';
 import type { SessionRequest } from './tenancy.js';
 
@@ -97,6 +98,7 @@ function regenerate(request: SessionRequest): Promise<void> {
 export class Pages {
   constructor(
     @Inject(Directory) private readonly directory: Directory,
+    @Inject(ProjectRepository) private readonly repository: ProjectRepository,
     @Inject(LiveRuntime) private readonly live: LiveRuntime,
   ) {}
 
@@ -219,6 +221,8 @@ export class Pages {
       tenant: access.tenant,
       role: access.role,
       board: await this.live.mount(TenantBoard, request),
+      // Island props: counts of this tenant only, signed by the server.
+      stats: statsIsland(this.repository, access.tenant.slug),
     };
   }
 }

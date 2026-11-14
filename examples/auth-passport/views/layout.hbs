@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{title}}</title>
+    {{nvScripts}}
+  </head>
+  <body>
+    <header>
+      <nav aria-label="Main">
+        <a href="/">Home</a>
+        {{#if signedIn}}
+        <a href="/account">Account</a>
+        <span id="signed-in-as">{{userName}}</span>
+        <form method="post" action="/logout">
+          <input type="hidden" name="_csrf" value="{{csrf}}" />
+          <button type="submit">Sign out</button>
+        </form>
+        {{else}}
+        <a href="/login">Sign in</a>
+        <a href="/register">Create an account</a>
+        {{/if}}
+      </nav>
+    </header>
+    <main>
+      {{#if flash.length}}
+      <div role="status" id="flash">
+        {{#each flash}}
+        <p>{{this}}</p>
+        {{/each}}
+      </div>
+      {{/if}} {{#if unverified}}
+      <form method="post" action="/verify-email/resend" id="unverified">
+        <p>Your email address is not confirmed yet.</p>
+        <input type="hidden" name="_csrf" value="{{csrf}}" />
+        <button type="submit">Send a new confirmation link</button>
+      </form>
+      {{/if}} {{body}}
+    </main>
+  </body>
+</html>

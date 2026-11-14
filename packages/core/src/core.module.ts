@@ -33,6 +33,7 @@ import {
 import { NESTVEXA_EXTENSIONS, NestvexaExtensionHost } from './extensions.js';
 import type { NestvexaExtension } from './extensions.js';
 import type { RedactionOptions } from './redaction.js';
+import { NestvexaRegistry } from './features.js';
 import { FeatureCapabilityRegistry } from './registry.js';
 import { SecurityPolicyRegistry } from './security.js';
 
@@ -91,6 +92,7 @@ const exported = [
   DiagnosticsRegistry,
   NestvexaExceptionFilter,
   NestvexaExtensionHost,
+  NestvexaRegistry,
 ];
 /** Kernel services shared by `forRoot` and `forRootAsync`. */
 function kernel(registration: CoreModuleRegistration | undefined): Provider[] {
@@ -112,6 +114,7 @@ function kernel(registration: CoreModuleRegistration | undefined): Provider[] {
     NestvexaExceptionFilter,
     { provide: NESTVEXA_EXTENSIONS, useValue: value('extensions') },
     NestvexaExtensionHost,
+    NestvexaRegistry,
   ];
 }
 

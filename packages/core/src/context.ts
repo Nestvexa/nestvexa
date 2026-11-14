@@ -63,6 +63,20 @@ export interface NestvexaRequestContext {
   >;
   readonly public: PublicRequestContext;
 }
+/**
+ * The kernel identity of a request (`RequestContextFactory.identity`): the
+ * principal and tenant the configured server-side resolvers returned, and
+ * nothing else. Feature transports that opt in (`kernelIdentity` on Live,
+ * actions, uploads, realtime and Inertia) attach exactly this object to the
+ * identity they hand to host policies, so every transport sees one user and
+ * one tenant. The kernel never reads a tenant or principal from the request
+ * body, query or a header of its own; only the host resolvers decide.
+ */
+export interface RequestIdentity {
+  readonly authenticated: boolean;
+  readonly principal?: RequestPrincipal;
+  readonly tenant?: string;
+}
 
 const correlationPattern = /^[A-Za-z0-9._:-]{8,128}$/;
 const tenantPattern = /^[A-Za-z0-9._:-]{1,128}$/;
@@ -92,6 +106,7 @@ export class RequestContextFactory {
   readonly #header: string;
   readonly #contexts = new WeakMap<object, Promise<NestvexaRequestContext>>();
   readonly #correlations = new WeakMap<object, string>();
+  readonly #identities = new WeakMap<object, Promise<RequestIdentity>>();
   readonly #contributors = new Map<string, RequestContextContributor>();
   constructor(
     @Optional()
@@ -155,6 +170,30 @@ export class RequestContextFactory {
     if (known) return known;
     const created = this.#build(request);
     this.#contexts.set(request, created);
+    return created;
+  }
+
+  /**
+   * The request's kernel identity: the principal and tenant of `create()`,
+   * as one frozen object shared by every caller for this request (the
+   * `kernelIdentity` source of Live, actions, uploads, realtime and
+   * Inertia). Resolver failures reject, so transports fail closed.
+   */
+  identity(request: object): Promise<RequestIdentity> {
+    if (typeof request !== 'object' || request === null)
+      return Promise.reject(
+        new NestvexaError('INVALID_CONFIGURATION', 'A request is required'),
+      );
+    const known = this.#identities.get(request);
+    if (known) return known;
+    const created = this.create(request).then(({ principal, tenant }) =>
+      Object.freeze({
+        authenticated: principal !== undefined,
+        ...(principal === undefined ? {} : { principal }),
+        ...(tenant === undefined ? {} : { tenant }),
+      }),
+    );
+    this.#identities.set(request, created);
     return created;
   }
 

@@ -16,6 +16,20 @@ import { requestSessionAdapter } from './session.js';
 import type { InertiaSsrOptions } from './ssr.js';
 import type { InertiaPageObject } from './page.js';
 import { hasControlCharacter } from './text.js';
+import { isFeatureRegistry, isKernelIdentitySource } from './kernel.js';
+import type {
+  InertiaFeatureRegistry,
+  InertiaKernelIdentitySource,
+} from './kernel.js';
+import {
+  inertiaSecurityPolicies,
+  isInertiaPolicyRegistry,
+} from './security.js';
+import type {
+  InertiaPolicyRegistry,
+  InertiaSecurityOptions,
+  InertiaSecurityPolicies,
+} from './security.js';
 
 /** Asset version: a value or a per-request (possibly async) resolver. */
 export type InertiaVersion =
@@ -101,6 +115,33 @@ export interface InertiaModuleOptions extends InertiaAppOptions {
    * unusable. Default true (no effect without a session).
    */
   readonly previousUrl?: boolean;
+  /**
+   * Opt-in origin, CSRF and page-authorization policies (see
+   * `InertiaSecurityOptions`). Without it they stay host-owned.
+   */
+  readonly security?: InertiaSecurityOptions;
+  /**
+   * Kernel security policy registry (structural; for example
+   * `SecurityPolicyRegistry` from @nestvexa/core). With `security`, Inertia
+   * registers its policies under `policyOwner` and asks the registry for
+   * every origin, CSRF and authorization decision.
+   */
+  readonly policies?: InertiaPolicyRegistry;
+  /** Owner name for `policies` (default `inertia`); a duplicate owner fails startup. */
+  readonly policyOwner?: string;
+  /**
+   * Opt-in kernel identity (structural; for example `RequestContextFactory`
+   * from @nestvexa/core). Every page then shares `nvIdentity`
+   * (`{ authenticated, tenant? }`, never the principal id or roles) from
+   * the kernel, and `security.authorize` receives the kernel identity.
+   */
+  readonly kernelIdentity?: InertiaKernelIdentitySource;
+  /**
+   * Kernel feature registry (structural; for example `NestvexaRegistry`
+   * from @nestvexa/core): Inertia registers its apps and capabilities under
+   * `policyOwner` (default `inertia`).
+   */
+  readonly featureRegistry?: InertiaFeatureRegistry;
 }
 
 export interface ResolvedApp {
@@ -138,6 +179,11 @@ export interface ResolvedOptions {
   readonly instrumentation: InertiaInstrumentation | undefined;
   readonly emptyResponse: 'back' | 'passthrough';
   readonly previousUrl: boolean;
+  readonly security: InertiaSecurityPolicies | undefined;
+  readonly policies: InertiaPolicyRegistry | undefined;
+  readonly policyOwner: string;
+  readonly kernelIdentity: InertiaKernelIdentitySource | undefined;
+  readonly featureRegistry: InertiaFeatureRegistry | undefined;
 }
 
 const idPattern = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
@@ -208,7 +254,35 @@ export function resolveOptions(
 ): ResolvedOptions {
   if (typeof options !== 'object' || options === null)
     throw new InertiaConfigurationError('Inertia options must be an object');
-  const { apps: named, defaultApp, ...base } = options;
+  const {
+    apps: named,
+    defaultApp,
+    security,
+    policies,
+    policyOwner,
+    kernelIdentity,
+    featureRegistry,
+    ...base
+  } = options;
+  if (policies !== undefined && !isInertiaPolicyRegistry(policies))
+    throw new InertiaConfigurationError(
+      'policies must implement register, originAllowed, verifyCsrf and authorize',
+    );
+  if (
+    policyOwner !== undefined &&
+    (policies === undefined || !/^[a-z][a-z0-9._-]{0,63}$/.test(policyOwner))
+  )
+    throw new InertiaConfigurationError(
+      'policyOwner must be a lowercase name (a-z0-9._-) used with policies',
+    );
+  if (kernelIdentity !== undefined && !isKernelIdentitySource(kernelIdentity))
+    throw new InertiaConfigurationError(
+      'kernelIdentity must implement identity(request)',
+    );
+  if (featureRegistry !== undefined && !isFeatureRegistry(featureRegistry))
+    throw new InertiaConfigurationError(
+      'featureRegistry must implement registerFeature(feature)',
+    );
   const apps = new Map<string, ResolvedApp>();
   if (named && Object.keys(named).length) {
     for (const [key, app] of Object.entries(named)) {
@@ -287,6 +361,12 @@ export function resolveOptions(
     instrumentation: instrumentation(options.instrumentation),
     emptyResponse,
     previousUrl: options.previousUrl !== false,
+    security:
+      security === undefined ? undefined : inertiaSecurityPolicies(security),
+    policies,
+    policyOwner: policyOwner ?? 'inertia',
+    kernelIdentity,
+    featureRegistry,
   });
 }
 

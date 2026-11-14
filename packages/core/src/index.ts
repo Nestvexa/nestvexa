@@ -21,6 +21,13 @@ export {
   type FeatureCapability,
 } from './registry.js';
 export {
+  NestvexaRegistry,
+  type NestvexaFeature,
+  type NestvexaFeatureReport,
+  type NestvexaPluginReport,
+  type NestvexaRegistryReport,
+} from './features.js';
+export {
   NESTVEXA_ERROR_CODES,
   NestvexaConfigError,
   NestvexaError,
@@ -35,6 +42,7 @@ export {
   type PublicRequestContext,
   type RequestContextContributor,
   type RequestContextOptions,
+  type RequestIdentity,
   type RequestPrincipal,
 } from './context.js';
 export {

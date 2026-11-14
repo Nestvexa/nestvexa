@@ -149,6 +149,13 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 180000,
     },
+    // Views tour: namespaces, themes, permission helpers, error pages,
+    // nv:cloak, nv:class and a lazy visible Live component.
+    {
+      command: 'pnpm --filter @nestvexa/example-views-tour start',
+      url: 'http://127.0.0.1:4100/api/health',
+      reuseExistingServer: false,
+    },
     {
       command: 'pnpm --filter @nestvexa/example-directive-lab start',
       url: 'http://127.0.0.1:3360/api/health',

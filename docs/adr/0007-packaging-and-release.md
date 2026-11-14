@@ -20,3 +20,36 @@ Node 22.12+ (`require(esm)`) loads them from CommonJS without a dual-package bui
 dual identity. Packages must therefore avoid top-level `await`. The CLI end-to-end
 test (`tests/cli.test.ts`) compiles a fresh CommonJS Nest app (`module: nodenext`),
 boots it and executes a Live action.
+
+## Amendment (2026-11-14): SBOMs, provenance and license audit
+
+- **SBOM.** `pnpm test:pack` (`scripts/pack.mjs`) writes a CycloneDX 1.6 JSON
+  SBOM per public package to `artifacts/sbom/` with `scripts/sbom.mjs`. It is
+  resolved offline from the committed pnpm v9 lockfile: the package itself with
+  its tarball SHA-256, the runtime dependency closure at exact lockfile
+  versions with registry integrity hashes, and peers as optional components
+  (their closure is the application's). devDependencies never appear, and
+  licenses come from installed manifests only. `artifacts/reports/pack.json`
+  records each SBOM's file and SHA-256, and `scripts/release-check.mjs` fails
+  when an SBOM is missing or does not match.
+- **Provenance.** Publication happens only in the owner-dispatched
+  `.github/workflows/release.yml`: matrix, then release-candidate verification
+  (pack, SBOM, audit, load gates, release check), then the protected
+  `npm-release` environment, then `scripts/release-publish.mjs`, which checks
+  every tarball against the verified SHA-256 and tag version and runs
+  `npm publish --provenance` through npm trusted publishing (GitHub OIDC). No
+  long-lived npm token exists. Packages set `publishConfig` (`access: public`,
+  `tag: alpha`). One-time owner setup is in
+  [release process](../release/release-process.md).
+- **License audit.** `pnpm audit:licenses` (`scripts/licenses.mjs`, run by the
+  `ci` and `security` workflows) checks the production closure of every public
+  package plus each declared peer against an SPDX allowlist of permissive
+  licenses. Copyleft, missing, unknown or non-SPDX licenses fail unless the
+  exact `package@version` is listed in `reviewed` with a written reason; the
+  list is empty. `--json` writes a report. SPDX classification is unit-tested
+  in `tests/supply-chain-scripts.test.ts`.
+
+Rejected: generating SBOMs from `node_modules` (non-reproducible, includes
+dev tooling) and publishing from a developer machine (no provenance, token on
+disk). Remaining gate: no package is published yet; publication waits for the
+owner's npm setup and the independent security review evidence.

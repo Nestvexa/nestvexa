@@ -22,7 +22,7 @@ export interface InspectedComponent {
 /** Structural mirror of `LiveRenderInspection` from @nestvexa/live. */
 export interface InspectedRenderInput {
   readonly component: string;
-  readonly cause: 'mount' | 'action' | 'sync';
+  readonly cause: 'mount' | 'action' | 'sync' | 'refresh';
   readonly action?: string;
   readonly fields: readonly string[];
   readonly revision: number;
@@ -35,7 +35,7 @@ export interface InspectedRender {
   readonly at: number;
   readonly requestId?: string;
   readonly component: string;
-  readonly cause: 'mount' | 'action' | 'sync';
+  readonly cause: 'mount' | 'action' | 'sync' | 'refresh';
   readonly action?: string;
   readonly fields: readonly string[];
   readonly revision: number;
@@ -169,7 +169,9 @@ export class DevtoolsInspector {
         ...(requestId === undefined ? {} : { requestId }),
         component: input.component,
         cause:
-          input.cause === 'action' || input.cause === 'sync'
+          input.cause === 'action' ||
+          input.cause === 'sync' ||
+          input.cause === 'refresh'
             ? input.cause
             : 'mount',
         ...(typeof input.action === 'string' && identifier.test(input.action)

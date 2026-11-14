@@ -114,7 +114,7 @@ let server: Server;
 let base: string;
 beforeAll(async () => {
   const assets = new Map(
-    ['loading', 'grammar', 'focus'].map((name) => [
+    ['loading', 'bindings', 'grammar', 'focus'].map((name) => [
       `/${name}.js`,
       new URL(`../packages/client/dist/${name}.js`, import.meta.url),
     ]),

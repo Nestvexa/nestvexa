@@ -27,6 +27,7 @@ import { UPLOAD_SESSION_PATTERN, UPLOAD_TOKEN_PATTERN } from './references.js';
 import { traced } from './instrumentation.js';
 import { uploadPolicyEnforcer, uploadSecurityPolicies } from './policies.js';
 import type { UploadPolicyEnforcer } from './policies.js';
+import { kernelIdentityOf, scopeBinding } from './kernel.js';
 import type { UploadSpanAttributes } from './instrumentation.js';
 import { sendDownload } from './download.js';
 import type { ScanVerdict } from './scanner.js';
@@ -142,11 +143,6 @@ function rawResponse(value: object): ServerResponse | undefined {
   const raw: unknown = Reflect.get(value, 'raw');
   return raw instanceof ServerResponse ? raw : undefined;
 }
-function equal(left: string, right: string): boolean {
-  const a = Buffer.from(left);
-  const b = Buffer.from(right);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
 function digest(value: string): Buffer {
   return createHash('sha256').update(value).digest();
 }
@@ -235,6 +231,33 @@ export class UploadsService
       options.policies,
       options.policyOwner,
     );
+    const storage = options.storage;
+    options.featureRegistry?.registerFeature({
+      name: options.policyOwner,
+      package: '@nestvexa/uploads',
+      capabilities: {
+        storage:
+          storage.kind === 'local'
+            ? {
+                supported: true,
+                degraded:
+                  'Local disk storage: use shared object storage for multiple replicas',
+              }
+            : { supported: true },
+        direct: [...options.purposes.values()].some((entry) => entry.direct)
+          ? { supported: true }
+          : {
+              supported: false,
+              reason: 'No purpose enables presigned direct uploads',
+            },
+        scan: options.scanner
+          ? { supported: true }
+          : { supported: false, reason: 'No malware scanner configured' },
+        'kernel-identity': options.kernelIdentity
+          ? { supported: true }
+          : { supported: false, reason: 'kernelIdentity is not configured' },
+      },
+    });
   }
 
   /** Per-process temporary directory. */
@@ -354,10 +377,30 @@ export class UploadsService
           identity.tenant.length > 256))
     )
       fail(401, 'IDENTITY_REQUIRED');
+    const source = this.options.kernelIdentity;
+    if (!source)
+      return Object.freeze({
+        binding: identity.binding,
+        csrfToken: identity.csrfToken,
+        ...(identity.tenant === undefined ? {} : { tenant: identity.tenant }),
+      });
+    let kernel: ReturnType<typeof kernelIdentityOf>;
+    try {
+      kernel = kernelIdentityOf(await source.identity(request));
+    } catch {
+      kernel = undefined;
+    }
+    if (this.#closed) fail(503, 'UPLOADS_SHUTDOWN');
+    // The tenant is the kernel's; a host value may only repeat it.
+    if (
+      !kernel ||
+      (identity.tenant !== undefined && identity.tenant !== kernel.tenant)
+    )
+      return fail(401, 'IDENTITY_REQUIRED');
     return Object.freeze({
-      binding: identity.binding,
+      binding: scopeBinding(identity.binding, kernel),
       csrfToken: identity.csrfToken,
-      ...(identity.tenant === undefined ? {} : { tenant: identity.tenant }),
+      ...kernel,
     });
   }
   private purpose(name: unknown): ResolvedPurpose {
@@ -1219,7 +1262,7 @@ export class UploadsService
       string,
       string
     >;
-    let csrfVerified = false;
+    let csrfSeen = false;
     let fileCount = 0;
     // Queued part writes; settled before cleanup so no late write recreates a temp file.
     let pending = Promise.resolve();
@@ -1263,9 +1306,14 @@ export class UploadsService
           )
             return abort(new UploadError(413, 'INVALID_REQUEST'));
           if (name === csrfField) {
-            if (!equal(value, identity.csrfToken))
-              return abort(new UploadError(403, 'CSRF_REJECTED'));
-            csrfVerified = true;
+            // Decided by the CSRF policy (the kernel registry when configured)
+            // with the field as the proof; file writes queue behind it.
+            csrfSeen = true;
+            pending = pending.then(async () => {
+              if (failed) return;
+              if (!(await this.#policy.verifyCsrf(request, identity, value)))
+                abort(new UploadError(403, 'CSRF_REJECTED'));
+            });
             return;
           }
           if (
@@ -1289,7 +1337,7 @@ export class UploadsService
             stream.resume();
             return;
           }
-          if (!csrfVerified) {
+          if (!csrfSeen) {
             stream.resume();
             return abort(new UploadError(403, 'CSRF_REJECTED'));
           }
@@ -1370,8 +1418,7 @@ export class UploadsService
           clearTimeout(total);
           void pending.then(() => {
             if (failed) return;
-            if (!csrfVerified)
-              return abort(new UploadError(403, 'CSRF_REJECTED'));
+            if (!csrfSeen) return abort(new UploadError(403, 'CSRF_REJECTED'));
             resolve();
           });
         });
