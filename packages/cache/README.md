@@ -80,6 +80,71 @@ outside cached fragments: values containing `data-nv-snapshot`, `data-nv-csrf`,
 object are refused with `CacheRefusedError` in every audience, for the caller
 and every coalesced waiter, and are never stored.
 
+## View fragments (HBS)
+
+`FragmentCache` renders a partial template through the app's view engine
+(`HbsEngine` or any `ViewEngineAdapter`) without a layout and caches the HTML
+through `RenderCache`. Handlebars helpers are synchronous, so fragments are
+rendered before the page: await them in the controller (or a view composer)
+and pass the `SafeHtml` results to the page model.
+
+```ts
+import { FragmentCache, RenderCache } from '@nestvexa/cache';
+
+const fragments = new FragmentCache({
+  engine: hbs, // the HbsEngine that renders the page
+  renders: new RenderCache(cache),
+  assetVersion: () => assets.version('app'),
+});
+
+const { html, status } = await fragments.renderAll({
+  catalog: {
+    key: 'catalog', // explicit key: the cache namespace
+    view: 'partials/catalog',
+    revision: 'v3',
+    audience: 'tenant', // explicit scope
+    locale,
+    tenant: user.tenant,
+    permissions: user.permissions,
+    vary: { page },
+    ttlMs: 60_000,
+    tags: [`products:${user.tenant}`],
+    model: () => products.list(user.tenant, page), // runs only on a miss
+  },
+  account: {
+    key: 'account',
+    view: 'partials/account',
+    revision: 1,
+    audience: 'private', // personal: rendered every time, never stored
+    binding: identity.binding,
+    locale,
+    tenant: user.tenant,
+    permissions: [],
+    ttlMs: 10_000,
+    model: () => ({ name: user.name }),
+  },
+});
+reply.header('X-Cache', status.catalog);
+return hbs.render('page', { ...html, live: await live.mount(Cart, request) });
+```
+
+```hbs
+<main>{{catalog}}</main>
+<aside>{{account}}</aside>
+```
+
+- The key is built only from the explicit fields (`key`, `revision`, the
+  engine name, `locale`, `tenant`, `permissions`, the asset version and
+  `vary`); the template sees only the `model()` result, never the page model,
+  so a fragment cannot pick up a value its key does not name.
+- `private` fragments are never stored unless the `RenderCache` was created
+  with `{ cachePrivate: true }` (then per identity binding, no
+  stale-while-revalidate).
+- Fragments containing a Live snapshot, a CSRF field or signed island props
+  are refused (`CacheRefusedError`); mount Live components in the page.
+- `invalidate(tags)` drops tagged fragments; concurrent misses for one key
+  render once.
+
 ## Data
 
 ```ts
@@ -109,6 +174,8 @@ package imports the other (`tests/live-dependencies.test.ts`).
 | `new RenderCache(cache?, { cachePrivate? })`                             | Rendered-HTML cache with required key context                                       |
 | `RenderCache#render(request, render)`                                    | `{ html, status }`; private HTML bypasses the cache by default                      |
 | `renderCacheKey(request)` / `renderCacheParts(request)`                  | The key / key parts a render request maps to                                        |
+| `new FragmentCache({ engine, assetVersion, renders?, renderer? })`       | View-fragment cache (HBS partials) on `RenderCache`                                 |
+| `FragmentCache#render(request)` / `#renderAll(requests)`                 | `{ html: SafeHtml, status }`; the `model()` loader runs only when rendering         |
 | `new Cache({ store?, now?, onInvalidate?, onEvent?, instrumentation? })` | Options form; `new Cache(store?, now?, onInvalidate?)` still works                  |
 | `Cache#get(parts, { ttlMs, staleWhileRevalidateMs?, tags? }, compute)`   | Read-through with single flight; values must be JSON                                |
 | `Cache#lookup(...)`                                                      | Same, returning `{ value, status }`                                                 |
@@ -160,11 +227,14 @@ runnable [data-cache example](../../examples/data-cache/README.md). MIT licensed
 
 Status: **Implemented** for the library API above (tests:
 `tests/cache.test.ts`, `tests/cache-render.test.ts`,
-`tests/cache-example.test.ts`, `tests/cache-poisoning.test.ts`).
+`tests/cache-example.test.ts`, `tests/cache-poisoning.test.ts`,
+`tests/cache-fragments.test.ts`).
 
-- Render caching is explicit: hosts call `RenderCache#render` around a view;
-  the HBS, Live and Inertia pipelines do not cache automatically, and Live
-  component HTML can never be cached (by design).
+- Render caching is explicit: hosts call `FragmentCache#render` or
+  `RenderCache#render` around a view; the HBS, Live and Inertia pipelines do
+  not cache automatically, there is no `{{#cache}}` block helper (Handlebars
+  helpers are synchronous), and Live component HTML can never be cached (by
+  design).
 - No shared (Redis) `CacheStore` ships; the interface accepts asynchronous
   stores.
 - Dependency tracking is explicit tags only.

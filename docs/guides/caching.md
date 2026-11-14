@@ -94,7 +94,10 @@ passes the same suite as the memory and Redis stores
 
 `@nestvexa/cache` ([README](../../packages/cache/README.md)):
 
-1. Caching is opt-in per fragment with `RenderCache#render`. The key always
+1. Caching is opt-in per fragment with `FragmentCache#render` (HBS partials
+   and other view-engine templates: explicit `key` and `audience`, a `model()`
+   loader that runs only on a miss, `SafeHtml` results for the page model) or
+   `RenderCache#render` around any render function. The key always
    contains component, revision, renderer, locale, tenant, permission scope and
    asset version; all are required fields.
 2. Choose the audience. `private` HTML is never stored by default (status
