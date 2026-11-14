@@ -163,7 +163,7 @@ realtime stream (the client does not expose its connection state).
     waits created a task with an attachment through S3 (upload, finalize,
     task saved, notice shown);
   - Redis held `showcase:metrics:harbor`; `docker compose run --rm app node
-    dist/scripts/reset.js` printed "Removed 1 Redis keys under showcase:" and
+dist/scripts/reset.js` printed "Removed 1 Redis keys under showcase:" and
     reseeded, after which no `showcase:*` key remained;
   - `docker compose down -v` removed containers, network and both volumes;
     the image was removed too.
@@ -231,5 +231,8 @@ showcase itself.
     shadowing the sort field, and the global error filter swallowing Inertia
     validation errors).
 - `showcase-resilience.spec.ts` (own process, `NV_SHOWCASE_RESILIENCE_PORT=4050`):
-  Chromium 3/3; Firefox and WebKit results are in the final message.
+  Chromium 3/3, Firefox 3/3, WebKit 3/3. A first Firefox/WebKit attempt
+  failed on time only (an axe call and a server start exceeded the limits
+  while the host was saturated); the server start deadline (240 s) and the
+  test timeouts were raised, and both browsers then passed.
 - Compose smoke run: see SHOWCASE-016 above.
