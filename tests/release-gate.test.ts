@@ -396,3 +396,59 @@ describe('repository release posture', () => {
     expect(text).toContain('pnpm release:dry-run --pack');
   });
 });
+
+describe('release paths carry no stubs or skipped tests', () => {
+  // REL-026 / LEDGER-025: a repository-wide check, not only for the ledger's
+  // Done evidence. A conditional Playwright skip with a reason is
+  // allowed in specs (it still counts as skipped in the release gate).
+  const walk = async (directory: string, suffix: RegExp): Promise<string[]> => {
+    const { readdir } = await import('node:fs/promises');
+    const found: string[] = [];
+    for (const entry of await readdir(join(repository, directory), {
+      withFileTypes: true,
+    })) {
+      const path = `${directory}/${entry.name}`;
+      if (entry.isDirectory()) {
+        if (!['node_modules', 'dist', 'fixtures'].includes(entry.name))
+          found.push(...(await walk(path, suffix)));
+      } else if (suffix.test(entry.name)) found.push(path);
+    }
+    return found;
+  };
+  const offending = async (files: string[], pattern: RegExp) => {
+    const hits: string[] = [];
+    for (const file of files) {
+      const text = await readFile(join(repository, file), 'utf8');
+      for (const [index, line] of text.split(/\r?\n/).entries())
+        if (pattern.test(line)) hits.push(`${file}:${index + 1}`);
+    }
+    return hits;
+  };
+
+  it('has no TODO/FIXME markers or not-implemented throws in package sources and release scripts', async () => {
+    const packages = await walk('packages', /\.(?:ts|tsx|mts|svelte|vue)$/);
+    // ledger.mjs is the stub detector itself; its self-test fixture contains
+    // the not-implemented throw it must reject.
+    const scripts = (await walk('scripts', /\.mjs$/)).filter(
+      (file) => file !== 'scripts/ledger.mjs',
+    );
+    expect(packages.length).toBeGreaterThan(100);
+    expect(
+      await offending(
+        [...packages, ...scripts],
+        /\b(?:TODO|FIXME)\b|throw\s+new\s+Error\(\s*['"`]not implemented/i,
+      ),
+    ).toEqual([]);
+  }, 180_000);
+
+  it('has no skipped, focused or todo vitest tests and no focused browser tests', async () => {
+    const unit = await walk('tests', /\.test\.ts$/);
+    const browser = await walk('tests', /\.spec\.ts$/);
+    expect(
+      await offending(unit, /\b(?:it|test|describe)\.(?:skip|only|todo)\s*\(/),
+    ).toEqual([]);
+    expect(
+      await offending(browser, /\b(?:test|describe)\.(?:only|fixme)\s*\(/),
+    ).toEqual([]);
+  }, 180_000);
+});
