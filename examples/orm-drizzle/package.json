@@ -1,0 +1,26 @@
+{
+  "name": "@nestvexa/example-orm-drizzle",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "db:generate": "drizzle-kit generate",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@libsql/client": "0.18.0",
+    "@nestjs/common": "12.2.0",
+    "@nestjs/core": "12.2.0",
+    "@nestjs/platform-express": "12.2.0",
+    "@nestvexa/actions": "workspace:*",
+    "drizzle-orm": "0.45.4",
+    "express-session": "1.19.0",
+    "nestvexa": "workspace:*",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@types/express-session": "1.19.0",
+    "drizzle-kit": "0.31.11"
+  }
+}

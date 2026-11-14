@@ -24,7 +24,7 @@ export class AppModule {}
 
 ## Public API and defaults
 
-- `NestvexaConfigService.value`: deeply frozen normalized config. Views default to engine `hbs`, root `src/views`, cache `false`, layout `false` (or a named layout string); Live defaults disabled, `live.client` (`'alpine'`/`'manual'`) is present only when configured; CSRF and authorized-action policy flags default true. Flags are contracts for integrations, not claims that core enforces HTTP security.
+- `NestvexaConfigService.value`: deeply frozen normalized config. Views default to engine `hbs`, root `src/views`, cache `false`, layout `false` (or a named layout string); `views.namespaces` and `views.themes` (lowercase name -> directory maps, frozen null-prototype copies) are present only when configured; Live defaults disabled, `live.client` (`'alpine'`/`'manual'`) is present only when configured; CSRF and authorized-action policy flags default true. Flags are contracts for integrations, not claims that core enforces HTTP security.
 - `normalizeOptions(unknown)`: runtime validation, rejects unknown keys, accessor properties and invalid types. It reports every invalid path at once as a `NestvexaConfigError` with `issues: { path, expected }[]`; supplied values never appear in messages.
 - `mergeNestvexaOptions(...layers)`, `nestvexaOptionsFromEnvironment(record)`, `NESTVEXA_ENVIRONMENT_VARIABLES`: explicit layering and environment mapping.
 - `CollisionSafeRegistry<T>`: `register`, `get`, `has`, `names`, `seal`, `sealed`. Duplicate identifiers fail; explicit sealing prevents later registration. Values are trusted adapter objects and are not cloned or frozen.
@@ -148,6 +148,26 @@ app.useGlobalFilters(app.get(NestvexaExceptionFilter));
   `A-Za-z0-9._:-`) is reused unless `trustIncomingCorrelation: false`; anything else gets
   a random UUID. Resolver errors and malformed resolver output reject (fail closed).
   `correlationId(request)` is synchronous and stable for the request.
+  `identity(request)` returns the request's **kernel identity**: one frozen
+  `{ authenticated, principal?, tenant? }` shared by every caller for that request, taken
+  only from `resolvePrincipal` and `resolveTenant` (the kernel never reads a tenant or
+  user from the body, query or a header of its own). It is the opt-in `kernelIdentity`
+  source of Live, server actions, uploads, realtime and Inertia: pass the factory as
+  `kernelIdentity` and each transport attaches the kernel `principal` and `tenant` to the
+  identity its policies receive (see "One user and tenant across transports" below).
+- **`NestvexaRegistry`** (CORE-039): the inspectable list of installed features.
+  `registerFeature({ name, package, version?, components?, actions?, views?,
+renderers?, capabilities? })` takes names only (never classes or functions), rejects
+  unknown fields, malformed names and duplicates, and declares each capability in
+  `FeatureCapabilityRegistry` as `<feature>.<capability>`. `features()`, `components()`,
+  `actions()`, `views()`, `renderers()`, `plugins()` (installed extensions with their
+  versions) and `report()` return frozen data; `require(name)` fails startup for a
+  missing feature. Feature packages register through a structural `featureRegistry`
+  option while they are instantiated; the registry seals itself when the application
+  has bootstrapped. Live, server actions, uploads, realtime and Inertia register
+  themselves when given the registry, the umbrella registers Live and its HBS renderer
+  (`views`, with `views.hbs.<capability>` flags) automatically, and
+  `DevtoolsModule` lists the report (`kernel.features`).
 - **`NestvexaExceptionFilter`**: HTTP exceptions keep their body (Live
   `{ statusCode, code }`, validation messages) plus `correlationId`; other errors become
   `500 { statusCode, code: 'INTERNAL_ERROR', message: 'Internal server error',
@@ -167,11 +187,18 @@ correlationId }`. Every error response carries `x-request-id`. Server errors are
   `originAllowed`, `authorize` and `uploadAllowed` fail closed (missing policy, thrown
   error or non-`true` result denies); `require(owner, kinds)` asserts registration at
   startup; `report()` lists configuration without functions. A CSRF policy receives
-  `verify(request, subject?)`, where `subject` is the identity the feature already
-  resolved. Live (`policies` option, owner `live`) and `@nestvexa/uploads` (owner
-  `uploads`, including its `upload-quota`) register their policies here and ask the
-  registry for every origin, CSRF and authorization decision, so the registry is the
-  single source of truth; the `nestvexa` umbrella wires Live automatically.
+  `verify(request, subject?, token?)`, where `subject` is the identity the feature
+  already resolved and `token` a proof read from somewhere other than the policy's
+  header (the uploads multipart `_csrf` field). An authorization policy receives
+  `authorize(subject, resource, action, request?)`; server actions need the request
+  (their host `authorize` reads it) and deny without one. Live (owner `live`),
+  `@nestvexa/uploads` (owner `uploads`, including its `upload-quota` and the multipart
+  form field), `@nestvexa/actions` (owner `actions`; `action` is `id` or
+  `id/v<version>`) and `@nestvexa/inertia` (owner `inertia`, with its opt-in
+  `security`; `action` is `render`) register their policies here through a structural
+  `policies` option and ask the registry for every origin, CSRF and authorization
+  decision, so the registry is the single source of truth; the `nestvexa` umbrella wires
+  Live automatically.
 - **`DiagnosticsRegistry`**: typed `event`, `metric` and `span` records with bounded,
   primitive, key-redacted attributes; `define()` builds a catalog (`strict` rejects
   undefined names); `subscribe()` listeners are isolated; `recent()` reads a bounded
@@ -185,6 +212,61 @@ nestvexa?, capabilities?, register?(context), contributeContext?(request), shutd
   then the capability and security registries are sealed. `shutdown` runs in reverse
   order and one failure does not block the others. Duplicate names fail at startup.
 
+### One user and tenant across transports
+
+Configure the resolvers once and pass the factory to every transport as
+`kernelIdentity` (Live through the umbrella's `kernelIdentity: true`):
+
+```ts
+NestvexaModule.forRoot(
+  options,
+  { components, kernelIdentity: true, useFactory },
+  {
+    global: true,
+    requestContext: {
+      resolvePrincipal: (request) => userFromSession(request),
+      resolveTenant: (request) => tenantFromSession(request),
+    },
+  },
+);
+ActionsModule.registerAsync({
+  groups,
+  inject: [SecurityPolicyRegistry, RequestContextFactory, NestvexaRegistry],
+  useFactory: (policies, kernelIdentity, featureRegistry) => ({
+    origin,
+    resolveIdentity,
+    authorize,
+    policies,
+    kernelIdentity,
+    featureRegistry,
+  }),
+});
+// Likewise UploadsModule.registerAsync, RealtimeModule.forRootAsync and
+// InertiaModule.forRootAsync.
+```
+
+Each transport still calls its own `resolveIdentity` for its session binding and CSRF
+secret, then:
+
+- attaches the kernel `principal` (`{ id, roles? }`) and `tenant` to the identity every
+  host policy receives (`authorize`, `authorizeChannel`, Inertia `security.authorize`);
+  host-returned values for those fields are ignored or must match: a server-action
+  subject that differs from the principal id, or an action or upload tenant that differs
+  from the kernel tenant, is rejected (`401`);
+- scopes the Live, uploads and realtime bindings to the principal and tenant, so a
+  snapshot, upload token or realtime subscription minted for one user or tenant never
+  verifies for another, even on the same session;
+- re-runs every policy on every request (and realtime on every revalidation), so a
+  role revoked server-side denies the next Live action, server action, upload, realtime
+  connection and Inertia page;
+- fails closed: a throwing or malformed kernel identity is `401` (Inertia `403`).
+
+MVC views read the same request through `nvRequest` (`tenant`, `authenticated`) and
+Inertia pages share `nvIdentity` (`{ authenticated, tenant? }`). Neither exposes the
+principal id or roles. [tests/kernel-transports.test.ts](../../tests/kernel-transports.test.ts)
+proves one user and tenant across MVC, Live, Inertia, server actions, uploads and
+realtime on Express and Fastify.
+
 ## Compatibility
 
 Packed consumption and the full Node/OS matrix must pass before release; NestJS 12 is the intended peer range, not evidence that every patch has been tested. Changes use the repository Changesets policy. APIs may change during alpha with migration notes. See the [root README](../../README.md) and the [configuration reference](../../docs/reference/configuration.md).
@@ -194,10 +276,10 @@ Packed consumption and the full Node/OS matrix must pass before release; NestJS 
 Status: **Shipped (alpha)**. Configuration, registries, typed routes, the plugin registry and the kernel services (request context, exception filter, redaction, security policy and diagnostics registries, extensions) are implemented and tested on Express and Fastify.
 
 - `NestvexaExceptionFilter` is opt-in (`app.useGlobalFilters(...)`); exception messages are logged as written apart from credential scrubbing.
-- Views do not read the CSP nonce from `RequestContextFactory` automatically; hosts pass it.
-- `SecurityPolicyRegistry` describes and evaluates policies; Live keeps enforcing its own copy, and `@nestvexa/uploads` does not register its quotas there yet.
+- The kernel identity is opt-in per transport (`kernelIdentity`); hosts wire actions, uploads, realtime and Inertia themselves because the umbrella does not own those modules. Islands have no server transport of their own; they use server actions or Inertia props.
+- Feature packages register in `NestvexaRegistry` only when given the registry; extra view engines added with `registerViewEngine` are not listed.
 - `DiagnosticsRegistry` has no exporter (OpenTelemetry stays in `@nestvexa/observability`).
-- `PluginRegistry` is separate from the extension hooks, and no out-of-tree plugin package has been consumed from a tarball.
+- `PluginRegistry` is a deprecated adapter over the extension model (`pluginExtension`, `registry.extensions()`); no out-of-tree extension package has been consumed from a tarball.
 - Typed routes do not reflect controllers added inside `forRootAsync` factories, Nest versioning or host constraints, and do not generate permission-aware links.
 
 ## Testing

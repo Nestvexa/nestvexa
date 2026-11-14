@@ -1,0 +1,27 @@
+<section aria-labelledby="panel-heading">
+  <h2 id="panel-heading">Profile (Live)</h2>
+  <dl>
+    <dt>Name</dt>
+    <dd id="profile-name">{{profile.name}}</dd>
+    <dt>Email</dt>
+    <dd id="profile-email">{{profile.email}}</dd>
+    <dt>Role</dt>
+    <dd id="profile-role">{{profile.role}}</dd>
+    <dt>Email confirmed</dt>
+    <dd id="profile-verified">{{#if profile.verified}}yes{{else}}no{{/if}}</dd>
+  </dl>
+  <p id="panel-message" role="status" aria-live="polite">{{message}}</p>
+  <form id="rename-form" nv:submit="rename" novalidate>
+    <label for="rename-draft">New name</label>
+    <input
+      id="rename-draft"
+      maxlength="60"
+      value="{{draft}}"
+      nv:model="draft"
+    />
+    {{#if error}}
+    <p id="rename-error" role="alert">{{error}}</p>
+    {{/if}}
+    <button type="submit">Rename</button>
+  </form>
+</section>

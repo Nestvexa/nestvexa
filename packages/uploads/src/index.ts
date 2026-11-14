@@ -29,6 +29,12 @@ export type {
   UploadPolicyRegistry,
   UploadSecurityPolicies,
 } from './policies.js';
+export type {
+  UploadFeatureRegistry,
+  UploadKernelIdentity,
+  UploadKernelIdentitySource,
+  UploadKernelPrincipal,
+} from './kernel.js';
 export { UploadError } from './errors.js';
 export type { UploadErrorCode } from './errors.js';
 export {

@@ -1,0 +1,10 @@
+<h1>{{title}}</h1>
+{{#if valid}}
+<form id="verify-form" method="post" action="/verify-email">
+  <input type="hidden" name="_csrf" value="{{csrf}}" />
+  <input type="hidden" name="token" value="{{token}}" />
+  <button type="submit">Confirm my email address</button>
+</form>
+{{else}}
+<p id="link-invalid">This confirmation link is invalid or has expired.</p>
+{{/if}}

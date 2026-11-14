@@ -355,3 +355,79 @@ describe('capability declarations', () => {
     expect(registry.get('extra')).toEqual({ supported: true });
   });
 });
+
+describe('views.namespaces and views.themes', () => {
+  it('copies name -> directory maps into frozen null-prototype records', () => {
+    const source = { admin: 'modules/admin/views', 'billing-v2': 'billing' };
+    const views = normalizeOptions({
+      views: { namespaces: source, themes: { dark: 'themes/dark' } },
+    }).views;
+    expect(views.namespaces).toEqual(source);
+    expect(views.themes).toEqual({ dark: 'themes/dark' });
+    expect(Object.isFrozen(views.namespaces)).toBe(true);
+    expect(Object.getPrototypeOf(views.namespaces)).toBeNull();
+    source.admin = 'changed';
+    expect(views.namespaces?.['admin']).toBe('modules/admin/views');
+    // Absent unless configured, so existing normalized shapes are unchanged.
+    expect('namespaces' in normalizeOptions().views).toBe(false);
+    expect('themes' in normalizeOptions().views).toBe(false);
+  });
+
+  it('merges maps per layer as whole values', () => {
+    const merged = mergeNestvexaOptions(
+      { views: { namespaces: { admin: 'a' } } },
+      { views: { namespaces: { shop: 'b' } } },
+    );
+    expect(merged.views?.namespaces).toEqual({ shop: 'b' });
+  });
+
+  it.each([
+    ['an array', ['admin']],
+    ['a string', 'admin'],
+    ['a class instance', new Map([['admin', 'a']])],
+    ['an uppercase name', { Admin: 'a' }],
+    ['a path-like name', { '../admin': 'a' }],
+    ['a namespace separator', { 'admin::x': 'a' }],
+    ['a reserved name', { constructor: 'a' }],
+    ['an empty directory', { admin: '' }],
+    ['a NUL directory', { admin: 'a\0b' }],
+    ['a non-string directory', { admin: 7 }],
+  ])('rejects %s', (_label, value) => {
+    const error = issues(() =>
+      normalizeOptions({ views: { namespaces: value, themes: value } }),
+    );
+    const paths = error.issues.map((issue) => issue.path);
+    expect(paths.some((path) => path.startsWith('views.namespaces'))).toBe(
+      true,
+    );
+    expect(paths.some((path) => path.startsWith('views.themes'))).toBe(true);
+  });
+
+  it('rejects accessors without evaluating them, prototype keys and oversized maps', () => {
+    let read = false;
+    const accessor = Object.defineProperty({}, 'admin', {
+      enumerable: true,
+      get() {
+        read = true;
+        return 'a';
+      },
+    });
+    expect(
+      issues(() => normalizeOptions({ views: { namespaces: accessor } }))
+        .message,
+    ).toContain('views.namespaces.admin');
+    expect(read).toBe(false);
+    const polluted: unknown = JSON.parse('{"__proto__":"x"}');
+    expect(() =>
+      normalizeOptions({
+        views: { themes: polluted as Record<string, string> },
+      }),
+    ).toThrow(NestvexaConfigError);
+    const many = Object.fromEntries(
+      Array.from({ length: 65 }, (_, index) => [`n${index}`, 'dir']),
+    );
+    expect(
+      issues(() => normalizeOptions({ views: { themes: many } })).message,
+    ).toContain('at most 64 entries');
+  });
+});

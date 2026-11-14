@@ -1,4 +1,5 @@
 import { timingSafeEqual } from 'node:crypto';
+import { kernelIdentityOf } from './kernel.js';
 import type { UploadIdentity, UploadOperation } from './options.js';
 
 /** Policy kinds uploads registers; the names match `SecurityPolicyKind` in @nestvexa/core. */
@@ -9,8 +10,16 @@ export type UploadPolicyKind =
 export interface UploadSecurityPolicies {
   readonly origin: { allowed(origin: string | undefined): boolean };
   readonly csrf: {
-    /** `subject` is the identity uploads already resolved for this request. */
-    verify(request: object, subject?: unknown): boolean | Promise<boolean>;
+    /**
+     * `subject` is the identity uploads already resolved for this request;
+     * `token` is the proof of a multipart form field, compared instead of
+     * the `x-nestvexa-csrf` header.
+     */
+    verify(
+      request: object,
+      subject?: unknown,
+      token?: string,
+    ): boolean | Promise<boolean>;
   };
   readonly 'action-authorization': {
     /** `resource` is the purpose, `action` one of `upload`, `finalize`, `discard`. */
@@ -63,6 +72,7 @@ export interface UploadPolicyRegistry {
     owner: string,
     request: object,
     subject?: unknown,
+    token?: string,
   ): boolean | Promise<boolean>;
   authorize(
     owner: string,
@@ -75,7 +85,12 @@ export interface UploadPolicyRegistry {
 /** The decisions the upload routes ask for; fails closed on errors. */
 export interface UploadPolicyEnforcer {
   originAllowed(origin: string | undefined): boolean;
-  verifyCsrf(request: object, identity: UploadIdentity): Promise<boolean>;
+  /** `token` is a form-field proof; without it the header is compared. */
+  verifyCsrf(
+    request: object,
+    identity: UploadIdentity,
+    token?: string,
+  ): Promise<boolean>;
   authorize(
     identity: UploadIdentity,
     purpose: string,
@@ -111,7 +126,17 @@ function identityOf(value: unknown): UploadIdentity | undefined {
     (tenant !== undefined && typeof tenant !== 'string')
   )
     return undefined;
-  return { binding, csrfToken, ...(tenant === undefined ? {} : { tenant }) };
+  // The kernel principal (and tenant) uploads attached travel with the identity.
+  const kernel = kernelIdentityOf({
+    principal: Reflect.get(value, 'principal'),
+  });
+  if (!kernel) return undefined;
+  return Object.freeze({
+    binding,
+    csrfToken,
+    ...(tenant === undefined ? {} : { tenant }),
+    ...kernel,
+  });
 }
 
 /**
@@ -138,13 +163,18 @@ export function uploadSecurityPolicies(options: {
       allowed: (candidate: string | undefined) => candidate === origin,
     }),
     csrf: Object.freeze({
-      verify: async (request: object, subject?: unknown) => {
+      verify: async (request: object, subject?: unknown, token?: string) => {
         const identity = identityOf(
           subject === undefined ? await resolveIdentity(request) : subject,
         );
         return (
           identity !== undefined &&
-          equal(header(request, 'x-nestvexa-csrf') ?? '', identity.csrfToken)
+          equal(
+            typeof token === 'string'
+              ? token
+              : (header(request, 'x-nestvexa-csrf') ?? ''),
+            identity.csrfToken,
+          )
         );
       },
     }),
@@ -203,8 +233,8 @@ export function uploadPolicyEnforcer(
     return Object.freeze({
       originAllowed: (origin: string | undefined) =>
         policies.origin.allowed(origin) === true,
-      verifyCsrf: (request: object, identity: UploadIdentity) =>
-        settled(() => policies.csrf.verify(request, identity)),
+      verifyCsrf: (request: object, identity: UploadIdentity, token?: string) =>
+        settled(() => policies.csrf.verify(request, identity, token)),
       authorize: (
         identity: UploadIdentity,
         purpose: string,
@@ -234,8 +264,8 @@ export function uploadPolicyEnforcer(
         return false;
       }
     },
-    verifyCsrf: (request: object, identity: UploadIdentity) =>
-      settled(() => registry.verifyCsrf(owner, request, identity)),
+    verifyCsrf: (request: object, identity: UploadIdentity, token?: string) =>
+      settled(() => registry.verifyCsrf(owner, request, identity, token)),
     authorize: (
       identity: UploadIdentity,
       purpose: string,

@@ -59,3 +59,9 @@ export {
   type JobSnapshot,
   type JobStatus,
 } from './jobs.js';
+export type {
+  RealtimeFeatureRegistry,
+  RealtimeKernelIdentity,
+  RealtimeKernelIdentitySource,
+  RealtimeKernelPrincipal,
+} from './kernel.js';

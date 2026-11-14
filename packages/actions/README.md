@@ -258,6 +258,29 @@ random UUID), so it matches kernel error bodies and logs. IDs outside 8–128 of
 with `instrumentation: diagnostics.instrumentation()` to record action spans in
 the kernel `DiagnosticsRegistry`.
 
+### Kernel policies, identity and features
+
+With `policies` (structural; for example `SecurityPolicyRegistry` from
+`@nestvexa/core`), actions register `origin`, `csrf` (only when
+`csrf.required` is not false) and `action-authorization` under `policyOwner`
+(default `actions`; a second registration fails startup) and ask the registry
+for every origin, CSRF and authorization decision. `actionSecurityPolicies` is
+the one implementation. Registry authorization uses resource `group` and action
+`id` (`id/v<version>` when versioned; `_jobs` uses `status`/`cancel`) and
+passes the request, because the host `authorize` receives it: a decision without
+a request is denied. Registry decisions fail closed (a throwing host
+`authorize` is a 403 `POLICY`); without `policies` a throwing host
+`authorize` still fails the call with 500, as before.
+
+`kernelIdentity` (structural; `RequestContextFactory`) attaches the kernel
+`principal` to the identity and makes the kernel `tenant` the identity's tenant
+(rate-limit keys, job owners, serial keys). A host `subject` that differs from
+the principal id or a host `tenant` that differs from the kernel tenant is
+`401 UNAUTHENTICATED` with reason `IDENTITY_MISMATCH`; a failing kernel
+identity is `IDENTITY_REQUIRED`. `featureRegistry` (`NestvexaRegistry`)
+receives feature `policyOwner` with every action as `group/id` and the
+`idempotency`, `jobs`, `csrf` and `kernel-identity` capabilities.
+
 ### `ActionsModule.register(options)` / `registerAsync(options)`
 
 Static options (needed before DI resolves): `groups`, `prefix`

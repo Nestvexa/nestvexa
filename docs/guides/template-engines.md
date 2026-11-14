@@ -152,6 +152,33 @@ await engine.render('admin::users/index', model, { theme: 'acme' });
 | Pug      | relative and `/x` stay in the namespace; `ns::x` works | yes (cache key includes the theme; includes compile-time) |
 | Nunjucks | names are root IDs, so write `ns::path.njk`            | yes (one environment and cache per theme)                 |
 
+### Through the `nestvexa` umbrella
+
+The umbrella's Handlebars engine reads both maps from the configuration:
+
+```ts
+NestvexaModule.forRoot({
+  views: {
+    root: 'src/views',
+    layout: 'layout',
+    namespaces: { admin: 'src/modules/admin/views' },
+    themes: { dark: 'src/themes/dark' },
+  },
+});
+```
+
+`views.namespaces` and `views.themes` are plain objects of lowercase names
+(`/^[a-z][a-z0-9-]{0,63}$/`, at most 64 entries) to directories; the core
+configuration validator rejects other names, non-string or empty directories and
+accessors, and they have no environment variables. `@Render('admin::dashboard')`
+works on Express (the umbrella installs an Express `view` class that hands
+`ns::` names to the engine; other names keep Express's own lookup) and on
+Fastify. A theme is chosen per render, so a themed page renders explicitly:
+inject `HbsEngine` and return
+`engine.render('home', model, { theme })` with a `text/html` content type,
+choosing `theme` from an allowlist. Live component views do not take a theme.
+The [views tour](../../examples/views-tour/README.md) shows all of this.
+
 HBS precompiled views support namespaced IDs; selecting a theme with precompiled views fails with `UNSUPPORTED_CAPABILITY` because there are no override directories at runtime. The custom engine example rejects `theme` the same way.
 
 ## Layout inheritance
@@ -207,6 +234,26 @@ app.useGlobalFilters(
 - Production views receive only `{ status, title, message? }`; `message` is present for 4xx `HttpException` messages (which Nest treats as public). 5xx details never reach the page. If the error view itself fails, a minimal built-in page is sent.
 - `development: true` shows a built-in, fully escaped page with the error chain, stacks and, for `ViewError`s from a debug-mode adapter, the failing template and line. Never enable it in production.
 - 5xx errors are passed to `log` (default `console.error`). `renderErrorPage(error, options)` is the framework-neutral core.
+
+With the `nestvexa` umbrella the filter is opt-in through `configureNestvexa`,
+which supplies `render` from its own Handlebars engine (so error views use the
+configured root, layout and namespaces):
+
+```ts
+await configureNestvexa(app, {
+  errorPages: {
+    views: { '404': 'errors/404', '5xx': 'errors/500' },
+    development: process.env.NODE_ENV === 'development',
+  },
+});
+```
+
+Options are the `ViewErrorPageFilter` options without `render` (`views`,
+`development`, `html`, `log`). They are accepted on the first
+`configureNestvexa` call only; a later call with different options rejects.
+Without `errorPages` nothing is installed and Nest's default handling applies.
+Tests: `tests/umbrella-views.test.ts` (Express and Fastify) and
+`tests/browser/views-tour.spec.ts`.
 
 ## Shared security rules
 
