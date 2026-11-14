@@ -34,6 +34,11 @@ One sentence describing the user-visible change, written for the changelog.
 Use `minor` for features and `patch` for fixes before 1.0. Docs-only or test-only
 changes need no Changeset. `pnpm changeset` creates the file interactively.
 
+A change to a package's public typings also changes its report under
+`api-reports/`; CI's `pnpm api:check` fails until the report is updated with
+`pnpm api:update`. The report diff and the changeset bump are reviewed together
+([public API reports](api-reports.md)).
+
 ## Preparing a release (maintainer)
 
 1. Confirm `main` is green in CI on all four matrix jobs.
