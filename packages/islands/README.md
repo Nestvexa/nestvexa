@@ -219,8 +219,11 @@ import { svelteIsland } from '@nestvexa/islands/svelte';
   the manifest byte limit and schema, and the module is imported from the
   manifest `bundle` path only (markup attributes are never used as URLs).
 - **Strategies:** `immediate`, `visible` (IntersectionObserver), `idle`
-  (`requestIdleCallback`, timeout fallback), `interaction` (pointerdown, focus,
-  keydown or hover; mounts once).
+  (`requestIdleCallback` with a 2000 ms timeout; a 200 ms timer where it is
+  missing), `interaction` (pointerdown, focus, keydown or hover; mounts once).
+  `tests/browser/islands-deferral.spec.ts` asserts on the network that a
+  `visible` island's chunk is requested only after it scrolls into view and an
+  `idle` one only once its idle callback (or the fallback timer) fires.
 - **Context** (`island` prop): `id`, `signal` (aborted on unmount), `shared`
   (page context), `services`, `hydrate`, `signed`, `reportMismatch(detail)`,
   `emit(name, detail)`, `on(name, handler, accept?)` → remover.
@@ -308,7 +311,8 @@ Runs `tests/islands*.test.ts` (`islands`, `islands-client`, `islands-bundle`,
 `packages/*/dist`, so run `pnpm --filter @nestvexa/islands... build` first, and
 `islands-bundle`/`islands-vite` also read the built hybrid-dashboard and
 islands-vite examples. Browser specs run separately through Playwright:
-`tests/browser/islands.spec.ts` and `tests/browser/islands-vite.spec.ts`.
+`tests/browser/islands.spec.ts`, `tests/browser/islands-deferral.spec.ts` and
+`tests/browser/islands-vite.spec.ts`.
 
 `islands-vite.test.ts` covers the Vite plugin, `createViteIslandManifest`,
 `moduleIslandRenderers` and the islands-vite example build;
