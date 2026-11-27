@@ -76,6 +76,22 @@ const html = await production.render('home', { title: 'Precompiled' });
 
 The precompiled map contains executable application code, not JSON. Load only your trusted build artifact, using a static import. In this mode the original `.hbs` files/root need not exist, missing registered views fail closed, layout parents recorded by `{{!< parent}}` are kept, themes are refused with `UNSUPPORTED_CAPABILITY`, and there is no source compilation fallback or module loading by view ID. The root remains necessary for the Express filename bridge. Rebuild modules and restart after template changes; `clearCache` affects source-mode caching only. Match compiler/runtime Handlebars versions through the lockfile. This API avoids compilation during rendering; it does not currently strip the compiler dependency from the server bundle. Upstream contracts: [precompile/template](https://handlebarsjs.com/api-reference/compilation.html), [runtime security options](https://handlebarsjs.com/api-reference/runtime-options.html).
 
+## Performance
+
+With `cache: true` compiled templates are kept per engine (bounded by
+`cacheEntries`, default 256); `cache: false` rereads and recompiles every
+template per render. `pnpm bench` measured 93 req/s with the cache off against
+369 req/s with it on for the same page, so enable it in production
+([benchmarks](../../docs/testing/benchmarks.md)). Precompiled views skip
+compilation entirely. Templates are size-bounded (1 MiB) and nothing streams.
+
+## Compatibility
+
+Node `>=22` (package `engines`; CI runs 22 and 24), ESM only (`require(esm)`
+for CommonJS hosts). Pinned Handlebars 4.7.10 and `@nestvexa/views`; no peers.
+Used as the umbrella `@Render` and Live renderer on Express and Fastify
+(`tests/umbrella-live.test.ts`).
+
 ## Links
 
 See the [template engine guide](../../docs/guides/template-engines.md), the [views API](../views/README.md), the [root setup](../../README.md) and [`examples/starter-hbs`](../../examples/starter-hbs/README.md). The framework compatibility matrix and pack-consumer checks are root release gates.

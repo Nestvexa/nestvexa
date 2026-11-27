@@ -303,9 +303,44 @@ streaming are not affected. `configureNestvexa` applies it by default; call it
 yourself before `listen()` in apps without the umbrella. See
 [slow clients](../../docs/security/guide.md#slow-clients).
 
+## Security
+
+Core describes and evaluates policies; it does not install HTTP security on its
+own. `SecurityPolicyRegistry` decisions fail closed (missing policy, thrown
+error or non-`true` result denies), the kernel identity comes only from the
+host's `resolvePrincipal` / `resolveTenant` resolvers, never from request
+bodies or headers, and `normalizeOptions` never echoes supplied values in
+errors. Redaction scrubs known secret keys and credentials but logs exception
+messages as written. Live, actions, uploads, realtime and Inertia enforce the
+policies on their routes ([tests/core-kernel.test.ts](../../tests/core-kernel.test.ts),
+[tests/kernel-transports.test.ts](../../tests/kernel-transports.test.ts)).
+
+## Performance
+
+Configuration is validated and frozen once at startup. Request contexts are
+built once per request and cached; the diagnostics buffer is bounded
+(`bufferSize`, default 256), and redaction bounds depth and size. Core has no
+benchmark of its own; the end-to-end numbers are in
+[benchmarks](../../docs/testing/benchmarks.md).
+
 ## Compatibility
 
-Packed consumption and the full Node/OS matrix must pass before release; NestJS 12 is the intended peer range, not evidence that every patch has been tested. Changes use the repository Changesets policy. APIs may change during alpha with migration notes. See the [root README](../../README.md) and the [configuration reference](../../docs/reference/configuration.md).
+- Node `>=22` (package `engines`; CI runs Node 22 and 24 on Linux and Windows).
+- Peers `@nestjs/common` ^12, `reflect-metadata` ^0.2.2, `rxjs` ^7.8.1; Nest
+  12.2.0 is the tested version, not every 12.x patch.
+- Express and Fastify (`tests/core-kernel.test.ts`). Legacy decorators
+  (`experimentalDecorators`) are required; TC39 standard decorators are untested.
+- ESM only; CommonJS hosts load it through `require(esm)`.
+
+Packed consumption and the full release matrix must pass before release. APIs
+may change during alpha with migration notes. See the [root README](../../README.md)
+and the [configuration reference](../../docs/reference/configuration.md).
+
+## Examples
+
+Applications use core through the `nestvexa` umbrella; every example does, for
+example [multi-tenant](../../examples/multi-tenant/README.md) and
+[showcase](../../examples/showcase/README.md).
 
 ## Status and limits
 

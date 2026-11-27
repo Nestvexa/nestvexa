@@ -25,7 +25,7 @@ Install after loading Alpine and before calling `Alpine.start()`. If the host al
 
 For a fresh document whose startup is delegated to Nestvexa, replace those three startup calls with `const app = startLiveAlpine(Alpine, client)`. Import it from this package. Optional `{ document, configure }` supplies an attached document and a trusted synchronous extension hook after bridge installation but before mount/start. The returned frozen application exposes `alpine`, `client`, and idempotent `dispose()`.
 
-One document owns one application, including across copies of the bootstrap package. A repeated startup with the same Alpine returns the existing application; a different runtime or visible host `window.Alpine` rejects. Undisclosed already-started Alpine cannot be detected using public APIs, so delegated mode requires fresh startup. Persisted pagehide retains the same client/drafts for BFCache; nonpersisted departure disposes Live and removes its page listeners. Before an `nv:navigate` body swap the bootstrap calls `Alpine.destroyTree(document.body)`: Alpine only tears down removed nodes it marked itself, so trees from the first server render would otherwise keep their `$live.on` window listeners (found by the Chromium heap check in `tests/browser/lifecycle-leaks.spec.ts`). Hosts that call `installLiveAlpine` directly and use `nv:navigate` should do the same on the window `nestvexa:navigate` event. This does not stop or destroy Alpine DOM. Failed/disposed startup leaves a reload-only tombstone, preventing unsafe partial restart. Cleanup failures are surfaced. Existing host startup must keep using `installLiveAlpine`.
+One document owns one application, including across copies of the bootstrap package. A repeated startup with the same Alpine returns the existing application; a different runtime or visible host `window.Alpine` rejects. Undisclosed already-started Alpine cannot be detected using public APIs, so delegated mode requires fresh startup. Persisted pagehide retains the same client/drafts for BFCache; nonpersisted departure disposes Live and removes its page listeners. Before an `nv:navigate` body swap the bootstrap calls `Alpine.destroyTree(document.body)`: Alpine only tears down removed nodes it marked itself, so trees from the first server render would otherwise keep their `$live.on` window listeners (found by the Chromium heap check in `tests/browser/lifecycle-heap.chromium.spec.ts`). Hosts that call `installLiveAlpine` directly and use `nv:navigate` should do the same on the window `nestvexa:navigate` event. This does not stop or destroy Alpine DOM. Failed/disposed startup leaves a reload-only tombstone, preventing unsafe partial restart. Cleanup failures are surfaced. Existing host startup must keep using `installLiveAlpine`.
 
 ### Host-owned Alpine
 
@@ -88,6 +88,24 @@ An Alpine write stages a local draft exactly like `$live.set`; nothing is commit
 Exports: `installLiveAlpine`, `startLiveAlpine`, `adoptLiveAlpine`, `hostAlpine`, and the types `AlpineHost`, `AlpineMagicUtilities`, `AlpineInterceptorCallback`, `LiveClientBridge`, `LiveMagic`, `AlpineRuntime`, `ManagedLiveClient`, `StartLiveAlpineOptions`, `AdoptLiveAlpineOptions` and `LiveAlpineApplication`. Delegated startup defaults to the current document. There are no import-time startup side effects. ESM; the `default` export condition lets bundlers and `require(esm)` resolve it, with no dual-module identity promise.
 
 See the [default starter](../../examples/starter-live/README.md), [Live counter](../../examples/live-counter/README.md), [client package](../client/README.md), [CSP guide](../../docs/guides/csp.md), [security policy](../../SECURITY.md) and [status](../../docs/implementation/STATUS.md).
+
+## Security
+
+- The bridge adds no expression evaluator. Alpine templates are trusted application code; use `@alpinejs/csp` when the CSP forbids `unsafe-eval` ([CSP guide](../../docs/guides/csp.md)).
+- `$live.set` and `$live.entangle` only stage drafts. Writable-state allowlists, validation, CSRF, identity binding and revision checks stay on the server, so page script cannot commit what the server refuses.
+- `$live.on` callbacks receive a private copy of the public payload, `$live.state` is read-only, and `hostAlpine()` never invokes a `window.Alpine` accessor.
+
+## Performance
+
+- `$live.call` goes through the client's bounded request scheduler; the bridge sends no requests of its own.
+- Each element holds at most 32 `$live.on` subscriptions; Alpine cleanup removes them and the update listeners (heap check in `tests/browser/lifecycle-heap.chromium.spec.ts`).
+- The adapter and Alpine are outside the `pnpm size:check` budget, which measures the Live entry and its chunks only.
+
+## Compatibility
+
+- Alpine 3.17.x only (optional peers `alpinejs` / `@alpinejs/csp` `~3.17.5`); other versions are rejected before mounting. Tested with the CSP build 3.17.5.
+- Browsers: Chromium, Firefox and WebKit through Playwright (`tests/browser/alpine-bridge.spec.ts`).
+- Node `^22.13.0 || ^24.0.0` (package `engines`). ESM only; the `default` export condition serves bundlers and `require(esm)`.
 
 ## Status and limits
 

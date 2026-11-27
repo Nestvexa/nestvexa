@@ -1,7 +1,7 @@
 import { cacheKey, tagPattern } from './keys.js';
 import type { CacheKeyParts, CacheScope } from './keys.js';
 import { MemoryCacheStore, isCacheStore } from './store.js';
-import type { CacheEntry, CacheStore } from './store.js';
+import type { CacheEntry, CacheLock, CacheStore } from './store.js';
 
 export interface CacheOptions {
   readonly ttlMs: number;
@@ -71,8 +71,23 @@ export interface CacheInstrumentation {
     ): void;
   };
 }
+/** Cross-process single flight, used when the store implements `lock`. */
+export interface CacheLockOptions {
+  /** Lease on one computation (default 10000 ms, 100 ms to 5 minutes). */
+  readonly ttlMs?: number;
+  /**
+   * How long a process waits for another process's value before computing
+   * the key itself (default 3000 ms, 0 to 1 minute).
+   */
+  readonly waitMs?: number;
+}
 export interface CacheConfig {
   readonly store?: CacheStore;
+  /**
+   * Cross-process stampede protection for stores that implement `lock`
+   * (for example the Redis store). `false` keeps single flight per process.
+   */
+  readonly lock?: CacheLockOptions | false;
   readonly now?: () => number;
   /** Called after tag invalidation, for example to publish realtime events. */
   readonly onInvalidate?: (tags: readonly string[]) => void | Promise<void>;
@@ -160,8 +175,11 @@ function assertOptions(parts: CacheKeyParts, options: CacheOptions): void {
  * - Values must be JSON data; they are cloned on write and read, so callers
  *   never share objects, and values carrying signed per-user material are
  *   refused (`CacheRefusedError`).
- * - Concurrent misses for one key run one computation; keys separate scopes,
- *   so identities and tenants never share a computation, value or failure.
+ * - Concurrent misses for one key run one computation in this process; with
+ *   a store that implements `lock`, one computation across processes (the
+ *   others wait for its value, bounded by `lock.waitMs`). Keys separate
+ *   scopes, so identities and tenants never share a computation, value or
+ *   failure.
  * - Failures are not cached. A computation that overlaps an invalidation of
  *   one of its tags returns its value but does not store it.
  * - Store failures degrade to computing (reads) or not storing (writes) and
@@ -185,6 +203,8 @@ export class Cache {
     ((tags: readonly string[]) => void | Promise<void>) | undefined;
   readonly #onEvent: ((event: CacheEvent) => void) | undefined;
   readonly #instrumentation: CacheInstrumentation | undefined;
+  readonly #lock:
+    { readonly ttlMs: number; readonly waitMs: number } | undefined;
   /** In-flight computations resolve JSON text; every caller parses its own copy. */
   readonly #inflight = new Map<string, Promise<string>>();
   /** Invalidation counter and, while computations run, each tag's last value. */
@@ -214,6 +234,16 @@ export class Cache {
     this.#onInvalidate = config.onInvalidate;
     this.#onEvent = config.onEvent;
     this.#instrumentation = config.instrumentation;
+    const lock = config.lock ?? {};
+    if (lock !== false) {
+      const ttlMs = lock.ttlMs ?? 10_000;
+      const waitMs = lock.waitMs ?? 3000;
+      if (!Number.isSafeInteger(ttlMs) || ttlMs < 100 || ttlMs > 300_000)
+        throw new Error('Cache lock ttlMs must be 100 ms to 5 minutes');
+      if (!Number.isSafeInteger(waitMs) || waitMs < 0 || waitMs > 60_000)
+        throw new Error('Cache lock waitMs must be 0 ms to 1 minute');
+      this.#lock = { ttlMs, waitMs };
+    }
   }
   /** Report a telemetry event; the hook can never break a request. */
   emit(event: CacheEvent): void {
@@ -254,11 +284,18 @@ export class Cache {
       this.emit({ type: 'hit', ...base });
       return { value: JSON.parse(entry.value) as T, status: 'hit' };
     }
+    /** Set when another process supplied the value through the store lock. */
+    let peer = false;
     const refresh = (reason: 'miss' | 'refresh'): Promise<string> => {
       const started = this.#generation;
-      const span = this.#span(parts, reason);
-      const at = this.#now();
       const running = (async () => {
+        const shared = await this.#shared(key, tags, base);
+        if (shared.value !== undefined) {
+          peer = true;
+          return shared.value;
+        }
+        const span = this.#span(parts, reason);
+        const at = this.#now();
         try {
           const text = cacheableJson(await compute());
           const durationMs = Math.max(0, this.#now() - at);
@@ -273,17 +310,28 @@ export class Cache {
             return text;
           }
           const stored = this.#now();
-          try {
-            await this.store.set(key, {
-              value: text,
-              expiresAt: stored + options.ttlMs,
-              staleUntil: stored + options.ttlMs + swr,
-              tags,
-            });
-          } catch {
-            this.metrics.errors++;
-            this.emit({ type: 'store-error', ...base, reason: 'set' });
-          }
+          // Without its marker another instance's invalidation could go
+          // unnoticed, so the value is returned but not stored.
+          if (!shared.unmarked)
+            try {
+              const written = await this.store.set(
+                key,
+                {
+                  value: text,
+                  expiresAt: stored + options.ttlMs,
+                  staleUntil: stored + options.ttlMs + swr,
+                  tags,
+                },
+                ...(shared.marker === undefined ? [] : [shared.marker]),
+              );
+              if (written === false) {
+                this.metrics.discarded++;
+                this.emit({ type: 'discarded', ...base, tags });
+              }
+            } catch {
+              this.metrics.errors++;
+              this.emit({ type: 'store-error', ...base, reason: 'set' });
+            }
           return text;
         } catch (error) {
           const durationMs = Math.max(0, this.#now() - at);
@@ -301,10 +349,12 @@ export class Cache {
           }
           throw error;
         } finally {
-          this.#inflight.delete(key);
-          if (!this.#inflight.size) this.#invalidated.clear();
+          await this.#unlock(shared.lock);
         }
-      })();
+      })().finally(() => {
+        this.#inflight.delete(key);
+        if (!this.#inflight.size) this.#invalidated.clear();
+      });
       this.#inflight.set(key, running);
       return running;
     };
@@ -320,8 +370,91 @@ export class Cache {
       this.emit({ type: 'coalesced', ...base });
       return { value: JSON.parse(await pending) as T, status: 'coalesced' };
     }
+    const text = await refresh('miss').catch((error: unknown) => {
+      this.metrics.misses++;
+      throw error;
+    });
+    if (peer) {
+      this.metrics.coalesced++;
+      this.emit({ type: 'coalesced', ...base, reason: 'peer' });
+      return { value: JSON.parse(text) as T, status: 'coalesced' };
+    }
     this.metrics.misses++;
-    return { value: JSON.parse(await refresh('miss')) as T, status: 'miss' };
+    return { value: JSON.parse(text) as T, status: 'miss' };
+  }
+  /**
+   * Store-side preparation for one computation: the cross-process lock and
+   * the tag marker. While another process holds the lock, poll the store for
+   * its value (bounded by `lock.waitMs`) and take the lock over if it is
+   * released without one. Lock failures degrade to an unlocked computation
+   * (`store-error`).
+   */
+  async #shared(
+    key: string,
+    tags: readonly string[],
+    base: { readonly namespace: string; readonly scope: CacheScope['kind'] },
+  ): Promise<{
+    readonly value?: string;
+    readonly marker?: string;
+    readonly unmarked?: boolean;
+    readonly lock?: CacheLock;
+  }> {
+    const lock = await this.#acquire(key, base);
+    if (typeof lock === 'string') return { value: lock };
+    const held = lock === undefined ? {} : { lock };
+    if (!tags.length || !this.store.tagMarker) return held;
+    try {
+      return { ...held, marker: await this.store.tagMarker(tags) };
+    } catch {
+      this.metrics.errors++;
+      this.emit({ type: 'store-error', ...base, reason: 'marker' });
+      return { ...held, unmarked: true };
+    }
+  }
+  /** The held lock, another process's value, or `undefined` (compute unlocked). */
+  async #acquire(
+    key: string,
+    base: { readonly namespace: string; readonly scope: CacheScope['kind'] },
+  ): Promise<CacheLock | string | undefined> {
+    const settings = this.#lock;
+    const store = this.store;
+    if (!settings || !store.lock) return undefined;
+    const take = async (): Promise<CacheLock | null | undefined> => {
+      try {
+        return await store.lock?.(key, settings.ttlMs);
+      } catch {
+        this.metrics.errors++;
+        this.emit({ type: 'store-error', ...base, reason: 'lock' });
+        return undefined;
+      }
+    };
+    const first = await take();
+    if (first !== null) return first;
+    const deadline = this.#now() + settings.waitMs;
+    let delay = 10;
+    while (this.#now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      delay = Math.min(delay * 2, 100);
+      try {
+        const entry = await store.get<string>(key);
+        if (entry && entry.expiresAt > this.#now()) return entry.value;
+      } catch {
+        this.metrics.errors++;
+        this.emit({ type: 'store-error', ...base, reason: 'get' });
+        return undefined;
+      }
+      const next = await take();
+      if (next !== null) return next;
+    }
+    // The holder is slow or gone: compute without the lock.
+    return undefined;
+  }
+  async #unlock(lock: CacheLock | undefined): Promise<void> {
+    try {
+      await lock?.release();
+    } catch {
+      // The lease expires on its own.
+    }
   }
   #span(parts: CacheKeyParts, reason: 'miss' | 'refresh') {
     try {

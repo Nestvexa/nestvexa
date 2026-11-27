@@ -1,10 +1,16 @@
 # Threat model
 
 Date: 2026-11-01, updated 2026-11-06 after the
-[2026-11 internal review](internal-review-2026-11.md) (internal, not an
-independent third-party review). Scope: the implemented packages listed in the
-root README. This is an engineering threat model, not a certification. Templates, helpers, components,
-hooks, plugins and host policies run as trusted server code; there is no sandbox.
+[2026-11 internal review](internal-review-2026-11.md); residual risks refreshed
+against `main` on 2026-11-27.
+
+> **INTERNAL.** This threat model was written and reviewed by the project
+> itself. It is not an independent third-party review, a penetration test or a
+> certification, and no ASVS level is claimed.
+
+Scope: the implemented packages listed in the root README. Templates, helpers,
+components, hooks, plugins and host policies run as trusted server code; there
+is no sandbox.
 
 ## Diagrams
 
@@ -59,31 +65,57 @@ operators; dependency maintainers.
 - Authentication, session stores, cookie flags, TLS, proxy trust, CSP headers and
   rate limits at the edge are host-owned; the starters use illustrative guest
   sessions and must not be deployed as-is.
-- `MemoryLiveStore`, upload sessions and the memory realtime broker are in
-  process memory: single-process or sticky sessions only, and restarts lose
-  state (fail closed). `RedisLiveStore`, `RedisPresenceStore`,
-  `RedisJobQueue` and `RedisRealtimeBroker` share state across replicas;
-  upload sessions stay per process (sticky sessions for upload routes).
-- Slow clients are bounded by `configureNestvexa` (`http.headersTimeoutMs`,
-  `http.requestTimeoutMs`; see the [security guide](guide.md#slow-clients)).
-  Node does not cap open connections; cap connections per client at the edge.
+- **Shared state.** Live state, presence and durable jobs can be shared across
+  replicas with `RedisLiveStore`, `RedisPresenceStore` and `RedisJobQueue`
+  (`@nestvexa/realtime-redis`), tenant- and user-namespaced, failing closed with
+  `503 STORE_UNAVAILABLE` (`tests/live-store-contract.test.ts`,
+  `tests/realtime-distributed.test.ts`). They target one Redis primary: no
+  Sentinel discovery, no tested failover, no Redis Cluster, and no TLS on the
+  Redis connection. The default stores (`MemoryLiveStore`, `MemoryJobQueue`) are
+  process memory: single process or sticky sessions, and a restart loses state
+  (fail closed).
+- **Still process-local.** Server-action rate limits and serial locks and
+  pending upload tokens have no shared implementation, so an upload must finish
+  on the replica that started it. Idempotency records can be shared through
+  `RedisActionIdempotencyStore` (fail-closed leased claims; a retry on another
+  replica or after a restart replays instead of running twice).
+  A download URL is served only by the replica that issued it. Cross-replica Live
+  idempotent replay is tested only against the in-process Redis test double.
 - Revision checks prevent replay against the same snapshot; they are not
   exactly-once business transactions. Use host idempotency and database transactions.
 - Signature checks cannot rule out every polyglot upload; downloads are always
-  sandboxed attachments. No malware scanner is configured by default.
+  sandboxed attachments. No malware scanner is configured by default; the
+  `ClamdScanner` adapter is opt-in.
 - On Windows, Node 22/24 abort the process for any filesystem path containing
   U+10FFFF (libuv). Nestvexa's own request paths refuse it; host code that joins
   request values into paths must do the same until the upstream fix ships.
-- Property-based fuzzing covers server parsers and trust boundaries, the
-  browser Live client (`tests/property-client-runtime.test.ts`), the React,
-  Vue and Svelte SSR page props and hydration payloads, islands props,
-  signatures and browser hydration, and the Alpine `$live` bridge
-  (`pnpm test:property`). The framework adapters' browser clients are fuzzed
-  only through the payload they read, not by booting each framework in a
-  browser. `pnpm load` checks correctness and heap growth under load for
-  starter-hbs, live-counter and the realtime hub (single process).
-- Not executed: real Redis/S3/ClamAV, multi-process deployments, Linux in the
-  2026-11 review session, distributed load, independent security review.
+- **Fuzzing.** Property-based tests (`pnpm test:property`, nightly) cover the
+  server parsers and trust boundaries, and `tests/property-client-runtime.test.ts`
+  fuzzes the browser runtime in real browsers (directive grammar, fragment
+  safety, morph invariants, hostile replies, mounts). The React, Vue and Svelte
+  SSR page props and `data-page` hydration payloads, islands props, signatures
+  and Chromium hydration, and the Alpine `$live` bridge have their own suites
+  (`tests/property-frontend-adapters.test.ts`, `tests/property-islands.test.ts`,
+  `tests/property-alpine.test.ts`). The framework adapters' browser clients are
+  fuzzed only through the payload they read, not by booting each framework per
+  run. Mutation testing (`pnpm test:mutation`) reports a score but does not
+  gate.
+- **Volume and slow clients.** `pnpm load` checks correctness and heap growth
+  for starter-hbs, live-counter and the realtime hub in a single process; load
+  across replicas is not measured. `configureNestvexa` bounds slow clients on
+  Express and Fastify (`http.headersTimeoutMs`, default 30 s;
+  `http.requestTimeoutMs`, default 300 s; `408` and disconnect), tested with
+  slowloris, slow-header and slow-body sockets against the Live, actions and
+  Inertia routes (`tests/slow-clients.test.ts`). Node does not cap open
+  connections; connection caps and edge rate limits are host-owned
+  ([hardening](hardening.md#slow-clients-and-server-timeouts)).
+- **Executed outside unit tests.** `pnpm test:services` has run against real
+  Redis 7, SeaweedFS (S3 API) and ClamAV, including a two-replica browser run
+  ([services evidence](../implementation/services-evidence-2026-11-05.json)).
+  Real AWS S3 has not been exercised.
+- **Not done.** Independent security review (an owner action), a manual
+  screen-reader pass, and booting the framework adapters' browser clients
+  inside the fuzz runs.
 
 See [hardening](hardening.md), [ASVS traceability](asvs-traceability.md), the
 [security design review](security-design-review.md) and the

@@ -27,6 +27,7 @@ declare function cacheableJson(value: unknown): string;
 // CacheConfig
 interface CacheConfig {
     readonly store?: CacheStore;
+    readonly lock?: CacheLockOptions | false;
     readonly now?: () => number;
     readonly onInvalidate?: (tags: readonly string[]) => void | Promise<void>;
     readonly onEvent?: (event: CacheEvent) => void;
@@ -67,6 +68,17 @@ interface CacheKeyParts {
     readonly scope: CacheScope;
     readonly namespace: string;
     readonly vary?: Readonly<Record<string, CacheVaryValue>>;
+}
+
+// CacheLock
+interface CacheLock {
+    release(): Awaitable<void>;
+}
+
+// CacheLockOptions
+interface CacheLockOptions {
+    readonly ttlMs?: number;
+    readonly waitMs?: number;
 }
 
 // CacheLookup
@@ -119,10 +131,12 @@ type CacheStatus = 'hit' | 'miss' | 'stale' | 'coalesced' | 'bypass';
 // CacheStore
 interface CacheStore {
     get<T>(key: string): Awaitable<CacheEntry<T> | undefined>;
-    set<T>(key: string, entry: CacheEntry<T>): Awaitable<void>;
+    set<T>(key: string, entry: CacheEntry<T>, marker?: string): Awaitable<void | boolean>;
     delete(key: string): Awaitable<void>;
     invalidateTags(tags: readonly string[]): Awaitable<number>;
     clear(): Awaitable<void>;
+    tagMarker?(tags: readonly string[]): Awaitable<string>;
+    lock?(key: string, ttlMs: number): Awaitable<CacheLock | null>;
 }
 
 // CacheVaryValue

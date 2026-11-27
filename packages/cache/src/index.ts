@@ -9,6 +9,7 @@ export {
   MemoryCacheStore,
   isCacheStore,
   type CacheEntry,
+  type CacheLock,
   type CacheStore,
 } from './store.js';
 export {
@@ -19,6 +20,7 @@ export {
   type CacheConfig,
   type CacheEvent,
   type CacheInstrumentation,
+  type CacheLockOptions,
   type CacheLookup,
   type CacheMetrics,
   type CacheOptions,

@@ -283,6 +283,23 @@ See the [forms guide](../../docs/guides/forms.md),
 [`examples/auth-forms`](../../examples/auth-forms/README.md) app (Live and no-JS
 forms, PRG, autofill and history behavior).
 
+## Performance
+
+Hardening is bounded before any adapter runs (`defaultInputLimits`: depth 8,
+200 keys per object, 10,000-character strings, 500-item arrays, 5,000 nodes).
+Zod and class-validator are never loaded at import; class-validator is loaded
+with `import()` on first validation. Validation cost is not benchmarked.
+
+## Compatibility
+
+- Node `^22.13.0 || ^24.0.0`, ESM only. Peer `@nestjs/common` ^12 (tested
+  with 12.2.0); optional peers `@nestvexa/live`, `zod` ^4 (tested with 4.6.7),
+  `class-validator` ^0.15 and `class-transformer` ^0.5.1 (tested with 0.15.1 and
+  0.5.1).
+- No-JS routes run on Express and Fastify (`tests/forms-progressive.test.ts`);
+  view helpers render through the HBS, EJS, Pug and Nunjucks adapters
+  (`tests/forms-view-engines.test.ts`).
+
 ## Status and limits
 
 Status: **Implemented** (`0.1.0-alpha.0`, experimental). Adapters, hardening,
