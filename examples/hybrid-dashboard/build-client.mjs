@@ -9,6 +9,7 @@ import { compile } from 'svelte/compiler';
 import {
   analyzeIslandBundles,
   createIslandManifest,
+  islandBudgetWarnings,
 } from '@nestvexa/islands/build';
 
 const clientDirectory = new URL('./client/', import.meta.url).pathname.replace(
@@ -193,6 +194,12 @@ for (const island of analysis.islands)
     `island ${island.id} (${island.framework}): ${island.gzipBytes} gzip bytes` +
       `${island.budgetBytes ? ` / budget ${island.budgetBytes}` : ''} across ${island.chunks.length} chunk(s)`,
   );
+// Development warning: islands without their own budget (origin-*) are held
+// to this default; set NV_ISLAND_BUDGET to try a tighter one.
+for (const warning of islandBudgetWarnings(analysis, {
+  budgetBytes: Number(process.env.NV_ISLAND_BUDGET ?? 80_000),
+}))
+  console.warn(`island budget warning: ${warning.message}`);
 for (const [framework, files] of Object.entries(analysis.frameworks))
   console.log(`${framework} runtime chunks: ${files.join(', ')}`);
 if (analysis.violations.length > 0) {
