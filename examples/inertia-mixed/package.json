@@ -11,7 +11,7 @@
     "build:live": "vite build -c vite.live.config.ts"
   },
   "dependencies": {
-    "@inertiajs/react": "3.10.0",
+    "@inertiajs/react": "3.11.0",
     "@inertiajs/svelte": "3.10.0",
     "@inertiajs/vue3": "3.10.0",
     "@nestjs/common": "12.2.0",
