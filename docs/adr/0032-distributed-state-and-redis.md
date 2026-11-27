@@ -193,3 +193,77 @@ it reaches the stalled client, what it did receive is in order, and the
 healthy subscriber receives every event in order throughout. Per-connection
 memory on the server stays bounded by the 256 KiB check regardless of kernel
 buffer sizes.
+
+## Amendment (realtime round 10, 2026-11-27): drain-aware bound, shared port, broker location
+
+**Slow-consumer bound is drain-aware (REAL-011).** The follow-up recorded in
+the round 5 amendment is implemented. The 256 KiB per-connection transport
+bound is no longer a disconnect threshold. A write that leaves an SSE stream's
+`writableLength` or a WebSocket's `bufferedAmount` above it pauses delivery
+to that connection. Later events wait in the connection's queue, in order,
+and are written once the transport drains: the SSE stream's `drain` event,
+or the `ws.send` callback once `bufferedAmount` falls below 64 KiB. A
+connection is closed as `slow-consumer` only when one of these holds:
+
+- its transport stays congested for `drainTimeoutMs` (default 10 s);
+- its queue exceeds `queueLimit` events (default raised from 64 to 1024);
+- its queue exceeds `maxQueuedBytes` (default 4 MiB; event sizes are computed
+  once per event and shared by every local subscriber).
+
+Delivery is synchronous while authorization is fresh and the transport
+accepts writes, so a burst published in one event-loop turn reaches a
+healthy subscriber in full. `tests/realtime-backpressure.test.ts` publishes a
+single-turn burst of about 2 MiB (140 × 15 KB, eight times the bound) over SSE
+and WebSocket on Express and Fastify. The healthy subscriber stays connected
+and receives every event in order, and a stalled subscriber on the same
+server is still cut. Against the previous implementation the SSE case fails:
+the healthy subscriber received nothing. Server memory per connection is
+bounded by the transport bound plus one event, plus `maxQueuedBytes` of
+queued events. Queued events are references to event objects shared by
+subscribers, not copies per connection. A custom `RealtimeSink` without
+`onDrain` keeps the old behaviour (closed at once when `send` returns false),
+and polling keeps its 64-event batch. The acceptance load route still yields
+between publishes, because one 500-event request (7.5 MB) in one turn would
+exceed `maxQueuedBytes` of the publishing replica's own subscribers.
+
+**Shared port with a host `@WebSocketGateway` (REAL-002).**
+`attachRealtimeWebSocket` now claims the upgrades for `<endpoint>/ws` before
+any other `upgrade` listener sees them. It wraps the HTTP server's `emit`
+for `upgrade` events on that one path. Every other event and path is emitted
+unchanged, and `detach()` restores `emit`. Nest's `WsAdapter`
+(`@nestjs/platform-ws`) destroys every upgrade whose path no gateway owns, so
+before this change the two could not share a server. Now
+`examples/api-coexistence` attaches the transport beside a shared-port
+gateway (`/ws/items`). `tests/api-coexistence.test.ts` covers both the shared
+port and a gateway on its own port:
+
+- a page subscription receives an event published by a REST write;
+- a bad token is closed with 4003;
+- a foreign `Origin` is refused;
+- the gateway still answers;
+- upgrades for unknown paths are still refused by the gateway server.
+
+This applies to any host upgrade listener, not only Nest's adapter. A
+Socket.IO adapter on the same server is not tested. The deviation "no Nest
+gateway class" in decision 5 stands, for the reasons in the round 5
+amendment.
+
+**Broker location, re-checked (REAL-002).** The move is declined again, for
+the same structural reason:
+
+- `@nestvexa/realtime-redis` imports `@nestvexa/realtime` (types, plus the
+  broker it re-exports) and requires `@nestvexa/live` as a peer.
+- Keeping `RespRealtimeBroker` importable from `@nestvexa/realtime` after a
+  move would need `@nestvexa/realtime` to depend on `@nestvexa/realtime-redis`.
+  That is a cycle, and it would make Redis code and a Live peer mandatory for
+  every realtime install.
+- Leaving a second copy behind would duplicate about 400 lines of protocol
+  code.
+
+The new `redisRealtime(options)` helper in `@nestvexa/realtime-redis/realtime`
+is the documented distributed entry point. It returns the Redis broker
+**and, by default, `RedisPresenceStore` presence** (`presence: false` opts
+out), so configuring Redis this way shares presence across replicas without
+a separate step. `examples/distributed-live` uses it. A future major can
+still remove the `RespRealtimeBroker` export from `@nestvexa/realtime`
+after a deprecation cycle.

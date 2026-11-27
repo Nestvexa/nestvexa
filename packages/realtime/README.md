@@ -83,7 +83,8 @@ Hosts must authorize `$sync` for components that use realtime.
 | `MemoryPresenceStore`, `PresenceStore`                                     | Shared presence contract (`RedisPresenceStore` in `@nestvexa/realtime-redis/realtime`)                                                     |
 | `RealtimeService.sign(identity, channels)`                                 | Token for authorized channels, or `undefined`                                                                                              |
 | `RealtimeService.revoke(binding)` / `closeChannel(channel)`                | Close connections on logout or permission changes                                                                                          |
-| `attachRealtimeWebSocket(app)`                                             | Optional `<endpoint>/ws` transport; requires `resolveUpgradeIdentity`                                                                      |
+| `attachRealtimeWebSocket(app)`                                             | Optional `<endpoint>/ws` transport; requires `resolveUpgradeIdentity`; shares a port with a host `@WebSocketGateway` (`WsAdapter`)         |
+| `RealtimeNotifications`, `MemoryNotificationStore`, `NotificationStore`    | User-scoped notifications with an unread count on a private `notify:<digest>` channel per recipient                                        |
 | `MemoryRealtimeBroker`                                                     | Default single-process broker with bounded replay                                                                                          |
 | `RespRealtimeBroker({ host, port, password?, prefix })`                    | Cross-replica pub/sub over the Redis protocol (`RedisRealtimeBroker` in `@nestvexa/realtime-redis/realtime`)                               |
 | `JobRunner`, `MemoryJobQueue`, `JobQueue`                                  | Owner-bound named jobs with progress, idempotency keys, retries, cancellation and leases over a pluggable queue (durable: `RedisJobQueue`) |
@@ -94,7 +95,8 @@ Options: `secrets` (1–8, ≥32 bytes, first signs), `origin` (exact), `resolve
 `presence?` (`{ store, ttlMs? }`, default TTL 30 s), `transports?` (default
 `['websocket', 'sse', 'polling']`; disabled routes answer 404),
 `endpoint?`, `tokenTtlMs?` (default 15 min), `limits?` (`maxConnections` 1000,
-`maxConnectionsPerIdentity` 8, `queueLimit` 64, `heartbeatMs` 15000,
+`maxConnectionsPerIdentity` 8, `queueLimit` 1024, `maxQueuedBytes` 4 MiB,
+`drainTimeoutMs` 10000, `heartbeatMs` 15000,
 `revalidateMs` 30000, `subscribesPerMinute` 60, `publishesPerMinute` 120,
 `maxPresenceMembers` 100), `instrumentation?` (structural tracing hook:
 `nestvexa.realtime.publish`, `.subscribe`, `.connection` and `.deliver` spans
@@ -105,7 +107,46 @@ see the [realtime guide](../../docs/guides/realtime.md) for presence, rate
 limits, jobs and multiple replicas.
 
 Browser: `createLiveClient({ realtime: { endpoint, transport: 'auto' | 'sse' | 'websocket' | 'polling' } })`
-or the umbrella `browser.realtime` option.
+or the umbrella `browser.realtime` option. A component can choose its own
+transport with `@LiveComponent({ realtime: { transport } })`; the browser then
+opens one connection per transport in use, and an `auto` component negotiates
+and falls back on its own connection.
+
+### Backpressure
+
+Delivery is drain-aware. A write that leaves more than 256 KiB buffered on a
+connection (SSE `writableLength`, WebSocket `bufferedAmount`) pauses that
+connection: later events queue in order and are written once the transport
+drains. The connection is closed as `slow-consumer` only when the transport
+stays congested for `drainTimeoutMs`, or its queue exceeds `queueLimit`
+events or `maxQueuedBytes`. A burst published in one event-loop turn
+therefore reaches healthy subscribers in full, while a stalled client is
+still cut off. Custom `RealtimeSink`s that do not implement `onDrain` are
+closed as soon as `send` returns false.
+
+### Notifications
+
+```ts
+const notifications = new RealtimeNotifications({
+  publisher: realtimeService,
+  recipient: (identity) => userIdOf(identity), // one inbox per user
+});
+// RealtimeModule: authorizeChannel: (identity, channel) =>
+//   notifications.authorize(identity, channel) || otherRules(identity, channel)
+await notifications.notify('user-42', {
+  title: 'Invoice paid',
+  data: { id: 7 },
+});
+await notifications.list(identity); // { unread, total, items }
+await notifications.markRead(identity, [id]); // own inbox only
+```
+
+Every change publishes `{ nvNotifications: { unread, latest? } }` on the
+recipient's channel (`notifications.channel(identity)`; subscribe a Live
+component to it with `@RealtimeChannels`). Without `recipient`, the inbox key
+is the kernel principal scoped to its tenant, or the session binding. The
+default store is process-local; pass a shared `NotificationStore` for several
+replicas.
 
 ## Security
 
@@ -114,7 +155,10 @@ or the umbrella `browser.realtime` option.
 - Tokens are signed, not encrypted; channel names are visible to the browser.
 - SSE tokens travel in the query string; keep them out of shared access logs.
 - WebSocket upgrades require the exact configured `Origin`.
-- Slow consumers are disconnected rather than buffered without bound.
+- Slow consumers are disconnected rather than buffered without bound (drain
+  timeout, queue event and byte bounds).
+- Notification channels are digests of the recipient key and authorized only
+  for that recipient's identities; reads and marks never cross inboxes.
 - Pushed data is never applied as server state; components re-render through the
   normal Live security pipeline.
 
@@ -149,8 +193,10 @@ and presence store against real Redis (separate OS processes, a SIGKILLed
 worker and replica, a Redis restart) and the multi-replica browser acceptance
 suite of [`examples/distributed-live`](../../examples/distributed-live/README.md)
 on Express and Fastify.
-The in-process hub churn check in `pnpm load` covers single-replica memory;
-distributed load testing is not yet done.
+The in-process hub churn check in `pnpm load` covers single-replica memory.
+`scripts/services-check.mjs` (section `redis-realtime-load`) runs many SSE
+clients across two replicas over real Redis and reports delivery latency and
+loss, without a pass threshold.
 
 ## Examples
 
@@ -163,12 +209,11 @@ Express and Fastify, Redis, presence, SSE and WebSocket).
 
 Status: **Partial**. Authorized SSE, long-polling and WebSocket invalidation, presence, rate limits, the memory and Redis-protocol brokers and the job runner are implemented and tested, including a four-replica Express and Fastify browser run against Redis 7; the clauses below remain open.
 
-- Transport is chosen per page, not per component; `auto` negotiates WebSocket → SSE → polling (REAL-004).
-- Presence is shared across replicas only with a configured `presence` store (`RedisPresenceStore`); there is no dedicated notification/dashboard primitive (REAL-009).
+- Presence is shared across replicas with a `presence` store; `redisRealtime()` from `@nestvexa/realtime-redis/realtime` configures `RedisPresenceStore` by default. `MemoryNotificationStore` is per replica; no Redis notification store ships (REAL-009).
 - Events published on a channel before its subscription is established are not replayed (REAL-006).
 - `MemoryJobQueue` (the default) loses jobs on restart; `RedisJobQueue` is durable. No BullMQ adapter ships; the reasons are in the realtime-redis README (DATA-010, DATA-011).
-- The Redis broker implementation still lives in this package; `@nestvexa/realtime-redis/realtime` re-exports it (REAL-002, ADR 0032).
-- Slow-client handling is tested at hub level only, and distributed load testing is not done (REAL-014).
+- The Redis broker implementation still lives in this package; `@nestvexa/realtime-redis/realtime` re-exports it, because moving it would create a package cycle (REAL-002, ADR 0032 round 10).
+- The load section reports numbers but has no threshold, and is not a capacity benchmark (REAL-014).
 
 ## Testing
 
@@ -176,7 +221,8 @@ Status: **Partial**. Authorized SSE, long-polling and WebSocket invalidation, pr
 pnpm --filter @nestvexa/realtime test
 pnpm build && pnpm exec vitest run tests/realtime.test.ts tests/realtime-hub.test.ts \
   tests/realtime-jobs.test.ts tests/realtime-live.test.ts tests/client-realtime.test.ts \
-  tests/realtime-job-queue.test.ts tests/realtime-distributed.test.ts
+  tests/realtime-job-queue.test.ts tests/realtime-distributed.test.ts \
+  tests/realtime-backpressure.test.ts tests/realtime-notifications.test.ts
 pnpm exec playwright test tests/browser/realtime.spec.ts tests/browser/realtime-transports.spec.ts
 NESTVEXA_REDIS_PORT=6379 pnpm test:services
 ```
