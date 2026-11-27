@@ -5,17 +5,20 @@
 fast-check 4.10.2 (exact root devDependency). Suites are part of
 `pnpm test:security` and the default `pnpm test` run.
 
-| Suite                                    | Boundary                                                                                                                       |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `tests/property-live-protocol.test.ts`   | Live envelope and state budget (independent byte/node/depth model), snapshot tokens, text-stream request, download effects     |
-| `tests/property-realtime-token.test.ts`  | Realtime token tampering, identity/expiry binding, rotation, channel grammar, broker replay bounds                             |
-| `tests/property-uploads.test.ts`         | Client filenames, name header decoding, `Content-Disposition`, RFC 9110 Range, upload references, storage keys, text validator |
-| `tests/property-uploads-http.test.ts`    | Multipart and raw upload routes over real Express HTTP: no 5xx, valid names only, no temp-file leaks                           |
-| `tests/property-view-paths.test.ts`      | View ID/reference resolution and traversal through HBS, EJS, Pug and Nunjucks views, partials and includes                     |
-| `tests/property-input-admission.test.ts` | Server action JSON admission, output serialization, fingerprints, form hardening/bracket bodies, log redaction                 |
-| `tests/property-i18n.test.ts`            | ICU message parser/renderer, escaping, plural/select, locale/Accept-Language/cookie negotiation                                |
-| `tests/property-inertia.test.ts`         | Inertia headers, every redirect validator, request-derived locations, script-embedded page JSON                                |
-| `tests/property-client-runtime.test.ts`  | Browser Live client in a real browser: directive grammar, fragment validation, morph invariants, hostile server replies, mount |
+| Suite                                      | Boundary                                                                                                                                                                                                                 |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tests/property-live-protocol.test.ts`     | Live envelope and state budget (independent byte/node/depth model), snapshot tokens, text-stream request, download effects                                                                                               |
+| `tests/property-realtime-token.test.ts`    | Realtime token tampering, identity/expiry binding, rotation, channel grammar, broker replay bounds                                                                                                                       |
+| `tests/property-uploads.test.ts`           | Client filenames, name header decoding, `Content-Disposition`, RFC 9110 Range, upload references, storage keys, text validator                                                                                           |
+| `tests/property-uploads-http.test.ts`      | Multipart and raw upload routes over real Express HTTP: no 5xx, valid names only, no temp-file leaks                                                                                                                     |
+| `tests/property-view-paths.test.ts`        | View ID/reference resolution and traversal through HBS, EJS, Pug and Nunjucks views, partials and includes                                                                                                               |
+| `tests/property-input-admission.test.ts`   | Server action JSON admission, output serialization, fingerprints, form hardening/bracket bodies, log redaction                                                                                                           |
+| `tests/property-i18n.test.ts`              | ICU message parser/renderer, escaping, plural/select, locale/Accept-Language/cookie negotiation                                                                                                                          |
+| `tests/property-inertia.test.ts`           | Inertia headers, every redirect validator, request-derived locations, script-embedded page JSON                                                                                                                          |
+| `tests/property-client-runtime.test.ts`    | Browser Live client in a real browser: directive grammar, fragment validation, morph invariants, hostile server replies, mount                                                                                           |
+| `tests/property-frontend-adapters.test.ts` | React, Vue and Svelte SSR bundles: hostile page props stay escaped text, the `data-page` hydration payload round-trips exactly and cannot close its script; page names resolve only from the registry                    |
+| `tests/property-islands.test.ts`           | Island props serialization and closed schemas, signed-props tokens (tampering, foreign ids, expiry, rotation), manifest and shared-context parsers, and the browser loader hydrating hostile `data-nv-props` in Chromium |
+| `tests/property-alpine.test.ts`            | Alpine `$live` bridge: read-only `state` keys, `entangle` primitives only, `on()` names and private event payload copies, owner and island boundaries                                                                    |
 
 Runs use fast-check's random seed; a failure prints the seed and a shrunk
 counterexample. Reproduce with `fc.assert(..., { seed, path })` and add the

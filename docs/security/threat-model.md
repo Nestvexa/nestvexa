@@ -74,9 +74,13 @@ operators; dependency maintainers.
 - On Windows, Node 22/24 abort the process for any filesystem path containing
   U+10FFFF (libuv). Nestvexa's own request paths refuse it; host code that joins
   request values into paths must do the same until the upstream fix ships.
-- Property-based fuzzing covers server parsers and trust boundaries
-  (`pnpm test:property`); the browser runtime and framework adapters are not
-  fuzzed. `pnpm load` checks correctness and heap growth under load for
+- Property-based fuzzing covers server parsers and trust boundaries, the
+  browser Live client (`tests/property-client-runtime.test.ts`), the React,
+  Vue and Svelte SSR page props and hydration payloads, islands props,
+  signatures and browser hydration, and the Alpine `$live` bridge
+  (`pnpm test:property`). The framework adapters' browser clients are fuzzed
+  only through the payload they read, not by booting each framework in a
+  browser. `pnpm load` checks correctness and heap growth under load for
   starter-hbs, live-counter and the realtime hub (single process).
 - Not executed: real Redis/S3/ClamAV, multi-process deployments, Linux in the
   2026-11 review session, distributed load, independent security review.
