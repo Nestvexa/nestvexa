@@ -12,6 +12,7 @@ import {
   Render,
   Req,
   Res,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { HttpAdapterHost, NestFactory, REQUEST } from '@nestjs/core';
@@ -84,6 +85,56 @@ function secret(name: string): string {
 const realtimeSecret = secret('REALTIME_SECRET');
 const identitySecret = secret('IDENTITY_SECRET');
 export const boardChannel = 'board:public';
+
+/*
+ * The shared Redis clients are created once so the readiness probe can check
+ * the same connections that serve traffic. Each has its own circuit breaker
+ * (docs/guides/resilience.md): while Redis is down a probe fails at once
+ * instead of waiting for a timeout.
+ */
+const liveStore = redis
+  ? new RedisLiveStore({ ...redis, prefix: `${prefix}live:` })
+  : undefined;
+const broker = redis
+  ? new RedisRealtimeBroker({ ...redis, prefix: `${prefix}rt:` })
+  : new MemoryRealtimeBroker();
+/** Upper bound for one readiness check, so the probe itself never hangs. */
+const readinessTimeoutMs = Number(env['READINESS_TIMEOUT_MS'] ?? 1000);
+type Check = 'ok' | 'memory' | 'unavailable' | 'resubscribing';
+async function check(probe: () => Promise<void>): Promise<Check> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      probe(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error('readiness check timed out')),
+          readinessTimeoutMs,
+        );
+      }),
+    ]);
+    return 'ok';
+  } catch {
+    return 'unavailable';
+  } finally {
+    clearTimeout(timer);
+  }
+}
+/** Store and broker reachability; standalone replicas report `memory`. */
+async function readiness(): Promise<{ store: Check; broker: Check }> {
+  if (!liveStore || !(broker instanceof RedisRealtimeBroker))
+    return { store: 'memory', broker: 'memory' };
+  const [store, pubsub] = await Promise.all([
+    check(() => liveStore.ping()),
+    check(() => broker.ping()),
+  ]);
+  // Reachable but still restoring channel subscriptions after an outage:
+  // events published now would be lost for this replica's browsers.
+  return {
+    store,
+    broker: pubsub === 'ok' && !broker.subscribed ? 'resubscribing' : pubsub,
+  };
+}
 
 interface GuestRequest extends IncomingMessage {
   nvGuest?: Guest;
@@ -241,7 +292,34 @@ class Pages {
       widget: await this.live.mount(ReplicaBoard, request),
     };
   }
-  /** Readiness plus local connection counts (for leak checks in tests). */
+  /**
+   * Liveness: the process is up and its event loop answers. It checks no
+   * dependency, so a Redis outage never makes an orchestrator restart every
+   * replica at once (restarting cannot fix Redis).
+   */
+  @Get('healthz')
+  @Header('Cache-Control', 'no-store')
+  liveness() {
+    return { status: 'ok', replica };
+  }
+  /**
+   * Readiness: 200 only while the shared Live store and the realtime broker
+   * answer (and the broker's channel subscriptions are live); 503 otherwise,
+   * so a load balancer stops routing new requests to this replica until
+   * Redis is back. Each check is bounded by READINESS_TIMEOUT_MS.
+   */
+  @Get('readyz')
+  @Header('Cache-Control', 'no-store')
+  async readinessProbe() {
+    const checks = await readiness();
+    const ready = Object.values(checks).every(
+      (value) => value === 'ok' || value === 'memory',
+    );
+    if (!ready)
+      throw new ServiceUnavailableException({ status: 'unready', checks });
+    return { status: 'ready', replica, checks };
+  }
+  /** Local connection counts (for leak checks in tests). */
   @Get('api/health')
   @Header('Cache-Control', 'no-store')
   health() {
@@ -293,9 +371,7 @@ const root = fileURLToPath(new URL('../views', import.meta.url));
     RealtimeModule.forRoot({
       secrets: [realtimeSecret],
       origin,
-      broker: redis
-        ? new RedisRealtimeBroker({ ...redis, prefix: `${prefix}rt:` })
-        : new MemoryRealtimeBroker(),
+      broker,
       // Presence across replicas; a crashed replica's viewers lapse by TTL.
       ...(redis
         ? {
@@ -329,14 +405,7 @@ const root = fileURLToPath(new URL('../views', import.meta.url));
         useFactory: (realtime: RealtimeService) => ({
           origin,
           realtime,
-          ...(redis
-            ? {
-                store: new RedisLiveStore({
-                  ...redis,
-                  prefix: `${prefix}live:`,
-                }),
-              }
-            : {}),
+          ...(liveStore ? { store: liveStore } : {}),
           resolveIdentity(request: object) {
             const guest = guestOf(request);
             return { binding: guest.binding, csrfToken: guest.csrf };

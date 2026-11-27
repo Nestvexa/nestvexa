@@ -257,6 +257,63 @@ if (env.NESTVEXA_REDIS_PORT && env.NESTVEXA_REDIS_CONTAINER)
     }
   });
 
+// QA-020: examples/distributed-live readiness against a real Redis that is
+// stopped and started (liveness must stay up throughout).
+if (env.NESTVEXA_REDIS_PORT && env.NESTVEXA_REDIS_CONTAINER)
+  await check('distributed-readiness', async (step) => {
+    const port = Number(env.NESTVEXA_REDIS_PORT);
+    const container = env.NESTVEXA_REDIS_CONTAINER;
+    const appPort = Number(env.NESTVEXA_READINESS_PORT ?? 3290);
+    const base = `http://127.0.0.1:${appPort}`;
+    const child = spawn(process.execPath, ['dist/main.js'], {
+      cwd: new URL('../examples/distributed-live/', import.meta.url),
+      env: {
+        ...env,
+        NODE_OPTIONS: '',
+        NODE_ENV: 'production',
+        PORT: String(appPort),
+        REDIS_PORT: String(port),
+        REDIS_PREFIX: 'nvready' + randomBytes(4).toString('hex') + ':',
+        REALTIME_SECRET: randomBytes(32).toString('base64url'),
+        IDENTITY_SECRET: randomBytes(32).toString('base64url'),
+      },
+      stdio: ['ignore', 'inherit', 'inherit'],
+    });
+    const status = (path) =>
+      fetch(base + path).then(
+        (response) => response.status,
+        () => 0,
+      );
+    const becomes = async (code, ms = 60_000) => {
+      const end = Date.now() + ms;
+      while (Date.now() < end) {
+        if ((await status('/readyz')) === code) return;
+        await delay(250);
+      }
+      throw new Error(`/readyz did not return ${code}`);
+    };
+    try {
+      await becomes(200, 120_000);
+      await fetch(base + '/');
+      await becomes(200);
+      step('replica ready: /readyz 200 with Redis up');
+      docker('stop', container);
+      try {
+        await becomes(503);
+        if ((await status('/healthz')) !== 200)
+          throw new Error('/healthz failed while Redis was stopped');
+        step('/readyz 503 and /healthz 200 while Redis was stopped');
+      } finally {
+        docker('start', container);
+      }
+      await redisBack(port);
+      await becomes(200);
+      step('/readyz recovered to 200 after Redis started');
+    } finally {
+      child.kill();
+    }
+  });
+
 if (env.NESTVEXA_REDIS_PORT)
   await check('redis-live-store', async (step) => {
     const port = Number(env.NESTVEXA_REDIS_PORT);
