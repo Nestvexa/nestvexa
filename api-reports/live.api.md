@@ -54,6 +54,9 @@ interface ComponentOptions {
     readonly lazy?: boolean | 'visible';
     readonly placeholder?: string;
     readonly timeoutMs?: number;
+    readonly realtime?: {
+        readonly transport?: LiveRealtimeTransport;
+    };
 }
 
 // Computed
@@ -429,6 +432,9 @@ declare class LiveProtocolError extends Error {
     readonly status: number;
     constructor(code: string, status: number, message: string);
 }
+
+// LiveRealtimeTransport
+type LiveRealtimeTransport = 'auto' | 'sse' | 'websocket' | 'polling';
 
 // LiveRenderContext
 interface LiveRenderContext {
@@ -918,6 +924,7 @@ interface ComponentDefinition {
     readonly props: ReadonlyMap<string, PropMode>;
     readonly listeners: ReadonlyMap<string, readonly string[]>;
     readonly realtime?: string;
+    readonly realtimeTransport?: LiveRealtimeTransport;
     readonly dependencies?: readonly LiveDependency[];
     readonly title?: string;
     readonly states: ReadonlyMap<string, StateOptions>;

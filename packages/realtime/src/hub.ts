@@ -54,7 +54,18 @@ export interface RealtimePolicy {
 export interface HubLimits {
   readonly maxConnections: number;
   readonly maxConnectionsPerIdentity: number;
+  /** Undelivered events queued per connection; beyond it the connection closes (`slow-consumer`). */
   readonly queueLimit: number;
+  /**
+   * Bytes of undelivered events queued per connection (default 4 MiB).
+   * Beyond it the connection closes as `slow-consumer`.
+   */
+  readonly maxQueuedBytes?: number;
+  /**
+   * How long a congested transport (buffer above its bound) may take to drain
+   * before the connection closes as `slow-consumer` (default 10 000 ms).
+   */
+  readonly drainTimeoutMs?: number;
   readonly heartbeatMs: number;
   readonly revalidateMs: number;
   /** Subscription attempts per identity per minute (default 60). */
@@ -66,7 +77,17 @@ export interface HubLimits {
 }
 /** Transport-specific writer. `send` returns false when the client cannot keep up. */
 export interface RealtimeSink {
+  /** Write one event; false when the transport buffer is above its bound. */
   send(event: RealtimeEvent): boolean;
+  /**
+   * Optional drain signal, called once after `send` returned false. When the
+   * sink implements it, the hub stops writing, keeps later events in the
+   * connection's bounded queue (`queueLimit`, `maxQueuedBytes`) and resumes
+   * when `listener` runs; a transport that does not drain within
+   * `drainTimeoutMs` is closed as `slow-consumer`. Without it, false closes
+   * the connection at once.
+   */
+  onDrain?(listener: () => void): void;
   heartbeat(): void;
   close(reason: RealtimeCloseReason): void;
 }
@@ -95,9 +116,13 @@ interface Connection {
   readonly member: PresenceMember | undefined;
   readonly expiresAt: number;
   readonly authorized: Map<string, number>;
-  pending: number;
-  /** Sequential delivery preserves event order per connection. */
-  chain: Promise<void>;
+  /** Undelivered events in order; the head is the one being delivered. */
+  readonly queue: { readonly event: RealtimeEvent; readonly bytes: number }[];
+  queuedBytes: number;
+  /** Delivery is suspended on a policy lookup or a congested transport. */
+  waiting: boolean;
+  /** Closes a congested connection that did not drain in time. */
+  drainTimer: ReturnType<typeof setTimeout> | undefined;
   closed: boolean;
   timers: ReturnType<typeof setInterval>[];
   /** Lifetime span, ended with the close reason. */
@@ -105,6 +130,15 @@ interface Connection {
 }
 function key(binding: string): string {
   return createHash('sha256').update(binding).digest('base64url');
+}
+/** Approximate wire size of an event, charged against `maxQueuedBytes`. */
+function eventBytes(event: RealtimeEvent): number {
+  return (
+    64 +
+    event.channel.length +
+    event.id.length +
+    Buffer.byteLength(JSON.stringify(event.data) ?? 'null')
+  );
 }
 /** Validate a public presence descriptor (also applied to entries read from a shared store). */
 export function presenceMember(value: unknown): PresenceMember | undefined {
@@ -168,6 +202,8 @@ export class RealtimeHub {
   readonly #subscribes: RateWindow;
   readonly #publishes: RateWindow;
   readonly #maxPresence: number;
+  readonly #maxQueuedBytes: number;
+  readonly #drainTimeoutMs: number;
   constructor(
     private readonly broker: RealtimeBroker,
     private readonly signer: TokenSigner,
@@ -191,6 +227,14 @@ export class RealtimeHub {
     this.#maxPresence = positive(
       limits.maxPresenceMembers ?? 100,
       'maxPresenceMembers',
+    );
+    this.#maxQueuedBytes = positive(
+      limits.maxQueuedBytes ?? 4_194_304,
+      'maxQueuedBytes',
+    );
+    this.#drainTimeoutMs = positive(
+      limits.drainTimeoutMs ?? 10_000,
+      'drainTimeoutMs',
     );
   }
   get size(): number {
@@ -320,8 +364,10 @@ export class RealtimeHub {
       member,
       expiresAt,
       authorized,
-      pending: 0,
-      chain: Promise.resolve(),
+      queue: [],
+      queuedBytes: 0,
+      waiting: false,
+      drainTimer: undefined,
       closed: false,
       timers: [],
       span: startSpan(this.instrumentation, 'nestvexa.realtime.connection', {
@@ -372,55 +418,137 @@ export class RealtimeHub {
       this.#channels.set(channel, entry);
       const target = entry;
       target.release = await this.broker.subscribe(channel, (event) => {
+        // Sized once per event, shared by every local subscriber.
+        const bytes = eventBytes(event);
         for (const subscriber of [...target.connections])
-          this.#enqueue(subscriber, event);
+          this.#enqueue(subscriber, event, bytes);
       });
     }
     entry.connections.add(connection);
   }
-  #enqueue(connection: Connection, event: RealtimeEvent): void {
+  /**
+   * Queue an event for one connection. The bound is on what is still queued
+   * when an event arrives, not on one write: a burst that a healthy transport
+   * absorbs as it drains is delivered in full, while a connection whose queue
+   * reaches `queueLimit` events or `maxQueuedBytes` is closed.
+   */
+  #enqueue(
+    connection: Connection,
+    event: RealtimeEvent,
+    bytes = eventBytes(event),
+  ): void {
     if (connection.closed) return;
-    if (connection.pending >= this.limits.queueLimit) {
+    if (
+      connection.queue.length >= this.limits.queueLimit ||
+      connection.queuedBytes + bytes > this.#maxQueuedBytes
+    ) {
       this.#close(connection, 'slow-consumer');
       return;
     }
-    connection.pending++;
-    connection.chain = connection.chain
-      .then(() => this.#deliver(connection, event))
-      .catch(() => this.#close(connection, 'forbidden'))
-      .finally(() => {
-        connection.pending--;
-      });
+    connection.queue.push({ event, bytes });
+    connection.queuedBytes += bytes;
+    this.#pump(connection);
   }
-  async #deliver(connection: Connection, event: RealtimeEvent): Promise<void> {
-    const checked = connection.authorized.get(event.channel) ?? 0;
-    if (Date.now() - checked >= this.limits.revalidateMs) {
-      let allowed: boolean;
-      try {
-        allowed = await this.policy.authorizeChannel(
-          connection.identity,
-          event.channel,
-        );
-      } catch {
-        allowed = false;
-      }
-      if (!allowed) {
-        this.#close(connection, 'forbidden');
+  /**
+   * Deliver queued events in order: synchronously while authorization is
+   * fresh and the transport accepts writes; suspended during a policy lookup
+   * and until a congested transport drains.
+   */
+  #pump(connection: Connection): void {
+    while (!connection.closed && !connection.waiting) {
+      const head = connection.queue[0];
+      if (!head) return;
+      const admitted = this.#admit(connection, head.event);
+      if (admitted === false) return;
+      if (admitted !== true) {
+        connection.waiting = true;
+        void admitted.then((allowed) => {
+          connection.waiting = false;
+          if (!allowed || connection.closed) return;
+          this.#send(connection);
+          this.#pump(connection);
+        });
         return;
       }
-      connection.authorized.set(event.channel, Date.now());
+      this.#send(connection);
     }
-    if (connection.closed) return;
+  }
+  /**
+   * True when the head event may be delivered now, false when the connection
+   * was closed instead, or a promise while the channel is re-authorized.
+   */
+  #admit(
+    connection: Connection,
+    event: RealtimeEvent,
+  ): boolean | Promise<boolean> {
+    const checked = connection.authorized.get(event.channel) ?? 0;
+    if (Date.now() - checked >= this.limits.revalidateMs)
+      return (async () => {
+        let allowed: boolean;
+        try {
+          allowed = await this.policy.authorizeChannel(
+            connection.identity,
+            event.channel,
+          );
+        } catch {
+          allowed = false;
+        }
+        if (!allowed) {
+          this.#close(connection, 'forbidden');
+          return false;
+        }
+        connection.authorized.set(event.channel, Date.now());
+        return this.#admit(connection, event);
+      })();
+    if (connection.closed) return false;
     if (Date.now() >= connection.expiresAt) {
       this.#close(connection, 'expired');
+      return false;
+    }
+    return true;
+  }
+  /** Write the head event; suspend delivery while the transport is congested. */
+  #send(connection: Connection): void {
+    const head = connection.queue.shift();
+    if (!head) return;
+    connection.queuedBytes -= head.bytes;
+    const span = startSpan(this.instrumentation, 'nestvexa.realtime.deliver', {
+      'nestvexa.realtime.channel_kind': channelKind(head.event.channel),
+    });
+    let sent: boolean;
+    try {
+      sent = connection.sink.send(head.event);
+    } catch {
+      span.end('error');
+      this.#close(connection, 'forbidden');
       return;
     }
-    const span = startSpan(this.instrumentation, 'nestvexa.realtime.deliver', {
-      'nestvexa.realtime.channel_kind': channelKind(event.channel),
-    });
-    const sent = connection.sink.send(event);
     span.end('ok', { 'nestvexa.realtime.backpressure': !sent });
-    if (!sent) this.#close(connection, 'slow-consumer');
+    if (sent) return;
+    const sink = connection.sink;
+    if (typeof sink.onDrain !== 'function') {
+      this.#close(connection, 'slow-consumer');
+      return;
+    }
+    // Congested: the write was accepted, but the buffer is above its bound.
+    // Later events wait in the bounded queue; a transport that does not
+    // drain in time belongs to a stalled client.
+    connection.waiting = true;
+    const timer = setTimeout(
+      () => this.#close(connection, 'slow-consumer'),
+      this.#drainTimeoutMs,
+    );
+    timer.unref();
+    connection.drainTimer = timer;
+    let drained = false;
+    sink.onDrain(() => {
+      if (drained || connection.closed) return;
+      drained = true;
+      clearTimeout(timer);
+      connection.drainTimer = undefined;
+      connection.waiting = false;
+      this.#pump(connection);
+    });
   }
   async #revalidate(connection: Connection): Promise<void> {
     if (connection.closed) return;
@@ -445,6 +573,9 @@ export class RealtimeHub {
     if (connection.closed) return;
     connection.closed = true;
     for (const timer of connection.timers) clearInterval(timer);
+    clearTimeout(connection.drainTimer);
+    connection.queue.length = 0;
+    connection.queuedBytes = 0;
     this.#connections.delete(connection);
     for (const channel of connection.channels) {
       const entry = this.#channels.get(channel);

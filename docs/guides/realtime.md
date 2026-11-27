@@ -89,8 +89,24 @@ Options: `secrets` (1–8, ≥32 bytes, first signs), `origin` (exact), `resolve
 `authorizeChannel`, `describePresence?`, `resolveUpgradeIdentity?`, `broker?`,
 `presence?` (`{ store, ttlMs? }`), `transports?` (default `['websocket', 'sse', 'polling']`), `endpoint?`,
 `tokenTtlMs?` (default 15 min), `limits?` (`maxConnections` 1000,
-`maxConnectionsPerIdentity` 8, `queueLimit` 64, `heartbeatMs` 15000, `revalidateMs`
-30000, `subscribesPerMinute` 60, `publishesPerMinute` 120, `maxPresenceMembers` 100).
+`maxConnectionsPerIdentity` 8, `queueLimit` 1024, `maxQueuedBytes` 4 MiB,
+`drainTimeoutMs` 10000, `heartbeatMs` 15000, `revalidateMs` 30000,
+`subscribesPerMinute` 60, `publishesPerMinute` 120, `maxPresenceMembers` 100).
+
+Backpressure is drain-aware. A write that leaves more than 256 KiB buffered
+on a connection pauses it: later events queue in order and are written when
+the transport drains. The connection is closed as `slow-consumer` only when
+it stays congested for `drainTimeoutMs`, or its queue exceeds `queueLimit`
+events or `maxQueuedBytes`. A burst published in one event-loop turn
+therefore reaches healthy subscribers in full
+(`tests/realtime-backpressure.test.ts`).
+
+Notifications: `RealtimeNotifications` keeps one inbox per recipient, with an
+unread count, on a private `notify:<digest>` channel. Combine
+`notifications.authorize(identity, channel)` into `authorizeChannel`, call
+`notify(userId, { title, body?, kind?, data? })` from host code, and
+`list`, `unread`, `markRead` or `clear` with the reader's identity. Those
+calls only ever reach that identity's inbox. See the realtime README.
 
 Browser: `createLiveClient({ realtime: { endpoint, transport: 'auto' | 'sse' | 'websocket' | 'polling' } })`
 or the umbrella `browser.realtime` option. `auto` (default) first asks
@@ -103,8 +119,11 @@ buffering proxy) is replaced by the next one for the page lifetime, so the usual
 chain is WebSocket → SSE → long-polling. A server rejection of the subscription
 (WebSocket close 4003, HTTP 403) is not a transport failure. Against a server
 without negotiation the order is SSE → polling. Explicit transports never
-negotiate or switch. Transport selection is per page, not per component: one
-multiplexed connection serves every component on the page. Reconnects back off exponentially from 1 s to 30 s with
+negotiate or switch. The page option is the default for every component; a
+component may choose its own with `@LiveComponent({ realtime: { transport } })`.
+The browser opens one multiplexed connection per transport in use, and each
+`auto` connection negotiates and falls back on its own (starter-live `/tags`
+runs an SSE summary beside a long-polling one). Reconnects back off exponentially from 1 s to 30 s with
 ×0.5–1 jitter; after ten consecutive failures the client probes once every five
 minutes (circuit breaker) until a connection succeeds or the browser comes back
 online. Duplicate event ids are dropped.
@@ -238,8 +257,11 @@ including from Express to Fastify; another identity is rejected on every
 replica; presence counts viewers on all four replicas and releases them when
 browsers leave; after the load balancer drops every connection, browsers
 reconnect, receive new events and never see an event id twice; and no replica
-keeps a connection after its browsers close. Load testing remains unverified,
-and slow-consumer disconnection is covered by hub tests, not end to end.
+keeps a connection after its browsers close. Two more checks cover tenant A
+events never reaching tenant B on any replica, and a download being served
+once by any replica. `scripts/services-check.mjs` (`redis-realtime-load`)
+runs many SSE clients across two replicas and reports delivery latency and
+loss without a threshold, so it is a smoke test, not a capacity benchmark.
 
 ## HTTP adapters
 
@@ -252,7 +274,10 @@ the transports actually available, so clients never assume parity; it is a `ws` 
 than a `@WebSocketGateway`, so the same hub, tokens, origin check and policies
 apply to every transport ([ADR 0032](../adr/0032-distributed-state-and-redis.md)).
 Nest's `WsAdapter` (`@nestjs/platform-ws`) destroys upgrades for paths it does
-not own, so it cannot share an HTTP server with this transport; see
+not own. The transport therefore claims upgrades for `<endpoint>/ws` before
+any other `upgrade` listener sees them, and leaves every other path to the
+host, so it shares a port with a host `@WebSocketGateway`
+(`examples/api-coexistence`, `tests/api-coexistence.test.ts`); see
 [coexistence](coexistence.md#rest-graphql-microservices-and-websocket-gateways).
 
 ## Testing

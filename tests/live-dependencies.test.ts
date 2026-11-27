@@ -105,6 +105,27 @@ class PlainPanel {
   @State() label = 'plain';
 }
 
+/** REAL-004: a component that asks the browser for its own transport. */
+@DependsOn('orders:tenant-a')
+@LiveComponent({
+  name: 'polled-panel',
+  view: 'plain-panel',
+  realtime: { transport: 'polling' },
+})
+class PolledPanel {
+  @State() label = 'polled';
+}
+
+/** A transport preference without any subscription renders nothing. */
+@LiveComponent({
+  name: 'idle-panel',
+  view: 'plain-panel',
+  realtime: { transport: 'websocket' },
+})
+class IdlePanel {
+  @State() label = 'idle';
+}
+
 interface Stream {
   readonly read: () => string;
   readonly close: () => void;
@@ -154,6 +175,26 @@ describe('@DependsOn metadata', () => {
     expect(() => DependsOn('b')(Twice)).toThrow(/Only one/);
   });
 
+  it('records a per-component transport and rejects unknown ones', () => {
+    expect(definition(PolledPanel).realtimeTransport).toBe('polling');
+    expect(definition(OrdersPanel).realtimeTransport).toBeUndefined();
+    for (const transport of ['carrier-pigeon', 'SSE', 7])
+      expect(() =>
+        LiveComponent({
+          name: 'bad-transport',
+          view: 'plain-panel',
+          realtime: { transport: transport as 'sse' },
+        }),
+      ).toThrow(/realtime.transport/);
+    expect(() =>
+      LiveComponent({
+        name: 'bad-transport',
+        view: 'plain-panel',
+        realtime: null as unknown as { transport?: 'sse' },
+      }),
+    ).toThrow(/realtime.transport/);
+  });
+
   it('maps tags to the cache tag channel grammar', () => {
     expect(liveTagChannel('orders:tenant-a')).toBe('tag:orders:tenant-a');
     expect(() => liveTagChannel('Bad')).toThrow();
@@ -182,7 +223,14 @@ describe.each(platforms)('tag invalidation end to end: %s', (platform) => {
             channel.startsWith('tag:') || channel === 'board:public',
         }),
         LiveModule.registerAsync({
-          components: [OrdersPanel, InvoicesPanel, MixedPanel, PlainPanel],
+          components: [
+            OrdersPanel,
+            InvoicesPanel,
+            MixedPanel,
+            PlainPanel,
+            PolledPanel,
+            IdlePanel,
+          ],
           imports: [module, OrdersModule],
           inject: [RealtimeService],
           useFactory: (realtime: RealtimeService) => ({
@@ -251,6 +299,14 @@ describe.each(platforms)('tag invalidation end to end: %s', (platform) => {
       expect(channels(invoices)).toEqual(['tag:invoices:tenant-a']);
       expect(channels(mixed)).toEqual(['board:public', 'tag:orders:tenant-a']);
       expect(token(plain)).toBe('');
+      // The per-component transport travels with the subscription only.
+      const polled = await f.mount(PolledPanel);
+      expect(channels(polled)).toEqual(['tag:orders:tenant-a']);
+      expect(polled).toContain('data-nv-realtime-transport="polling"');
+      expect(orders).not.toContain('data-nv-realtime-transport');
+      const idle = await f.mount(IdlePanel);
+      expect(token(idle)).toBe('');
+      expect(idle).not.toContain('data-nv-realtime-transport');
     } finally {
       f.close();
     }

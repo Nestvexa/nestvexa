@@ -77,6 +77,15 @@ load balancer restart (development only).
   replica replays the first response (its side effect, counted at
   `/api/charges`, runs once); `exportAll` is `@Action({ concurrency: 'identity' })`,
   so one identity runs one export at a time across all replicas.
+- `receipt` returns a single-use download. With `RedisLiveStore` the record is
+  shared, so its URL (also inside a replayed response) is served once by any
+  replica.
+- Tenants: a first visit to `/?tenant=acme` signs the tenant into the guest
+  cookie. The tenant feed publishes on `tenant:<tenant>:feed`, which only that
+  tenant's guests may subscribe to, so announcements never reach another
+  tenant on any replica.
+- One Redis configuration through `redisRealtime()` gives the broker and
+  shared presence together.
 
 The acceptance suite `tests/services/distributed.spec.ts` (run by
 `pnpm test:services` with `NESTVEXA_REDIS_PORT`, see the

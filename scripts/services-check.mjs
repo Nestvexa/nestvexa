@@ -3,8 +3,9 @@
 // Redis job queue (including a killed worker process), presence across
 // processes with expiry of a killed one, server-action idempotency across
 // processes (RedisActionIdempotencyStore), the shared cache store
-// (RedisCacheStore), the multi-replica browser acceptance
-// suite (Express and Fastify), S3-compatible storage and clamd.
+// (RedisCacheStore), shared Live downloads, the multi-replica browser
+// acceptance suite (Express and Fastify), a two-replica SSE load smoke
+// (latency and loss reported, not gated), S3-compatible storage and clamd.
 // Each section runs only when its environment variables are present; the
 // report records exactly which services were exercised. See
 // docs/guides/production-services.md for the Docker commands.
@@ -860,6 +861,286 @@ if (env.NESTVEXA_REDIS_PORT && env.NESTVEXA_SERVICES_BROWSER !== '0')
     step(
       `${passed} browser tests passed: cross-replica refresh over SSE and WebSocket on Express and Fastify; Live state continues across replicas and adapters; idempotent retry replays on another replica; identity lock held across replicas and released; cross-identity isolation; presence across four replicas; reconnect after a dropped load balancer without duplicates; no leaked connections; showcase on two instances (cross-instance dashboard refresh and notifications, workspace isolation)`,
     );
+  });
+
+if (env.NESTVEXA_REDIS_PORT)
+  await check('redis-live-downloads', async (step) => {
+    // LIVE-007: single-use download attachments shared through
+    // LiveActionCoordination records, so a download URL (also one replayed
+    // by an idempotent retry on another replica) works on every replica.
+    const { putSharedDownload, takeSharedDownload } =
+      await import('../packages/live/dist/downloads.js');
+    const options = redisOptions('nvdl' + randomBytes(4).toString('hex') + ':');
+    const a = new RedisLiveStore(options);
+    const b = new RedisLiveStore(options);
+    const owner = createHash('sha256').update('tenant-a/alice').digest();
+    const intruder = createHash('sha256').update('tenant-a/bob').digest();
+    // 1.5 MB: three sealed 512 KiB chunks plus a manifest.
+    const body = randomBytes(1_500_000);
+    const token = randomBytes(32).toString('base64url');
+    try {
+      await putSharedDownload(
+        a,
+        token,
+        owner,
+        'invoice',
+        {
+          filename: 'invoice.pdf',
+          contentType: 'application/pdf',
+          body: new Uint8Array(body),
+        },
+        60_000,
+      );
+      if (await takeSharedDownload(b, token, intruder, 'invoice'))
+        throw new Error('another identity was served the download');
+      if (await takeSharedDownload(b, token, owner, 'other-component'))
+        throw new Error('another component was served the download');
+      const served = await takeSharedDownload(b, token, owner, 'invoice');
+      if (!served || !Buffer.from(served.body).equals(body))
+        throw new Error('download written by A not served intact by B');
+      step(
+        'a 1.5 MB download written by one replica is served intact by another, owner and component checked first',
+      );
+      if (await takeSharedDownload(a, token, owner, 'invoice'))
+        throw new Error('a consumed download was served again');
+      step('the token is single-use across replicas');
+      const racing = randomBytes(32).toString('base64url');
+      await putSharedDownload(
+        a,
+        racing,
+        owner,
+        'invoice',
+        {
+          filename: 'x.txt',
+          contentType: 'text/plain',
+          body: new Uint8Array(Buffer.from('once')),
+        },
+        60_000,
+      );
+      const results = await Promise.all([
+        takeSharedDownload(a, racing, owner, 'invoice'),
+        takeSharedDownload(b, racing, owner, 'invoice'),
+      ]);
+      if (results.filter(Boolean).length !== 1)
+        throw new Error('two concurrent fetches were both served or neither');
+      step('two concurrent fetches on two replicas: exactly one is served');
+      const short = randomBytes(32).toString('base64url');
+      await putSharedDownload(
+        a,
+        short,
+        owner,
+        'invoice',
+        {
+          filename: 'x.txt',
+          contentType: 'text/plain',
+          body: new Uint8Array(Buffer.from('late')),
+        },
+        800,
+      );
+      await delay(1200);
+      if (await takeSharedDownload(b, short, owner, 'invoice'))
+        throw new Error('an expired download was served');
+      step('records expire with the download lifetime (Redis PX)');
+    } finally {
+      await a.close();
+      await b.close();
+    }
+  });
+
+if (env.NESTVEXA_REDIS_PORT && env.NESTVEXA_SERVICES_LOAD !== '0')
+  await check('redis-realtime-load', async (step) => {
+    // REAL-014 load smoke: two distributed-live replicas (Express and
+    // Fastify) on one Redis, many SSE clients split across them, events
+    // published on one replica. Reports delivery latency and loss; it has
+    // no pass threshold (only "every replica delivered something").
+    const basePort = Number(env.NESTVEXA_LOAD_BASE_PORT ?? 3240);
+    const clients = Number(env.NESTVEXA_LOAD_CLIENTS ?? 200);
+    const events = Number(env.NESTVEXA_LOAD_EVENTS ?? 50);
+    const payload = Number(env.NESTVEXA_LOAD_BYTES ?? 1000);
+    const replicaEnv = {
+      ...env,
+      NODE_OPTIONS: '',
+      REDIS_HOST: env.NESTVEXA_REDIS_HOST ?? '127.0.0.1',
+      REDIS_PORT: env.NESTVEXA_REDIS_PORT,
+      ...(env.NESTVEXA_REDIS_PASSWORD
+        ? { REDIS_PASSWORD: env.NESTVEXA_REDIS_PASSWORD }
+        : {}),
+      REDIS_PREFIX: 'nvload' + randomBytes(4).toString('hex') + ':',
+      REALTIME_SECRET: randomBytes(48).toString('base64url'),
+      IDENTITY_SECRET: randomBytes(48).toString('base64url'),
+      ACCEPTANCE_LOAD_TOOLS: '1',
+      REALTIME_TRANSPORT: 'sse',
+    };
+    const replicas = ['express', 'fastify'].map((adapter, index) => {
+      const port = basePort + index;
+      const proc = spawn(
+        process.execPath,
+        ['examples/distributed-live/dist/main.js'],
+        {
+          env: {
+            ...replicaEnv,
+            PORT: String(port),
+            PUBLIC_ORIGIN: `http://127.0.0.1:${port}`,
+            REPLICA: String.fromCharCode(97 + index),
+            HTTP_ADAPTER: adapter,
+          },
+          stdio: ['ignore', 'ignore', 'inherit'],
+        },
+      );
+      return { adapter, port, proc, base: `http://127.0.0.1:${port}` };
+    });
+    const { request } = await import('node:http');
+    const streams = [];
+    try {
+      for (const replica of replicas) {
+        const deadline = Date.now() + 180_000;
+        for (;;) {
+          const ready = await fetch(`${replica.base}/api/health`).then(
+            (response) => response.ok,
+            () => false,
+          );
+          if (ready) break;
+          if (Date.now() > deadline || replica.proc.exitCode !== null)
+            throw new Error(`replica on ${replica.port} did not start`);
+          await delay(250);
+        }
+      }
+      step(
+        `two replicas (Express ${replicas[0].port}, Fastify ${replicas[1].port}) on one Redis`,
+      );
+      // Each client is its own guest: a cookie and a signed board token.
+      const open = async (replica) => {
+        const page = await fetch(replica.base);
+        const cookie = (page.headers.get('set-cookie') ?? '').split(';')[0];
+        const html = await page.text();
+        const token =
+          /data-nv-name="replica-board"[^>]*?data-nv-realtime="([^"]+)"/.exec(
+            html,
+          )?.[1];
+        if (!token) throw new Error('no realtime token in the page');
+        return new Promise((resolve, reject) => {
+          const client = {
+            replica: replica.adapter,
+            ready: false,
+            received: new Map(),
+            close: () => undefined,
+          };
+          let rest = '';
+          const req = request(
+            `${replica.base}/_nestvexa/realtime/sse?t=${encodeURIComponent(token)}`,
+            { headers: { cookie } },
+            (response) => {
+              if (response.statusCode !== 200) {
+                reject(new Error(`SSE status ${response.statusCode}`));
+                return;
+              }
+              response.on('data', (chunk) => {
+                const now = Date.now();
+                const frames = (rest + chunk.toString()).split('\n\n');
+                rest = frames.pop() ?? '';
+                for (const frame of frames) {
+                  if (frame.includes('event: ready')) client.ready = true;
+                  const load = /"load":(\d+)/.exec(frame);
+                  const at = /"at":(\d+)/.exec(frame);
+                  if (load && at && !client.received.has(Number(load[1])))
+                    client.received.set(Number(load[1]), now - Number(at[1]));
+                }
+              });
+              client.close = () => req.destroy();
+              resolve(client);
+            },
+          );
+          req.on('error', (error) =>
+            client.ready ? undefined : reject(error),
+          );
+          req.end();
+        });
+      };
+      for (let index = 0; index < clients; index++)
+        streams.push(await open(replicas[index % replicas.length]));
+      await waitFor(
+        () => streams.every((client) => client.ready),
+        'every SSE client ready',
+        60_000,
+      );
+      step(`${clients} SSE clients subscribed, split across both replicas`);
+      // Published on the Express replica in batches of 10; one turn each.
+      const started = Date.now();
+      for (let offset = 0; offset < events; offset += 10) {
+        const response = await fetch(
+          `${replicas[0].base}/api/load/broadcast?count=${Math.min(10, events - offset)}&offset=${offset}&bytes=${payload}`,
+          { method: 'POST' },
+        );
+        if (!response.ok)
+          throw new Error(`broadcast failed with ${response.status}`);
+        await delay(100);
+      }
+      const expected = clients * events;
+      await waitFor(
+        () =>
+          streams.reduce((sum, client) => sum + client.received.size, 0) ===
+          expected,
+        'deliveries',
+        30_000,
+      ).catch(() => undefined);
+      const latencies = streams
+        .flatMap((client) => [...client.received.values()])
+        .sort((x, y) => x - y);
+      const at = (fraction) =>
+        latencies[
+          Math.min(
+            latencies.length - 1,
+            Math.floor(latencies.length * fraction),
+          )
+        ] ?? NaN;
+      const byReplica = Object.fromEntries(
+        replicas.map(({ adapter }) => {
+          const own = streams.filter((client) => client.replica === adapter);
+          const got = own.reduce(
+            (sum, client) => sum + client.received.size,
+            0,
+          );
+          return [
+            adapter,
+            {
+              clients: own.length,
+              delivered: got,
+              expected: own.length * events,
+            },
+          ];
+        }),
+      );
+      const delivered = latencies.length;
+      const metrics = {
+        clients,
+        events,
+        payloadBytes: payload,
+        expected,
+        delivered,
+        lost: expected - delivered,
+        lossRate: Number(((expected - delivered) / expected).toFixed(4)),
+        latencyMs: {
+          p50: at(0.5),
+          p95: at(0.95),
+          p99: at(0.99),
+          max: latencies.at(-1) ?? NaN,
+        },
+        elapsedMs: Date.now() - started,
+        byReplica,
+      };
+      report.load = metrics;
+      console.log('redis-realtime-load metrics: ' + JSON.stringify(metrics));
+      if (!Object.values(byReplica).every((entry) => entry.delivered > 0))
+        throw new Error(
+          'a replica delivered nothing: ' + JSON.stringify(byReplica),
+        );
+      step(
+        `delivered ${delivered}/${expected} (loss ${metrics.lossRate}); latency p50 ${metrics.latencyMs.p50} ms, p95 ${metrics.latencyMs.p95} ms, p99 ${metrics.latencyMs.p99} ms, max ${metrics.latencyMs.max} ms (reported, not gated)`,
+      );
+    } finally {
+      for (const client of streams) client.close();
+      for (const replica of replicas) replica.proc.kill();
+    }
   });
 
 if (env.NESTVEXA_S3_ENDPOINT)

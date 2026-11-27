@@ -27,6 +27,14 @@ visual round trip. `/board/ownership` supplies two independent server-mounted
 roots for the explicit nested DOM ownership fixture; it is not the Phase 4
 parent/child lifecycle API.
 
+Open `/tags` for declared data dependencies (REAL-010). The order and stock
+summaries use `@DependsOn('orders')` and `@DependsOn('inventory')`. Each write
+in the warehouse controls calls `LiveTags.invalidate` for the one tag it
+changed, so other browsers refresh only the dependent summary, read-only. The
+stock summary also chooses its own transport
+(`@LiveComponent({ realtime: { transport: 'polling' } })`) while the rest of
+the page uses SSE. See the [browser test](../../tests/browser/live-depends-on.spec.ts).
+
 The first [Phase 4 hook example](../../docs/guides/live-update-hooks.md) displays
 the last accepted client field via `afterUpdate`, on both model synchronization
 and submission. This does not make the remaining lifecycle or Phase 4 complete.

@@ -214,8 +214,25 @@ interface RedisPresenceStoreOptions extends RespConnectionOptions {
     readonly prefix?: string;
 }
 
+// redisRealtime
+declare function redisRealtime(options?: RedisRealtimeOptions): {
+    readonly broker: RealtimeBroker;
+    readonly presence?: RealtimePresenceOptions;
+};
+
 export { RespRealtimeBroker as RedisRealtimeBroker } from '@nestvexa/realtime'; // see its report
 export { RespBrokerOptions as RedisRealtimeBrokerOptions } from '@nestvexa/realtime'; // see its report
+// RedisRealtimeOptions
+interface RedisRealtimeOptions {
+    readonly host?: string;
+    readonly port?: number;
+    readonly password?: string;
+    readonly prefix?: string;
+    readonly replaySize?: number;
+    readonly presence?: false | {
+        readonly ttlMs?: number;
+    };
+}
 ```
 
 ## Referenced but not exported

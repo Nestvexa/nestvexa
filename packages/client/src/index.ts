@@ -43,7 +43,11 @@ import { createNavigationController } from './navigation.js';
 // features are bundled into the entry; their controllers and structural
 // validators load on demand (see `loadFeature`).
 import { tokenChannels } from './realtime.js';
-import type { RealtimeController, RealtimeEndpoint } from './realtime.js';
+import type {
+  RealtimeController,
+  RealtimeEndpoint,
+  RealtimeTransport,
+} from './realtime.js';
 import { parseOptimisticDirective, projectOptimistic } from './optimistic.js';
 import type { LiveActionInput } from './action-input.js';
 export type { LiveActionInput } from './action-input.js';
@@ -672,7 +676,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   let sorting: SortController | undefined;
   let lazyObserver: IntersectionObserver | undefined;
   let navigation: ReturnType<typeof createNavigationController> | undefined;
-  let realtime: RealtimeController | undefined;
+  /** One connection per transport in use (page default or per component). */
+  const realtime = new Map<RealtimeTransport, RealtimeController>();
   const realtimeRefresh = new WeakMap<Component, number>();
   let lastRealtimeRenewal = 0;
   let streaming: StreamController | undefined;
@@ -1192,9 +1197,11 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   function startRealtime(
     module: FeatureModules['realtime'],
     endpoint: RealtimeEndpoint,
+    group: RealtimeTransport,
   ): RealtimeController {
     return module.createRealtimeController({
       ...endpoint,
+      transport: group,
       window,
       fetch: transport,
       onMessage: (message) => {
@@ -1223,7 +1230,10 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
         }
         const listening = new Set<Component>();
         for (const state of components.values())
-          if (realtimeChannels(state).includes(message.channel)) {
+          if (
+            transportOf(state) === group &&
+            realtimeChannels(state).includes(message.channel)
+          ) {
             if (event && state.listeners.has(event.name)) listening.add(state);
             else invalidate(state);
           }
@@ -2451,27 +2461,48 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       return [];
     }
   }
+  /**
+   * A component's transport: its server-rendered preference
+   * (`@LiveComponent({ realtime: { transport } })`) or the page default.
+   */
+  function transportOf(state: Component): RealtimeTransport {
+    const value = state.root.getAttribute('data-nv-realtime-transport');
+    return value === 'sse' ||
+      value === 'websocket' ||
+      value === 'polling' ||
+      value === 'auto'
+      ? value
+      : (options.realtime?.transport ?? 'auto');
+  }
   function refreshRealtime(): void {
     const endpoint = options.realtime;
     if (!mounted || !endpoint || root.nodeType !== 9) return;
-    const tokens: string[] = [];
+    const groups = new Map<RealtimeTransport, string[]>();
     for (const state of components.values()) {
       const token = state.root.getAttribute('data-nv-realtime');
-      if (token !== null && usable(state) && realtimeChannels(state).length)
-        tokens.push(token);
-    }
-    try {
-      if (!realtime) {
-        // The transport chunk loads with the first subscribed component.
-        if (!tokens.length) return;
-        const module = featureModules.realtime;
-        if (!module) {
-          requestFeatures(['realtime']);
-          return;
-        }
-        realtime = startRealtime(module, endpoint);
+      if (token !== null && usable(state) && realtimeChannels(state).length) {
+        const group = transportOf(state);
+        groups.set(group, [...(groups.get(group) ?? []), token]);
       }
-      realtime.update(tokens.slice(0, 32));
+    }
+    for (const group of realtime.keys())
+      if (!groups.has(group)) groups.set(group, []);
+    try {
+      for (const [group, tokens] of groups) {
+        let controller = realtime.get(group);
+        if (!controller) {
+          // The transport chunk loads with the first subscribed component.
+          if (!tokens.length) continue;
+          const module = featureModules.realtime;
+          if (!module) {
+            requestFeatures(['realtime']);
+            return;
+          }
+          controller = startRealtime(module, endpoint, group);
+          realtime.set(group, controller);
+        }
+        controller.update(tokens.slice(0, 32));
+      }
     } catch (error) {
       report(error, null);
     }
@@ -2934,8 +2965,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       lazyObserver = undefined;
       navigation?.dispose();
       navigation = undefined;
-      realtime?.dispose();
-      realtime = undefined;
+      for (const controller of realtime.values()) controller.dispose();
+      realtime.clear();
       dispatcher?.dispose();
       dispatcher = undefined;
       direct.dispose();

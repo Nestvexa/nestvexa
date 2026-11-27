@@ -195,6 +195,99 @@ function sseOpened(page: Page) {
     response.url().includes('/_nestvexa/realtime/sse?'),
   );
 }
+
+/** Realtime channels a page received events on (recorded from the first script). */
+async function recordChannels(page: Page): Promise<() => Promise<string[]>> {
+  await page.addInitScript(() => {
+    const seen: string[] = [];
+    Reflect.set(window, '__nvChannels', seen);
+    window.addEventListener('nestvexa:realtime', (event) => {
+      const detail: unknown = Reflect.get(event, 'detail');
+      const channel: unknown =
+        detail && typeof detail === 'object'
+          ? Reflect.get(detail, 'channel')
+          : undefined;
+      if (typeof channel === 'string') seen.push(channel);
+    });
+  });
+  return () =>
+    page.evaluate(() => [...(Reflect.get(window, '__nvChannels') as string[])]);
+}
+
+test('tenant A events never reach tenant B on any replica', async ({
+  browser,
+}) => {
+  // Tenant acme on replica a (Express, SSE) and d (Fastify, WebSocket);
+  // tenant globex on b (Express, WebSocket) and c (Fastify, SSE).
+  const acmeA = await pinned(browser, 'a');
+  const acmeD = await pinned(browser, 'd');
+  const globexB = await pinned(browser, 'b');
+  const globexC = await pinned(browser, 'c');
+  const seen = new Map<Page, () => Promise<string[]>>();
+  for (const { page } of [acmeA, acmeD, globexB, globexC])
+    seen.set(page, await recordChannels(page));
+  // Subscriptions are up on every receiving replica before anything is sent.
+  const ready = [
+    websocketReady(acmeD.page),
+    websocketReady(globexB.page),
+    sseOpened(globexC.page),
+  ];
+  await acmeA.page.goto(`${proxy}/?tenant=acme`);
+  await acmeD.page.goto(`${proxy}/?tenant=acme`);
+  await globexB.page.goto(`${proxy}/?tenant=globex`);
+  await globexC.page.goto(`${proxy}/?tenant=globex`);
+  for (const [session, tenant] of [
+    [acmeA, 'acme'],
+    [acmeD, 'acme'],
+    [globexB, 'globex'],
+    [globexC, 'globex'],
+  ] as const)
+    await expect(session.page.locator('#tenant')).toHaveText(tenant);
+  await Promise.all(ready);
+  const notices = (page: Page) => page.locator('#notices');
+  const announce = (page: Page) =>
+    page.getByRole('button', { name: 'Announce to my tenant' }).click();
+  await announce(acmeA.page);
+  await expect(notices(acmeA.page)).toHaveText('1');
+  // Published on a, delivered through Redis to d, refreshed there.
+  await expect(notices(acmeD.page)).toHaveText('1');
+  await announce(globexC.page);
+  await expect(notices(globexB.page)).toHaveText('1');
+  await expect(notices(globexC.page)).toHaveText('1');
+  // Neither tenant saw the other's channel or count.
+  await expect(notices(acmeD.page)).toHaveText('1');
+  await expect(notices(globexB.page)).toHaveText('1');
+  for (const { page } of [acmeA, acmeD]) {
+    const channels = await (seen.get(page) ?? (async () => []))();
+    expect(channels).toContain('tenant:acme:feed');
+    expect(channels).not.toContain('tenant:globex:feed');
+  }
+  for (const { page } of [globexB, globexC]) {
+    const channels = await (seen.get(page) ?? (async () => []))();
+    expect(channels).toContain('tenant:globex:feed');
+    expect(channels).not.toContain('tenant:acme:feed');
+  }
+  // A globex guest cannot subscribe with an acme token on any replica: the
+  // token is bound to its owner and the channel to the owner's tenant.
+  const acmeToken =
+    (await acmeA.page
+      .locator('[data-nv-name="tenant-feed"]')
+      .getAttribute('data-nv-realtime')) ?? '';
+  for (const replica of ['a', 'b', 'c', 'd'] as const) {
+    await pin(globexB.context, replica);
+    const stolen = await globexB.page.request.get(
+      `${proxy}/_nestvexa/realtime/poll?t=${encodeURIComponent(acmeToken)}`,
+    );
+    expect(stolen.status(), `acme token via ${replica}`).toBe(403);
+  }
+  // The tenant cannot be switched on a later visit: the cookie keeps it.
+  await pin(globexB.context, 'b');
+  await globexB.page.goto(`${proxy}/?tenant=acme`);
+  await expect(globexB.page.locator('#tenant')).toHaveText('globex');
+  await expect(notices(globexB.page)).toHaveText('1');
+  for (const { context } of [acmeA, acmeD, globexB, globexC])
+    await context.close();
+});
 /** Record every realtime event id a page receives (to detect duplicates). */
 async function recordEvents(page: Page): Promise<() => Promise<string[]>> {
   await page.addInitScript(() => {
@@ -459,6 +552,46 @@ test('an idempotent retry replays on another replica (Express → Fastify) witho
   );
   expect(reused.status()).toBe(422);
   expect(await charges(page)).toBe(before + 1);
+  await context.close();
+});
+
+test('a download created on one replica, also when replayed, is served once by any replica', async ({
+  browser,
+}) => {
+  const { context, page } = await pinned(browser, 'a');
+  const fields = await mounted(page);
+  const requestId = crypto.randomUUID();
+  const first = await action(page, 'receipt', fields, requestId);
+  expect(first.status()).toBe(201);
+  expect(first.headers()['x-nestvexa-replica']).toBe('a');
+  const { download } = (await first.json()) as {
+    download: { url: string; filename: string };
+  };
+  expect(download.filename).toBe('receipt-a.txt');
+  // The response was lost: the retry on Fastify c replays the same URL.
+  await pin(context, 'c');
+  const retry = await action(page, 'receipt', fields, requestId);
+  expect(await retry.json()).toMatchObject({ replayed: true, download });
+  // Another identity cannot fetch it, and does not consume it.
+  const intruder = await pinned(browser, 'b');
+  await intruder.page.goto(proxy);
+  expect(
+    (await intruder.page.request.get(`${proxy}${download.url}`)).status(),
+  ).toBe(404);
+  await intruder.context.close();
+  // Replica d (Fastify, never saw the action) serves it, once.
+  await pin(context, 'd');
+  const served = await page.request.get(`${proxy}${download.url}`);
+  expect(served.status()).toBe(200);
+  expect(served.headers()['x-nestvexa-replica']).toBe('d');
+  expect(await served.text()).toBe('Receipt rendered by replica a');
+  for (const replica of ['a', 'b', 'c', 'd'] as const) {
+    await pin(context, replica);
+    expect(
+      (await page.request.get(`${proxy}${download.url}`)).status(),
+      `second fetch via ${replica}`,
+    ).toBe(404);
+  }
   await context.close();
 });
 

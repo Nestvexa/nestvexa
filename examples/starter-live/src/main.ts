@@ -46,6 +46,15 @@ import {
 } from './projects.js';
 import { RealtimeModule, RealtimeService } from '@nestvexa/realtime';
 import {
+  OrderSummary,
+  StockSummary,
+  WarehouseControls,
+  WarehouseModule,
+  inventoryTag,
+  orderTag,
+} from './tagged-summaries.js';
+import { liveTagChannel } from 'nestvexa';
+import {
   RealtimeBoard,
   RealtimeDemoModule,
   connectReportJobs,
@@ -197,6 +206,22 @@ class Pages {
       widget: await this.live.mount(RealtimeBoard, request),
     };
   }
+  @Get('tags')
+  @Header('Cache-Control', 'no-store')
+  @Header(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+  )
+  @Render('tags')
+  async tags(@Req() request: SessionRequest) {
+    request.session.csrf ??= randomBytes(32).toString('base64url');
+    return {
+      title: 'Declared data dependencies',
+      controls: await this.live.mount(WarehouseControls, request),
+      orders: await this.live.mount(OrderSummary, request),
+      stock: await this.live.mount(StockSummary, request),
+    };
+  }
   @Get('projects')
   @Header('Cache-Control', 'no-store')
   @Header(
@@ -337,7 +362,11 @@ document.addEventListener('click', async (event) => {
       origin: `http://127.0.0.1:${port}`,
       resolveIdentity: (request) => ({ binding: guestBinding(request) }),
       authorizeChannel: (identity, channel) =>
-        channel === publicChannel || reportJobs.authorize(identity, channel),
+        channel === publicChannel ||
+        // Public demo data: every guest may follow these two data tags.
+        channel === liveTagChannel(orderTag) ||
+        channel === liveTagChannel(inventoryTag) ||
+        reportJobs.authorize(identity, channel),
     }),
     NestvexaModule.forRoot(
       { views: { root, layout: 'layout' }, live: { enabled: true } },
@@ -360,8 +389,11 @@ document.addEventListener('click', async (event) => {
           ProjectRow,
           ProjectToast,
           RealtimeBoard,
+          WarehouseControls,
+          OrderSummary,
+          StockSummary,
         ],
-        imports: [ProjectsModule, RealtimeDemoModule],
+        imports: [ProjectsModule, RealtimeDemoModule, WarehouseModule],
         inject: [RealtimeService],
         useFactory: (realtime: RealtimeService) => ({
           origin: `http://127.0.0.1:${port}`,
@@ -388,6 +420,10 @@ document.addEventListener('click', async (event) => {
                 'reorder',
                 '$stream:summary',
               ].includes(action)) ||
+            (component === 'warehouse-controls' &&
+              ['$mount', 'placeOrder', 'restock'].includes(action)) ||
+            ((component === 'order-summary' || component === 'stock-summary') &&
+              ['$mount', '$sync'].includes(action)) ||
             (component === 'realtime-board' &&
               [
                 '$mount',

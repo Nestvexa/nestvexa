@@ -30,7 +30,8 @@ import {
   memoryActionPolicy,
   sharedActionPolicy,
 } from './action-policy.js';
-import type { ActionPolicy } from './action-policy.js';
+import type { ActionPolicy, LiveActionCoordination } from './action-policy.js';
+import { putSharedDownload, takeSharedDownload } from './downloads.js';
 import { MemoryLiveStore } from './store.js';
 import type {
   ChildReference,
@@ -548,6 +549,8 @@ export class LiveRuntime implements OnApplicationShutdown {
   readonly #inflight = new Set<Promise<unknown>>();
   /** Idempotent replay and identity locks: shared when the store coordinates replicas. */
   readonly #actions: ActionPolicy;
+  /** Shared download records when the store coordinates replicas. */
+  readonly #sharedDownloads: LiveActionCoordination | undefined;
   /** Origin, CSRF and authorization decisions (the kernel registry when configured). */
   readonly #policy: LivePolicyEnforcer;
   /** Seconds until the rate-limit window of a rejected request resets. */
@@ -578,6 +581,9 @@ export class LiveRuntime implements OnApplicationShutdown {
     this.#actions = isLiveActionCoordination(this.store)
       ? sharedActionPolicy(this.store)
       : memoryActionPolicy();
+    this.#sharedDownloads = isLiveActionCoordination(this.store)
+      ? this.store
+      : undefined;
     this.registry.register(
       this,
       options.definitions,
@@ -1293,6 +1299,10 @@ export class LiveRuntime implements OnApplicationShutdown {
       ...(extra.realtime === undefined
         ? []
         : [`data-nv-realtime="${escapeAttribute(extra.realtime)}"`]),
+      ...(component.realtimeTransport === undefined ||
+      extra.realtime === undefined
+        ? []
+        : [`data-nv-realtime-transport="${component.realtimeTransport}"`]),
       ...(extra.lazy && component.lazy
         ? [`data-nv-lazy="${component.lazy}"`]
         : []),
@@ -1854,7 +1864,7 @@ export class LiveRuntime implements OnApplicationShutdown {
       }
       await this.discard(context.removed);
       const attachment = download
-        ? this.storeDownload(identity, component, download)
+        ? await this.storeDownload(identity, component, download)
         : undefined;
       const response = {
         protocol: 'nestvexa-live/1',
@@ -1977,22 +1987,45 @@ export class LiveRuntime implements OnApplicationShutdown {
       ...(title === undefined ? {} : { title }),
     };
   }
-  private storeDownload(
+  /**
+   * Keep a single-use attachment for the identity that ran the action: in
+   * process memory, or in the shared store when it coordinates replicas, so
+   * the URL (also inside an idempotent replay) works on every replica.
+   */
+  private async storeDownload(
     identity: LiveIdentity,
     component: ComponentDefinition,
     download: LiveDownload,
-  ): { url: string; filename: string } {
+  ): Promise<{ url: string; filename: string }> {
     const now = Date.now();
-    for (const [key, entry] of this.#downloads)
-      if (entry.expiresAt <= now) this.#downloads.delete(key);
-    if (this.#downloads.size >= maxDownloads) fail(503, 'DOWNLOAD_CAPACITY');
     const token = randomBytes(32).toString('base64url');
-    this.#downloads.set(token, {
-      binding: createHash('sha256').update(identity.binding).digest(),
-      component: component.name,
-      expiresAt: now + downloadLifetime,
-      download,
-    });
+    const binding = createHash('sha256').update(identity.binding).digest();
+    const shared = this.#sharedDownloads;
+    if (shared)
+      try {
+        await putSharedDownload(
+          shared,
+          token,
+          binding,
+          component.name,
+          download,
+          downloadLifetime,
+          now,
+        );
+      } catch {
+        fail(503, 'STORE_UNAVAILABLE');
+      }
+    else {
+      for (const [key, entry] of this.#downloads)
+        if (entry.expiresAt <= now) this.#downloads.delete(key);
+      if (this.#downloads.size >= maxDownloads) fail(503, 'DOWNLOAD_CAPACITY');
+      this.#downloads.set(token, {
+        binding,
+        component: component.name,
+        expiresAt: now + downloadLifetime,
+        download,
+      });
+    }
     return {
       url: `${this.options.basePath ?? ''}${this.options.endpoint ?? '/_nestvexa/live'}/${component.name}/_download/${token}`,
       filename: download.filename,
@@ -2007,6 +2040,28 @@ export class LiveRuntime implements OnApplicationShutdown {
     if (this.closed) fail(503, 'LIVE_SHUTDOWN');
     if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(token))
       fail(404, 'DOWNLOAD_UNAVAILABLE');
+    const shared = this.#sharedDownloads;
+    if (shared) {
+      const identity = await this.identity(request);
+      const binding = createHash('sha256').update(identity.binding).digest();
+      let served: LiveDownload | undefined;
+      try {
+        served = await takeSharedDownload(
+          shared,
+          token,
+          binding,
+          component.name,
+        );
+      } catch {
+        fail(503, 'STORE_UNAVAILABLE');
+      }
+      if (!served) fail(404, 'DOWNLOAD_UNAVAILABLE');
+      return new StreamableFile(Buffer.from(served.body), {
+        type: served.contentType,
+        disposition: contentDisposition(served.filename),
+        length: served.body.byteLength,
+      });
+    }
     const entry = this.#downloads.get(token);
     if (
       !entry ||

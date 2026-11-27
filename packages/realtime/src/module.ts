@@ -122,7 +122,9 @@ export interface RealtimeModuleOptions {
 const defaults: Required<HubLimits> = {
   maxConnections: 1000,
   maxConnectionsPerIdentity: 8,
-  queueLimit: 64,
+  queueLimit: 1024,
+  maxQueuedBytes: 4_194_304,
+  drainTimeoutMs: 10_000,
   heartbeatMs: 15_000,
   revalidateMs: 30_000,
   subscribesPerMinute: 60,
@@ -201,6 +203,11 @@ function validate(options: RealtimeModuleOptions): HubLimits {
   }
   return limits;
 }
+/**
+ * Per-connection transport buffer bound. A write that leaves more than this
+ * buffered pauses delivery until the transport drains (see `drainTimeoutMs`).
+ */
+const transportBufferBytes = 262_144;
 const allTransports: readonly RealtimeTransportName[] = [
   'websocket',
   'sse',
@@ -609,7 +616,12 @@ function controller(endpoint: string): Type<object> {
               },
             )}\n\n`,
           );
-          return stream.writableLength < 262_144;
+          return stream.writableLength < transportBufferBytes;
+        },
+        onDrain(listener) {
+          if (closed || stream.writableLength < transportBufferBytes)
+            listener();
+          else stream.once('drain', listener);
         },
         heartbeat() {
           if (!closed) stream.write(': ping\n\n');
@@ -773,6 +785,13 @@ export class RealtimeModule {
 /**
  * Attach the optional WebSocket transport (`ws` peer) at `<endpoint>/ws`.
  * The first client message must be `{"tokens":[...],"cursor":"..."}` within 5 s.
+ *
+ * The transport claims upgrades for its own path before any other `upgrade`
+ * listener of the HTTP server sees them, so it shares a port with a host
+ * `@WebSocketGateway` served by Nest's `WsAdapter` (`@nestjs/platform-ws`),
+ * which destroys every upgrade whose path no gateway owns. Upgrades for other
+ * paths reach the host's listeners unchanged. Call it after `listen()` or
+ * `init()`; the returned function detaches it.
  */
 export async function attachRealtimeWebSocket(
   app: INestApplication,
@@ -790,7 +809,8 @@ export async function attachRealtimeWebSocket(
     !candidate ||
     typeof candidate !== 'object' ||
     typeof Reflect.get(candidate, 'on') !== 'function' ||
-    typeof Reflect.get(candidate, 'off') !== 'function'
+    typeof Reflect.get(candidate, 'off') !== 'function' ||
+    typeof Reflect.get(candidate, 'emit') !== 'function'
   )
     throw new Error(
       'WebSocket transport requires a Node HTTP server (Express or Fastify adapter)',
@@ -798,6 +818,7 @@ export async function attachRealtimeWebSocket(
   const { WebSocketServer } = await import('ws');
   const server = new WebSocketServer({ noServer: true, maxPayload: 65_536 });
   const http = candidate as {
+    emit(event: string | symbol, ...args: unknown[]): boolean;
     on(
       event: 'upgrade',
       listener: (
@@ -816,13 +837,22 @@ export async function attachRealtimeWebSocket(
     ): void;
   };
   const path = `${service.endpoint}/ws`;
+  const owns = (request: unknown): request is IncomingMessage => {
+    const url: unknown =
+      request && typeof request === 'object'
+        ? Reflect.get(request, 'url')
+        : undefined;
+    return (
+      typeof url === 'string' &&
+      new URL(url, 'http://nestvexa.invalid').pathname === path
+    );
+  };
   const upgrade = (
     request: IncomingMessage,
     socket: Duplex,
     head: Buffer,
   ): void => {
-    const url = new URL(request.url ?? '/', 'http://nestvexa.invalid');
-    if (url.pathname !== path) return;
+    if (!owns(request)) return;
     // Cross-site WebSocket hijacking defense: browsers always send Origin.
     if (request.headers.origin !== service.options.origin) {
       socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
@@ -831,9 +861,18 @@ export async function attachRealtimeWebSocket(
     server.handleUpgrade(request, socket, head, (ws) => {
       let subscription: { close(): void } | undefined;
       let open = true;
+      /** Waits for the socket to drain after `send` reported congestion. */
+      let drained: (() => void) | undefined;
+      const flushed = (): void => {
+        if (!drained || ws.bufferedAmount >= transportBufferBytes / 4) return;
+        const listener = drained;
+        drained = undefined;
+        listener();
+      };
       const sink: RealtimeSink = {
         send(event) {
           if (!open) return true;
+          // The callback runs once the frame is handed to the socket.
           ws.send(
             JSON.stringify({
               type: 'invalidate',
@@ -841,8 +880,13 @@ export async function attachRealtimeWebSocket(
               id: event.id,
               data: event.data,
             }),
+            flushed,
           );
-          return ws.bufferedAmount < 262_144;
+          return ws.bufferedAmount < transportBufferBytes;
+        },
+        onDrain(listener) {
+          if (!open || ws.bufferedAmount < transportBufferBytes / 4) listener();
+          else drained = listener;
         },
         heartbeat() {
           if (open) ws.ping();
@@ -896,10 +940,32 @@ export async function attachRealtimeWebSocket(
       ws.on('error', () => ws.terminate());
     });
   };
+  // Path-scoped claim: an upgrade for <endpoint>/ws is handled here and not
+  // emitted to other listeners (a gateway adapter would destroy it); every
+  // other event and path is emitted unchanged. The listener below keeps the
+  // server's upgrade listener count non-zero and serves hosts that dispatch
+  // upgrades to listeners directly.
+  const emit = http.emit;
+  let claiming = true;
+  const claim = function (
+    this: unknown,
+    event: string | symbol,
+    ...args: unknown[]
+  ): boolean {
+    if (claiming && event === 'upgrade' && owns(args[0])) {
+      upgrade(args[0], args[1] as Duplex, args[2] as Buffer);
+      return true;
+    }
+    return Reflect.apply(emit, this, [event, ...args]) as boolean;
+  };
+  http.emit = claim;
   http.on('upgrade', upgrade);
   websocketAttached.add(service);
   return () => {
     websocketAttached.delete(service);
+    claiming = false;
+    // Restore only if nothing wrapped emit after us; otherwise stay a passthrough.
+    if (http.emit === claim) http.emit = emit;
     http.off('upgrade', upgrade);
     for (const client of server.clients) client.terminate();
     server.close();

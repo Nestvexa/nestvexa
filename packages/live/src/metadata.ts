@@ -47,7 +47,17 @@ export interface ComponentOptions {
    * with 504; work already started is not undone. Default: no deadline.
    */
   readonly timeoutMs?: number;
+  /**
+   * Realtime preference of this component. `transport` overrides the page's
+   * `browser.realtime.transport` for this component's subscription; `auto`
+   * negotiates with the server (`GET <endpoint>/negotiate`) and falls back
+   * WebSocket → SSE → polling for this component's connection. Components
+   * with different transports use one connection per transport.
+   */
+  readonly realtime?: { readonly transport?: LiveRealtimeTransport };
 }
+/** Transports a Live component may ask the browser to use for its subscription. */
+export type LiveRealtimeTransport = 'auto' | 'sse' | 'websocket' | 'polling';
 /** How a parent may initialize or update a child state field. */
 export type PropMode = 'mount' | 'reactive' | 'modelable';
 export interface StateOptions {
@@ -153,6 +163,8 @@ export interface ComponentDefinition {
   readonly listeners: ReadonlyMap<string, readonly string[]>;
   /** Method returning the realtime channels that refresh this component. */
   readonly realtime?: string;
+  /** Per-component transport preference (`@LiveComponent({ realtime })`). */
+  readonly realtimeTransport?: LiveRealtimeTransport;
   /** `@DependsOn` data tags (static or resolved from hydrated state). */
   readonly dependencies?: readonly LiveDependency[];
   /** `@Title` getter or method name. */
@@ -288,6 +300,16 @@ export function LiveComponent(options: ComponentOptions): ClassDecorator {
       options.timeoutMs > 300_000)
   )
     throw new Error('Component timeoutMs must be 1–300000 milliseconds');
+  const transport: unknown = options.realtime?.transport;
+  if (
+    (options.realtime !== undefined &&
+      (typeof options.realtime !== 'object' || options.realtime === null)) ||
+    (transport !== undefined &&
+      !['auto', 'sse', 'websocket', 'polling'].includes(String(transport)))
+  )
+    throw new Error(
+      'Component realtime.transport must be auto, sse, websocket or polling',
+    );
   const children = new Map<string, Type<object>>();
   if (options.children !== undefined) {
     if (
@@ -328,6 +350,9 @@ export function LiveComponent(options: ComponentOptions): ClassDecorator {
         ...(options.timeoutMs === undefined
           ? {}
           : { timeoutMs: options.timeoutMs }),
+        ...(options.realtime?.transport === undefined
+          ? {}
+          : { realtimeTransport: options.realtime.transport }),
       }),
       target,
     );
@@ -922,6 +947,7 @@ export function definition(type: Type<object>): ComponentDefinition {
         readonly lazy?: false | 'load' | 'visible';
         readonly placeholder?: string;
         readonly timeoutMs?: number;
+        readonly realtimeTransport?: LiveRealtimeTransport;
       }
     | undefined = Reflect.getMetadata(COMPONENT, type);
   if (!options) throw new Error(`Missing @LiveComponent on ${type.name}`);
@@ -1108,6 +1134,9 @@ export function definition(type: Type<object>): ComponentDefinition {
     type,
     name: options.name,
     ...(typeof realtime === 'string' ? { realtime } : {}),
+    ...(options.realtimeTransport === undefined
+      ? {}
+      : { realtimeTransport: options.realtimeTransport }),
     ...(Array.isArray(dependencies)
       ? { dependencies: dependencies as readonly LiveDependency[] }
       : {}),
