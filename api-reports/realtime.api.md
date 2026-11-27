@@ -35,6 +35,8 @@ interface HubLimits {
     readonly maxConnections: number;
     readonly maxConnectionsPerIdentity: number;
     readonly queueLimit: number;
+    readonly maxQueuedBytes?: number;
+    readonly drainTimeoutMs?: number;
     readonly heartbeatMs: number;
     readonly revalidateMs: number;
     readonly subscribesPerMinute?: number;
@@ -150,6 +152,18 @@ declare class MemoryJobQueue implements JobQueue {
     close(): Promise<void>;
 }
 
+// MemoryNotificationStore
+declare class MemoryNotificationStore implements NotificationStore {
+    #private;
+    constructor(options?: {
+        readonly maxRecipients?: number;
+    });
+    append(recipient: string, notification: RealtimeNotification, limit: number): void;
+    list(recipient: string): readonly RealtimeNotification[];
+    markRead(recipient: string, ids: readonly string[] | undefined): number;
+    clear(recipient: string): void;
+}
+
 // MemoryPresenceStore
 declare class MemoryPresenceStore implements PresenceStore {
     #private;
@@ -179,6 +193,38 @@ declare class MemoryRealtimeBroker implements RealtimeBroker {
     get subscriptions(): number;
     get replayChannels(): number;
     close(): Promise<void>;
+}
+
+// NotificationEvent
+interface NotificationEvent {
+    readonly nvNotifications: {
+        readonly unread: number;
+        readonly latest?: RealtimeNotification;
+    };
+}
+
+// NotificationInput
+interface NotificationInput {
+    readonly title: string;
+    readonly body?: string;
+    readonly kind?: string;
+    readonly data?: unknown;
+}
+
+// NotificationsSnapshot
+interface NotificationsSnapshot {
+    readonly unread: number;
+    readonly total: number;
+    readonly items: readonly RealtimeNotification[];
+}
+
+// NotificationStore
+interface NotificationStore {
+    append(recipient: string, notification: RealtimeNotification, limit: number): Promise<void> | void;
+    list(recipient: string): Promise<readonly RealtimeNotification[]> | readonly RealtimeNotification[];
+    markRead(recipient: string, ids: readonly string[] | undefined): Promise<number> | number;
+    clear(recipient: string): Promise<void> | void;
+    close?(): Promise<void> | void;
 }
 
 // parseChannel
@@ -340,6 +386,47 @@ interface RealtimeModuleOptions {
     readonly featureRegistry?: RealtimeFeatureRegistry;
 }
 
+// RealtimeNotification
+interface RealtimeNotification {
+    readonly id: string;
+    readonly title: string;
+    readonly body?: string;
+    readonly kind?: string;
+    readonly data: unknown;
+    readonly createdAt: number;
+    readonly read: boolean;
+}
+
+// RealtimeNotifications
+declare class RealtimeNotifications {
+    #private;
+    constructor(options: RealtimeNotificationsOptions);
+    static channelFor(recipient: string): string;
+    channel(identity: RealtimeIdentity): string;
+    authorize(identity: RealtimeIdentity, channel: string): boolean;
+    notify(recipient: string, input: NotificationInput): Promise<RealtimeNotification>;
+    notifyIdentity(identity: RealtimeIdentity, input: NotificationInput): Promise<RealtimeNotification>;
+    list(identity: RealtimeIdentity, options?: {
+        readonly limit?: number;
+        readonly unreadOnly?: boolean;
+    }): Promise<NotificationsSnapshot>;
+    unread(identity: RealtimeIdentity): Promise<number>;
+    markRead(identity: RealtimeIdentity, ids?: readonly string[]): Promise<number>;
+    clear(identity: RealtimeIdentity): Promise<void>;
+    close(): Promise<void>;
+}
+
+// RealtimeNotificationsOptions
+interface RealtimeNotificationsOptions {
+    readonly publisher: {
+        publish(channel: string, data?: unknown): Promise<unknown>;
+    };
+    readonly recipient?: (identity: RealtimeIdentity) => string | undefined;
+    readonly store?: NotificationStore;
+    readonly maxPerRecipient?: number;
+    readonly now?: () => number;
+}
+
 // RealtimePolicy
 interface RealtimePolicy {
     readonly authorizeChannel: (identity: RealtimeIdentity, channel: string) => boolean | Promise<boolean>;
@@ -385,6 +472,7 @@ declare class RealtimeService implements BeforeApplicationShutdown, OnApplicatio
 // RealtimeSink
 interface RealtimeSink {
     send(event: RealtimeEvent): boolean;
+    onDrain?(listener: () => void): void;
     heartbeat(): void;
     close(reason: RealtimeCloseReason): void;
 }

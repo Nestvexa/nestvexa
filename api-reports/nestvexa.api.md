@@ -128,6 +128,7 @@ export { LiveModuleOptions } from '@nestvexa/live'; // see its report
 export { LivePolicyKind } from '@nestvexa/live'; // see its report
 export { LivePolicyRegistry } from '@nestvexa/live'; // see its report
 export { LiveProtocolError } from '@nestvexa/live'; // see its report
+export { LiveRealtimeTransport } from '@nestvexa/live'; // see its report
 export { LiveRenderContext } from '@nestvexa/live'; // see its report
 export { LiveRenderInspection } from '@nestvexa/live'; // see its report
 export { LiveRequest } from '@nestvexa/live'; // see its report
