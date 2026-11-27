@@ -49,18 +49,27 @@ export function analyse(markdown) {
   const links = [];
   const anchors = new Set();
   const snippets = [];
+  const codeBlocks = [];
   const nextSlug = createSlugger();
   const visit = (list) => {
     let pendingSnippet;
     for (const token of list) {
       if (token.type === 'space') continue;
+      let provenance;
       if (pendingSnippet) {
         snippets.push({
           source: pendingSnippet,
           code: token.type === 'code' ? token.text : undefined,
         });
+        provenance = pendingSnippet;
         pendingSnippet = undefined;
       }
+      if (token.type === 'code' && token.codeBlockStyle !== 'indented')
+        codeBlocks.push({
+          info: (token.lang ?? '').trim(),
+          code: token.text,
+          provenance,
+        });
       if (token.type === 'heading') {
         const text = plainText(token.tokens);
         const id = nextSlug(text);
@@ -90,7 +99,7 @@ export function analyse(markdown) {
       snippets.push({ source: pendingSnippet, code: undefined });
   };
   visit(tokens);
-  return { tokens, headings, links, anchors, snippets };
+  return { tokens, headings, links, anchors, snippets, codeBlocks };
 }
 
 const escapeHtml = (value) =>

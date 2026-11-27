@@ -314,9 +314,19 @@ interceptor sets `Vary: Accept-Language, Cookie` and `Content-Language`). Live
 snapshots are locale-free when the locale is a `@Computed`. Fragment caches must
 include `locale` (and `timeZone` if it can vary) in their keys.
 
+## Performance
+
+Parsed messages (2,048) and `Intl` formatters (date and number 256, plural
+rules 128, relative time 64) are kept in bounded process-wide caches, so
+repeated formatting does not rebuild them. Catalogs load at startup. Nothing
+here is benchmarked.
+
 ## Compatibility and links
 
-Node 22/24, NestJS 12, Express and Fastify request shapes. Guide:
+Node `^22.13.0 || ^24.0.0`, ESM only, NestJS 12 (tested with 12.2.0).
+Negotiation reads Express and Fastify request shapes
+(`tests/i18n-negotiation.test.ts`); the Nest module and HBS helper suite
+(`tests/i18n-hbs.test.ts`) runs on Express only. Guide:
 [docs/guides/i18n.md](../../docs/guides/i18n.md). Example:
 [examples/admin-i18n](../../examples/admin-i18n/README.md). Localized mail bodies use these helpers
 through [`@nestvexa/mail`](../mail/README.md).

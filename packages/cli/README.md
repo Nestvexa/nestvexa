@@ -185,6 +185,32 @@ hints, `--install`, `build` and generated `build:client` scripts.
 
 Full reference: [docs/reference/cli.md](../../docs/reference/cli.md). License: MIT.
 
+## Security
+
+The CLI edits only files inside the project root (see [Safety](#safety)) and
+never runs application code: `inspect:*` and `routes:types` read source with
+the TypeScript AST, and `add plugin` reads the installed package's manifest as
+JSON without downloading or executing it. `doctor` reports whether secrets are
+set and their length, never their values. Generated session and identity
+policies are guest starters; replace them before production.
+
+## Performance
+
+No CLI timings are measured or budgeted. Commands run locally: `inspect:*` and
+`routes:types` parse source with the TypeScript compiler API, and the optional
+Prettier/ESLint pass touches only the files the command writes.
+
+## Compatibility
+
+- Node `^22.13.0 || ^24.0.0` (CI: Linux and Windows, Node 22 and 24). ESM only;
+  `typescript` 6.0.3 is a pinned dependency.
+- Nest hosts on Express or Fastify (`tests/cli-fastify.test.ts`); Nest 12.2.0 is
+  the tested version.
+- npm, pnpm, Yarn and Bun are detected for install hints and `--install`
+  ([Project detection](#project-detection)).
+- `nest-cli.json` `sourceRoot` is read, but only the default `src/` layout is
+  covered by tests; Nest monorepo projects are untested.
+
 ## Status and limits
 
 Status: **Partial**. Every listed command is implemented on Express and Fastify

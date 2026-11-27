@@ -109,6 +109,22 @@ The adapter compiles with Pug's documented `compileClient` and binds the result 
 
 Templates, filters and helpers are trusted code. Models accept finite JSON values, `undefined` and `SafeHtml` only; prototype keys, accessors, class instances, functions, symbols, cycles and oversized structures are rejected without invoking getters. Pug templates can reference globals; never compile templates from browser input.
 
+## Performance
+
+Production (`cache: true`) caches compiled templates per instance (bounded by
+`cacheEntries`, default 256; includes are baked in); development recompiles
+each view per render. Pug's process-global cache is never used. Templates are size-bounded (`maxTemplateBytes`, 1 MiB) and render
+as complete strings (no streaming). Only Handlebars is benchmarked
+([benchmarks](../../docs/testing/benchmarks.md)).
+
+## Compatibility
+
+Node `>=22` (package `engines`; CI runs 22 and 24), ESM only (`require(esm)`
+for CommonJS hosts). Pinned Pug 3.0.4 and `@nestvexa/views`; no peers.
+Tested as the MVC and Live renderer on Express and Fastify
+(`tests/engine-live.test.ts`); `registerViewEngine` mounts it next to the umbrella
+HBS engine (`tests/umbrella-view-engines.test.ts`, `tests/cli-fastify.test.ts`).
+
 ## Namespaces and themes
 
 `namespaces` (name -> directory) and `themes` (name -> override directory) options resolve `admin::users/index` views and per-render `RenderOptions.theme` overrides for the view, its layout and its includes, with the same containment rules as the root. See the [template engine guide](../../docs/guides/template-engines.md#namespaces-and-themes) for the include rules specific to Pug. Covered by `tests/views-composition.test.ts`.

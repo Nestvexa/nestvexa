@@ -60,12 +60,25 @@ a strict CSP, and must not depend on production keys or unpublished packages.
 - Mermaid blocks are shown as source, not rendered: rendering would need a browser or
   a large dependency. GitHub renders them.
 - External links are not fetched; dead external URLs are not detected.
-- Only provenance-marked snippets are verified. Other snippets are reviewed by hand
-  against the real exports.
+- Provenance-marked snippets are verified textually, and (since 2026-11-27) fences
+  tagged `ts check` are compiled against the built packages. Every TypeScript fence
+  in the root README must be one of the two. Other fences are illustrative and
+  reviewed by hand.
 - No screenshots or visual regression tests of the site yet (DOC-041).
 - Adding a page needs no configuration: any Markdown file matching a section's
   `include` glob in `nav.json` is listed automatically, and anything unmatched appears
   under "More".
+
+## Amendment (2026-11-27): type-checked fences and Markdown lint
+
+`apps/docs/src/typecheck.mjs` compiles every `ts check` fence as its own ES module
+with the repository's strict compiler options, using the same TypeScript compiler
+the API reference already loads; workspace imports resolve to the built `.d.ts`
+entry points. No separate snippet runner was added: blocks are type-checked, not
+executed, because executing them would need a Nest application per block. Style is
+linted by `markdownlint-cli2` (pinned, `pnpm lint:md`, part of `pnpm lint`) with
+the rules that duplicate Prettier or the build's own structure check turned off
+(`.markdownlint-cli2.jsonc`). Tests: `tests/docs-site.test.ts`.
 
 ## Evidence
 

@@ -49,3 +49,34 @@ No raw cookies, tokens or private DTOs should be logged. The packages send no te
   request data to EJS `include()` without an allowlist.
 - **Realtime replay memory.** `MemoryRealtimeBroker` keeps replay history for at most
   `replayChannels` channels (default 10,000); size it to your channel cardinality.
+
+## Slow clients and server timeouts
+
+Nestvexa does not set Node HTTP server timeouts; the host owns them, together
+with edge rate limits and proxy timeouts. Stalled upload sessions are bounded
+and tested (`tests/uploads-http.test.ts`), but no test drives slow-header or
+slow-body (slowloris) clients at the Live, actions or Inertia routes. Node's
+defaults are `headersTimeout` 60 s, `requestTimeout` 300 s and
+`keepAliveTimeout` 5 s. Tighten them for your traffic before `listen()`; the
+same Node server sits behind the Express and Fastify adapters. Keep
+`requestTimeout` above the time your slowest legitimate client needs to send
+one upload chunk (it bounds receiving the request, not streaming the response):
+
+```ts check
+import { Module } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
+import type { Server } from 'node:http';
+
+@Module({})
+class AppModule {}
+
+const app = await NestFactory.create(AppModule);
+const server: Server = app.getHttpServer();
+server.headersTimeout = 10_000;
+server.requestTimeout = 30_000;
+server.keepAliveTimeout = 5_000;
+await app.listen(3000);
+```
+
+A reverse proxy in front (see [reverse proxy](../deployment/reverse-proxy.md))
+should buffer request headers and enforce its own client timeouts as well.

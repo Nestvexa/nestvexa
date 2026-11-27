@@ -208,6 +208,9 @@ write the same kind of tests for your app.
 > Neither makes an external effect exactly-once, so use database transactions for
 > irreversible effects.
 
-> **Known gap:** there are no Prisma, TypeORM or Drizzle examples (DATA-014), and
-> `@nestvexa/forms` has no pipe binding a schema to `@ActionInput` arguments
-> (FORM-005). The generated resource has no edit action.
+> **Known gap:** the generated Live table has no edit or delete form (update and
+> delete exist only on the generated REST controller). For a database instead of
+> memory see the [Prisma](../../examples/orm-prisma/README.md),
+> [TypeORM](../../examples/orm-typeorm/README.md) and
+> [Drizzle](../../examples/orm-drizzle/README.md) examples; `FormValidationPipe`
+> from `@nestvexa/forms` validates `@ActionInput(...)` arguments.

@@ -49,8 +49,11 @@ class Profile {
     validate: (value) => typeof value === 'string' && value.length < 100,
   })
   email = '';
-  @State() apiToken = 'tok-secret-value-123';
-  @State() password = 'hunter2-secret';
+  // Secret-like names on purpose: the inspector must redact them.
+  @State({ allowSensitiveName: 'devtools redaction fixture' })
+  apiToken = 'tok-secret-value-123';
+  @State({ allowSensitiveName: 'devtools redaction fixture' })
+  password = 'hunter2-secret';
   @State() note = '<script>alert(1)</script>';
   @State() errors: Record<string, string> = {};
   mount(): void {

@@ -14,16 +14,25 @@ Runnable example: [`examples/data-cache`](../../examples/data-cache/README.md).
 
 ### Redis: namespacing, versioning and failure behaviour
 
-```ts
+Compiled by `pnpm docs:build` (`ts check`); the `declare` lines are your own
+Live registration, key and user id.
+
+```ts check
+import { LiveModule } from '@nestvexa/live';
+import type { LiveModuleOptions } from '@nestvexa/live';
 import { RedisLiveStore } from '@nestvexa/realtime-redis';
+
+declare const options: LiveModuleOptions;
+declare const key: Uint8Array; // 32 bytes from your secret manager
+declare const userId: string;
 
 const store = new RedisLiveStore({
   host: 'redis',
   prefix: 'shop:prod:live:',
   // The host built the binding as `${tenant}/${session}/${userId}`.
   namespace: (binding) => {
-    const [tenant, , user] = binding.split('/');
-    return { tenant, user };
+    const [tenant = '', , user] = binding.split('/');
+    return user === undefined ? { tenant } : { tenant, user };
   },
   encryptionKeys: [key], // only if policy requires encrypting state at rest
 });
@@ -111,9 +120,15 @@ passes the same suite as the memory and Redis stores
 5. Stale-while-revalidate only for `public` and `tenant` audiences.
 6. Wire `onEvent` to metrics and `instrumentation` to tracing; watch `refused`,
    `bypass` and `discarded` counts.
-7. Several replicas: use `onInvalidate` to publish the tags (for example
-   `tagChannel(tag)` on the realtime broker) and invalidate on every replica.
-   Stampede protection is per process.
+7. Several replicas: use `RedisCacheStore` from
+   `@nestvexa/realtime-redis/cache`. Entries, tags and invalidation are
+   shared (an invalidation on one replica is visible on all of them at
+   once), a computation that overlaps another replica's invalidation is not
+   stored, and a short Redis lock makes stampede protection cross-process
+   (`new Cache({ store, lock: { ttlMs, waitMs } })`; `lock: false` keeps it
+   per process). Use `onInvalidate` to publish `tagChannel(tag)` on the
+   realtime broker so Live components on other replicas refresh. See the
+   [Redis adapter](../../packages/realtime-redis/README.md#shared-cache).
 
 HTTP caching is separate: pages that contain personal content or Live
 components must send `Cache-Control: private, no-store` (the example does).

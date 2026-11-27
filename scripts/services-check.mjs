@@ -1,10 +1,11 @@
 ﻿// Real external service checks (not part of `pnpm test`): Redis pub/sub across
 // two processes and a broker restart, the Redis Live state store, the durable
 // Redis job queue (including a killed worker process), presence across
-// processes with expiry of a killed one, shared Live downloads, the
-// multi-replica browser acceptance suite (Express and Fastify), a two-replica
-// SSE load smoke (latency and loss reported, not gated), S3-compatible
-// storage and clamd.
+// processes with expiry of a killed one, server-action idempotency across
+// processes (RedisActionIdempotencyStore), the shared cache store
+// (RedisCacheStore), shared Live downloads, the multi-replica browser
+// acceptance suite (Express and Fastify), a two-replica SSE load smoke
+// (latency and loss reported, not gated), S3-compatible storage and clamd.
 // Each section runs only when its environment variables are present; the
 // report records exactly which services were exercised. See
 // docs/guides/production-services.md for the Docker commands.
@@ -627,6 +628,209 @@ console.log('ready');`);
     } finally {
       replica.proc.kill('SIGKILL');
       await store.close();
+    }
+  });
+
+if (env.NESTVEXA_REDIS_PORT)
+  await check('redis-action-idempotency', async (step) => {
+    // Server-action idempotency across replicas and processes (REVIEW-016):
+    // RedisActionIdempotencyStore claims, leases, replays and fails closed.
+    const { RedisActionIdempotencyStore } =
+      await import('../packages/realtime-redis/dist/actions.js');
+    const options = redisOptions(
+      'nvidem' + randomBytes(4).toString('hex') + ':',
+    );
+    const hex = () => randomBytes(32).toString('hex');
+    const fingerprint = hex();
+    const a = new RedisActionIdempotencyStore(options);
+    const b = new RedisActionIdempotencyStore(options);
+    const actionsUrl = JSON.stringify(
+      new URL('../packages/realtime-redis/dist/actions.js', import.meta.url)
+        .href,
+    );
+    let worker;
+    try {
+      const key = hex();
+      const outcome = { data: { charged: 5 } };
+      const status = async (store, claim) =>
+        (await store.begin(claim, fingerprint, 60_000)).status;
+      if ((await status(a, key)) !== 'started')
+        throw new Error('A could not claim a free key');
+      if ((await status(b, key)) !== 'in-progress')
+        throw new Error('B claimed a key A holds');
+      await a.complete(key, outcome);
+      const replay = await b.begin(key, fingerprint, 60_000);
+      if (
+        replay.status !== 'replay' ||
+        JSON.stringify(replay.outcome) !== JSON.stringify(outcome)
+      )
+        throw new Error('B did not replay the outcome A stored');
+      if ((await b.begin(key, hex(), 60_000)).status !== 'mismatch')
+        throw new Error('a different input was not a mismatch');
+      step(
+        'a claim on one replica blocks the other; its outcome replays there; other input is a mismatch',
+      );
+      // Another OS process claims a key and completes it, then a second
+      // claim and is SIGKILLed before completing.
+      const done = hex();
+      const crashed = hex();
+      worker = child(`import { RedisActionIdempotencyStore } from ${actionsUrl};
+const store = new RedisActionIdempotencyStore({ ...${JSON.stringify(options)}, leaseMs: 1000 });
+await store.begin(${JSON.stringify(done)}, ${JSON.stringify(fingerprint)}, 60000);
+await store.complete(${JSON.stringify(done)}, { data: { pid: process.pid } });
+await store.begin(${JSON.stringify(crashed)}, ${JSON.stringify(fingerprint)}, 60000);
+console.log('claimed');
+setInterval(() => undefined, 1000);`);
+      await waitFor(
+        () => worker.lines.includes('claimed'),
+        'idempotency process',
+        60_000,
+      );
+      const fromChild = await a.begin(done, fingerprint, 60_000);
+      if (
+        fromChild.status !== 'replay' ||
+        fromChild.outcome.data.pid !== worker.proc.pid
+      )
+        throw new Error('the outcome stored by another process did not replay');
+      await delay(2000);
+      if ((await status(a, crashed)) !== 'in-progress')
+        throw new Error('a live claim was not renewed');
+      worker.proc.kill('SIGKILL');
+      await delay(1500);
+      if ((await status(a, crashed)) !== 'started')
+        throw new Error('the claim of a killed process did not lapse');
+      step(
+        "another process's outcome replays here; its renewed claim holds, and lapses after one lease once it is killed",
+      );
+      const short = hex();
+      await a.begin(short, fingerprint, 1000);
+      await a.complete(short, outcome);
+      await delay(1300);
+      if ((await status(b, short)) !== 'started')
+        throw new Error('a completed record outlived its TTL');
+      step('completed records expire by PX after the runtime TTL');
+      const down = new RedisActionIdempotencyStore({
+        ...options,
+        port: 1,
+        circuitBreaker: false,
+        commandTimeoutMs: 500,
+      });
+      const failure = await down.begin(hex(), fingerprint, 60_000).then(
+        () => undefined,
+        (error) => error,
+      );
+      await down.close();
+      if (failure?.message !== 'Action idempotency store is unavailable')
+        throw new Error('an unreachable Redis did not fail closed');
+      step('an unreachable Redis fails the claim (closed), never "started"');
+    } finally {
+      worker?.proc.kill('SIGKILL');
+      await a.close();
+      await b.close();
+    }
+  });
+
+if (env.NESTVEXA_REDIS_PORT)
+  await check('redis-cache-store', async (step) => {
+    // Shared cache (REL-013 / REVIEW-017): tags, invalidation visible across
+    // instances, cross-process stampede lock, refusal and size bounds.
+    const { Cache, CacheRefusedError } =
+      await import('../packages/cache/dist/index.js');
+    const { RedisCacheStore } =
+      await import('../packages/realtime-redis/dist/cache.js');
+    const prefix = 'nvcache' + randomBytes(4).toString('hex') + ':';
+    const options = redisOptions(prefix);
+    const storeA = new RedisCacheStore(options);
+    const storeB = new RedisCacheStore(options);
+    const scan = new RespConnection(options);
+    const a = new Cache({ store: storeA });
+    const b = new Cache({ store: storeB });
+    const parts = {
+      namespace: 'data:products',
+      scope: { kind: 'tenant', tenant: 'tenant-a' },
+    };
+    const config = { ttlMs: 60_000, tags: ['products:tenant-a'] };
+    try {
+      let runs = 0;
+      const load = async () => {
+        runs++;
+        await delay(200);
+        return { runs };
+      };
+      const [first, second] = await Promise.all([
+        a.lookup(parts, config, load),
+        delay(30).then(() => b.lookup(parts, config, load)),
+      ]);
+      if (
+        runs !== 1 ||
+        first.status !== 'miss' ||
+        second.status !== 'coalesced'
+      )
+        throw new Error(
+          `stampede lock: ${runs} runs, ${first.status}/${second.status}`,
+        );
+      if ((await b.lookup(parts, config, load)).status !== 'hit')
+        throw new Error('B did not hit the entry A stored');
+      step(
+        'concurrent misses on two instances compute once (Redis lock); the other instance hits',
+      );
+      if ((await b.invalidate(['products:tenant-a'])) !== 1)
+        throw new Error('invalidation did not remove the shared entry');
+      const after = await a.lookup(parts, config, load);
+      if (after.status !== 'miss' || runs !== 2)
+        throw new Error('an invalidation on B was not visible on A');
+      step('an invalidation on one instance is visible on the other at once');
+      await storeA.set('ttl', {
+        value: 1,
+        expiresAt: Date.now() + 500,
+        staleUntil: Date.now() + 500,
+        tags: [],
+      });
+      await delay(700);
+      if ((await storeB.get('ttl')) !== undefined)
+        throw new Error('an entry outlived its PX expiry');
+      step('entries expire by PX at staleUntil');
+      const refused = await storeA
+        .set('signed', {
+          value: '<div data-nv-snapshot="x"></div>',
+          expiresAt: Date.now() + 60_000,
+          staleUntil: Date.now() + 60_000,
+          tags: [],
+        })
+        .then(
+          () => undefined,
+          (error) => error,
+        );
+      if (!(refused instanceof CacheRefusedError))
+        throw new Error('a Live snapshot was not refused');
+      const bounded = new RedisCacheStore({
+        ...options,
+        prefix: prefix + 'b:',
+        maxEntries: 3,
+      });
+      for (let index = 0; index < 5; index++)
+        await bounded.set(`k${index}`, {
+          value: index,
+          expiresAt: Date.now() + 10_000 + index * 1000,
+          staleUntil: Date.now() + 10_000 + index * 1000,
+          tags: [],
+        });
+      const size = Number(await scan.command('ZCARD', `${prefix}b:i`));
+      await bounded.close();
+      if (size !== 3) throw new Error(`index holds ${size} entries, not 3`);
+      const keys = await scan.command('KEYS', `${prefix}*`);
+      if (
+        !Array.isArray(keys) ||
+        keys.some((key) => key.includes('tenant-a') && key.includes(':e:'))
+      )
+        throw new Error('raw cache keys reached Redis');
+      step(
+        'signed values are refused before Redis; maxEntries bounds the index; keys are hashed',
+      );
+    } finally {
+      await storeA.close();
+      await storeB.close();
+      await scan.close();
     }
   });
 

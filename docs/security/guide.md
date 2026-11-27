@@ -131,9 +131,18 @@ Resolve the tenant on the server from the authenticated session, include it in
 every identity binding (Live, uploads `tenant`, realtime), name realtime channels
 per tenant and add the tenant to cache `vary` keys.
 
-> **Known gap:** there is no shared server-side tenant resolution helper and no
-> cross-transport tenant isolation test across Live, actions, Inertia, realtime
-> and stores (DATA-017, DATA-018). Each transport takes its own identity resolver.
+The kernel request context can resolve the tenant once (`resolveTenant` in
+`RequestContextOptions`, `@nestvexa/core`); with `kernelIdentity` enabled, MVC,
+Live, Inertia, server actions, uploads and realtime all see that server-resolved
+tenant ([tests/kernel-transports.test.ts](../../tests/kernel-transports.test.ts)).
+[examples/multi-tenant](../../examples/multi-tenant/README.md) is the reference:
+[tests/multi-tenant-isolation.test.ts](../../tests/multi-tenant-isolation.test.ts)
+proves cross-tenant and cross-user isolation over MVC/REST, Live, Inertia,
+actions, islands, uploads, realtime and the cache, and that a client-supplied
+tenant id is ignored. See the [tenant scoping recipe](../recipes/tenant-scoping.md).
+
+> **Known gap:** without `kernelIdentity`, each transport takes its own identity
+> resolver, and keeping the tenant consistent across them is the host's job.
 
 ## CSP and response headers
 

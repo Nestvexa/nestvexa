@@ -288,29 +288,29 @@ Static options (needed before DI resolves): `groups`, `prefix`
 (`'actions'` default | `'host'`). Host policy (direct or from `registerAsync`'s
 `useFactory` with `inject`):
 
-| Option                                 | Default                    |                                                                 |
-| -------------------------------------- | -------------------------- | --------------------------------------------------------------- |
-| `origin`                               | required                   | Exact origin or list; the `Origin` header must match.           |
-| `resolveIdentity(request)`             | required                   | `{ subject, tenant?, csrfToken? }` or `null`.                   |
-| `authorize(identity, action, request)` | required                   | Coarse policy for every call, before group guards.              |
-| `csrf.required`                        | `true`                     | Disable only for non-cookie (bearer/mTLS) auth.                 |
-| `csrf.header`                          | `x-nestvexa-csrf`          |                                                                 |
-| `rateLimit`                            | 120/min per tenant+subject | `(ctx) => boolean`, `createFixedWindowRateLimit()`, or `false`. |
-| `limits.maxBodyBytes`                  | 65536                      | Declared `Content-Length` and re-serialized body.               |
-| `limits.maxDepth`                      | 32                         | JSON nesting.                                                   |
-| `limits.maxNodes`                      | 10000                      | JSON values.                                                    |
-| `limits.maxOutputBytes`                | 1048576                    |                                                                 |
-| `limits.timeoutMs`                     | 30000                      | Default action deadline.                                        |
-| `limits.maxQueuedPerKey`               | 16                         | Serial queue bound.                                             |
-| `idempotency.store`                    | `MemoryIdempotencyStore`   | `begin/complete/abandon` contract for shared stores.            |
-| `idempotency.ttlMs`                    | 86400000                   | Replay retention.                                               |
-| `exposeErrorDetails`                   | `false`                    | Development only.                                               |
-| `onError(event)`                       | logs 5xx via Nest `Logger` | `{ requestId, action, code, status, error }`.                   |
-| `instrumentation`                      | none                       | One span per call (see Tracing).                                |
-| `logger`                               | none                       | One structured record per call (see Tracing).                   |
-| `jobs.queue` / `channel` / `owner`     | none                       | Job queue, streaming channel mapper, owner binding.             |
-| `jobs.pollAfterMs`                     | 1000                       | Poll hint in tickets (100-60000).                               |
-| `requestContext`                       | none                       | `{ correlationId(request) }`, e.g. `RequestContextFactory`.     |
+| Option                                 | Default                    |                                                                                                                |
+| -------------------------------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `origin`                               | required                   | Exact origin or list; the `Origin` header must match.                                                          |
+| `resolveIdentity(request)`             | required                   | `{ subject, tenant?, csrfToken? }` or `null`.                                                                  |
+| `authorize(identity, action, request)` | required                   | Coarse policy for every call, before group guards.                                                             |
+| `csrf.required`                        | `true`                     | Disable only for non-cookie (bearer/mTLS) auth.                                                                |
+| `csrf.header`                          | `x-nestvexa-csrf`          |                                                                                                                |
+| `rateLimit`                            | 120/min per tenant+subject | `(ctx) => boolean`, `createFixedWindowRateLimit()`, or `false`.                                                |
+| `limits.maxBodyBytes`                  | 65536                      | Declared `Content-Length` and re-serialized body.                                                              |
+| `limits.maxDepth`                      | 32                         | JSON nesting.                                                                                                  |
+| `limits.maxNodes`                      | 10000                      | JSON values.                                                                                                   |
+| `limits.maxOutputBytes`                | 1048576                    |                                                                                                                |
+| `limits.timeoutMs`                     | 30000                      | Default action deadline.                                                                                       |
+| `limits.maxQueuedPerKey`               | 16                         | Serial queue bound.                                                                                            |
+| `idempotency.store`                    | `MemoryIdempotencyStore`   | `begin/complete/abandon` contract; shared: `RedisActionIdempotencyStore` (`@nestvexa/realtime-redis/actions`). |
+| `idempotency.ttlMs`                    | 86400000                   | Replay retention.                                                                                              |
+| `exposeErrorDetails`                   | `false`                    | Development only.                                                                                              |
+| `onError(event)`                       | logs 5xx via Nest `Logger` | `{ requestId, action, code, status, error }`.                                                                  |
+| `instrumentation`                      | none                       | One span per call (see Tracing).                                                                               |
+| `logger`                               | none                       | One structured record per call (see Tracing).                                                                  |
+| `jobs.queue` / `channel` / `owner`     | none                       | Job queue, streaming channel mapper, owner binding.                                                            |
+| `jobs.pollAfterMs`                     | 1000                       | Poll hint in tickets (100-60000).                                                                              |
+| `requestContext`                       | none                       | `{ correlationId(request) }`, e.g. `RequestContextFactory`.                                                    |
 
 `authorize` must return exactly `true` (or a promise of it); any other value,
 including truthy objects or strings, is a `403 POLICY`, and a throwing policy
@@ -427,6 +427,28 @@ class filters on the group win; the actions envelope filter is the last resort.
   undo work; services must honor `AbortSignal` and own their transactions.
 - Logs never include inputs; the default logger records 5xx with request id.
 
+## Performance
+
+Admission rejects oversized input before parsing work: declared
+`Content-Length` and body size (64 KiB), JSON depth (32) and node count
+(10,000), output size (1 MiB), a 30 s default deadline and at most 16 queued
+calls per serial key. Rate limiting is on by default (120 per minute per
+tenant and subject). Long work should return a `202` job ticket instead of
+holding the request. A Live no-op action is benchmarked against a plain JSON
+POST ([benchmarks](../../docs/testing/benchmarks.md)); server actions have no
+benchmark of their own.
+
+## Compatibility
+
+- Node `^22.13.0 || ^24.0.0`, ESM only. Peers `@nestjs/common` and
+  `@nestjs/core` ^12 (tested with 12.2.0), `reflect-metadata`, `rxjs`;
+  optional `typescript` ^6 for code generation only.
+- Express and Fastify (`tests/actions-http.test.ts`).
+- The generated client and Live/HBS helper run in Chromium, Firefox and WebKit
+  (`tests/browser/actions.spec.ts`); the React, Vue and Svelte targets are used
+  by `examples/hybrid-dashboard` and `examples/inertia-react`, and the packed
+  bindings are type-checked by `pnpm test:pack`.
+
 ## Project links
 
 See the [security policy](../../SECURITY.md),
@@ -446,14 +468,17 @@ are implemented and covered by HTTP, codegen and browser tests.
 - Global guards run before admission (Nest evaluates global guards first).
 - Fastify rejects some malformed bodies (for example `__proto__` keys) in its own
   parser with a plain 400 before routing.
-- The memory idempotency store, rate limiter and serial locks are process-local;
-  multi-instance deployments need shared implementations of the same contracts
-  (no Redis adapter ships for them yet). `jobRunnerQueue` runs accepted work in
+- The memory idempotency store, rate limiter and serial locks are process-local.
+  For several instances, use `RedisActionIdempotencyStore` from
+  `@nestvexa/realtime-redis/actions` for idempotency; the rate limiter and
+  serial locks have no shared implementation yet. `jobRunnerQueue` runs accepted work in
   the accepting process; a durable queue is host-supplied.
 - Results are a single JSON envelope or a job ticket; there is no incremental
   streaming of an action's return value (progress streams through the job
   `stream.channel`).
-- Coexistence with Nest GraphQL or microservice transports is untested.
+- `tests/api-coexistence.test.ts` runs REST, GraphQL, a TCP microservice and a
+  WebSocket gateway next to Live in one application, but not next to server
+  actions.
 - The `ActionInput` name also exists in `@nestvexa/live` with Live semantics;
   import it from the package that owns the class you decorate.
 
