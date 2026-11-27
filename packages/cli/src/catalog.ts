@@ -5,6 +5,7 @@ import type { ProjectInfo } from './project.js';
 import * as base from './templates.js';
 import * as app from './templates-app.js';
 import * as resource from './templates-resource.js';
+import * as tenancy from './templates-tenancy.js';
 import type { ResourceOptions, ResourceOrm } from './templates-resource.js';
 import type { Engine, Framework, TestRunner } from './templates-app.js';
 
@@ -39,6 +40,7 @@ export const paths = {
     `${src(p)}/actions/${n.kebab}.actions.ts`,
   resourceTable: (n: Names, p: ProjectInfo) =>
     `${src(p)}/${n.kebab}/${n.kebab}-table.component.ts`,
+  tenancy: (p: ProjectInfo) => `${src(p)}/nestvexa/tenancy`,
   smoke: (n: Names, p: ProjectInfo) =>
     `test/${n.kebab}.${testRunner(p) === 'jest' ? 'e2e-spec' : 'e2e.spec'}.ts`,
 } as const;
@@ -369,6 +371,43 @@ export const catalog: Readonly<Record<string, TemplateDefinition>> =
           `/${n.kebab}`,
           relativeImport(paths.smoke(n, p), p.appModule, p.esm),
         ),
+    },
+    'tenancy.context': {
+      version: 1,
+      description:
+        'Kernel tenant resolution (resolvePrincipal/resolveTenant), sample tenants and a tenant-scoped store',
+      path: (_n, p) => `${paths.tenancy(p)}/tenancy.ts`,
+      render: (_n, p) => tenancy.tenancyContext(p.platform),
+    },
+    'tenancy.component': {
+      version: 1,
+      description: 'Tenant-scoped Live component',
+      path: (_n, p) => `${paths.tenancy(p)}/tenant-notes.component.ts`,
+      render: (_n, p) => tenancy.tenantNotesComponent(p.esm),
+    },
+    'tenancy.component.view': {
+      version: 1,
+      description: 'Tenant-scoped Live component view',
+      path: () => 'views/components/tenant-notes.hbs',
+      render: () => tenancy.tenantNotesView(),
+    },
+    'tenancy.controller': {
+      version: 1,
+      description: 'Tenant selection page with a CSRF-checked form',
+      path: (_n, p) => `${paths.tenancy(p)}/tenancy.controller.ts`,
+      render: (_n, p) => tenancy.tenancyController(p.esm),
+    },
+    'tenancy.page.view': {
+      version: 1,
+      description: 'Tenant selection page view',
+      path: () => 'views/tenancy.hbs',
+      render: () => tenancy.tenancyPage(),
+    },
+    'tenancy.test': {
+      version: 1,
+      description: 'Tenant resolution and isolation test',
+      path: (_n, p) => `${paths.tenancy(p)}/tenancy.spec.ts`,
+      render: (_n, p) => tenancy.tenancyTest(testRunner(p), p.platform, p.esm),
     },
   });
 

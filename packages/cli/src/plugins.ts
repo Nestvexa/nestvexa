@@ -228,7 +228,18 @@ function hasNamedImport(text: string, module: string, local: string): boolean {
       ),
   );
 }
-function wireKernel(
+/** The generated kernel registration file (`nestvexaKernel`), created when missing. */
+export function ensureKernelFile(
+  plan: ChangePlan,
+  project: ProjectInfo,
+): string {
+  const file = `${project.sourceRoot}/nestvexa/extensions.ts`;
+  plan.ensure(file, extensionsSource, {
+    template: { id: 'plugins.extensions', version: 1 },
+  });
+  return file;
+}
+export function wireKernel(
   plan: ChangePlan,
   project: ProjectInfo,
   file: string,
@@ -292,10 +303,7 @@ export function addPlugin(
     })(),
   );
   const plan = newPlan(project, `plugin:${name}`);
-  const file = `${project.sourceRoot}/nestvexa/extensions.ts`;
-  plan.ensure(file, extensionsSource, {
-    template: { id: 'plugins.extensions', version: 1 },
-  });
+  const file = ensureKernelFile(plan, project);
   const local = `${camel(name)}${binding === 'extension' ? 'Extension' : binding.charAt(0).toUpperCase() + binding.slice(1)}`;
   const text = plan.read(file) ?? extensionsSource;
   let next = hasNamedImport(text, name, local)

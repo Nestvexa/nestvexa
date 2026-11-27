@@ -40,6 +40,7 @@ Commands:
   make:page <Name> [--renderer hbs|ejs|pug|nunjucks|react|vue|svelte]
   make:layout <Name>
   make:form <Name>             Live form with a Zod schema (@nestvexa/forms)
+  make:tenancy                 Kernel tenant resolution, tenant-scoped Live component, isolation test
   make:action <Name>           @nestvexa/actions group
   make:policy <Name>           Deny-by-default guard
   make:resource <Name> [--crud] [--orm memory]
@@ -78,6 +79,8 @@ Options:
   'make:layout': 'nestvexa make:layout <Name>',
   'make:form':
     'nestvexa make:form <Name>\nLive component + view validated by @nestvexa/forms with a Zod schema; registered and authorized in nestvexa.config.ts.',
+  'make:tenancy':
+    'nestvexa make:tenancy\nServer-side tenant resolution through the kernel request context (kernelIdentity), a tenant-scoped Live component, GET /tenancy and an isolation test. Run after init.',
   'make:action':
     'nestvexa make:action <Name>\n@nestvexa/actions group registered in actions.config.ts and ActionsModule.',
   'make:policy': 'nestvexa make:policy <Name>',
@@ -219,6 +222,9 @@ export function run(argv: readonly string[], cwd = process.cwd()): RunOutput {
         break;
       case 'make:form':
         result = generators.makeForm(context, rest[0]);
+        break;
+      case 'make:tenancy':
+        result = generators.makeTenancy(context);
         break;
       case 'make:action':
         result = generators.makeAction(context, rest[0]);

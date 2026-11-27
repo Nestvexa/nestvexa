@@ -32,6 +32,7 @@ It never prompts; every command is scriptable and supports `--dry-run`.
 | `nestvexa make:page <Name> [--renderer …]`                                       | `hbs` (default), `ejs`, `pug`, `nunjucks` (controller + view) or `react`, `vue`, `svelte` (controller with `@InertiaPage(name, { app })` + page component). Registers the controller; sets up the engine or root on first use.                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `nestvexa make:layout <Name>` / `make:policy <Name>`                             | Layout view / deny-by-default guard.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `nestvexa make:form <Name>`                                                      | Live form validated by `@nestvexa/forms` with a Zod schema (per-field and submit validation, accessible errors); registered and authorized (`$mount`, `$sync`, `submit`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `nestvexa make:tenancy`                                                          | Multi-tenant starter (run after `init`): server-side tenant resolution in `src/nestvexa/tenancy/tenancy.ts` (`resolvePrincipal`/`resolveTenant` from the session only, re-checked against `isMember()` on every request), registered as the kernel `requestContext` (`nestvexaKernel`, global) with `kernelIdentity: true` on Live, so snapshots are bound to the user and tenant; the tenant-scoped `tenant-notes` Live component (tenant re-resolved on every mount and action, never writable state), `GET /tenancy` with a CSRF-checked `POST /tenancy/select`, and an isolation test. Replace the guest membership rule before production.          |
 | `nestvexa make:action <Name>`                                                    | `@ActionGroup` with a `greet` server action, appended to `actionGroups` and the deny-by-default `allowedActions` in `actions.config.ts`; `ActionsModule.register(actionsOptions)` is added once.                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `nestvexa make:resource <Name> [--crud] [--orm memory\|typeorm]`                 | Zod DTOs (`create`, `update`, list query with `q`/`page`/`size`) shared by REST and Live, a `<Name>Repository` interface with the in-memory or **TypeORM** implementation (entity + repository; no migration is generated), the service, the module, a Live CRUD table (search, pages, validated create) and generated DTO/service tests. `--crud` adds a validated REST controller (list, show, create, update, delete; 400 with field errors) and its HTTP test. Other ORMs exit 2.                                                                                                                                                                    |
 | `nestvexa make:island <Name> --renderer <react\|vue\|svelte>`                    | Island component (`.tsx`, or `.vue`/`.svelte` with a wrapper), the server `IslandRegistry` entry and the client module allowlist entry; adds the framework plugin to the islands Vite config.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -190,7 +191,13 @@ reverse (regular expressions) are skipped. `add plugin` wires exports into the
 kernel `extensions` (deprecated `NestvexaPlugin` exports need `--legacy-plugin`);
 `--export` names the export because the manifest has no field for it.
 The generated session/identity
-policies are guest starters and must be replaced for production. `inspect:*`
+policies are guest starters and must be replaced for production.
+`make:tenancy` wires the kernel identity into Live only; pass `kernelIdentity`
+to `ActionsModule`, `UploadsModule`, `RealtimeModule` and `InertiaModule` yourself
+(see the core README, "One user and tenant across transports"). Its notes store is
+in memory, its membership rule admits every guest session to the sample tenants,
+and it is booted in tests on Express only (the Fastify variant reads
+`session.sessionId` and is not exercised by the tests yet). `inspect:*`
 reads source statically and cannot see routes registered dynamically.
 Jest projects must run Jest in ESM mode (Nestvexa packages are ESM only);
 `tests/cli-jest.test.ts` proves the generated Jest tests with
@@ -200,7 +207,7 @@ Jest projects must run Jest in ESM mode (Nestvexa packages are ESM only);
 
 ```sh
 pnpm --filter @nestvexa/cli... build
-pnpm exec vitest run tests/cli.test.ts tests/cli-generators.test.ts tests/cli-fastify.test.ts tests/cli-inertia-ssr.test.ts tests/cli-example.test.ts tests/dev-errors.test.ts \
+pnpm exec vitest run tests/cli.test.ts tests/cli-generators.test.ts tests/cli-tenancy.test.ts tests/cli-fastify.test.ts tests/cli-inertia-ssr.test.ts tests/cli-example.test.ts tests/dev-errors.test.ts \
   tests/cli-doctor.test.ts tests/cli-routes.test.ts tests/cli-resource.test.ts tests/cli-format.test.ts \
   tests/cli-jest.test.ts tests/cli-plugins.test.ts
 ```
@@ -225,5 +232,10 @@ sql.js. `tests/cli-format.test.ts` runs a project's Prettier and ESLint
 configuration and the failure paths. `tests/cli-jest.test.ts` runs the generated
 Jest tests with Jest. `tests/cli-plugins.test.ts` wires and boots an installed
 extension and refuses untrusted specifiers and invalid manifests.
+`tests/cli-tenancy.test.ts` runs `make:tenancy` after `init` (refused before it),
+checks idempotency, compiles the project, runs the generated isolation test and
+boots it: two sessions in different tenants, CSRF/origin/unknown-tenant refusals
+of the selection form, forged tenant headers and state, a cross-session snapshot
+and a snapshot replayed after a tenant switch.
 
 Package: [@nestvexa/cli](../../packages/cli/README.md).
