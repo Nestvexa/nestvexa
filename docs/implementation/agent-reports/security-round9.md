@@ -193,8 +193,8 @@ describe the `*.chromium.spec.ts` convention.
     tests).
 - **Real Redis.** `scripts/services-check.mjs` has a new section,
   `redis-broker-breaker`, that runs `docker stop` and `docker start` on
-  `NESTVEXA_REDIS_CONTAINER`. It was **not executed in this round**, because
-  Docker Desktop stopped answering during the session (see below).
+  `NESTVEXA_REDIS_CONTAINER`. It passed against Redis 7 in Docker (see
+  below).
 - **Docs.** `docs/guides/resilience.md` (table row, fail-fast and recovery
   rules, five copies), `docs/deployment/multi-replica-redis.md`, the
   realtime README, and `.changeset/realtime-broker-circuit-breaker.md`
@@ -230,8 +230,7 @@ STORE_UNAVAILABLE` error while Redis is unreachable or the circuit is open)
   - `/readyz` returns to 200 after Redis starts again on the same port.
 
   `scripts/services-check.mjs` has a new section, `distributed-readiness`,
-  for a real container. It was not executed in this round (Docker, see
-  below).
+  for a real container. It passed against Redis 7 in Docker (see below).
 
 - **Docs.** `docs/deployment/multi-replica-redis.md` (new "Health probes"
   section with Kubernetes probe YAML, and a checklist item),
@@ -243,21 +242,30 @@ STORE_UNAVAILABLE` error while Redis is unreachable or the circuit is open)
 
 ## Docker and real Redis
 
-The `nv-r9-redis` container was started on host port 6401 and the first
-services run began. During it, Docker Desktop stopped answering: the API
-returned `500` and `docker` could not reach `dockerDesktopLinuxEngine`, with
-about 1.4 GB of free RAM on the host. Docker Desktop was relaunched but did
-not recover during the session. The real-Redis sections
-`redis-broker-breaker` and `distributed-readiness` are therefore committed
-but not executed. The same behaviour is proven against the in-process RESP
-double. The coordinator should run them:
+Docker Desktop stopped answering partway through the session (API `500`, host
+at about 1.4 GB free RAM). It was relaunched and came back after the merge of
+main. The container `nv-r9-redis` (redis:7-alpine, host port 6401) was then
+recreated and the services check was run against it:
 
 ```sh
-docker run -d --name nv-r9-redis -p 127.0.0.1:6401:6379 redis:7-alpine
-NESTVEXA_REDIS_PORT=6401 NESTVEXA_REDIS_CONTAINER=nv-r9-redis \
-NESTVEXA_SERVICES_BROWSER=0 NESTVEXA_READINESS_PORT=4321 pnpm test:services
-docker rm -f nv-r9-redis
+NESTVEXA_REDIS_PORT=6401 NESTVEXA_REDIS_CONTAINER=nv-r9-redis NESTVEXA_SERVICES_BROWSER=0 NESTVEXA_READINESS_PORT=4321 node scripts/services-check.mjs
 ```
+
+Every Redis section passed:
+
+- `redis` (2 steps)
+- `redis-broker-breaker` (2 steps): with Redis stopped, publish, ping and a
+  new subscribe failed fast with `CircuitOpenError` in under 100 ms; after a
+  start, the resubscribe probe closed the circuit, delivery resumed, and
+  publish and ping succeeded.
+- `distributed-readiness` (3 steps): `/readyz` returned 200, then 503 while
+  Redis was stopped (with `/healthz` still 200), then 200 after the start.
+- `redis-live-store`, `redis-live-namespace`, `redis-live-coordination`,
+  `redis-job-queue`, `redis-presence`, `redis-action-idempotency` and
+  `redis-cache-store`.
+
+The four-replica browser section was skipped (`NESTVEXA_SERVICES_BROWSER=0`).
+The container was removed afterwards.
 
 ## Commands run (one file at a time)
 
@@ -268,4 +276,10 @@ docker rm -f nv-r9-redis
 - `vitest run tests/distributed-health.test.ts`: 2 passed.
 - `vitest run tests/slow-clients.test.ts`: 15 passed.
 - `vitest run tests/property-islands.test.ts`, `tests/property-frontend-adapters.test.ts`, `tests/property-alpine.test.ts`: 9, 8 and 5 passed (also at `NV_PROPERTY_RUNS_MULTIPLIER=3`; see the final message).
+- After merging main `9df0757` and a full `pnpm build`: `slow-clients` 15,
+  `circuit-breaker` 46, `release-gate` 26, `distributed-health` 2,
+  `property-frontend-adapters` 8, `property-islands` 9, `property-alpine` 5
+  and `docs-site` 26, all passed. `pnpm lint` (ESLint, boundaries and
+  markdownlint) was clean, and `node scripts/api-report.mjs` reported that the
+  reports match.
 - `pnpm exec tsc -p tsconfig.tests.json --noEmit`: clean. ESLint on every changed file: clean. `node scripts/api-report.mjs --update`: four reports updated (core, nestvexa, realtime, realtime-redis).
