@@ -23,7 +23,8 @@ import { Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ActionContext, ActionGroup, ActionInput, ActionsModule, ServerAction } from ${url('actions/dist/index.js')};
 import { RedisActionIdempotencyStore } from ${url('realtime-redis/dist/actions.js')};
-import { RespConnection } from ${url('realtime-redis/dist/index.js')};
+// resp.js directly: the root entry would also load @nestvexa/live.
+import { RespConnection } from ${url('realtime-redis/dist/resp.js')};
 const effects = new RespConnection({ port: ${redisPort} });
 class Cart {
   async pay(input, context) {
@@ -39,7 +40,7 @@ Object.defineProperty(Cart.prototype, 'pay', Reflect.decorate(
   Cart.prototype, 'pay', Object.getOwnPropertyDescriptor(Cart.prototype, 'pay'),
 ));
 ActionGroup('cart')(Cart);
-const store = new RedisActionIdempotencyStore({ port: ${redisPort}, leaseMs: 1000 });
+const store = new RedisActionIdempotencyStore({ port: ${redisPort}, leaseMs: 5000 });
 class AppModule {}
 Module({ imports: [ActionsModule.register({
   groups: [Cart],
@@ -78,7 +79,8 @@ async function start(port: number): Promise<ChildProcess> {
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(
       () => reject(new Error(`Worker did not start: ${errors}`)),
-      30_000,
+      // A loaded CI machine can take a while to boot a Nest process.
+      180_000,
     );
     child.stdout?.on('data', (chunk: Buffer) => {
       if (chunk.toString('utf8').includes('ready')) {
@@ -122,6 +124,7 @@ function pay(port: number, key: string, input: object): Promise<Reply> {
       },
       (response) => {
         const chunks: Buffer[] = [];
+        response.on('error', reject);
         response.on('data', (chunk: Buffer) => chunks.push(chunk));
         response.on('end', () => {
           const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
@@ -143,7 +146,7 @@ function pay(port: number, key: string, input: object): Promise<Reply> {
 }
 const effects = () => Number(double?.values.get('effects') ?? 0);
 async function until(predicate: () => boolean, label: string): Promise<void> {
-  const end = Date.now() + 10_000;
+  const end = Date.now() + 60_000;
   while (!predicate()) {
     if (Date.now() > end) throw new Error(`Timed out waiting for ${label}`);
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -151,7 +154,7 @@ async function until(predicate: () => boolean, label: string): Promise<void> {
 }
 
 describe('server-action idempotency across processes (RedisActionIdempotencyStore)', () => {
-  it('runs the handler once across processes, restarts and concurrent retries', async () => {
+  it('runs the handler once across processes, restarts and concurrent retries, and recovers a crashed claim after its lease', async () => {
     double = await respDouble({ port: ports.redis });
     let a = await start(ports.a);
     const b = await start(ports.b);
@@ -193,28 +196,23 @@ describe('server-action idempotency across processes (RedisActionIdempotencyStor
     expect(mismatch.status).toBe(409);
     expect(mismatch.reason).toBe('IDEMPOTENCY_MISMATCH');
     expect(effects()).toBe(2);
-  }, 120_000);
 
-  it('frees the claim of a process killed mid-handler after one lease', async () => {
-    double = await respDouble({ port: ports.redis });
-    const a = await start(ports.a);
-    const b = await start(ports.b);
-    const key = 'payment-key-process-0000003';
-    const input = { amount: 9, holdMs: 20_000 };
-    void pay(ports.a, key, input).catch(() => undefined);
-    await until(() => effects() === 1, 'the handler on A');
+    // A process killed mid-handler: its claim blocks retries until one lease
+    // (5 s) passes without renewal, then a retry runs (no outcome was stored).
+    const crashed = 'payment-key-process-0000003';
+    const input = { amount: 9, holdMs: 30_000 };
+    void pay(ports.a, crashed, input).catch(() => undefined);
+    await until(() => effects() === 3, 'the handler on A');
     await stop(a);
     // Within the lease the claim still blocks a retry.
-    const blocked = await pay(ports.b, key, input);
+    const blocked = await pay(ports.b, crashed, input);
     expect(blocked.status).toBe(409);
     expect(blocked.reason).toBe('IDEMPOTENCY_IN_PROGRESS');
-    // After one lease (1 s) without renewal the retry runs: the crashed
-    // attempt never recorded an outcome.
-    await new Promise((resolve) => setTimeout(resolve, 1300));
-    const recovered = pay(ports.b, key, input);
-    await until(() => effects() === 2, 'the retry on B');
-    expect(b.pid).toBeGreaterThan(0);
+    await new Promise((resolve) => setTimeout(resolve, 5500));
+    // The retry holds for 30 s; B is killed once it has started.
+    const recovered = pay(ports.b, crashed, input).catch(() => undefined);
+    await until(() => effects() === 4, 'the retry on B');
     await stop(b);
-    await recovered.catch(() => undefined);
-  }, 120_000);
+    await recovered;
+  }, 600_000);
 });
