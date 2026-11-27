@@ -18,7 +18,7 @@
     "rxjs": "7.8.2"
   },
   "devDependencies": {
-    "@inertiajs/core": "3.10.0",
+    "@inertiajs/core": "3.11.0",
     "@inertiajs/react": "3.10.0",
     "@types/express-session": "1.19.0",
     "@types/react": "19.3.0",

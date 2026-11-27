@@ -27,7 +27,7 @@
     "vue": "3.5.44"
   },
   "devDependencies": {
-    "@inertiajs/core": "3.10.0",
+    "@inertiajs/core": "3.11.0",
     "@types/express-session": "1.19.0",
     "@vitejs/plugin-vue": "6.0.10",
     "tsx": "4.23.15",
