@@ -59,8 +59,14 @@ operators; dependency maintainers.
 - Authentication, session stores, cookie flags, TLS, proxy trust, CSP headers and
   rate limits at the edge are host-owned; the starters use illustrative guest
   sessions and must not be deployed as-is.
-- Live, upload-token and realtime state are in process memory: single-process or
-  sticky sessions only; restarts lose state (fail closed).
+- `MemoryLiveStore`, upload sessions and the memory realtime broker are in
+  process memory: single-process or sticky sessions only, and restarts lose
+  state (fail closed). `RedisLiveStore`, `RedisPresenceStore`,
+  `RedisJobQueue` and `RedisRealtimeBroker` share state across replicas;
+  upload sessions stay per process (sticky sessions for upload routes).
+- Slow clients are bounded by `configureNestvexa` (`http.headersTimeoutMs`,
+  `http.requestTimeoutMs`; see the [security guide](guide.md#slow-clients)).
+  Node does not cap open connections; cap connections per client at the edge.
 - Revision checks prevent replay against the same snapshot; they are not
   exactly-once business transactions. Use host idempotency and database transactions.
 - Signature checks cannot rule out every polyglot upload; downloads are always

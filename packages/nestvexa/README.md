@@ -80,6 +80,13 @@ Fastify integration uses a public reply decorator; it rejects an existing `reply
 
 ## Security and performance
 
+`configureNestvexa(app, { http })` bounds slow clients on the host's Node
+server (Express and Fastify): a request head must arrive within
+`headersTimeoutMs` (default 30 s) and its body within `requestTimeoutMs`
+(default 300 s), or the client gets `408` and the connection is closed. Pass
+`http: false` to leave the server alone. See
+[slow clients](../../docs/security/guide.md#slow-clients).
+
 Templates are trusted code; interpolation escapes, triple braces do not. The MVC and asset modules install no action endpoint or automatic CSRF middleware. Request filenames never become arbitrary filesystem paths; maps, declarations and package metadata are outside the asset catalog. Content-hash URLs identify cache versions and never authorize anything; integrity protection comes from the `integrity` manifest metadata (`browser: { integrity: true }` adds integrity-checked boot and modulepreload tags). Preserve third-party license comments in the served Alpine build. See [security hardening](../../docs/security/hardening.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
 
 ## Examples

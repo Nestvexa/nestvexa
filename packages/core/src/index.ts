@@ -121,3 +121,9 @@ export {
   sendEarlyHints,
   type EarlyHint,
 } from './early-hints.js';
+export {
+  boundHttpServer,
+  normalizeHttpServerBounds,
+  type HttpServerBounds,
+  type NormalizedHttpServerBounds,
+} from './http-bounds.js';

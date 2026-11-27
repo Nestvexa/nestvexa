@@ -10,11 +10,13 @@ import {
   CoreModule,
   NestvexaConfigService,
   NestvexaRegistry,
+  boundHttpServer,
 } from '@nestvexa/core';
-import type { FeatureCapability } from '@nestvexa/core';
+import type { FeatureCapability, HttpServerBounds } from '@nestvexa/core';
 import { HbsEngine } from '@nestvexa/engine-hbs';
 import { ViewErrorPageFilter, expressViewModel } from '@nestvexa/views';
 import type { ViewErrorPageFilterOptions } from '@nestvexa/views';
+import { Server as HttpServer } from 'node:http';
 import { resolve } from 'node:path';
 import {
   NestvexaBrowserModule,
@@ -319,6 +321,15 @@ export interface ConfigureNestvexaOptions {
    * enable it in production.
    */
   readonly errorPages?: NestvexaErrorPageOptions;
+  /**
+   * Slow-client bounds on the host's Node HTTP server (slowloris, slow
+   * headers, trickled bodies), applied to `app.getHttpServer()` on Express
+   * and Fastify alike: by default a request head must arrive within 30 s and
+   * its body within 300 s, or the connection gets 408 and is closed. `false`
+   * leaves the server untouched (for example behind a proxy that already
+   * enforces client timeouts). See `boundHttpServer` in `@nestvexa/core`.
+   */
+  readonly http?: HttpServerBounds | false;
 }
 
 /** Application-local initialization and teardown; no process-global registry. */
@@ -372,6 +383,17 @@ class NestvexaRuntime implements OnApplicationShutdown {
             render: (view, model) => engine.render(view, model),
           }),
         );
+      }
+      const http = options?.http;
+      if (http !== false) {
+        const server: unknown = app.getHttpServer();
+        try {
+          if (server instanceof HttpServer) boundHttpServer(server, http);
+        } catch (error) {
+          return Promise.reject(
+            error instanceof Error ? error : new Error(String(error)),
+          );
+        }
       }
       this.setup = installViews(app, this.engine, this.config);
     }
