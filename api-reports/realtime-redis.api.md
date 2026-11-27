@@ -69,6 +69,8 @@ declare class RedisLiveStore implements LiveStateStore, LiveActionCoordination {
     writeReplay(key: string, value: string, ttlMs: number): Promise<void>;
     acquireActionLease(key: string, owner: string, ttlMs: number): Promise<boolean>;
     releaseActionLease(key: string, owner: string): Promise<void>;
+    get circuit(): 'closed' | 'open' | 'half-open';
+    ping(): Promise<void>;
     close(): Promise<void>;
 }
 

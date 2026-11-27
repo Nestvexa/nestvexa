@@ -12,6 +12,23 @@ Typings: `./dist/index.d.ts`
 // attachRealtimeWebSocket
 declare function attachRealtimeWebSocket(app: INestApplication): Promise<() => void>;
 
+// CircuitBreakerOptions
+interface CircuitBreakerOptions {
+    readonly failureThreshold?: number;
+    readonly cooldownMs?: number;
+    readonly now?: () => number;
+}
+
+// CircuitOpenError
+declare class CircuitOpenError extends Error {
+    readonly service: string;
+    readonly retryAfterMs: number;
+    constructor(service: string, retryAfterMs: number);
+}
+
+// CircuitState
+type CircuitState = 'closed' | 'open' | 'half-open';
+
 // createTokenSigner
 declare function createTokenSigner(options: {
     readonly secrets: readonly string[];
@@ -412,13 +429,18 @@ interface RespBrokerOptions {
     readonly password?: string;
     readonly prefix?: string;
     readonly replaySize?: number;
+    readonly commandTimeoutMs?: number;
+    readonly circuitBreaker?: CircuitBreakerOptions | false;
 }
 
 // RespRealtimeBroker
 declare class RespRealtimeBroker implements RealtimeBroker {
     #private;
     constructor(options?: RespBrokerOptions);
+    get circuit(): 'closed' | 'open' | 'half-open';
+    get subscribed(): boolean;
     publish(channel: string, data: unknown): Promise<RealtimeEvent>;
+    ping(): Promise<void>;
     subscribe(channel: string, handler: RealtimeHandler): Promise<() => void>;
     replay(channel: string, afterId: string): readonly RealtimeEvent[];
     close(): Promise<void>;
