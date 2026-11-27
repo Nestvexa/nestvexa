@@ -52,13 +52,13 @@ With `NESTVEXA_REDIS_PORT` set, `pnpm test:services` builds nothing itself (run
 times plus its development proxy, all sharing Redis, a fresh key prefix and
 random secrets. `NESTVEXA_ACCEPT_BASE_PORT` (default 3220) moves every port:
 
-| Process   | Port    | HTTP adapter | Realtime transport | Role                                                          |
-| --------- | ------- | ------------ | ------------------ | ------------------------------------------------------------- |
-| replica a | base    | Express      | SSE                | `RedisRealtimeBroker`, `RedisLiveStore`, `RedisPresenceStore` |
-| replica b | base +1 | Express      | WebSocket          | same                                                          |
-| proxy     | base +2 | —            | —                  | public origin; `nv_replica=b                                  | c   | d`cookie selects;`POST /__proxy/drop` |
-| replica c | base +3 | Fastify      | SSE                | same                                                          |
-| replica d | base +4 | Fastify      | WebSocket          | same                                                          |
+| Process   | Port    | HTTP adapter | Realtime transport | Role                                                                                                                       |
+| --------- | ------- | ------------ | ------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| replica a | base    | Express      | SSE                | `RedisRealtimeBroker`, `RedisLiveStore`, `RedisPresenceStore`                                                              |
+| replica b | base +1 | Express      | WebSocket          | same                                                                                                                       |
+| proxy     | base +2 | —            | —                  | public origin; the `nv_replica` cookie (a, b, c or d) selects the replica; `POST /__proxy/drop` cuts every open connection |
+| replica c | base +3 | Fastify      | SSE                | same                                                                                                                       |
+| replica d | base +4 | Fastify      | WebSocket          | same                                                                                                                       |
 
 Chromium then verifies that an event published on replica B refreshes a browser
 whose SSE stream is held by replica A (and the reverse over B's WebSocket), that

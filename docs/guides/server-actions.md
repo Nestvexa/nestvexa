@@ -39,22 +39,50 @@ Only decorated methods of registered groups become routes:
 
 ## 2. Register it with a host policy
 
-```ts
-ActionsModule.register({
-  groups: [CartActions],
-  imports: [CartModule],
-  origin: 'https://shop.example',
-  resolveIdentity(request) {
-    const session = (request as { session?: AppSession }).session;
-    if (!session?.csrf) return null;
-    return {
-      subject: session.userId ?? `guest:${session.id}`,
-      tenant: session.tenantId,
-      csrfToken: session.csrf,
-    };
-  },
-  authorize: (identity, action) => permissions.can(identity, action),
-});
+This block is compiled against the built packages by `pnpm docs:build` (a
+`ts check` fence). The `declare` lines stand for your own session type, group,
+module and permission service.
+
+```ts check
+import { Module } from '@nestjs/common';
+import type { Type } from '@nestjs/common';
+import { ActionsModule } from '@nestvexa/actions';
+import type { ActionDescriptor, ActionIdentity } from '@nestvexa/actions';
+
+interface AppSession {
+  readonly id: string;
+  readonly csrf?: string;
+  readonly userId?: string;
+  readonly tenantId?: string;
+}
+declare const CartActions: Type<object>;
+declare const CartModule: Type<object>;
+declare const permissions: {
+  can(identity: ActionIdentity, action: ActionDescriptor): boolean;
+};
+
+@Module({
+  imports: [
+    ActionsModule.register({
+      groups: [CartActions],
+      imports: [CartModule],
+      origin: 'https://shop.example',
+      resolveIdentity(request) {
+        const session = (request as { session?: AppSession }).session;
+        if (!session?.csrf) return null;
+        return {
+          subject: session.userId ?? `guest:${session.id}`,
+          ...(session.tenantId === undefined
+            ? {}
+            : { tenant: session.tenantId }),
+          csrfToken: session.csrf,
+        };
+      },
+      authorize: (identity, action) => permissions.can(identity, action),
+    }),
+  ],
+})
+export class AppModule {}
 ```
 
 - `resolveIdentity` reads verified server state only. Never trust `userId` or

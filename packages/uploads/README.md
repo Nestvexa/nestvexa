@@ -28,7 +28,7 @@ the Live client.
 
 ## Architecture role
 
-```
+```text
 browser ──POST /sessions──▶ UploadsService ──temp file (private dir)──┐
         ──PUT  chunks ────▶  limits, quotas, CSRF, Origin, identity  │
         ──POST complete ──▶  inspect bytes → token nvu_…  ◀──────────┘

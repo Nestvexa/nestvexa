@@ -3,10 +3,11 @@
 //   node apps/docs/src/build.mjs [--check-only] [--out <dir>]
 //
 // Verification (fails the build): Markdown structure, internal links and
-// heading anchors, snippet provenance, CLI command coverage, dependency graph
-// and feature matrix drift, and every examples/* workspace listed in the root
-// README's "Runnable examples". Output: a static site in artifacts/docs with the
-// generated API reference under api/.
+// heading anchors, snippet provenance, `ts check` fences compiled against the
+// built packages, verified TypeScript in the root README, CLI command coverage,
+// dependency graph and feature matrix drift, and every examples/* workspace
+// listed in the root README's "Runnable examples". Output: a static site in
+// artifacts/docs with the generated API reference under api/.
 import { execFileSync } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
 import {
@@ -22,6 +23,7 @@ import { fileURLToPath } from 'node:url';
 import { collectEntries, extractApi } from './api-reference.mjs';
 import { analyse, escapeHtml, render } from './markdown.mjs';
 import { page, relativeUrl } from './layout.mjs';
+import { checkTypeScriptBlocks, isCheckedFence } from './typecheck.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -217,6 +219,40 @@ for (const document of documents.values()) {
 }
 
 // ---------------------------------------------------------------------------
+// Checked fences (```ts check) are compiled once the API entry points are
+// known (below). In the root README every TypeScript fence must be verified:
+// either a provenance excerpt or a checked block.
+const checkedBlocks = [];
+for (const document of documents.values()) {
+  for (const block of document.analysis.codeBlocks) {
+    const language = block.info.split(/\s+/)[0] ?? '';
+    if (isCheckedFence(block.info)) {
+      if (block.provenance)
+        problem(
+          document.source,
+          `a "ts check" fence cannot also be a provenance snippet (${block.provenance})`,
+        );
+      else
+        checkedBlocks.push({
+          source: document.source,
+          index: checkedBlocks.filter(
+            (checked) => checked.source === document.source,
+          ).length,
+          code: block.code,
+        });
+    } else if (
+      document.source === 'README.md' &&
+      ['ts', 'typescript', 'tsx'].includes(language) &&
+      !block.provenance
+    )
+      problem(
+        document.source,
+        `TypeScript fence starting "${block.code.split('\n')[0] ?? ''}" is not verified: add a <!-- snippet: path --> marker or tag the fence "ts check"`,
+      );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Drift checks against the workspace itself.
 const packageDirs = (await readdir(join(root, 'packages')))
   .filter((directory) =>
@@ -390,6 +426,13 @@ for (const file of missing)
     'api',
     `${toPosix(file)} missing; run \`pnpm build\` before \`pnpm docs:build\``,
   );
+if (missing.length === 0)
+  for (const { source, message } of checkTypeScriptBlocks(
+    root,
+    checkedBlocks,
+    entries,
+  ))
+    problem(source, message);
 
 if (problems.length > 0) {
   console.error(`Documentation checks failed (${problems.length}):`);
@@ -404,7 +447,7 @@ const symbolCount = api.reduce(
   0,
 );
 console.log(
-  `Checked ${documents.size} documents, ${snippetCount} provenance snippets, ${packageDirs.length} packages and ${symbolCount} exported API symbols.`,
+  `Checked ${documents.size} documents, ${snippetCount} provenance snippets, ${checkedBlocks.length} type-checked blocks, ${packageDirs.length} packages and ${symbolCount} exported API symbols.`,
 );
 if (checkOnly) process.exit(0);
 

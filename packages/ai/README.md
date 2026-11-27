@@ -30,7 +30,7 @@ depend on.
 
 ## Architecture role
 
-```
+```text
 Live component (assistant panel) ── ask/approve/reject/collect ──▶ AiAssistant
         │  nv:stream="assistant"                                       ▲
         ▼                                                              │

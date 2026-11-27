@@ -26,13 +26,17 @@ The build fails, listing every problem, when:
 | Links              | Relative links resolve to an existing file; no absolute `/` links                                                                                                                             |
 | Anchors            | `file.md#anchor` and `#anchor` match a GitHub-style heading slug or an explicit `id`/`name`                                                                                                   |
 | Snippet provenance | A fence after `<!-- snippet: path -->` is a whitespace-insensitive excerpt of that file                                                                                                       |
+| Type-checked code  | A fence tagged `ts check` compiles as an ES module (strict, `exactOptionalPropertyTypes`, legacy decorators) against the built packages                                                       |
+| README code        | Every `ts`/`tsx` fence in the root `README.md` is a provenance snippet or a `ts check` block                                                                                                  |
 | CLI                | Every `` `nestvexa <command>` `` in the CLI reference and every `npx nestvexa <command>` anywhere appears in `nestvexa --help`                                                                |
 | Dependency graph   | [package-dependency-graph.md](../../docs/architecture/package-dependency-graph.md) has every package and exactly the workspace edges in the manifests                                         |
 | Coverage           | The [feature matrix](../../docs/feature-matrix.md) and [architecture overview](../../docs/architecture/overview.md) mention every package                                                     |
 | API entry points   | Every typed `exports` subpath has its built `.d.ts`                                                                                                                                           |
 | Navigation         | Every page listed in `nav.json` exists                                                                                                                                                        |
 
-External `http(s)` links are not fetched.
+External `http(s)` links are not fetched. Markdown style is linted separately by
+`pnpm lint:md` (`markdownlint-cli2`, part of `pnpm lint`; rules in
+[`.markdownlint-cli2.jsonc`](../../.markdownlint-cli2.jsonc)).
 
 ## Writing pages
 
@@ -42,6 +46,14 @@ External `http(s)` links are not fetched.
   above the fence, optionally followed by one blank line (Prettier inserts it). Prettier
   reformats complete TypeScript or HBS inside fences, so the comparison ignores all
   whitespace; quote whole statements or a fragment Prettier cannot parse.
+- Code that is not an excerpt of a source file can be compiled instead: tag the
+  fence ` ```ts check ` and write a complete module (imports included; use
+  `declare const` for application values the example does not define). Workspace
+  package imports such as `nestvexa` or `@nestvexa/live/testing` resolve to the
+  built `.d.ts` entry points, everything else to the root `node_modules`.
+- Any other fence is **illustrative**: it is rendered as written and nobody checks
+  it. Keep those short, and prefer a provenance snippet or a `ts check` block for
+  anything a reader will copy.
 - Mark unfinished behaviour with a blockquote starting `> **Known gap:**`. Do not
   describe a feature as working without a test that proves it.
 
@@ -63,11 +75,12 @@ or fix the TSDoc comment in the package source and rebuild.
 
 ## Files
 
-| Path                    | Purpose                                           |
-| ----------------------- | ------------------------------------------------- |
-| `src/build.mjs`         | Entry point: load, check, render, write           |
-| `src/markdown.mjs`      | `marked` lexer/renderer wrappers, GitHub slugs    |
-| `src/layout.mjs`        | Page shell, sidebar, table of contents            |
-| `src/api-reference.mjs` | Declaration-file API extraction                   |
-| `assets/`               | Stylesheet and the optional sidebar filter script |
-| `nav.json`              | Site title, repository URL and navigation         |
+| Path                    | Purpose                                               |
+| ----------------------- | ----------------------------------------------------- |
+| `src/build.mjs`         | Entry point: load, check, render, write               |
+| `src/markdown.mjs`      | `marked` lexer/renderer wrappers, GitHub slugs        |
+| `src/layout.mjs`        | Page shell, sidebar, table of contents                |
+| `src/api-reference.mjs` | Declaration-file API extraction                       |
+| `src/typecheck.mjs`     | Compiles `ts check` fences against the built packages |
+| `assets/`               | Stylesheet and the optional sidebar filter script     |
+| `nav.json`              | Site title, repository URL and navigation             |

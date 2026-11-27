@@ -14,16 +14,25 @@ Runnable example: [`examples/data-cache`](../../examples/data-cache/README.md).
 
 ### Redis: namespacing, versioning and failure behaviour
 
-```ts
+Compiled by `pnpm docs:build` (`ts check`); the `declare` lines are your own
+Live registration, key and user id.
+
+```ts check
+import { LiveModule } from '@nestvexa/live';
+import type { LiveModuleOptions } from '@nestvexa/live';
 import { RedisLiveStore } from '@nestvexa/realtime-redis';
+
+declare const options: LiveModuleOptions;
+declare const key: Uint8Array; // 32 bytes from your secret manager
+declare const userId: string;
 
 const store = new RedisLiveStore({
   host: 'redis',
   prefix: 'shop:prod:live:',
   // The host built the binding as `${tenant}/${session}/${userId}`.
   namespace: (binding) => {
-    const [tenant, , user] = binding.split('/');
-    return { tenant, user };
+    const [tenant = '', , user] = binding.split('/');
+    return user === undefined ? { tenant } : { tenant, user };
   },
   encryptionKeys: [key], // only if policy requires encrypting state at rest
 });
