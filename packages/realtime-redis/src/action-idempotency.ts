@@ -139,12 +139,7 @@ export class RedisActionIdempotencyStore implements ActionIdempotencyStore {
   constructor(options: RedisActionIdempotencyStoreOptions = {}) {
     this.#prefix = options.prefix ?? 'nestvexa:actions:idem:';
     if (!/^[a-z0-9:._-]{0,64}$/.test(this.#prefix)) invalid('invalid prefix');
-    this.#leaseMs = bounded(
-      options.leaseMs ?? 30_000,
-      1000,
-      600_000,
-      'lease',
-    );
+    this.#leaseMs = bounded(options.leaseMs ?? 30_000, 1000, 600_000, 'lease');
     this.#maxOutcomeBytes = bounded(
       options.maxOutcomeBytes ?? 4_194_304,
       1024,

@@ -368,7 +368,8 @@ export class RedisCacheStore implements CacheStore {
     if (Array.isArray(tags) && tags.length)
       await this.invalidateTags(
         tags.filter(
-          (tag): tag is string => typeof tag === 'string' && tagPattern.test(tag),
+          (tag): tag is string =>
+            typeof tag === 'string' && tagPattern.test(tag),
         ),
       );
     await this.#command('DEL', this.#tagsKey());

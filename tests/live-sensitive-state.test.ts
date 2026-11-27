@@ -50,13 +50,16 @@ const ordinary = [
 ];
 
 describe('Live secret-like @State guard (REVIEW-008)', () => {
-  it.each(secretLike)('refuses a @State field named %s at definition time', (name) => {
-    expect(() => defineWith(name)).toThrow(
-      new RegExp(
-        `@State field Probe\\.${name} looks like a secret: Live state is public page data sent to the browser`,
-      ),
-    );
-  });
+  it.each(secretLike)(
+    'refuses a @State field named %s at definition time',
+    (name) => {
+      expect(() => defineWith(name)).toThrow(
+        new RegExp(
+          `@State field Probe\\.${name} looks like a secret: Live state is public page data sent to the browser`,
+        ),
+      );
+    },
+  );
 
   it('names the opt-out in the error', () => {
     expect(() => defineWith('apiToken')).toThrow(/allowSensitiveName/);

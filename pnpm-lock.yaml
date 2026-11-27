@@ -2253,6 +2253,12 @@ importers:
 
   packages/realtime-redis:
     devDependencies:
+      '@nestvexa/actions':
+        specifier: workspace:*
+        version: link:../actions
+      '@nestvexa/cache':
+        specifier: workspace:*
+        version: link:../cache
       '@nestvexa/live':
         specifier: workspace:*
         version: link:../live
