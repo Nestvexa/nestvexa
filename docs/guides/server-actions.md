@@ -39,22 +39,50 @@ Only decorated methods of registered groups become routes:
 
 ## 2. Register it with a host policy
 
-```ts
-ActionsModule.register({
-  groups: [CartActions],
-  imports: [CartModule],
-  origin: 'https://shop.example',
-  resolveIdentity(request) {
-    const session = (request as { session?: AppSession }).session;
-    if (!session?.csrf) return null;
-    return {
-      subject: session.userId ?? `guest:${session.id}`,
-      tenant: session.tenantId,
-      csrfToken: session.csrf,
-    };
-  },
-  authorize: (identity, action) => permissions.can(identity, action),
-});
+This block is compiled against the built packages by `pnpm docs:build` (a
+`ts check` fence). The `declare` lines stand for your own session type, group,
+module and permission service.
+
+```ts check
+import { Module } from '@nestjs/common';
+import type { Type } from '@nestjs/common';
+import { ActionsModule } from '@nestvexa/actions';
+import type { ActionDescriptor, ActionIdentity } from '@nestvexa/actions';
+
+interface AppSession {
+  readonly id: string;
+  readonly csrf?: string;
+  readonly userId?: string;
+  readonly tenantId?: string;
+}
+declare const CartActions: Type<object>;
+declare const CartModule: Type<object>;
+declare const permissions: {
+  can(identity: ActionIdentity, action: ActionDescriptor): boolean;
+};
+
+@Module({
+  imports: [
+    ActionsModule.register({
+      groups: [CartActions],
+      imports: [CartModule],
+      origin: 'https://shop.example',
+      resolveIdentity(request) {
+        const session = (request as { session?: AppSession }).session;
+        if (!session?.csrf) return null;
+        return {
+          subject: session.userId ?? `guest:${session.id}`,
+          ...(session.tenantId === undefined
+            ? {}
+            : { tenant: session.tenantId }),
+          csrfToken: session.csrf,
+        };
+      },
+      authorize: (identity, action) => permissions.can(identity, action),
+    }),
+  ],
+})
+export class AppModule {}
 ```
 
 - `resolveIdentity` reads verified server state only. Never trust `userId` or
@@ -203,6 +231,31 @@ logical operation. A replay returns the stored result with
 `idempotent-replayed: true`; a concurrent duplicate gets `409 CONFLICT`
 (`IDEMPOTENCY_IN_PROGRESS`); reusing a key with different input gets `409`
 (`IDEMPOTENCY_MISMATCH`). Failed calls release the key.
+
+The default `MemoryIdempotencyStore` is per process: after a restart or on
+another replica a retry would run the handler again. With several replicas,
+or whenever a retry after a deploy must replay, use the shared store:
+
+```ts
+import { RedisActionIdempotencyStore } from '@nestvexa/realtime-redis/actions';
+
+ActionsModule.register({
+  ...options,
+  idempotency: {
+    store: new RedisActionIdempotencyStore({
+      host: 'redis',
+      prefix: 'app:idem:',
+    }),
+  },
+});
+```
+
+It claims keys atomically (`SET NX PX`) with a lease that is renewed while
+the handler runs, stores the outcome only while the claim is still owned,
+and fails closed: a Redis error answers `500` without running the handler,
+and an outcome that cannot be stored keeps the claim (retries get `409`)
+until its lease lapses. Details and limits:
+[`@nestvexa/realtime-redis`](../../packages/realtime-redis/README.md#server-action-idempotency).
 
 `concurrency: 'serial'` runs one call at a time per tenant, subject and group
 (bounded queue). Deadlines (`timeoutMs`) abort `@ActionSignal()` and return

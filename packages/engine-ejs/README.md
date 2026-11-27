@@ -97,6 +97,23 @@ Failures surface as `ViewError`: `INVALID_VIEW` (bad ID, traversal, oversized te
 
 Templates and helpers are trusted code, never uploads or browser input. Model data never becomes EJS options, so option-injection attacks through `settings['view options']` (for example `outputFunctionName`) do not apply. Models accept finite JSON values, `undefined` and `SafeHtml` only (no class instances, Dates, functions, accessors, symbols, cycles, prototype keys, depth > 32 or > 10,000 values). Keep template directories writable only by deployment tooling.
 
+## Performance
+
+Production (`cache: true`) caches compiled views, layouts and include sources per
+engine instance (bounded by `cacheEntries`, default 256); development rereads
+every template per render. Included partials are recompiled on each include,
+even in production (see [Options and caching](#options-and-caching)). Templates are size-bounded (`maxTemplateBytes`, 1 MiB) and render
+as complete strings (no streaming). Only Handlebars is benchmarked
+([benchmarks](../../docs/testing/benchmarks.md)).
+
+## Compatibility
+
+Node `>=22` (package `engines`; CI runs 22 and 24), ESM only (`require(esm)`
+for CommonJS hosts). Pinned EJS 7.0.2 and `@nestvexa/views`; no peers.
+Tested as the MVC and Live renderer on Express and Fastify
+(`tests/engine-live.test.ts`); `registerViewEngine` mounts it next to the umbrella
+HBS engine (`tests/umbrella-view-engines.test.ts`, `tests/cli-fastify.test.ts`).
+
 ## Namespaces and themes
 
 `namespaces` (name -> directory) and `themes` (name -> override directory) options resolve `admin::users/index` views and per-render `RenderOptions.theme` overrides for the view, its layout and its includes, with the same containment rules as the root. See the [template engine guide](../../docs/guides/template-engines.md#namespaces-and-themes) for the include rules specific to EJS. Covered by `tests/views-composition.test.ts`.

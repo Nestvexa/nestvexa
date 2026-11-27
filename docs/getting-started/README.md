@@ -99,6 +99,9 @@ To work from this repository instead, run `pnpm install --frozen-lockfile` and
 
 ## What to read next
 
+- Task-oriented: [recipes](../recipes/README.md) (auth, tenant scoping, uploads,
+  realtime dashboard, Inertia with a Live island, fragment caching, job progress,
+  offline-safe forms) and [troubleshooting](../troubleshooting/README.md).
 - Concepts: [architecture overview](../architecture/overview.md) and
   [package dependency graph](../architecture/package-dependency-graph.md).
 - Live in depth: [directives](../reference/directives.md),
@@ -116,6 +119,7 @@ and Live, `nestvexa add react|vue|svelte` for Inertia roots, `nestvexa add islan
 for hybrid pages, and `make:page --renderer <hbs|ejs|pug|nunjucks|react|vue|svelte>`
 for pages ([CLI reference](../reference/cli.md)).
 
-> **Known gap:** `make:resource` generates only an in-memory service, and
-> `make:component` supports HBS views only. The generated session and identity
-> policies are guest starters, so replace them before production.
+> **Known gap:** `make:resource --orm` supports `memory` and `typeorm` only (no
+> Prisma or Drizzle generator), and `make:component` supports HBS views only. The
+> generated session and identity policies are guest starters, so replace them
+> before production.

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { collectEntries, extractApi } from '../apps/docs/src/api-reference.mjs';
 import { analyse, createSlugger, slug } from '../apps/docs/src/markdown.mjs';
+import { isCheckedFence } from '../apps/docs/src/typecheck.mjs';
 
 const builder = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -51,6 +52,13 @@ function validFixture(): Files {
       '',
       '```ts',
       'export const answer = 42;',
+      '```',
+      '',
+      '## Checked',
+      '',
+      '```ts check',
+      "import { add } from '@fixture/core';",
+      'export const sum: number = add(1, 2);',
       '```',
       '',
     ].join('\n'),
@@ -159,6 +167,19 @@ describe('docs markdown helpers', () => {
       { source: 'src/x.ts', code: 'const x = 1;' },
       { source: 'src/y.ts', code: undefined },
     ]);
+    expect(result.codeBlocks).toEqual([
+      { info: 'ts', code: 'const x = 1;', provenance: 'src/x.ts' },
+      { info: 'md', code: '[ignored](inside-code.md)', provenance: undefined },
+    ]);
+  });
+
+  it('recognizes fences tagged for type-checking', () => {
+    expect(isCheckedFence('ts check')).toBe(true);
+    expect(isCheckedFence('typescript check')).toBe(true);
+    expect(isCheckedFence('ts')).toBe(false);
+    expect(isCheckedFence('tsx check')).toBe(false);
+    expect(isCheckedFence('sh check')).toBe(false);
+    expect(isCheckedFence('')).toBe(false);
   });
 });
 
@@ -197,6 +218,28 @@ describe('docs API reference', () => {
 describe('docs build checks', { timeout: 60_000 }, () => {
   it('accepts a consistent repository', async () => {
     const result = check(await repository(validFixture()));
+    expect(result.output).toContain('Checked');
+    expect(result.output).toContain('1 type-checked blocks');
+    expect(result.status).toBe(0);
+  });
+
+  it('accepts README TypeScript fences that are provenance snippets', async () => {
+    const files = validFixture();
+    files['README.md'] = [
+      '# Fixture',
+      '',
+      '<!-- snippet: src/example.ts -->',
+      '',
+      '```ts',
+      'export const answer = 42;',
+      '```',
+      '',
+      '```sh',
+      'pnpm build',
+      '```',
+      '',
+    ].join('\n');
+    const result = check(await repository(files));
     expect(result.output).toContain('Checked');
     expect(result.status).toBe(0);
   });
@@ -311,6 +354,63 @@ describe('docs build checks', { timeout: 60_000 }, () => {
         files['examples/one/package.json'] = manifest('@fixture/example-one');
       },
       'README.md: has no "## Runnable examples" section',
+    ],
+    [
+      'a type error in a checked fence',
+      (files: Files) => {
+        files['docs/guide.md'] += [
+          '',
+          '```ts check',
+          "import { add } from '@fixture/core';",
+          'export const text: string = add(1, 2);',
+          '```',
+          '',
+        ].join('\n');
+      },
+      'docs/guide.md: `ts check` block 2:2: TS2322',
+    ],
+    [
+      'an unresolvable import in a checked fence',
+      (files: Files) => {
+        files['docs/guide.md'] += [
+          '',
+          '```ts check',
+          "import { add } from '@fixture/missing';",
+          'export const sum = add(1, 2);',
+          '```',
+          '',
+        ].join('\n');
+      },
+      'TS2307',
+    ],
+    [
+      'a checked fence that is also a provenance snippet',
+      (files: Files) => {
+        files['docs/guide.md'] += [
+          '',
+          '<!-- snippet: src/example.ts -->',
+          '',
+          '```ts check',
+          'export const answer = 42;',
+          '```',
+          '',
+        ].join('\n');
+      },
+      'a "ts check" fence cannot also be a provenance snippet (src/example.ts)',
+    ],
+    [
+      'an unverified TypeScript fence in the README',
+      (files: Files) => {
+        files['README.md'] = [
+          '# Fixture',
+          '',
+          '```ts',
+          'const placeholder = origin;',
+          '```',
+          '',
+        ].join('\n');
+      },
+      'README.md: TypeScript fence starting "const placeholder = origin;" is not verified',
     ],
     [
       'an unbuilt entry point',

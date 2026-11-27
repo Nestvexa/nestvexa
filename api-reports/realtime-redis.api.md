@@ -116,6 +116,59 @@ declare class RespError extends Error {
 type RespReply = string | number | null | RespError | RespReply[];
 ```
 
+## `@nestvexa/realtime-redis/actions`
+
+Typings: `./dist/actions.d.ts`
+
+```ts
+// RedisActionIdempotencyStore
+declare class RedisActionIdempotencyStore implements ActionIdempotencyStore {
+    #private;
+    constructor(options?: RedisActionIdempotencyStoreOptions);
+    get activeClaims(): number;
+    begin(key: string, fingerprint: string, ttlMs: number): Promise<IdempotencyBeginResult>;
+    complete(key: string, outcome: StoredActionOutcome): Promise<void>;
+    abandon(key: string): Promise<void>;
+    close(): Promise<void>;
+}
+
+// RedisActionIdempotencyStoreOptions
+interface RedisActionIdempotencyStoreOptions extends RespConnectionOptions {
+    readonly prefix?: string;
+    readonly leaseMs?: number;
+    readonly maxOutcomeBytes?: number;
+    readonly randomOwner?: () => string;
+}
+```
+
+## `@nestvexa/realtime-redis/cache`
+
+Typings: `./dist/cache.d.ts`
+
+```ts
+// RedisCacheStore
+declare class RedisCacheStore implements CacheStore {
+    #private;
+    constructor(options?: RedisCacheStoreOptions);
+    get<T>(key: string): Promise<CacheEntry<T> | undefined>;
+    tagMarker(tags: readonly string[]): Promise<string>;
+    set<T>(key: string, entry: CacheEntry<T>, marker?: string): Promise<boolean>;
+    delete(key: string): Promise<void>;
+    invalidateTags(tags: readonly string[]): Promise<number>;
+    clear(): Promise<void>;
+    lock(key: string, ttlMs: number): Promise<CacheLock | null>;
+    close(): Promise<void>;
+}
+
+// RedisCacheStoreOptions
+interface RedisCacheStoreOptions extends RespConnectionOptions {
+    readonly prefix?: string;
+    readonly maxEntries?: number;
+    readonly maxEntryBytes?: number;
+    readonly now?: () => number;
+}
+```
+
 ## `@nestvexa/realtime-redis/realtime`
 
 Typings: `./dist/realtime.d.ts`

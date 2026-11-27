@@ -7,7 +7,7 @@ server. The complete, tested setup is
 
 ## Layout
 
-```
+```text
 src/main.ts          Nest host (controllers, InertiaModule, CSP, static files)
 src/page-types.ts    page props shared by controllers and components (types only)
 client/setup.ts      page registry + layouts (shared by both entries)

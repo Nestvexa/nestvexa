@@ -773,6 +773,7 @@ interface StateOptions {
     readonly synthesizer?: StateSynthesizer;
     readonly serializer?: StateSynthesizer;
     readonly default?: JsonValue | (() => unknown);
+    readonly allowSensitiveName?: string;
 }
 
 // StateSnapshot

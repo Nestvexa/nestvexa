@@ -1,0 +1,42 @@
+// markdownlint-cli2 configuration, run by `pnpm lint:md` (part of `pnpm lint`).
+// Prettier owns layout (wrapping and table padding), so only the rules that
+// fight it or the repository's deliberate conventions are off. The docs build
+// (apps/docs) separately checks heading structure, links, anchors, provenance
+// snippets and `ts check` fences.
+{
+  "config": {
+    "default": true,
+    // Prettier wraps prose; long table rows, URLs and code lines are unavoidable.
+    "MD013": false,
+    // Pages use inline HTML on purpose: explicit anchors, <details>, badges.
+    "MD033": false,
+    // The docs build enforces the leading H1 on published pages; GitHub
+    // templates under .github/ start with prose.
+    "MD041": false,
+    // Code spans such as `# ` and `: ` quote literal spacing on purpose.
+    "MD038": false,
+    // Consecutive callouts (> **Known gap:** then > **Note:**) are separate quotes.
+    "MD028": false,
+  },
+  "globs": ["**/*.md"],
+  "ignores": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "artifacts/**",
+    "api-reports/**",
+    ".changeset/**",
+    // Coordinator-owned ledger, evidence and agent reports (the docs build
+    // exempts them from structure checks too).
+    "docs/implementation/**",
+    "CHANGELOG.md",
+    "packages/*/CHANGELOG.md",
+    "THIRD_PARTY_NOTICES.md",
+    "NESTVEXA_MASTER_IMPLEMENTATION_PROMPT.md",
+    "OLD_CODEX_CHAT.md",
+    "Nestvexa_Brand_Kit/**",
+    ".claude/**",
+    ".stryker-tmp/**",
+    "test-results/**",
+    "playwright-report/**",
+  ],
+}

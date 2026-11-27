@@ -266,6 +266,9 @@ authorized Live action, a Nestvexa action or your own guarded route.
 `analyzeIslandBundles` reports each island's chunk closure and gzip size;
 `pnpm size:islands` (`scripts/islands-size.mjs`) applies the manifest budgets to
 the hybrid dashboard build and writes `artifacts/reports/islands-size.json`.
+It is a manual script: no CI or nightly job runs it, and there is no runtime
+warning for bundle size. Islands hydrate only on their mount strategy (`immediate`,
+`idle`, `visible` or `interaction`), so deferred islands cost nothing until then.
 
 ## Security
 
@@ -275,6 +278,16 @@ secret-like keys and undeclared schema fields). Server-rendered fallback HTML
 must be trusted (`SafeHtml`) or plain text (escaped). SSR output is framework
 generated. Tenant and permission checks stay server-side; signed props prove
 origin only.
+
+## Compatibility
+
+- Node `^22.13.0 || ^24.0.0` on the server, ESM only.
+- Optional peers `react`/`react-dom` ^19, `vue` ^3.5, `svelte` ^5; the examples
+  pin React 19.3.1, Vue 3.5.44 and Svelte 5.57.3, built with esbuild 0.28.2 or
+  Vite 8.3.5.
+- Browsers: Chromium, Firefox and WebKit (`tests/browser/islands.spec.ts`,
+  `tests/browser/islands-vite.spec.ts`). The Nest integration suite
+  (`tests/islands.test.ts`) runs on Express only.
 
 ## Examples
 

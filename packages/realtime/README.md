@@ -132,6 +132,26 @@ identically). `revoke(binding)` takes the binding the hub sees
 (`NestvexaRegistry`) receives feature `realtime` with the `broker`, `websocket`,
 `sse`, `polling`, `presence` and `kernel-identity` capabilities.
 
+## Performance
+
+Connections are bounded (`maxConnections` 1000, `maxConnectionsPerIdentity` 8),
+each subscriber has a bounded queue (`queueLimit` 64) and slow consumers are
+disconnected rather than buffered. The memory broker's replay history is bounded
+(100 events per channel, 10,000 channels). A push is an invalidation: affected
+components refresh through the normal Live request. `pnpm load` checks hub
+memory under connection churn in one process; throughput across replicas with
+Redis is not measured ([benchmarks](../../docs/testing/benchmarks.md)).
+
+## Compatibility
+
+- Node `^22.13.0 || ^24.0.0`, ESM only. Peers `@nestjs/common` and
+  `@nestjs/core` ^12 (tested with 12.2.0); optional `ws` ^8.18.0 (tested with
+  8.22.0) for WebSocket.
+- Express and Fastify, single process and four replicas behind Redis 7
+  (`examples/distributed-live`, `pnpm test:services`).
+- Browser transports (SSE, WebSocket, long-polling) tested in Chromium,
+  Firefox and WebKit (`tests/browser/realtime-transports.spec.ts`).
+
 ## Delivery semantics
 
 At-most-once per connected subscriber. The memory broker replays the last 100

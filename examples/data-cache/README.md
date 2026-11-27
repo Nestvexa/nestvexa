@@ -37,7 +37,7 @@ pnpm --filter @nestvexa/example-data-cache... build
 PORT=4000 pnpm --filter @nestvexa/example-data-cache start
 ```
 
-Open http://127.0.0.1:4000 and sign in as Alice, Bob or Carol. Environment:
+Open <http://127.0.0.1:4000> and sign in as Alice, Bob or Carol. Environment:
 `PORT` (default 4000), `LIVE_DATABASE` (SQLite file, default
 `live-state.db` next to `dist`), `ASSET_VERSION` (enters every render key).
 `node:sqlite` prints an ExperimentalWarning on Node 22 and 24.
