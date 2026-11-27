@@ -66,17 +66,16 @@ and a Nestvexa page with a Live component in one process.
 - GraphQL, the microservice and the gateway share one domain service with the
   REST controller and answer normally.
 
-**One interaction to plan for.** Nest's `WsAdapter` destroys every WebSocket
-upgrade on its HTTP server whose path is not one of its gateways. On a shared
-port it therefore also closes upgrades for the Nestvexa realtime WebSocket
-transport (`/_nestvexa/realtime/ws`). Choose one of:
-
-- give the gateway its own port (`@WebSocketGateway(3001, { path })`) and call
-  `attachRealtimeWebSocket(app)` after `app.listen()`; both WebSocket servers
-  then work (tested);
-- keep the gateway on the HTTP port and use Live realtime over SSE or
-  long-polling (do not call `attachRealtimeWebSocket`); or
-- use `@nestjs/platform-socket.io`, which does not destroy upgrades it does not
-  own.
-
-The test covers both `WsAdapter` placements.
+**WebSocket gateways on the same port.** Nest's `WsAdapter` destroys every
+WebSocket upgrade on its HTTP server whose path is not one of its gateways.
+`attachRealtimeWebSocket(app)` (call it after `app.listen()`) claims upgrades
+for its own path (`/_nestvexa/realtime/ws`) before any other `upgrade`
+listener sees them, and leaves every other path to the gateway. A gateway on
+the HTTP port and the realtime transport therefore work side by side, and so
+does a gateway on its own port (`@WebSocketGateway(3001, { path })`). The test
+covers both placements. In each, a page subscription receives an event
+published by a REST write while the gateway answers, a bad token closes with
+4003, a foreign `Origin` is refused, and unknown paths are still refused by
+the gateway's server. The example runs the host's session middleware on the
+raw upgrade request to resolve the realtime identity. A Socket.IO adapter on
+the same server is not tested.
