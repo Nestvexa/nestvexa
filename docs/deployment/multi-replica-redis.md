@@ -123,6 +123,10 @@ Delivery semantics:
 - **At most once.** Redis pub/sub is fire-and-forget. Events published while a
   replica is disconnected from Redis are lost for that replica's subscribers.
   The broker reconnects with bounded backoff and restores its subscriptions.
+  While Redis is down its circuit breaker opens: publishes and new
+  subscriptions fail at once with `CircuitOpenError` (a realtime connection
+  gets `503 BROKER_UNAVAILABLE`), and the first reconnect after the cooldown
+  closes it again ([resilience guide](../guides/resilience.md)).
   Browsers refresh authoritative state after they reconnect.
 - **Invalidation only.** A pushed event makes each subscribed component
   re-render through its own authorized `$sync` route on the replica holding

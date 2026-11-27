@@ -74,20 +74,20 @@ Hosts must authorize `$sync` for components that use realtime.
 
 ## Public API
 
-| Export                                                                     | Purpose                                                                                                                                    |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `RealtimeModule.forRoot(options)` / `forRootAsync({ inject, useFactory })` | Registers `GET <endpoint>/sse` and `GET <endpoint>/poll` (default `/_nestvexa/realtime`) and a global `RealtimeService`                    |
-| `RealtimeService.publish(channel, data?, { identity? })`                   | Invalidate subscribers; `data` is JSON ≤16 KiB; `identity` applies `publishesPerMinute`                                                    |
-| `RealtimeService.presence(identity, channel)`                              | Distinct members for an authorized reader: this replica's, or every replica's with a `presence` store                                      |
-| `RealtimeService.transports` / `GET <endpoint>/negotiate`                  | Transports offered now, in preference order (WebSocket only once attached); `auto` clients read it                                         |
-| `MemoryPresenceStore`, `PresenceStore`                                     | Shared presence contract (`RedisPresenceStore` in `@nestvexa/realtime-redis/realtime`)                                                     |
-| `RealtimeService.sign(identity, channels)`                                 | Token for authorized channels, or `undefined`                                                                                              |
-| `RealtimeService.revoke(binding)` / `closeChannel(channel)`                | Close connections on logout or permission changes                                                                                          |
-| `attachRealtimeWebSocket(app)`                                             | Optional `<endpoint>/ws` transport; requires `resolveUpgradeIdentity`                                                                      |
-| `MemoryRealtimeBroker`                                                     | Default single-process broker with bounded replay                                                                                          |
-| `RespRealtimeBroker({ host, port, password?, prefix })`                    | Cross-replica pub/sub over the Redis protocol (`RedisRealtimeBroker` in `@nestvexa/realtime-redis/realtime`)                               |
-| `JobRunner`, `MemoryJobQueue`, `JobQueue`                                  | Owner-bound named jobs with progress, idempotency keys, retries, cancellation and leases over a pluggable queue (durable: `RedisJobQueue`) |
-| `createTokenSigner`, `RealtimeHub`                                         | Lower-level building blocks                                                                                                                |
+| Export                                                                                      | Purpose                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RealtimeModule.forRoot(options)` / `forRootAsync({ inject, useFactory })`                  | Registers `GET <endpoint>/sse` and `GET <endpoint>/poll` (default `/_nestvexa/realtime`) and a global `RealtimeService`                                              |
+| `RealtimeService.publish(channel, data?, { identity? })`                                    | Invalidate subscribers; `data` is JSON ≤16 KiB; `identity` applies `publishesPerMinute`                                                                              |
+| `RealtimeService.presence(identity, channel)`                                               | Distinct members for an authorized reader: this replica's, or every replica's with a `presence` store                                                                |
+| `RealtimeService.transports` / `GET <endpoint>/negotiate`                                   | Transports offered now, in preference order (WebSocket only once attached); `auto` clients read it                                                                   |
+| `MemoryPresenceStore`, `PresenceStore`                                                      | Shared presence contract (`RedisPresenceStore` in `@nestvexa/realtime-redis/realtime`)                                                                               |
+| `RealtimeService.sign(identity, channels)`                                                  | Token for authorized channels, or `undefined`                                                                                                                        |
+| `RealtimeService.revoke(binding)` / `closeChannel(channel)`                                 | Close connections on logout or permission changes                                                                                                                    |
+| `attachRealtimeWebSocket(app)`                                                              | Optional `<endpoint>/ws` transport; requires `resolveUpgradeIdentity`                                                                                                |
+| `MemoryRealtimeBroker`                                                                      | Default single-process broker with bounded replay                                                                                                                    |
+| `RespRealtimeBroker({ host, port, password?, prefix, commandTimeoutMs?, circuitBreaker? })` | Cross-replica pub/sub over the Redis protocol (`RedisRealtimeBroker` in `@nestvexa/realtime-redis/realtime`); `circuit`, `subscribed` and `ping()` for health checks |
+| `JobRunner`, `MemoryJobQueue`, `JobQueue`                                                   | Owner-bound named jobs with progress, idempotency keys, retries, cancellation and leases over a pluggable queue (durable: `RedisJobQueue`)                           |
+| `createTokenSigner`, `RealtimeHub`                                                          | Lower-level building blocks                                                                                                                                          |
 
 Options: `secrets` (1–8, ≥32 bytes, first signs), `origin` (exact), `resolveIdentity`,
 `authorizeChannel`, `describePresence?`, `resolveUpgradeIdentity?`, `broker?`,
@@ -140,7 +140,15 @@ events per channel (`replaySize`) after reconnect, for at most 10,000 channels
 first, so per-user channel names cannot grow memory without bound); unknown or
 evicted cursors replay nothing and clients refresh. Redis pub/sub is
 fire-and-forget; `RespRealtimeBroker.subscribe` resolves after Redis confirms
-the subscription. The default `MemoryJobQueue` keeps jobs in memory only
+the subscription. Connecting and each PUBLISH/PING reply are bounded by
+`commandTimeoutMs` (default 5000 ms), and a circuit breaker (default 5
+consecutive failures, 1 s cooldown; `circuitBreaker: false` disables it)
+makes `publish`, `ping` and a `subscribe` that needs a new connection reject
+with `CircuitOpenError` without touching the network while Redis is down. The
+subscriber's reconnect waits for the cooldown and is the probe that closes the
+circuit; it restores every subscription. A hub connection whose subscription
+fails is refused with `503 BROKER_UNAVAILABLE`, and the next connection
+retries the subscription ([resilience guide](../../docs/guides/resilience.md)). The default `MemoryJobQueue` keeps jobs in memory only
 (`RedisJobQueue` is durable); replay windows are per replica, and presence is
 per replica unless a `presence` store is configured. The unit tests use an
 in-process RESP test double; `pnpm test:services`

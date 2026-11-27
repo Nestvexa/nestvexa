@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { connect } from 'node:net';
 import type { Socket } from 'node:net';
+import { CircuitBreaker, CircuitOpenError } from './circuit-breaker.js';
+import type { CircuitBreakerOptions } from './circuit-breaker.js';
 import { parseChannel } from './token.js';
 
 /** A published invalidation. `data` is public JSON delivered to subscribed browsers. */
@@ -199,7 +201,24 @@ export interface RespBrokerOptions {
   /** Prefix isolating this application's channels on a shared server. */
   readonly prefix?: string;
   readonly replaySize?: number;
+  /**
+   * Bound on opening a connection and on each PUBLISH or PING reply
+   * (default 5000 ms, 10-120000). A command that times out drops the
+   * publisher connection, so later replies cannot be misattributed.
+   */
+  readonly commandTimeoutMs?: number;
+  /**
+   * Circuit breaker for the Redis server (default 5 consecutive failures,
+   * 1 s cooldown). While it is open, `publish`, `ping` and a `subscribe` that
+   * needs a new connection reject with `CircuitOpenError` without touching
+   * the network; subscriber reconnects wait for the cooldown and act as the
+   * probe. Only unreachable servers, timeouts and dropped connections count;
+   * a `-ERR` reply does not. `false` disables the breaker.
+   */
+  readonly circuitBreaker?: CircuitBreakerOptions | false;
 }
+/** A reply that proves the server answered (it never counts against the breaker). */
+class BrokerRefusal extends Error {}
 /**
  * Cross-replica pub/sub over the Redis protocol (PUBLISH/SUBSCRIBE), with no
  * client library dependency. Redis pub/sub is fire-and-forget: events published
@@ -208,9 +227,13 @@ export interface RespBrokerOptions {
 export class RespRealtimeBroker implements RealtimeBroker {
   readonly #local: MemoryRealtimeBroker;
   readonly #origin = randomUUID();
-  readonly #options: Required<Omit<RespBrokerOptions, 'password'>> & {
+  readonly #options: Required<
+    Omit<RespBrokerOptions, 'password' | 'circuitBreaker'>
+  > & {
     readonly password?: string;
   };
+  readonly #breaker: CircuitBreaker | undefined;
+  #connectingPublisher: Promise<Socket> | undefined;
   #publisher: Socket | undefined;
   #subscriber: Socket | undefined;
   #subscribed = new Set<string>();
@@ -219,10 +242,11 @@ export class RespRealtimeBroker implements RealtimeBroker {
     string,
     { readonly promise: Promise<void>; readonly resolve: () => void }
   >();
-  #pending: {
-    resolve: (reply: Reply) => void;
-    reject: (error: Error) => void;
-  }[] = [];
+  /** Commands awaiting a reply, per publisher connection, in send order. */
+  readonly #pending = new WeakMap<
+    Socket,
+    { resolve: (reply: Reply) => void; reject: (error: Error) => void }[]
+  >();
   #closed = false;
   #resubscribeTimer: ReturnType<typeof setTimeout> | undefined;
   #resubscribeDelay = 100;
@@ -232,18 +256,63 @@ export class RespRealtimeBroker implements RealtimeBroker {
       port: options.port ?? 6379,
       prefix: options.prefix ?? 'nestvexa:',
       replaySize: options.replaySize ?? 100,
+      commandTimeoutMs: options.commandTimeoutMs ?? 5000,
       ...(options.password === undefined ? {} : { password: options.password }),
     };
     if (!/^[a-z0-9:._-]{0,64}$/.test(this.#options.prefix))
       throw new Error('Invalid realtime broker prefix');
+    const timeout = this.#options.commandTimeoutMs;
+    if (!Number.isSafeInteger(timeout) || timeout < 10 || timeout > 120_000)
+      throw new Error('Invalid realtime broker commandTimeoutMs');
+    this.#breaker =
+      options.circuitBreaker === false
+        ? undefined
+        : new CircuitBreaker('Redis realtime broker', {
+            cooldownMs: 1_000,
+            ...options.circuitBreaker,
+          });
     this.#local = new MemoryRealtimeBroker({
       replaySize: this.#options.replaySize,
     });
+  }
+  /** Current breaker state (`closed` when the breaker is disabled). */
+  get circuit(): 'closed' | 'open' | 'half-open' {
+    return this.#breaker?.state ?? 'closed';
+  }
+  /**
+   * Whether every subscribed channel is backed by a live subscriber
+   * connection right now (true when nothing is subscribed). False while the
+   * subscriber reconnects after a Redis restart: events published meanwhile
+   * are lost, so readiness checks report it.
+   */
+  get subscribed(): boolean {
+    return !this.#subscribed.size || this.#subscriber !== undefined;
+  }
+  /** Run one network step through the breaker; refusals prove the server is up. */
+  #guard<T>(operation: () => Promise<T>): Promise<T> {
+    return this.#breaker
+      ? this.#breaker.run(
+          operation,
+          (error) => !(error instanceof BrokerRefusal),
+        )
+      : operation();
   }
   #connect(subscriber: boolean): Promise<Socket> {
     return new Promise((resolve, reject) => {
       const socket = connect(this.#options.port, this.#options.host);
       socket.setNoDelay(true);
+      const pending: {
+        resolve: (reply: Reply) => void;
+        reject: (error: Error) => void;
+      }[] = [];
+      if (!subscriber) this.#pending.set(socket, pending);
+      // A server that never completes the handshake (a black-holed host)
+      // fails like a refused connection instead of waiting for the OS.
+      const connecting = setTimeout(
+        () => socket.destroy(new Error('Realtime broker connect timed out')),
+        this.#options.commandTimeoutMs,
+      );
+      connecting.unref();
       let buffer: Buffer = Buffer.alloc(0);
       socket.on('data', (chunk: Buffer) => {
         buffer = Buffer.concat([buffer, chunk]);
@@ -263,13 +332,14 @@ export class RespRealtimeBroker implements RealtimeBroker {
         buffer = parsed.rest;
         for (const reply of parsed.replies)
           if (subscriber) this.#onMessage(reply);
-          else this.#pending.shift()?.resolve(reply);
+          else pending.shift()?.resolve(reply);
       });
       socket.once('connect', () => {
+        clearTimeout(connecting);
         if (this.#options.password !== undefined) {
           // Keep reply order aligned: the AUTH reply is consumed before publishes.
           if (!subscriber)
-            this.#pending.push({
+            pending.push({
               resolve: (reply) => {
                 if (reply instanceof Error) socket.destroy();
               },
@@ -283,17 +353,21 @@ export class RespRealtimeBroker implements RealtimeBroker {
       // reset never becomes an uncaught exception.
       socket.on('error', reject);
       socket.on('close', () => {
+        clearTimeout(connecting);
         if (subscriber) {
-          if (this.#subscriber === socket) this.#subscriber = undefined;
+          // A redundant connection discarded after a race changes nothing.
+          if (this.#subscriber !== undefined && this.#subscriber !== socket)
+            return;
+          this.#subscriber = undefined;
           // Never leave a subscribe call waiting on a closed socket; the
           // resubscription restores the channel.
           for (const pending of this.#confirming.values()) pending.resolve();
           this.#confirming.clear();
           this.#scheduleResubscribe();
         } else {
-          this.#publisher = undefined;
-          for (const pending of this.#pending.splice(0))
-            pending.reject(new Error('Realtime broker connection closed'));
+          if (this.#publisher === socket) this.#publisher = undefined;
+          for (const waiting of pending.splice(0))
+            waiting.reject(new Error('Realtime broker connection closed'));
         }
       });
     });
@@ -302,15 +376,18 @@ export class RespRealtimeBroker implements RealtimeBroker {
    * Reconnect the subscriber with bounded exponential backoff and restore every
    * channel subscription. Events published while disconnected are not recovered.
    */
-  #scheduleResubscribe(): void {
+  #scheduleResubscribe(minimum = 0): void {
     if (this.#closed || this.#resubscribeTimer || !this.#subscribed.size)
       return;
-    const wait = this.#resubscribeDelay;
-    this.#resubscribeDelay = Math.min(wait * 2, 5_000);
+    const wait = Math.max(this.#resubscribeDelay, minimum);
+    this.#resubscribeDelay = Math.min(this.#resubscribeDelay * 2, 5_000);
     this.#resubscribeTimer = setTimeout(() => {
       this.#resubscribeTimer = undefined;
       if (this.#closed || this.#subscriber) return;
-      this.#connect(true).then(
+      // Through the breaker: while it is open the attempt waits for the
+      // cooldown instead of connecting, and after it the reconnect is the
+      // single probe that closes the circuit again.
+      this.#guard(() => this.#connect(true)).then(
         (socket) => {
           if (this.#closed) {
             socket.destroy();
@@ -321,7 +398,10 @@ export class RespRealtimeBroker implements RealtimeBroker {
           for (const name of this.#subscribed)
             socket.write(command('SUBSCRIBE', this.#options.prefix + name));
         },
-        () => this.#scheduleResubscribe(),
+        (error: unknown) =>
+          this.#scheduleResubscribe(
+            error instanceof CircuitOpenError ? error.retryAfterMs : 0,
+          ),
       );
     }, wait);
     this.#resubscribeTimer.unref();
@@ -360,9 +440,52 @@ export class RespRealtimeBroker implements RealtimeBroker {
     }
   }
   async #publisherSocket(): Promise<Socket> {
-    if (this.#closed) throw new Error('Realtime broker is closed');
-    this.#publisher ??= await this.#connect(false);
+    if (this.#publisher) return this.#publisher;
+    // Concurrent callers share one connection attempt.
+    this.#connectingPublisher ??= this.#connect(false).finally(() => {
+      this.#connectingPublisher = undefined;
+    });
+    const socket = await this.#connectingPublisher;
+    if (this.#closed) {
+      socket.destroy();
+      throw new Error('Realtime broker is closed');
+    }
+    this.#publisher ??= socket;
     return this.#publisher;
+  }
+  /** One command on the publisher connection, bounded by `commandTimeoutMs`. */
+  async #command(...parts: string[]): Promise<Reply> {
+    const socket = await this.#publisherSocket();
+    const reply = await new Promise<Reply>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        // Later replies would answer the wrong caller: retire the connection
+        // (new commands open another) and drop it, which also rejects every
+        // other command still waiting on it.
+        reject(new Error('Realtime broker command timed out'));
+        if (this.#publisher === socket) this.#publisher = undefined;
+        socket.destroy();
+      }, this.#options.commandTimeoutMs);
+      timer.unref();
+      const pending = this.#pending.get(socket);
+      if (!pending || socket.destroyed) {
+        clearTimeout(timer);
+        reject(new Error('Realtime broker connection closed'));
+        return;
+      }
+      pending.push({
+        resolve: (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        reject: (error) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      });
+      socket.write(command(...parts));
+    });
+    if (reply instanceof Error) throw new BrokerRefusal(reply.message);
+    return reply;
   }
   async publish(channel: string, data: unknown): Promise<RealtimeEvent> {
     const name = parseChannel(channel);
@@ -372,14 +495,27 @@ export class RespRealtimeBroker implements RealtimeBroker {
       i: id,
       d: JSON.parse(serializeData(data)) as unknown,
     });
-    const socket = await this.#publisherSocket();
-    const reply = await new Promise<Reply>((resolve, reject) => {
-      this.#pending.push({ resolve, reject });
-      socket.write(command('PUBLISH', this.#options.prefix + name, body));
-    });
-    if (reply instanceof Error)
-      throw new Error('Realtime broker rejected publish');
+    if (this.#closed) throw new Error('Realtime broker is closed');
+    try {
+      await this.#guard(() =>
+        this.#command('PUBLISH', this.#options.prefix + name, body),
+      );
+    } catch (error) {
+      if (error instanceof BrokerRefusal)
+        throw new Error('Realtime broker rejected publish', { cause: error });
+      throw error;
+    }
     return Object.freeze({ id: `${this.#origin}:${id}`, channel: name, data });
+  }
+  /**
+   * Round-trip a PING on the publisher connection, for readiness checks.
+   * Resolves when Redis answers; rejects when it is unreachable, times out,
+   * refuses the command, or the circuit is open (`CircuitOpenError`).
+   */
+  async ping(): Promise<void> {
+    if (this.#closed) throw new Error('Realtime broker is closed');
+    const reply = await this.#guard(() => this.#command('PING'));
+    if (reply !== 'PONG') throw new Error('Unexpected realtime broker reply');
   }
   async subscribe(
     channel: string,
@@ -387,7 +523,22 @@ export class RespRealtimeBroker implements RealtimeBroker {
   ): Promise<() => void> {
     const name = parseChannel(channel);
     if (this.#closed) throw new Error('Realtime broker is closed');
-    this.#subscriber ??= await this.#connect(true);
+    if (!this.#subscriber) {
+      const socket = await this.#guard(() => this.#connect(true));
+      if (this.#closed) {
+        socket.destroy();
+        throw new Error('Realtime broker is closed');
+      }
+      if (this.#subscriber) socket.destroy();
+      else {
+        this.#subscriber = socket;
+        // Restore channels whose subscriber connection dropped earlier.
+        for (const known of this.#subscribed)
+          socket.write(command('SUBSCRIBE', this.#options.prefix + known));
+      }
+    }
+    const subscriber = this.#subscriber;
+    if (!subscriber) throw new Error('Realtime broker connection closed');
     if (!this.#subscribed.has(name)) {
       this.#subscribed.add(name);
       let resolve: () => void = () => undefined;
@@ -395,7 +546,7 @@ export class RespRealtimeBroker implements RealtimeBroker {
         resolve = done;
       });
       this.#confirming.set(name, { promise, resolve });
-      this.#subscriber.write(command('SUBSCRIBE', this.#options.prefix + name));
+      subscriber.write(command('SUBSCRIBE', this.#options.prefix + name));
     }
     // Register first: a message may follow the confirmation in the same read.
     const release = await this.#local.subscribe(name, handler);

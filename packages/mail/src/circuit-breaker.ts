@@ -1,7 +1,8 @@
 // Package-local copy of the Nestvexa circuit breaker. The same file ships in
-// @nestvexa/realtime-redis, @nestvexa/uploads, @nestvexa/ai and @nestvexa/mail
-// so optional packages stay dependency-free; tests/circuit-breaker.test.ts
-// keeps the copies identical. See docs/guides/resilience.md.
+// @nestvexa/realtime, @nestvexa/realtime-redis, @nestvexa/uploads,
+// @nestvexa/ai and @nestvexa/mail so optional packages stay dependency-free;
+// tests/circuit-breaker.test.ts keeps the copies identical. See
+// docs/guides/resilience.md.
 
 /** Tuning for one breaker. */
 export interface CircuitBreakerOptions {

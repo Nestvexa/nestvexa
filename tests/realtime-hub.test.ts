@@ -620,3 +620,103 @@ describe.each(['express', 'fastify'] as const)(
     });
   },
 );
+
+describe('realtime hub broker subscriptions', () => {
+  /** A memory broker whose `subscribe` the test releases or fails by hand. */
+  class GatedBroker extends MemoryRealtimeBroker {
+    calls = 0;
+    #gates: { open: () => void; fail: (error: Error) => void }[] = [];
+    override async subscribe(
+      channel: string,
+      handler: (event: RealtimeEvent) => void,
+    ): Promise<() => void> {
+      this.calls++;
+      await new Promise<void>((open, fail) => this.#gates.push({ open, fail }));
+      return super.subscribe(channel, handler);
+    }
+    open(): void {
+      for (const gate of this.#gates.splice(0)) gate.open();
+    }
+    fail(): void {
+      for (const gate of this.#gates.splice(0))
+        gate.fail(new Error('Redis realtime broker is unavailable'));
+    }
+  }
+  function gated() {
+    const broker = new GatedBroker();
+    const signer = createTokenSigner({ secrets: [secret] });
+    const instance = new RealtimeHub(
+      broker,
+      signer,
+      { authorizeChannel: () => true },
+      {
+        maxConnections: 10,
+        maxConnectionsPerIdentity: 4,
+        queueLimit: 8,
+        heartbeatMs: 60_000,
+        revalidateMs: 60_000,
+      },
+    );
+    cleanup.push(() => instance.shutdown());
+    const connect = (s: ReturnType<typeof sink>) =>
+      instance.connect(
+        () => ({ binding: alice }),
+        [signer.sign(alice, ['tenant-a:orders'])],
+        s.value,
+      );
+    return { broker, hub: instance, connect };
+  }
+
+  it('shares one in-flight subscription between concurrent connections', async () => {
+    const f = gated();
+    const first = sink();
+    const second = sink();
+    const a = f.connect(first);
+    const b = f.connect(second);
+    await until(() => f.broker.calls === 1);
+    await wait(20);
+    // The second connection waits for the same subscription, not a new one.
+    expect(f.broker.calls).toBe(1);
+    f.broker.open();
+    await Promise.all([a, b]);
+    await f.broker.publish('tenant-a:orders', { n: 1 });
+    await until(() => first.events.length === 1 && second.events.length === 1);
+    expect(f.broker.subscriptions).toBe(1);
+  });
+
+  it('fails every waiting connection with 503 when the broker subscription fails, then retries it', async () => {
+    const f = gated();
+    const first = sink();
+    const second = sink();
+    const a = f.connect(first).catch((error: unknown) => error);
+    const b = f.connect(second).catch((error: unknown) => error);
+    await until(() => f.broker.calls === 1);
+    f.broker.fail();
+    for (const refusal of await Promise.all([a, b]))
+      expect(refusal).toMatchObject({
+        status: 503,
+        code: 'BROKER_UNAVAILABLE',
+      });
+    expect(f.hub.size).toBe(0);
+    // The failed subscription is forgotten: the next connection subscribes
+    // again instead of joining a channel that never receives events.
+    const third = sink();
+    const c = f.connect(third);
+    await until(() => f.broker.calls === 2);
+    f.broker.open();
+    await c;
+    await f.broker.publish('tenant-a:orders', { n: 2 });
+    await until(() => third.events.length === 1);
+  });
+
+  it('releases a subscription that completes after every waiting connection closed', async () => {
+    const f = gated();
+    const s = sink();
+    const pending = f.connect(s);
+    await until(() => f.broker.calls === 1);
+    f.hub.shutdown();
+    f.broker.open();
+    await pending.catch(() => undefined);
+    await until(() => f.broker.subscriptions === 0);
+  });
+});
