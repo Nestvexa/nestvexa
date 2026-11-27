@@ -1,7 +1,7 @@
 # Agent report: realtime round 10 (REAL-011, REAL-002, REAL-014, REAL-004, REAL-009, REAL-010, LIVE-007)
 
 Branch `r10-realtime10`, from `main` at `748681d`, with `main` at `9df0757`
-merged in. Windows 11, Node 24.13.0. Servers ran on ports 4380–4386 only, and
+merged in. Windows 11, Node 24.13.0. Servers ran on ports 4380–4391 only, and
 all tests ran one file and one browser at a time.
 
 ## REAL-011: drain-aware slow-consumer bound
@@ -119,7 +119,10 @@ Remaining:
     per-replica counts (`report.load` in `artifacts/reports/services.json`);
   - the only failure condition is a replica that delivered nothing.
 
-Not run here: see Verification.
+Results on real Redis 7 (run here, see Verification): the tenant test passed;
+the load smoke delivered 10,000/10,000 events (200 clients × 50 events, 1 KB
+payloads, 100 clients per replica) with p50 12 ms, p95 39 ms, p99 67 ms and
+max 78 ms on this loaded host. These numbers are reported, not gated.
 
 ## REAL-004: per-component transport
 
@@ -251,4 +254,77 @@ new entry is needed.
 
 ## Verification
 
-See the final message for the exact commands and results.
+Every vitest file was run alone on this host, which was under 100% CPU load
+from other engineers, so several HTTP-timing tests were slower than usual.
+
+- `pnpm install --frozen-lockfile` and `pnpm build` passed. After merging
+  `main` (`9df0757`), the examples' dependency closures were rebuilt and
+  passed.
+- `pnpm exec tsc -p tsconfig.tests.json --noEmit` reported 0 errors.
+- eslint on every changed file was clean, `node scripts/boundaries.mjs`
+  passed, and `pnpm lint:md` found 0 issues. Prettier was run on every
+  changed file.
+- `pnpm size:check`: core 39,878 gzip (budget 45,056), realtime chunk 2,287
+  (3,072), all Live code 55,130 (61,440).
+- `pnpm api:update` updated four reports (live, nestvexa, realtime,
+  realtime-redis), committed.
+- vitest results:
+  - `realtime-backpressure` 8/8;
+  - `realtime-notifications` 7/7;
+  - `realtime-distributed` 16/16 (after the merge);
+  - `realtime-hub` 17/17;
+  - `live-shared-action-policy` 10/10;
+  - `live-dependencies` 11/11 (the first case of each adapter needed
+    `--testTimeout=120000` under load);
+  - `api-coexistence` 14/14 (`NESTVEXA_COEXISTENCE_PORT=4380`);
+  - `observability-spans` passed when run alone;
+  - `realtime` 14/14. Its SSE replay and long-poll cases timed out at the
+    default 15 s under load and passed with `--testTimeout=90000`. The
+    long-poll case waits a fixed 100 ms before publishing, which is a
+    pre-existing race.
+- Playwright (uncommitted `playwright.local.config.ts`, starter-live on
+  4382):
+  - `live-depends-on.spec.ts`: Chromium 1/1, Firefox 1/1, WebKit 1/1;
+  - `realtime.spec.ts`: Chromium 7/7 and WebKit 7/7. In Firefox, the first
+    run hit the 30 s timeout (host load). The rerun with `--timeout=120000`
+    passed for the case checked (the SSE case); the other Firefox cases were
+    not rerun.
+- Real Redis 7 (container `nv-r10-redis` on 6402, removed afterwards):
+  - `NESTVEXA_REDIS_PORT=6402 NESTVEXA_SERVICES_BROWSER=0
+NESTVEXA_LOAD_BASE_PORT=4390 node scripts/services-check.mjs`. Passed:
+    redis, redis-live-store, redis-live-namespace, redis-live-coordination,
+    redis-job-queue, redis-presence, redis-action-idempotency, the new
+    redis-live-downloads (4 steps) and the new redis-realtime-load (metrics
+    above).
+  - **Failed:** `redis-cache-store` ("stampede lock: 1 runs,
+    coalesced/miss"). This section belongs to the cache stores branch, not
+    this one. Under load the second instance's lookup took the lock before
+    the first, so only the order of the two results was wrong, and the
+    loader still ran once.
+  - `NESTVEXA_ACCEPT_BASE_PORT=4380 pnpm exec playwright test -c
+playwright.services.config.ts --project=chromium
+tests/services/distributed.spec.ts`: **11/11**, including the new tenant
+    and download cases and the existing idempotent-replay and identity-lock
+    cases (LIVE-007 on real Redis through the Live runtime).
+    `showcase-redis.spec.ts` was not run.
+
+## Merge notes
+
+- `package.json`: `tests/realtime-backpressure.test.ts` and
+  `tests/realtime-notifications.test.ts` join `test:integration`, and
+  `realtime-notifications` joins `test:security`.
+- No new root `playwright.config.ts` entry: `live-depends-on.spec.ts` uses
+  starter-live on 3102 (`NESTVEXA_STARTER_LIVE_ORIGIN` overrides it).
+- Behaviour changes to know about:
+  - the realtime `queueLimit` default is now 1024 (was 64);
+  - a custom `RealtimeSink` without `onDrain` keeps the old immediate close;
+  - distributed-live guest cookies now carry a tenant (`id.tenant.mac`), so
+    old cookies are refused and a new guest is issued;
+  - api-coexistence attaches the realtime WebSocket on the shared port too.
+- Expected conflicts: `packages/live/src/runtime.ts` (download path,
+  wrapper attributes), `packages/client/src/index.ts` (realtime
+  controllers), `scripts/services-check.mjs` (header comment and new
+  sections before `s3`), `packages/realtime-redis/src/realtime.ts`.
+- Changesets: `realtime-round10-drain-aware` (realtime minor),
+  `realtime-redis-round10-helper` (realtime-redis minor) and
+  `live-round10-downloads-transport` (live and client minor).
