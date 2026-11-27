@@ -410,6 +410,7 @@ pnpm --filter @nestvexa/example-orm-typeorm start       # http://127.0.0.1:4021 
 pnpm --filter @nestvexa/example-orm-drizzle start       # http://127.0.0.1:4022 Drizzle (libSQL)
 pnpm --filter @nestvexa/example-auth-passport start     # http://127.0.0.1:4023 Passport auth starter
 pnpm --filter @nestvexa/example-views-tour start        # http://127.0.0.1:4100 view namespaces, themes, error pages
+pnpm --filter @nestvexa/example-devtools-tracing start  # http://127.0.0.1:4340 devtools panel, browser trace context, OpenTelemetry
 ```
 
 `pnpm docs:build` fails when an `examples/*` workspace is missing from this

@@ -176,6 +176,24 @@ declare function createIslandManifest(definitions: readonly IslandBuildDefinitio
 // createViteIslandManifest
 declare function createViteIslandManifest(definitions: readonly IslandBuildDefinition[], viteManifest: ViteManifestLike, options: ViteIslandManifestOptions): IslandManifest;
 
+// IslandBudgetOptions
+interface IslandBudgetOptions {
+    readonly budgetBytes?: number;
+}
+
+// IslandBudgetWarning
+interface IslandBudgetWarning {
+    readonly id: string;
+    readonly framework: IslandFramework;
+    readonly gzipBytes: number;
+    readonly budgetBytes: number;
+    readonly source: 'island' | 'default';
+    readonly message: string;
+}
+
+// islandBudgetWarnings
+declare function islandBudgetWarnings(report: Pick<IslandBundleReport, 'islands'>, options?: IslandBudgetOptions): readonly IslandBudgetWarning[];
+
 // IslandBuildDefinition
 interface IslandBuildDefinition extends Omit<IslandDefinition, 'bundle'> {
     readonly entry: string;
@@ -264,6 +282,8 @@ interface IslandsVitePluginOptions {
     readonly manifest?: string;
     readonly analysis?: string;
     readonly failOnViolation?: boolean;
+    readonly budgetBytes?: number;
+    readonly onBudgetWarning?: (warning: IslandBudgetWarning) => void;
     readonly onReport?: (manifest: IslandManifest, report: IslandBundleReport) => void;
 }
 

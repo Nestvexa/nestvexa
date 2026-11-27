@@ -18,11 +18,33 @@ const client = createLiveClient({
 client.mount();
 ```
 
-Each frozen sample has exactly `phase`, `outcome` and `milliseconds`. Phases are
-`queue`, `request` and `morph`; outcomes are `succeeded`, `failed` and `cancelled`.
-No identity, component/action name, request ID, URL, token, state, HTML, error text
-or DOM element is exposed. A throwing sink is isolated and never retries an
-action. Hosts still control access, retention and any additional data they log.
+Each frozen sample has `phase`, `outcome`, `milliseconds` and the registered
+`component` name (public, as in the component's markup). `request` samples also
+carry `requestBytes` (the request body) and, when a response body was read,
+`responseBytes`; with the `tracing` option every sample carries the request's
+`traceId`. Phases are `queue`, `request` and `morph`; outcomes are `succeeded`,
+`failed` and `cancelled`. No identity, action name, request ID, URL, token,
+state, HTML, error text or DOM element is exposed. A throwing sink is isolated
+and never retries an action. Hosts still control access, retention and any
+additional data they log.
+
+In development, `devtoolsReporter()` from `@nestvexa/observability/devtools-client`
+is a ready-made sink: it batches samples to the development panel, which shows
+browser morph timing and network batches per component
+([observability guide](observability.md#development-panel)).
+
+## Trace context
+
+`createLiveClient({ tracing: true })` sends a W3C `traceparent` header
+(version 00, a new random trace and span id, sampled) with every Live request;
+automatic retries of an idempotent action resend the same header. Pass a
+function instead to continue a browser tracing SDK's trace:
+`tracing: () => currentTraceparent()`. A value that is not a well-formed,
+lowercase, non-zero version-00 header (or a throwing function) sends no header
+and never blocks the request. On the server, `traceContextMiddleware` and the
+OpenTelemetry bridge from `@nestvexa/observability` join that trace. The header
+is correlation data only: the server never uses it for authentication,
+authorization or CSRF.
 
 Timing uses the owning window's monotonic `performance.now()` clock, as defined
 by [High Resolution Time](https://www.w3.org/TR/hr-time-3/). Values are finite,
@@ -44,7 +66,9 @@ still reports failure. Cancellation does not establish server rollback.
 
 Tests in [the controlled Chromium transport suite](../../tests/client-transport-lifecycle.test.ts)
 exercise queue separation, immutable/redacted payloads, disabled collection,
-throwing sinks, rejected HTTP, invalid fragments and disposal. Those tests are
+throwing sinks, rejected HTTP, invalid fragments and disposal;
+[tests/client-tracing-realtime.test.ts](../../tests/client-tracing-realtime.test.ts)
+covers the `traceparent` header, sizes and trace ids. Those tests are
 browser instrumentation tests, not server performance benchmarks.
 
 `pnpm size:check` measures the emitted custom client modules and checks the
@@ -52,8 +76,8 @@ browser instrumentation tests, not server performance benchmarks.
 module and explicitly excludes Alpine, its adapter and source maps. It is not an
 observed compressed HTTP transfer size or the complete startup cost.
 
-This additive alpha API changes no Live wire fields. Server spans, OpenTelemetry,
-sampling, a devtools panel and distributed measurements belong to later phases.
+This additive alpha API changes no Live wire fields; `tracing` adds only the
+standard `traceparent` request header.
 
 ## Development instrumentation
 

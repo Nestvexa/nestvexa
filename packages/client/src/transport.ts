@@ -49,6 +49,7 @@ async function readJson(
   response: Response,
   signal: AbortSignal,
   setReader: (reader: ReadableStreamDefaultReader<Uint8Array> | null) => void,
+  onBytes?: (bytes: number) => void,
 ): Promise<unknown> {
   // A 426 reply or another advertised protocol major means this page was
   // built for a different server version: reloading is the only safe recovery.
@@ -114,6 +115,7 @@ async function readJson(
       contents.set(chunk.value, bytes);
       bytes += chunk.value.byteLength;
     }
+    onBytes?.(bytes);
     return JSON.parse(
       new TextDecoder('utf-8', { fatal: true }).decode(
         contents.subarray(0, bytes),
@@ -138,6 +140,8 @@ export async function requestLive(
   controller: AbortController,
   clock: RequestClock,
   timeout: number,
+  /** Response body bytes read, reported before parsing (diagnostics). */
+  onBytes?: (bytes: number) => void,
 ): Promise<unknown> {
   let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
   let timeoutError: LiveClientError | undefined;
@@ -171,9 +175,14 @@ export async function requestLive(
     }
     try {
       if (controller.signal.aborted) throw aborted();
-      return await readJson(response, controller.signal, (active) => {
-        reader = active;
-      });
+      return await readJson(
+        response,
+        controller.signal,
+        (active) => {
+          reader = active;
+        },
+        onBytes,
+      );
     } catch (error) {
       if (error instanceof LiveClientError) throw error;
       throw responseFailure();

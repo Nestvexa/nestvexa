@@ -74,6 +74,9 @@ interface DevErrorReport {
     })[];
 }
 
+// DEVTOOLS_CLIENT_BATCH_LIMIT
+declare const DEVTOOLS_CLIENT_BATCH_LIMIT = 50;
+
 // DEVTOOLS_OPTIONS
 declare const DEVTOOLS_OPTIONS: unique symbol;
 
@@ -116,8 +119,17 @@ declare class DevtoolsInspector {
     constructor(options?: DevtoolsInspectorOptions);
     registered(components: readonly InspectedComponent[]): void;
     rendered(input: InspectedRenderInput): void;
+    cacheEvent(event: InspectedCacheEventInput): void;
+    page(input: InspectedPageInput): void;
+    clientReport(entries: unknown): number;
     get components(): readonly InspectedComponent[];
     get renders(): readonly InspectedRender[];
+    get cacheEvents(): readonly InspectedCacheEvent[];
+    get cacheSummary(): readonly InspectedCacheSummary[];
+    get pages(): readonly InspectedPage[];
+    get clientTimings(): readonly InspectedClientTiming[];
+    get network(): readonly InspectedNetworkSummary[];
+    get morphs(): readonly InspectedMorphSummary[];
     clear(): void;
 }
 
@@ -225,6 +237,16 @@ interface DevtoolsSnapshot {
         readonly count: number;
     }[];
     readonly kernel: DevtoolsKernelSnapshot;
+    readonly cache: {
+        readonly summary: readonly InspectedCacheSummary[];
+        readonly events: readonly InspectedCacheEvent[];
+    };
+    readonly pages: readonly InspectedPage[];
+    readonly browser: {
+        readonly morphs: readonly InspectedMorphSummary[];
+        readonly network: readonly InspectedNetworkSummary[];
+        readonly timings: readonly InspectedClientTiming[];
+    };
 }
 
 // devtoolsStylesheet
@@ -236,6 +258,68 @@ declare function formatTraceparent(context: {
     readonly spanId: string;
     readonly sampled: boolean;
 }): string;
+
+// InspectedCacheEvent
+interface InspectedCacheEvent {
+    readonly at: number;
+    readonly requestId?: string;
+    readonly type: InspectedCacheEventType;
+    readonly namespace?: string;
+    readonly scope?: string;
+    readonly durationMs?: number;
+    readonly reason?: string;
+    readonly tags: readonly string[];
+    readonly removed?: number;
+}
+
+// InspectedCacheEventInput
+interface InspectedCacheEventInput {
+    readonly type: string;
+    readonly namespace?: string;
+    readonly scope?: string;
+    readonly durationMs?: number;
+    readonly reason?: string;
+    readonly tags?: readonly string[];
+    readonly removed?: number;
+}
+
+// InspectedCacheEventType
+type InspectedCacheEventType = 'hit' | 'miss' | 'stale' | 'coalesced' | 'bypass' | 'refused' | 'discarded' | 'compute-error' | 'refresh-error' | 'store-error' | 'invalidate';
+
+// InspectedCacheSummary
+interface InspectedCacheSummary {
+    readonly namespace: string;
+    readonly hits: number;
+    readonly misses: number;
+    readonly stale: number;
+    readonly coalesced: number;
+    readonly bypassed: number;
+    readonly errors: number;
+    readonly hitRatio: number;
+}
+
+// InspectedClientTiming
+interface InspectedClientTiming {
+    readonly at: number;
+    readonly phase: 'queue' | 'request' | 'morph';
+    readonly outcome: 'succeeded' | 'failed' | 'cancelled';
+    readonly milliseconds: number;
+    readonly component?: string;
+    readonly requestBytes?: number;
+    readonly responseBytes?: number;
+    readonly traceId?: string;
+}
+
+// InspectedClientTimingInput
+interface InspectedClientTimingInput {
+    readonly phase: string;
+    readonly outcome: string;
+    readonly milliseconds: number;
+    readonly component?: string;
+    readonly requestBytes?: number;
+    readonly responseBytes?: number;
+    readonly traceId?: string;
+}
 
 // InspectedComponent
 interface InspectedComponent {
@@ -251,6 +335,51 @@ interface InspectedComponent {
     readonly children: readonly string[];
     readonly listeners: readonly string[];
     readonly realtime: boolean;
+}
+
+// InspectedMorphSummary
+interface InspectedMorphSummary {
+    readonly component: string;
+    readonly morphs: number;
+    readonly p50: number;
+    readonly max: number;
+}
+
+// InspectedNetworkSummary
+interface InspectedNetworkSummary {
+    readonly component: string;
+    readonly requests: number;
+    readonly failed: number;
+    readonly requestBytes: number;
+    readonly responseBytes: number;
+    readonly averageMs: number;
+    readonly maxMs: number;
+}
+
+// InspectedPage
+interface InspectedPage {
+    readonly at: number;
+    readonly requestId?: string;
+    readonly component: string;
+    readonly kind: 'document' | 'json';
+    readonly status: number;
+    readonly propNames: readonly string[];
+    readonly propsBytes: number;
+    readonly props: unknown;
+    readonly partial?: readonly string[];
+    readonly deferred: readonly string[];
+    readonly shared: readonly string[];
+}
+
+// InspectedPageInput
+interface InspectedPageInput {
+    readonly component: string;
+    readonly kind: 'document' | 'json';
+    readonly status?: number;
+    readonly props: Readonly<Record<string, unknown>>;
+    readonly partial?: readonly string[];
+    readonly deferred?: Readonly<Record<string, readonly string[]>>;
+    readonly shared?: readonly string[];
 }
 
 // InspectedRender
@@ -524,4 +653,38 @@ interface TraceContextOptions {
 
 // traceGuard
 declare function traceGuard(guard: CanActivate, instrumentation: LiveInstrumentation, name?: string): CanActivate;
+```
+
+## `@nestvexa/observability/devtools-client`
+
+Typings: `./dist/devtools-client.d.ts`
+
+```ts
+// DevtoolsDiagnosticLike
+interface DevtoolsDiagnosticLike {
+    readonly phase: 'queue' | 'request' | 'morph';
+    readonly outcome: 'succeeded' | 'failed' | 'cancelled';
+    readonly milliseconds: number;
+    readonly component?: string;
+    readonly requestBytes?: number;
+    readonly responseBytes?: number;
+    readonly traceId?: string;
+}
+
+// devtoolsReporter
+declare function devtoolsReporter(options?: DevtoolsReporterOptions): DevtoolsReporter;
+
+// DevtoolsReporter
+interface DevtoolsReporter {
+    readonly onDiagnostic: (event: DevtoolsDiagnosticLike) => void;
+    flush(): Promise<void>;
+    dispose(): void;
+}
+
+// DevtoolsReporterOptions
+interface DevtoolsReporterOptions {
+    readonly endpoint?: string;
+    readonly flushMs?: number;
+    readonly fetch?: typeof fetch;
+}
 ```

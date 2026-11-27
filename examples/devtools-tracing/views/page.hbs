@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nestvexa devtools and tracing</title>
+    <link rel="stylesheet" href="/assets/example.css" />
+    <script type="module" src="/assets/boot.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>Nestvexa devtools and tracing</h1>
+      {{{widget}}} {{#if development}}
+      <p>
+        Open the
+        <a href="/_nestvexa/devtools">development panel</a>
+        or the
+        <a href="/api/traces">OpenTelemetry spans</a>.
+      </p>
+      {{/if}}
+    </main>
+  </body>
+</html>

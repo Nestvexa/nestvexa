@@ -990,11 +990,21 @@ describe('bounded browser request lifecycle', () => {
     expect(samples[3]?.milliseconds).toBe(40);
     expect(samples[4]?.milliseconds).toBe(20);
     for (const sample of samples) {
-      expect(Object.keys(sample).sort()).toEqual([
-        'milliseconds',
-        'outcome',
-        'phase',
-      ]);
+      // Only the public component name and byte sizes join the timing (no
+      // trace id without the `tracing` option).
+      expect(Object.keys(sample).sort()).toEqual(
+        sample.phase === 'request'
+          ? [
+              'component',
+              'milliseconds',
+              'outcome',
+              'phase',
+              'requestBytes',
+              'responseBytes',
+            ]
+          : ['component', 'milliseconds', 'outcome', 'phase'],
+      );
+      expect(sample.component).toBe('parent');
       expect(
         Number.isFinite(sample.milliseconds) && sample.milliseconds >= 0,
       ).toBe(true);

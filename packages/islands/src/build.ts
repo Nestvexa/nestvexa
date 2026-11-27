@@ -229,6 +229,56 @@ export function analyzeIslandBundles(
   return Object.freeze({ islands, frameworks, violations });
 }
 
+/** An island whose chunk graph is over its own or the default gzip budget. */
+export interface IslandBudgetWarning {
+  readonly id: string;
+  readonly framework: IslandFramework;
+  readonly gzipBytes: number;
+  readonly budgetBytes: number;
+  /** `island`: the definition's `budgetBytes`; `default`: the `budgetBytes` option. */
+  readonly source: 'island' | 'default';
+  readonly message: string;
+}
+export interface IslandBudgetOptions {
+  /** Gzip budget for islands whose definition sets no `budgetBytes`. */
+  readonly budgetBytes?: number;
+}
+
+/**
+ * Development warnings for oversized islands: every island of `report`
+ * over its own `budgetBytes` or, without one, over the default
+ * `budgetBytes` option. Build scripts print them (the Vite plugin does so
+ * itself); only an island's own budget is also a build violation.
+ */
+export function islandBudgetWarnings(
+  report: Pick<IslandBundleReport, 'islands'>,
+  options: IslandBudgetOptions = {},
+): readonly IslandBudgetWarning[] {
+  const fallback = options.budgetBytes;
+  if (
+    fallback !== undefined &&
+    (!Number.isSafeInteger(fallback) || fallback < 1)
+  )
+    throw new Error('Island budgetBytes must be a positive integer');
+  const warnings: IslandBudgetWarning[] = [];
+  for (const island of report.islands) {
+    const budget = island.budgetBytes ?? fallback;
+    if (budget === undefined || island.gzipBytes <= budget) continue;
+    const source = island.budgetBytes === undefined ? 'default' : 'island';
+    warnings.push(
+      Object.freeze({
+        id: island.id,
+        framework: island.framework,
+        gzipBytes: island.gzipBytes,
+        budgetBytes: budget,
+        source,
+        message: `Island ${island.id} (${island.framework}) is ${island.gzipBytes} gzip bytes, over its ${source === 'default' ? 'default ' : ''}${budget} byte budget by ${island.gzipBytes - budget} bytes`,
+      }),
+    );
+  }
+  return Object.freeze(warnings);
+}
+
 // ------------------------------------------------------------------ Vite
 
 /** One record of a Vite `build.manifest` file (`.vite/manifest.json`). */
@@ -331,6 +381,16 @@ export interface IslandsVitePluginOptions {
   readonly analysis?: string;
   /** Fail the build on a foreign framework runtime or a budget overrun. Default true. */
   readonly failOnViolation?: boolean;
+  /**
+   * Default gzip budget for islands whose definition sets no `budgetBytes`.
+   * Going over it is a warning (see `onBudgetWarning`), never a failure.
+   */
+  readonly budgetBytes?: number;
+  /**
+   * Receives each island over its own or the default budget after every
+   * build, including `vite build --watch` rebuilds. Default: `console.warn`.
+   */
+  readonly onBudgetWarning?: (warning: IslandBudgetWarning) => void;
   /** Receives the manifest and analysis once written (logging, extra copies). */
   readonly onReport?: (
     manifest: IslandManifest,
@@ -386,6 +446,11 @@ function jsonName(value: string | undefined, fallback: string): string {
 export function islandsVitePlugin(
   options: IslandsVitePluginOptions = {},
 ): IslandsVitePlugin {
+  if (
+    options.budgetBytes !== undefined &&
+    (!Number.isSafeInteger(options.budgetBytes) || options.budgetBytes < 1)
+  )
+    throw new Error('Island budgetBytes must be a positive integer');
   const files = {
     metafile: jsonName(options.metafile, 'islands-metafile.json'),
     manifest: jsonName(options.manifest, 'islands-manifest.json'),
@@ -492,6 +557,16 @@ export function islandsVitePlugin(
         JSON.stringify(report, null, 2),
       );
       options.onReport?.(manifest, report);
+      const warn =
+        options.onBudgetWarning ??
+        ((warning: IslandBudgetWarning) =>
+          console.warn(`[nestvexa:islands] ${warning.message}`));
+      for (const warning of islandBudgetWarnings(report, {
+        ...(options.budgetBytes === undefined
+          ? {}
+          : { budgetBytes: options.budgetBytes }),
+      }))
+        warn(warning);
       if (options.failOnViolation !== false && report.violations.length > 0)
         throw new Error(
           `Island bundle violations: ${report.violations.join('; ')}`,

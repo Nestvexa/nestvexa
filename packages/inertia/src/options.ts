@@ -6,8 +6,11 @@ import {
 import { defaultRootView } from './document.js';
 import type { InertiaRootView } from './document.js';
 import { InertiaConfigurationError } from './errors.js';
-import { isInstrumentation } from './instrumentation.js';
-import type { InertiaInstrumentation } from './instrumentation.js';
+import { isInspector, isInstrumentation } from './instrumentation.js';
+import type {
+  InertiaInspector,
+  InertiaInstrumentation,
+} from './instrumentation.js';
 import { normalizeOrigin } from './redirect.js';
 import { defaultHeaderLimits } from './request.js';
 import type { InertiaHeaderLimits } from './request.js';
@@ -165,6 +168,13 @@ export interface InertiaModuleOptions extends InertiaAppOptions {
    */
   readonly instrumentation?: InertiaInstrumentation;
   /**
+   * Development-only inspector (for example `DevtoolsInspector` from
+   * @nestvexa/observability): receives each page response's component and
+   * resolved props for the devtools panel. It throws nothing into the
+   * response; a failing inspector is ignored. Do not pass it in production.
+   */
+  readonly inspector?: InertiaInspector;
+  /**
    * What an Inertia request whose handler returned nothing gets. `back`
    * (default, as `inertia-laravel` does) redirects to the previous URL, so a
    * `@Post()` handler that only mutates state needs no explicit `back()`.
@@ -243,6 +253,7 @@ export interface ResolvedOptions {
   readonly onRescue:
     ((error: unknown, path: string, request: object) => void) | undefined;
   readonly instrumentation: InertiaInstrumentation | undefined;
+  readonly inspector: InertiaInspector | undefined;
   readonly emptyResponse: 'back' | 'passthrough';
   readonly previousUrl: boolean;
   readonly security: InertiaSecurityPolicies | undefined;
@@ -427,6 +438,7 @@ export function resolveOptions(
     now: options.now ?? Date.now,
     onRescue: options.onRescue,
     instrumentation: instrumentation(options.instrumentation),
+    inspector: inspector(options.inspector),
     emptyResponse,
     previousUrl: options.previousUrl !== false,
     security:
@@ -501,6 +513,13 @@ export function onceShared(value: unknown): Record<string, OnceProp> {
       );
   }
   return result;
+}
+
+function inspector(value: unknown): InertiaInspector | undefined {
+  if (value === undefined) return undefined;
+  if (!isInspector(value))
+    throw new InertiaConfigurationError('inspector must implement page()');
+  return value;
 }
 
 function instrumentation(value: unknown): InertiaInstrumentation | undefined {

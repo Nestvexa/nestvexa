@@ -1,6 +1,7 @@
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { gzipSync } from 'node:zlib';
 import { join } from 'node:path';
+import { checkIslandBudgets } from './island-budgets.mjs';
 
 // ADR 0036 (amending ADR 0020): the entry every Live page loads has its own
 // hard gate; each on-demand feature chunk has one; and the worst case (a page
@@ -72,4 +73,26 @@ console.log(
 );
 if (unbudgeted.length)
   console.log(`Unbudgeted dynamic imports: ${unbudgeted.join(', ')}`);
-if (!report.passed) process.exitCode = 1;
+
+// Per-island budgets of the built island examples (scripts/island-budgets.mjs).
+const islands = await checkIslandBudgets();
+await writeFile(
+  'artifacts/reports/islands-budget.json',
+  JSON.stringify(
+    {
+      timestamp: report.timestamp,
+      node: process.version,
+      scope:
+        'Each island of examples/hybrid-dashboard and examples/islands-vite: gzip (level 9) bytes of its entry chunk plus static import closure, excluding the shared loader.',
+      ...islands,
+    },
+    null,
+    2,
+  ),
+);
+for (const island of islands.islands)
+  console.log(
+    `Island ${island.id} (${island.example}): ${island.gzipBytes} gzip (budget ${island.budgetBytes ?? 'none'})${island.passed ? '' : ' OVER BUDGET'}`,
+  );
+for (const failure of islands.failures) console.error(failure);
+if (!report.passed || !islands.passed) process.exitCode = 1;

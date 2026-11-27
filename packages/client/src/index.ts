@@ -118,6 +118,14 @@ export interface LiveClientOptions {
   readonly requestTimeoutMs?: number;
   /** Opt-in timings only; no DOM, identities, tokens, URLs, state or action names. Sink errors are isolated. */
   readonly onDiagnostic?: (event: LiveDiagnostic) => void;
+  /**
+   * Send a W3C `traceparent` header with each Live request so the server
+   * joins the browser's trace. `true` starts a new sampled trace per
+   * request; a function returns the header from a browser tracing SDK
+   * (malformed values are not sent). The server treats it as untrusted
+   * correlation data only, never for authorization.
+   */
+  readonly tracing?: boolean | (() => string | undefined);
   /** Trusted custom dialog. Default: native window.confirm; only literal true approves. */
   readonly confirm?: LiveConfirm;
   /** Approval deadline, 1–300000ms; default 30000ms. No request is sent on expiry. */
@@ -158,6 +166,14 @@ export interface LiveDiagnostic {
   readonly phase: 'queue' | 'request' | 'morph';
   readonly outcome: 'succeeded' | 'failed' | 'cancelled';
   readonly milliseconds: number;
+  /** Registered component name (public, as in `data-nv-component`). */
+  readonly component?: string;
+  /** `request` phase: request body bytes. */
+  readonly requestBytes?: number;
+  /** `request` phase: response body bytes read, when a response arrived. */
+  readonly responseBytes?: number;
+  /** Trace id of the `traceparent` sent with the request (`tracing` option). */
+  readonly traceId?: string;
 }
 /**
  * Detail of the bubbling `nestvexa:request` event dispatched on a component
@@ -587,6 +603,39 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
   const window = view;
   const transport = options.fetch ?? window.fetch.bind(window);
   const timeout = requestTimeout(options.requestTimeoutMs);
+  const tracing = options.tracing;
+  if (
+    tracing !== undefined &&
+    typeof tracing !== 'boolean' &&
+    typeof tracing !== 'function'
+  )
+    throw new LiveClientError(
+      'DIRECTIVE',
+      'tracing must be a boolean or a function',
+    );
+  /** A validated version-00 `traceparent` for one request, or undefined. */
+  function traceparent(): string | undefined {
+    let value: unknown;
+    if (tracing === true) {
+      const hex = (size: number) =>
+        Array.from(
+          window.crypto.getRandomValues(new Uint8Array(size)),
+          (byte) => byte.toString(16).padStart(2, '0'),
+        ).join('');
+      value = `00-${hex(16)}-${hex(8)}-01`;
+    } else if (tracing)
+      try {
+        value = tracing();
+      } catch {
+        // A failing tracing SDK never blocks the request.
+      }
+    return typeof value === 'string' &&
+      /^00-(?!0{32}-)[0-9a-f]{32}-(?!0{16}-)[0-9a-f]{16}-[0-9a-f]{2}$/.test(
+        value,
+      )
+      ? value
+      : undefined;
+  }
   const initLimit = options.maxInitializations ?? 64;
   if (!Number.isSafeInteger(initLimit) || initLimit < 1 || initLimit > 1000)
     throw new LiveClientError(
@@ -1447,6 +1496,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
     outcome: LiveDiagnostic['outcome'],
     start: number | undefined,
     end: number | undefined,
+    detail: Omit<LiveDiagnostic, 'phase' | 'outcome' | 'milliseconds'>,
   ): void {
     if (start === undefined || end === undefined || !options.onDiagnostic)
       return;
@@ -1458,6 +1508,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
           phase,
           outcome,
           milliseconds: Math.max(0, milliseconds),
+          ...detail,
         }),
       );
     } catch {
@@ -1539,7 +1590,8 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       updates,
       input,
     });
-    if (new TextEncoder().encode(body).byteLength > 65_536)
+    const requestBytes = new TextEncoder().encode(body).byteLength;
+    if (requestBytes > 65_536)
       throw new LiveClientError(
         'DIRECTIVE',
         'Live request exceeds the 65536-byte envelope limit',
@@ -1552,7 +1604,10 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
       ? window.performance.now()
       : undefined;
     let responseAt: number | undefined;
+    let responseBytes: number | undefined;
     let morphAt: number | undefined;
+    // One trace per request: automatic retries resend the same header.
+    const trace = traceparent();
     let applied = false;
     let failed = false;
     /** The browser reported no connectivity, so nothing reached the server. */
@@ -1585,6 +1640,7 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
                 ...(resync
                   ? { 'x-nestvexa-resync': resync === true ? '1' : resync }
                   : {}),
+                ...(trace === undefined ? {} : { traceparent: trace }),
               },
               body,
             },
@@ -1595,6 +1651,9 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
               clearTimeout: (timer) => window.clearTimeout(timer),
             },
             timeout,
+            (bytes) => {
+              responseBytes = bytes;
+            },
           );
           break;
         } catch (error) {
@@ -1995,14 +2054,23 @@ export function createLiveClient(options: LiveClientOptions = {}): LiveClient {
             ? 'cancelled'
             : 'failed';
       // Emit after application/cleanup: observers cannot interleave a partial morph.
-      diagnostic('queue', outcome, queuedAt, startedAt);
+      const detail = {
+        component: state.name,
+        ...(trace === undefined ? {} : { traceId: trace.slice(3, 35) }),
+      };
+      diagnostic('queue', outcome, queuedAt, startedAt, detail);
       diagnostic(
         'request',
         responseAt === undefined ? outcome : 'succeeded',
         startedAt,
         responseAt ?? finishedAt,
+        {
+          ...detail,
+          requestBytes,
+          ...(responseBytes === undefined ? {} : { responseBytes }),
+        },
       );
-      diagnostic('morph', outcome, morphAt, finishedAt);
+      diagnostic('morph', outcome, morphAt, finishedAt, detail);
       progress(state, { action: name, phase: 'end', outcome });
     }
   }

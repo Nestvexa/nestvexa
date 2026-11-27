@@ -1,0 +1,9 @@
+<section aria-labelledby="meter-title">
+  <h2 id="meter-title">Meter</h2>
+  <p>Count: <output id="count" nv:text="count">{{count}}</output></p>
+  <p>Plan (cached): <output id="plan" nv:text="plan">{{plan}}</output></p>
+  <button type="button" id="bump" nv:click="bump">Bump</button>
+  <button type="button" id="refresh-plan" nv:click="refreshPlan">
+    Invalidate plan
+  </button>
+</section>
