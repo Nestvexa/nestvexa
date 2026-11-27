@@ -10,14 +10,14 @@ Call one registered Live action when a matching `keydown` event reaches an owned
 
 The value is a registered action identifier, never an expression. At most one key filter selects the key; without one, every `keydown` that passes the other filters invokes the action.
 
-| Key filter    | Matches `KeyboardEvent.key`  |
-| ------------- | ---------------------------- |
-| `.enter`      | `Enter`                      |
-| `.escape`     | `Escape`                     |
+| Key filter    | Matches `KeyboardEvent.key`   |
+| ------------- | ----------------------------- |
+| `.enter`      | `Enter`                       |
+| `.escape`     | `Escape`                      |
 | `.space`      | `' '` (and legacy `Spacebar`) |
-| `.tab`        | `Tab`                        |
-| `.arrow-up`   | `ArrowUp`                    |
-| `.arrow-down` | `ArrowDown`                  |
+| `.tab`        | `Tab`                         |
+| `.arrow-up`   | `ArrowUp`                     |
+| `.arrow-down` | `ArrowDown`                   |
 
 The remaining modifiers are shared with [`nv:click`](nv-click.md): `.prevent`, `.stop`, `.self`, `.once`, the required system keys `.ctrl`, `.alt`, `.shift`, `.meta` (other pressed keys are allowed), one `.debounce[.Nms]` or `.throttle[.Nms]` scheduler (default 250ms, 1–60000ms), and one `.window` or `.document` scope. Multiple key filters, unknown key names, duplicate modifiers and a scope combined with `.self` or `.stop` are rejected. Event kind, disabled control, `.self`, key and system-key filters run before `.prevent`/`.stop`, so a non-matching key keeps its native behavior. The full order and the scope rules are in [event modifiers and scopes](nv-events.md).
 

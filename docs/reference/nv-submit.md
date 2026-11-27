@@ -39,13 +39,7 @@ After an `nv:submit` response that leaves `aria-invalid="true"` controls in the 
 ```html
 <form id="signup" nv:submit="save">
   <label for="email">Email</label>
-  <input
-    id="email"
-    type="email"
-    required
-    nv:model="email"
-    value="{{email}}"
-  />
+  <input id="email" type="email" required nv:model="email" value="{{email}}" />
   <span id="email-dirty" nv:dirty="email" hidden>Unsaved email</span>
   <button id="save" type="submit" nv:loading.attr="disabled" nv:target="save">
     Save

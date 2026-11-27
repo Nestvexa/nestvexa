@@ -11,16 +11,16 @@ Bind a native form control to a writable public state field. Edits stay local dr
 
 The value is a public state field or a dotted path of at most eight identifier segments (`address.city`). Array indices, expressions and reserved names are rejected. Each control accepts exactly one `nv:model` declaration.
 
-| Modifier                | Behavior                                                                     |
-| ----------------------- | ---------------------------------------------------------------------------- |
-| none or `.defer`        | Keep local edits until the next action; no independent request               |
-| `.live`                 | Synchronize input after a trailing 150ms debounce                            |
-| `.blur`                 | Synchronize on the control's bubbling `focusout`                             |
-| `.change`, `.lazy`      | Synchronize on native `change` (`.lazy` is an alias)                         |
-| `.debounce[.Nms]`       | Trailing debounce (default 250ms, 1–60000ms); implies `.live` without a mode |
-| `.throttle[.Nms]`       | Send immediately, suppress within the interval; no trailing call             |
-| `.number`               | Complete finite decimal (exponent allowed); rejects empty, hex and partials  |
-| `.boolean`              | Booleans or the strings `true`, `false`, `1`, `0`                            |
+| Modifier           | Behavior                                                                     |
+| ------------------ | ---------------------------------------------------------------------------- |
+| none or `.defer`   | Keep local edits until the next action; no independent request               |
+| `.live`            | Synchronize input after a trailing 150ms debounce                            |
+| `.blur`            | Synchronize on the control's bubbling `focusout`                             |
+| `.change`, `.lazy` | Synchronize on native `change` (`.lazy` is an alias)                         |
+| `.debounce[.Nms]`  | Trailing debounce (default 250ms, 1–60000ms); implies `.live` without a mode |
+| `.throttle[.Nms]`  | Send immediately, suppress within the interval; no trailing call             |
+| `.number`          | Complete finite decimal (exponent allowed); rejects empty, hex and partials  |
+| `.boolean`         | Booleans or the strings `true`, `false`, `1`, `0`                            |
 
 A model has at most one mode, one cast and one timer. Timing combines with `.live` but not with `.defer`, `.blur`, `.change` or `.lazy`. Duplicate, unknown, conflicting and event-only modifiers fail explicitly. The complete grammar table is in the [directive reference](directives.md#model-modifiers).
 

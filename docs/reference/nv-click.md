@@ -15,7 +15,7 @@ The value is a registered action identifier (`/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/`, 
 | `.prevent`                         | `preventDefault()` after the filters accept the event (for example a link) |
 | `.stop`                            | Stop propagation from a direct element listener                            |
 | `.self`                            | Accept only clicks whose target is the element itself                      |
-| `.once`                            | Attempt the action once per element and configuration                     |
+| `.once`                            | Attempt the action once per element and configuration                      |
 | `.ctrl`, `.alt`, `.shift`, `.meta` | Require those system keys                                                  |
 | `.debounce[.Nms]`                  | Trailing call after a quiet interval (default 250ms, 1–60000ms)            |
 | `.throttle[.Nms]`                  | Leading call, then suppress clicks within the interval                     |

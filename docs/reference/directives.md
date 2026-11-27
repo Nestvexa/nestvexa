@@ -2,11 +2,7 @@
 
 This alpha implements the following configuration grammar. Names identify registered actions or public state. State-reading directives (`nv:model`, `nv:text`, `nv:show`, `nv:bind`, `nv:class`, `nv:dirty`) accept a field or a dotted path of at most eight identifier segments ([nested models](../guides/nested-models.md)); action names stay single identifiers. Expressions, array indices, executable JavaScript and unrecognized modifiers are rejected explicitly. The [directive combination matrix](directive-matrix.md) lists every supported modifier combination, the table-driven tests that prove it and the documented gaps.
 
-Additional implemented references: [poll](nv-poll.md), [intersect](nv-intersect.md),
-[offline](nv-offline.md), [current](nv-current.md), [transition](nv-transition.md),
-visible/idle [initialization](nv-init.md), [sort](nv-sort.md), [stream](nv-stream.md),
-[navigate](nv-navigate.md), [optimistic](nv-optimistic.md), [event modifiers and
-window/document scopes](nv-events.md) and [loading/target/delay](nv-loading.md).
+Every implemented directive has a standalone page; see the [directive index](#directive-index) below.
 Strict CSP and Trusted Types operation is described in the [CSP guide](../guides/csp.md).
 CSS transitions cover
 retained visibility changes and host-awaited phases; synchronous morph removals tear
@@ -14,6 +10,41 @@ down immediately. Public URL-state effects update query keys only; historical vi
 reload through the host route rather than replaying an old action snapshot. Nested
 child components are mounted with the `nvChild` template helper; see the
 [nested components guide](../guides/nested-components.md).
+
+## Directive index
+
+Each page covers syntax and modifiers, the server contract, security, accessibility, a working example taken from an example app and the tests that prove it. This list matches the directives accepted by the client parser (`parseDirective` in `packages/client/src/protocol.ts`); any other `nv:` name is a `DIRECTIVE` error.
+
+| Directive                                     | Purpose                                                                    |
+| --------------------------------------------- | -------------------------------------------------------------------------- |
+| [`nv:click`](nv-click.md)                     | Call a registered action on click                                          |
+| [`nv:submit`](nv-submit.md)                   | Enhance a form: prevent native submission and call an action               |
+| [`nv:keydown`](nv-keydown.md)                 | Call an action for a selected key                                          |
+| [Event modifiers and scopes](nv-events.md)    | Shared modifiers, precedence and `.window`/`.document` for the three above |
+| [`nv:model`](nv-model.md)                     | Bind a native control to writable state, with optional synchronization     |
+| [`nv:upload`](nv-upload.md)                   | Upload selected files and store their temporary tokens                     |
+| [`nv:loading`](nv-loading.md)                 | Show, hide, add classes or set attributes while work is pending            |
+| [`nv:target`](nv-target.md)                   | Restrict same-element loading effects to named actions or `$sync`          |
+| [`nv:text`](nv-text.md)                       | Set text content from public state                                         |
+| [`nv:show`](nv-show.md)                       | Toggle visibility from a boolean                                           |
+| [`nv:bind`](nv-bind.md)                       | Bind one allowlisted attribute                                             |
+| [`nv:class`](nv-class.md)                     | Toggle class tokens from booleans                                          |
+| [`nv:dirty`](nv-dirty.md)                     | Indicate unsaved local edits                                               |
+| [`nv:cloak`](nv-cloak.md)                     | Hide markup until the client initializes it                                |
+| [`nv:ref`](nv-ref.md)                         | Name an owned element for `client.refs()`                                  |
+| [`nv:replace`](nv-replace.md)                 | Replace a subtree instead of morphing it                                   |
+| [`nv:ignore`, `nv:ignore.self`](nv-ignore.md) | Hand a subtree or a wrapper's attributes to another owner                  |
+| [`nv:confirm`](nv-confirm.md)                 | Require approval before an event action                                    |
+| [`nv:init`](nv-init.md)                       | Run one action when a component registers (eager, visible or idle)         |
+| [`nv:poll`](nv-poll.md)                       | Call a read-only action periodically                                       |
+| [`nv:intersect`](nv-intersect.md)             | Call an action when an element enters the viewport                         |
+| [`nv:offline`](nv-offline.md)                 | Show a hint while the connection appears unavailable                       |
+| [`nv:current`](nv-current.md)                 | Mark links matching the current route                                      |
+| [`nv:transition`](nv-transition.md)           | CSS class stages for visibility changes                                    |
+| [`nv:sort`](nv-sort.md)                       | Keyboard and pointer reordering that calls an action                       |
+| [`nv:stream`](nv-stream.md)                   | Render an authorized read-only NDJSON stream as text                       |
+| [`nv:navigate`](nv-navigate.md)               | Same-origin page visits without a full reload                              |
+| [`nv:optimistic`](nv-optimistic.md)           | Project a state change while its action is pending                         |
 
 | Directive                    | Current behavior                                                                                    |
 | ---------------------------- | --------------------------------------------------------------------------------------------------- |
