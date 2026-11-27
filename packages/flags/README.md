@@ -137,6 +137,13 @@ Inside an action, `await flagService.assert('bulk-export', { identity })` throws
   are re-evaluated per request and a revoked flag takes effect on the next action.
 - Do not encode flags in realtime channel names or URLs.
 
+## Performance
+
+All known flags are evaluated once per request object and memoized for the
+rest of that request; a slow provider is cut off by `timeoutMs` (default
+1000 ms, then `false`). Provider latency is the host's; flag evaluation is not
+benchmarked.
+
 ## Compatibility and links
 
 Node 22.13+/24, NestJS 12. The guard uses the standard Nest `CanActivate` API.

@@ -6,7 +6,7 @@ and component revision; no storage of private per-user HTML by default; tag
 invalidation; per-key single-flight stampede protection; stale-while-revalidate
 for non-personal entries only; telemetry events and spans; and refusal of values
 that carry Live snapshots, CSRF tokens or signed island props. Optional; not part
-of the default `nestvexa` install. No runtime dependencies.
+of the default `nestvexa` install. No third-party runtime dependencies.
 
 ## Install
 
@@ -222,6 +222,20 @@ Exceptions thrown by either hook are ignored.
 
 See the [caching and stores guide](../../docs/guides/caching.md) and the
 runnable [data-cache example](../../examples/data-cache/README.md). MIT licensed.
+
+## Performance
+
+A hit skips the computation entirely, concurrent misses for the same key share
+one computation (single flight, per process), and stale-while-revalidate serves
+non-personal entries while one refresh runs. `MemoryCacheStore` is a bounded LRU
+(default 1,000 entries) with a tag index. Hit and miss timings are reported
+through `onEvent` and `instrumentation`; no cache benchmark is recorded.
+
+## Compatibility
+
+Node `^22.13.0 || ^24.0.0`, ESM only. No peers and no Nest dependency; its only
+dependency is `@nestvexa/views` (for `SafeHtml`). `CacheStore` accepts
+synchronous or asynchronous stores; only the memory store ships.
 
 ## Status and limits
 

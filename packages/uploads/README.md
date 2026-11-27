@@ -275,9 +275,20 @@ with `circuitBreaker: false`, and inspect with `.circuit`. See
 state and `finalizeFileField` maps `UploadError` codes to field errors; see the
 [uploads guide](../../docs/guides/uploads.md#forms-integration).
 
+## Performance
+
+Bodies stream to storage and are never buffered whole; limits are enforced
+while streaming. Chunked uploads (`chunkSize` 1 MiB by default) resume after a
+drop, `direct: true` sends bytes straight to S3, and quotas, concurrent bodies
+(4 per identity) and request rates (240 per minute per identity) bound load.
+Finalize re-reads the assembled file for its hash and signature, so large files
+cost one extra read. Upload throughput is not benchmarked.
+
 ## Compatibility
 
-Express and Fastify (Nest 12) are tested over real HTTP. Browser client tested in
+Node `^22.13.0 || ^24.0.0`, ESM only; peers `@nestjs/common` ^12 (tested with
+12.2.0), `reflect-metadata`, `rxjs`; dependency `busboy` (pinned). Express and
+Fastify are tested over real HTTP. Browser client tested in
 Chromium, Firefox and WebKit. Design:
 [ADR 0023](../../docs/adr/0023-uploads-and-storage.md).
 

@@ -342,10 +342,22 @@ attributes. The queue status region works the same way
 (`data-nv-queue-message-*`), and every queued entry has labelled Discard and
 Try again buttons; focus stays in the list when an entry disappears.
 
+## Performance
+
+Draft saves are debounced (`debounceMs`, default 400) and bounded (32 KiB per
+draft); snapshots are capped at 256 KiB and queue entries at 16 KiB, 20 per
+identity by default. Drafts and the queue use `localStorage` and snapshots `sessionStorage` by
+default; Web Storage writes are synchronous on the main thread, so keep marked
+fields small. Nothing here is
+benchmarked.
+
 ## Compatibility
 
 Evergreen Chromium, Firefox and WebKit (uses `inert`, `MutationObserver`,
 `BroadcastChannel` when available, `TextEncoder`, `crypto.getRandomValues`).
+The drafts, snapshots and reconnect flow are tested in Chromium; the queue's
+offline/online replay also in Firefox and WebKit. The server entry needs Node
+`^22.13.0 || ^24.0.0`. ESM only.
 Changes follow [the changelog](../../CHANGELOG.md).
 
 ## Examples

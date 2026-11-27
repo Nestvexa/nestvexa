@@ -128,6 +128,19 @@ Read [protocol](../../docs/guides/live-protocol.md) for the 64 KiB/depth/node li
 
 See the [security policy](../../SECURITY.md) and [implementation status](../../docs/implementation/STATUS.md).
 
+## Compatibility
+
+- Node `^22.13.0 || ^24.0.0` (CI: Linux and Windows, Node 22 and 24), ESM only;
+  CommonJS hosts load it through `require(esm)`.
+- Peers `@nestjs/common` and `@nestjs/core` ^12 (tested with 12.2.0),
+  `reflect-metadata` ^0.2.2, `rxjs` ^7.8.2; legacy decorators
+  (`experimentalDecorators`, `emitDecoratorMetadata`) are required.
+- Express and Fastify (`tests/live.test.ts`, `tests/umbrella-live.test.ts`);
+  views through HBS, EJS, Pug or Nunjucks (`tests/engine-live.test.ts`).
+- The browser half is `@nestvexa/client` from the same release; mismatched
+  protocol majors are refused with `426` / `PROTOCOL`.
+- Shared state across replicas: `RedisLiveStore` (Redis 7, single primary).
+
 ## Examples
 
 [live-counter](../../examples/live-counter/README.md) (manual bootstrap),
