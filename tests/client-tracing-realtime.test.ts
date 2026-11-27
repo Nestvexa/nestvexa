@@ -23,16 +23,15 @@ interface Sent {
   readonly headers: Record<string, string>;
   readonly body: string;
 }
-interface Fixture {
-  client: {
-    dispose(): void;
-    call(element: Element, action: string): Promise<void>;
-  };
+interface Recorder {
   sent: Sent[];
   diagnostics: Record<string, unknown>[];
   errors: string[];
   sources: { emit(type: string, data: unknown): void }[];
   failNext: number;
+}
+interface Fixture extends Recorder {
+  client: import('../packages/client/dist/index.js').LiveClient;
 }
 declare global {
   interface Window {
@@ -126,7 +125,7 @@ async function mount(
 ): Promise<void> {
   await page.evaluate(
     ({ names, tracing, invalid, realtime, idempotent }) => {
-      const sources: Fixture['sources'] = [];
+      const sources: Recorder['sources'] = [];
       class FakeEventSource extends EventTarget {
         static readonly CLOSED = 2;
         readyState = 0;
@@ -172,8 +171,7 @@ async function mount(
         element.innerHTML = `<output id="${name}-count" nv:text="count">0</output>`;
         document.querySelector('main')?.append(element);
       });
-      const fixture: Fixture = {
-        client: undefined as unknown as Fixture['client'],
+      const fixture: Recorder = {
         sent: [],
         diagnostics: [],
         errors: [],
@@ -193,7 +191,7 @@ async function mount(
                   }
                 : undefined;
       const revisions = new Map<string, number>();
-      fixture.client = window.nvClient.createLiveClient({
+      const client = window.nvClient.createLiveClient({
         ...(tracingOption === undefined ? {} : { tracing: tracingOption }),
         ...(realtime
           ? { realtime: { endpoint: '/_nestvexa/realtime', transport: 'sse' } }
@@ -238,8 +236,8 @@ async function mount(
           );
         },
       });
-      fixture.client.mount();
-      window.nvFixture = fixture;
+      client.mount();
+      window.nvFixture = Object.assign(fixture, { client });
     },
     {
       names: options.names ?? ['parent'],
