@@ -199,6 +199,22 @@ interface InertiaHttpReply {
     readonly body: string;
 }
 
+// InertiaInspectedPage
+interface InertiaInspectedPage {
+    readonly component: string;
+    readonly kind: 'document' | 'json';
+    readonly status: number;
+    readonly props: Readonly<Record<string, unknown>>;
+    readonly partial?: readonly string[];
+    readonly deferred?: Readonly<Record<string, readonly string[]>>;
+    readonly shared?: readonly string[];
+}
+
+// InertiaInspector
+interface InertiaInspector {
+    page(input: InertiaInspectedPage): void;
+}
+
 // InertiaInstrumentation
 interface InertiaInstrumentation {
     start(name: string, attributes: InertiaSpanAttributes): {
@@ -284,6 +300,7 @@ interface InertiaModuleOptions extends InertiaAppOptions {
     readonly now?: () => number;
     readonly onRescue?: (error: unknown, path: string, request: object) => void;
     readonly instrumentation?: InertiaInstrumentation;
+    readonly inspector?: InertiaInspector;
     readonly emptyResponse?: 'back' | 'passthrough';
     readonly previousUrl?: boolean;
     readonly security?: InertiaSecurityOptions;
@@ -800,6 +817,7 @@ interface ResolvedOptions {
     readonly now: () => number;
     readonly onRescue: ((error: unknown, path: string, request: object) => void) | undefined;
     readonly instrumentation: InertiaInstrumentation | undefined;
+    readonly inspector: InertiaInspector | undefined;
     readonly emptyResponse: 'back' | 'passthrough';
     readonly previousUrl: boolean;
     readonly security: InertiaSecurityPolicies | undefined;

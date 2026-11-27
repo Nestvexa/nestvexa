@@ -56,7 +56,7 @@ entries can supply `confirm: LiveConfirm` and `confirmationTimeoutMs`; the expor
 reference](../../docs/reference/nv-confirm.md) for limits, cancellation, keyboard
 and accessibility integration, `.once` semantics and security boundaries.
 
-Opt-in `onDiagnostic` emits frozen, redacted queue/request/morph timing samples, with isolated sink failures and no retained buffer. Collection is disabled by default; see [browser timing diagnostics](../../docs/guides/client-diagnostics.md). The protocol and mutation/retry policy are unchanged.
+Opt-in `onDiagnostic` emits frozen, redacted queue/request/morph timing samples (with the component name, request and response bytes and, with `tracing`, the trace id), with isolated sink failures and no retained buffer. Opt-in `tracing: true` (or a function returning a browser SDK's header) sends a validated W3C `traceparent` with every Live request so server spans join the browser trace; the server treats it as correlation data only. Collection is disabled by default; see [browser timing diagnostics](../../docs/guides/client-diagnostics.md). The protocol and mutation/retry policy are unchanged.
 
 Native multiple selects support bounded flat array models with strict option catalogs, ordered dirty equality, shared aliases and reset. See [array behavior and limits](../../docs/guides/multiple-select.md). Checkbox groups are covered under nested models below; file inputs use `nv:upload` instead of `nv:model`, and generic programmatic array setters remain unsupported.
 

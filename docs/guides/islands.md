@@ -225,6 +225,7 @@ not permission.
 pnpm build
 pnpm vitest run tests/islands.test.ts tests/islands-client.test.ts tests/islands-bundle.test.ts tests/islands-vite.test.ts
 pnpm size:islands
+pnpm size:check   # also gates every island of both island examples (CI)
 pnpm exec playwright test tests/browser/islands.spec.ts tests/browser/islands-deferral.spec.ts tests/browser/islands-vite.spec.ts
 ```
 

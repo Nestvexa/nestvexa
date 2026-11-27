@@ -67,6 +67,7 @@ interface LiveClientOptions {
     readonly onError?: (error: Error, component: Element | null) => void;
     readonly requestTimeoutMs?: number;
     readonly onDiagnostic?: (event: LiveDiagnostic) => void;
+    readonly tracing?: boolean | (() => string | undefined);
     readonly confirm?: LiveConfirm;
     readonly confirmationTimeoutMs?: number;
     readonly maxInitializations?: number;
@@ -93,6 +94,10 @@ interface LiveDiagnostic {
     readonly phase: 'queue' | 'request' | 'morph';
     readonly outcome: 'succeeded' | 'failed' | 'cancelled';
     readonly milliseconds: number;
+    readonly component?: string;
+    readonly requestBytes?: number;
+    readonly responseBytes?: number;
+    readonly traceId?: string;
 }
 
 // LiveDirective

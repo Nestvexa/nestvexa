@@ -114,11 +114,11 @@ export default defineConfig(({ isSsrBuild }) => ({
 }));
 ```
 
-| Export                                                                                                       | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `islandsVitePlugin({ islands?, publicPath?, failOnViolation?, onReport?, metafile?, manifest?, analysis? })` | Records an esbuild-style metafile of the client build (static imports = budgeted closure, dynamic imports lazy, module ids reveal runtimes) and, with `islands`, writes `islands-manifest.json`, `islands-analysis.json` and `islands-metafile.json` to `<outDir>/.vite/` (not served) and fails on violations. Sets `preserveEntrySignatures: 'exports-only'` so entries keep their `default` mount export (and fails if one is lost). SSR builds are ignored. Structurally typed: no Vite import. |
-| `createViteIslandManifest(definitions, viteManifest, { base })`                                              | Island manifest from `.vite/manifest.json` alone: each entry's `file` under a same-origin `base`.                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `moduleIslandRenderers(ids, load, { cache? })` (main entry)                                                  | Renderers backed by a module exporting `renderers`: `() => import(ssrBundleUrl)` (cached; failed loads retried) or Vite's `ssrLoadModule` with `cache: false` in development.                                                                                                                                                                                                                                                                                                                       |
+| Export                                                                                                                                       | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `islandsVitePlugin({ islands?, publicPath?, failOnViolation?, budgetBytes?, onBudgetWarning?, onReport?, metafile?, manifest?, analysis? })` | Records an esbuild-style metafile of the client build (static imports = budgeted closure, dynamic imports lazy, module ids reveal runtimes) and, with `islands`, writes `islands-manifest.json`, `islands-analysis.json` and `islands-metafile.json` to `<outDir>/.vite/` (not served) and fails on violations. Sets `preserveEntrySignatures: 'exports-only'` so entries keep their `default` mount export (and fails if one is lost). SSR builds are ignored. Structurally typed: no Vite import. |
+| `createViteIslandManifest(definitions, viteManifest, { base })`                                                                              | Island manifest from `.vite/manifest.json` alone: each entry's `file` under a same-origin `base`.                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `moduleIslandRenderers(ids, load, { cache? })` (main entry)                                                                                  | Renderers backed by a module exporting `renderers`: `() => import(ssrBundleUrl)` (cached; failed loads retried) or Vite's `ssrLoadModule` with `cache: false` in development.                                                                                                                                                                                                                                                                                                                       |
 
 The loader is a separate, later Vite build that bundles the generated manifest;
 see the [Vite section of the islands guide](../../docs/guides/islands.md#building-islands-with-vite).
@@ -266,6 +266,21 @@ authorized Live action, a Nestvexa action or your own guarded route.
 `analyzeIslandBundles` reports each island's chunk closure and gzip size;
 `pnpm size:islands` (`scripts/islands-size.mjs`) applies the manifest budgets to
 the hybrid dashboard build and writes `artifacts/reports/islands-size.json`.
+
+**CI gate.** `pnpm size:check` (run by CI and release workflows) also measures
+every island of the built `examples/hybrid-dashboard` and `examples/islands-vite`
+against the per-island table in `scripts/island-budgets.mjs` (a tighter manifest
+`budgetBytes` wins) and fails on an overrun, an island without a budget, a
+budget for a missing island, a foreign framework runtime or an unbuilt example
+(`artifacts/reports/islands-budget.json`).
+
+**Development warning.** `islandBudgetWarnings(report, { budgetBytes })`
+returns a warning for each island over its own `budgetBytes` or, without one,
+over the configurable default. `islandsVitePlugin({ budgetBytes, onBudgetWarning })`
+prints them (default `console.warn`) after every build, including
+`vite build --watch` rebuilds; a default-budget overrun only warns, an island's
+own budget still fails the build unless `failOnViolation: false`. The hybrid
+dashboard build prints them for a default of `NV_ISLAND_BUDGET` (80000) bytes.
 
 ## Security
 
