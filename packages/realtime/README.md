@@ -74,8 +74,6 @@ Hosts must authorize `$sync` for components that use realtime.
 
 ## Public API
 
-<<<<<<< HEAD
-
 | Export                                                                                      | Purpose                                                                                                                                                              |
 | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `RealtimeModule.forRoot(options)` / `forRootAsync({ inject, useFactory })`                  | Registers `GET <endpoint>/sse` and `GET <endpoint>/poll` (default `/_nestvexa/realtime`) and a global `RealtimeService`                                              |
@@ -88,26 +86,9 @@ Hosts must authorize `$sync` for components that use realtime.
 | `attachRealtimeWebSocket(app)`                                                              | Optional `<endpoint>/ws` transport; requires `resolveUpgradeIdentity`; shares a port with a host `@WebSocketGateway` (`WsAdapter`)                                   |
 | `RealtimeNotifications`, `MemoryNotificationStore`, `NotificationStore`                     | User-scoped notifications with an unread count on a private `notify:<digest>` channel per recipient                                                                  |
 | `MemoryRealtimeBroker`                                                                      | Default single-process broker with bounded replay                                                                                                                    |
-| `RespRealtimeBroker({ host, port, password?, prefix })`                                     | Cross-replica pub/sub over the Redis protocol (`RedisRealtimeBroker` in `@nestvexa/realtime-redis/realtime`)                                                         |
-| `JobRunner`, `MemoryJobQueue`, `JobQueue`                                                   | Owner-bound named jobs with progress, idempotency keys, retries, cancellation and leases over a pluggable queue (durable: `RedisJobQueue`)                           |
-| `createTokenSigner`, `RealtimeHub`                                                          | Lower-level building blocks                                                                                                                                          |
-| =======                                                                                     |
-| Export                                                                                      | Purpose                                                                                                                                                              |
-| ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `RealtimeModule.forRoot(options)` / `forRootAsync({ inject, useFactory })`                  | Registers `GET <endpoint>/sse` and `GET <endpoint>/poll` (default `/_nestvexa/realtime`) and a global `RealtimeService`                                              |
-| `RealtimeService.publish(channel, data?, { identity? })`                                    | Invalidate subscribers; `data` is JSON ≤16 KiB; `identity` applies `publishesPerMinute`                                                                              |
-| `RealtimeService.presence(identity, channel)`                                               | Distinct members for an authorized reader: this replica's, or every replica's with a `presence` store                                                                |
-| `RealtimeService.transports` / `GET <endpoint>/negotiate`                                   | Transports offered now, in preference order (WebSocket only once attached); `auto` clients read it                                                                   |
-| `MemoryPresenceStore`, `PresenceStore`                                                      | Shared presence contract (`RedisPresenceStore` in `@nestvexa/realtime-redis/realtime`)                                                                               |
-| `RealtimeService.sign(identity, channels)`                                                  | Token for authorized channels, or `undefined`                                                                                                                        |
-| `RealtimeService.revoke(binding)` / `closeChannel(channel)`                                 | Close connections on logout or permission changes                                                                                                                    |
-| `attachRealtimeWebSocket(app)`                                                              | Optional `<endpoint>/ws` transport; requires `resolveUpgradeIdentity`                                                                                                |
-| `MemoryRealtimeBroker`                                                                      | Default single-process broker with bounded replay                                                                                                                    |
 | `RespRealtimeBroker({ host, port, password?, prefix, commandTimeoutMs?, circuitBreaker? })` | Cross-replica pub/sub over the Redis protocol (`RedisRealtimeBroker` in `@nestvexa/realtime-redis/realtime`); `circuit`, `subscribed` and `ping()` for health checks |
 | `JobRunner`, `MemoryJobQueue`, `JobQueue`                                                   | Owner-bound named jobs with progress, idempotency keys, retries, cancellation and leases over a pluggable queue (durable: `RedisJobQueue`)                           |
 | `createTokenSigner`, `RealtimeHub`                                                          | Lower-level building blocks                                                                                                                                          |
-
-> > > > > > > r9-sec9
 
 Options: `secrets` (1–8, ≥32 bytes, first signs), `origin` (exact), `resolveIdentity`,
 `authorizeChannel`, `describePresence?`, `resolveUpgradeIdentity?`, `broker?`,
