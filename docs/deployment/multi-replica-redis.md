@@ -21,23 +21,22 @@ checks ([production services](../guides/production-services.md)).
 
 ## What lives where
 
-| State                                 | Implementation                               | Shareable across replicas?                                                                                                                 |
-| ------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Live component state and snapshots    | `LiveStateStore` (default `MemoryLiveStore`) | **Yes,** with `RedisLiveStore` from `@nestvexa/realtime-redis`. The memory default stays inside one process.                               |
-| Live rate limiting                    | Per process, per binding (default 60/min)    | No. The effective limit is multiplied by the replica count.                                                                                |
-| Upload sessions and pending tokens    | `UploadsService` memory                      | **No.** Temporary chunks are on local disk. Finalized objects can live in shared storage (`S3Storage`).                                    |
-| Realtime events                       | `RealtimeBroker` interface                   | **Yes,** with `RespRealtimeBroker`. The default `MemoryRealtimeBroker` stays inside one process.                                           |
-| Realtime subscription tokens          | HMAC with `RealtimeModule` `secrets`         | Yes, if every replica uses the same `secrets`. Tokens signed on one replica are then valid on another.                                     |
-| Jobs and progress                     | `JobRunner` over a `JobQueue`                | **Yes,** with `RedisJobQueue` (durable, crash recovery by lease). The default `MemoryJobQueue` is per process. No BullMQ adapter ships.    |
-| Presence                              | `PresenceStore` (optional)                   | **Yes,** with `RedisPresenceStore`. Without a store each replica reports its own connections.                                              |
-| Cache                                 | `Cache` + `CacheStore` interface             | `MemoryCacheStore` is per process. Implement `CacheStore` against a shared store yourself and invalidate across replicas through realtime. |
-| Action idempotency                    | `ActionIdempotencyStore` interface           | `MemoryIdempotencyStore` is per process. The interface lets you supply a shared implementation.                                            |
-| Form drafts / no-JS submission ledger | `DraftStore` / `SubmissionLedger` interfaces | The `Memory*` implementations are per process. Supply shared implementations for several replicas.                                         |
-| HTTP sessions                         | Host-owned (`express-session` in examples)   | The host chooses a shared session store.                                                                                                   |
+| State                                 | Implementation                               | Shareable across replicas?                                                                                                                              |
+| ------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Live component state and snapshots    | `LiveStateStore` (default `MemoryLiveStore`) | **Yes,** with `RedisLiveStore` from `@nestvexa/realtime-redis`. The memory default stays inside one process.                                            |
+| Live rate limiting                    | Per process, per binding (default 60/min)    | No. The effective limit is multiplied by the replica count.                                                                                             |
+| Upload sessions and pending tokens    | `UploadsService` memory                      | **No.** Temporary chunks are on local disk. Finalized objects can live in shared storage (`S3Storage`).                                                 |
+| Realtime events                       | `RealtimeBroker` interface                   | **Yes,** with `RespRealtimeBroker`. The default `MemoryRealtimeBroker` stays inside one process.                                                        |
+| Realtime subscription tokens          | HMAC with `RealtimeModule` `secrets`         | Yes, if every replica uses the same `secrets`. Tokens signed on one replica are then valid on another.                                                  |
+| Jobs and progress                     | `JobRunner` over a `JobQueue`                | **Yes,** with `RedisJobQueue` (durable, crash recovery by lease). The default `MemoryJobQueue` is per process. No BullMQ adapter ships.                 |
+| Presence                              | `PresenceStore` (optional)                   | **Yes,** with `RedisPresenceStore`. Without a store each replica reports its own connections.                                                           |
+| Cache                                 | `Cache` + `CacheStore` interface             | **Yes,** with `RedisCacheStore` from `@nestvexa/realtime-redis/cache` (shared tags, invalidation and stampede lock). `MemoryCacheStore` is per process. |
+| Action idempotency                    | `ActionIdempotencyStore` interface           | **Yes,** with `RedisActionIdempotencyStore` from `@nestvexa/realtime-redis/actions`. `MemoryIdempotencyStore` is per process.                           |
+| Form drafts / no-JS submission ledger | `DraftStore` / `SubmissionLedger` interfaces | The `Memory*` implementations are per process. Supply shared implementations for several replicas.                                                      |
+| HTTP sessions                         | Host-owned (`express-session` in examples)   | The host chooses a shared session store.                                                                                                                |
 
-Nestvexa does not ship Redis implementations of `CacheStore`,
-`ActionIdempotencyStore`, `DraftStore` or `SubmissionLedger`. The interfaces
-are exported so that you can write them.
+Nestvexa does not ship Redis implementations of `DraftStore` or
+`SubmissionLedger`. The interfaces are exported so that you can write them.
 
 ## Shared Live state
 
@@ -148,8 +147,10 @@ page (`auto` negotiates WebSocket → SSE → polling), not per component.
 
 ## Cache invalidation across replicas
 
-`Cache#invalidate(tags)` deletes entries in its own store and calls the
-`onInvalidate` hook. To invalidate other replicas, publish
+With `RedisCacheStore` every replica shares the entries and the tag index:
+`Cache#invalidate(tags)` on one replica is visible to all of them
+immediately. Live components rendered on other replicas still need a refresh
+signal: `Cache#invalidate(tags)` calls the `onInvalidate` hook; publish
 `tagChannel(tag)` from that hook through a `RealtimeService` backed by
 `RespRealtimeBroker`. Components that declare the same channels in
 `@RealtimeChannels()` then refresh. The cache package wires none of this
@@ -170,8 +171,11 @@ component refresh does not exist yet (ledger row REAL-010). See the
 - [ ] `S3Storage` (or another shared `UploadStorage`) for finalized uploads.
       Each replica keeps its own local temporary `directory`.
 - [ ] `RedisJobQueue` for jobs that must survive restarts; idempotent handlers.
-- [ ] Shared implementations of `CacheStore`, `ActionIdempotencyStore`,
-      `DraftStore` and `SubmissionLedger` where you use those features.
+- [ ] `RedisActionIdempotencyStore` for `idempotent: true` server actions and
+      `RedisCacheStore` for `Cache`/`FragmentCache`, each with its own
+      `prefix`.
+- [ ] Shared implementations of `DraftStore` and `SubmissionLedger` where you
+      use those features.
 - [ ] Drain replicas before you stop them, and plan for users reloading after
       a deploy.
 

@@ -1,9 +1,10 @@
 # @nestvexa/realtime-redis
 
 Optional Redis adapters for running Nestvexa on several replicas: a shared Live
-state store (`RedisLiveStore`), cross-instance realtime pub/sub
-(`RedisRealtimeBroker`), shared presence (`RedisPresenceStore`) and a durable
-job queue (`RedisJobQueue`). All speak RESP2 over `node:net`; there is no Redis
+state store (`RedisLiveStore`), a shared server-action idempotency store
+(`RedisActionIdempotencyStore`), a shared cache store (`RedisCacheStore`),
+cross-instance realtime pub/sub (`RedisRealtimeBroker`), shared presence
+(`RedisPresenceStore`) and a durable job queue (`RedisJobQueue`). All speak RESP2 over `node:net`; there is no Redis
 client library dependency. Not part of the default `nestvexa` install.
 
 ## Install
@@ -15,8 +16,10 @@ The future registry syntax, after owner-authorized publication, is:
 npm install @nestvexa/realtime-redis   # or: pnpm add / yarn add
 ```
 
-Peers: `@nestvexa/live` (required) and `@nestvexa/realtime` (optional, for the
-`/realtime` entry point). Node 22.13+ or 24. Server: Redis 6.2+ (tested with
+Peers, all optional, one per entry point: `@nestvexa/live` (the root entry,
+`RedisLiveStore`), `@nestvexa/realtime` (`/realtime`), `@nestvexa/actions`
+(`/actions`, types only) and `@nestvexa/cache` (`/cache`). The `/actions` and
+`/cache` entry points never load `@nestvexa/live`. Node 22.13+ or 24. Server: Redis 6.2+ (tested with
 Redis 7 standalone) as a single primary. There is no Sentinel discovery: point
 `host` at the current primary; failover behavior is untested. **Redis Cluster
 is not supported** (commits span hash slots).
@@ -57,6 +60,83 @@ NestvexaModule.forRoot(config, {
 });
 ```
 
+### Server-action idempotency
+
+```ts
+import { RedisActionIdempotencyStore } from '@nestvexa/realtime-redis/actions';
+
+ActionsModule.register({
+  ...actionOptions,
+  idempotency: {
+    store: new RedisActionIdempotencyStore({
+      ...redis,
+      prefix: 'shop:prod:idem:',
+      leaseMs: 30_000, // claim lease, renewed while the handler runs
+    }),
+  },
+});
+```
+
+A retry of an `idempotent: true` action replays the stored result on any
+replica and after a restart; the handler runs once
+(`tests/actions-idempotency-processes.test.ts` runs two OS processes).
+
+- `begin` claims the runtime's key (SHA-256 of tenant, subject, group,
+  action, version and the client key, so users never share records) with
+  `SET NX PX`. The claim is a lease owned by a random token and renewed every
+  third of `leaseMs` while the handler runs.
+- `complete` replaces the claim with the outcome for the runtime's TTL
+  (default 24 h) and `abandon` deletes it, both only while this process still
+  owns the claim (`WATCH`/`MULTI`/`EXEC`).
+- Fail closed: a Redis error or a corrupt record fails the call with
+  `500 INTERNAL` before the handler runs. If storing the outcome fails (Redis
+  down, outcome over `maxOutcomeBytes`, default 4 MiB) the claim is kept
+  rather than released, so retries get `409 IDEMPOTENCY_IN_PROGRESS` until the
+  lease lapses.
+- A process killed mid-handler stops renewing; after one lease a retry runs
+  the handler again (the crashed attempt recorded no outcome). Make handlers
+  with irreversible effects idempotent at the provider too (for example a
+  payment provider's own idempotency key).
+- Completed records last only as long as Redis keeps them: enable persistence
+  (AOF) if a Redis restart must not forget them, and size `maxmemory` with a
+  `volatile-*` policy so records are not evicted early.
+
+### Shared cache
+
+```ts
+import { Cache, RenderCache, FragmentCache } from '@nestvexa/cache';
+import { RedisCacheStore } from '@nestvexa/realtime-redis/cache';
+
+const cache = new Cache({
+  store: new RedisCacheStore({ ...redis, prefix: 'shop:prod:cache:' }),
+  lock: { ttlMs: 10_000, waitMs: 3000 }, // the defaults
+});
+const fragments = new FragmentCache({
+  engine: hbs,
+  renders: new RenderCache(cache),
+  assetVersion,
+});
+```
+
+- Entries are stored under the SHA-256 of the cache key with `PX` set to
+  their `staleUntil`; `maxEntryBytes` (default 1 MiB) bounds one entry and
+  `maxEntries` (default 50000) the shared index (expired entries, then those
+  closest to expiry, are evicted). Set Redis `maxmemory` as the hard bound.
+- Tag invalidation is visible on every instance at once: `invalidateTags`
+  bumps a per-tag counter before it deletes the tagged entries, and reads
+  compare the counters recorded in the entry. A computation that overlaps an
+  invalidation on any instance is not stored (`discarded`).
+- Stampede protection across processes: `Cache` takes a short `SET NX PX`
+  lock per key; the other instances poll for its value for up to `waitMs`,
+  take the lock over if the holder fails, and compute anyway after `waitMs`.
+  `lock: false` keeps single flight per process (one computation per
+  instance).
+- Values carrying a Live snapshot, a CSRF token or signed island props are
+  refused (`CacheRefusedError`) by `Cache` and again by the store, so they
+  never reach Redis.
+- Reads degrade to computing when Redis is down (`store-error`);
+  invalidation failures propagate.
+
 Every replica must share the realtime `secrets`, the public `origin` and an
 identity that resolves identically on every replica (a shared session store or
 a signed stateless cookie). The
@@ -65,11 +145,13 @@ and Fastify behind one Redis.
 
 ## Public API
 
-| Export                                                         | Purpose                                                                               |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `RedisLiveStore`, `RedisLiveStoreOptions`                      | `LiveStateStore` and `LiveActionCoordination` over one Redis primary                  |
-| `RedisRealtimeBroker`, `RedisRealtimeBrokerOptions`            | From `@nestvexa/realtime-redis/realtime`; re-export of `RespRealtimeBroker`           |
-| `RespConnection`, `RespError`, `encodeCommand`, `parseReplies` | Low-level RESP2 client used by the store (`RespConnectionOptions`, `RespReply` types) |
+| Export                                                              | Purpose                                                                               |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `RedisLiveStore`, `RedisLiveStoreOptions`                           | `LiveStateStore` and `LiveActionCoordination` over one Redis primary                  |
+| `RedisActionIdempotencyStore`, `RedisActionIdempotencyStoreOptions` | From `@nestvexa/realtime-redis/actions`; shared `ActionIdempotencyStore`              |
+| `RedisCacheStore`, `RedisCacheStoreOptions`                         | From `@nestvexa/realtime-redis/cache`; shared `CacheStore` with tags and locks        |
+| `RedisRealtimeBroker`, `RedisRealtimeBrokerOptions`                 | From `@nestvexa/realtime-redis/realtime`; re-export of `RespRealtimeBroker`           |
+| `RespConnection`, `RespError`, `encodeCommand`, `parseReplies`      | Low-level RESP2 client used by the store (`RespConnectionOptions`, `RespReply` types) |
 
 ## `RedisLiveStore` options
 
@@ -229,6 +311,7 @@ Status: **Shipped (alpha)**. `RedisLiveStore` passes the shared store contract s
 - About eight round trips per Live action; replica clocks must be NTP-synchronized.
 - Tenant/user namespacing, revocation and the fence after a SIGKILLed replica are checked against real Redis (`redis-live-namespace` in `pnpm test:services`).
 - All replicas sharing a prefix must use the same `ttlMs`: index lifetimes follow the newest entry.
+- `RedisActionIdempotencyStore` and `RedisCacheStore` are tested on the RESP double (`tests/actions-idempotency-store.test.ts`, `tests/actions-idempotency-processes.test.ts`, `tests/cache-redis-store.test.ts`) and against real Redis (`redis-action-idempotency` and `redis-cache-store` in `pnpm test:services`). A claim survives a Redis outage only as long as its lease; tag index sets of tags that are never invalidated keep members of expired entries until the set itself expires (48 h after its last write).
 
 ## Testing
 
@@ -237,6 +320,9 @@ pnpm --filter @nestvexa/realtime-redis test
 pnpm exec vitest run tests/live-store-contract.test.ts tests/realtime-job-queue.test.ts \
   tests/realtime-distributed.test.ts                       # RESP test double
 pnpm exec vitest run tests/live-shared-action-policy.test.ts
+pnpm exec vitest run tests/actions-idempotency-store.test.ts
+pnpm exec vitest run tests/actions-idempotency-processes.test.ts  # two OS processes
+pnpm exec vitest run tests/cache-redis-store.test.ts
 NESTVEXA_REDIS_PORT=6379 pnpm test:services                # real Redis
 ```
 

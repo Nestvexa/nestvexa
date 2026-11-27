@@ -84,6 +84,13 @@ Kernel identity and features (round 5, opt-in): `kernelIdentity` (any `{ identit
 
 Rate limit: `maxRequestsPerMinute` (default 60) per identity binding counts mounts, actions, `$sync` and stream authorizations; a rejected request gets `429 { statusCode, code: 'RATE_LIMIT' }` with `Retry-After` (seconds until the identity's window resets) before any state is read or component code runs.
 
+`@State` fields are public page data. Field names that look like credentials
+(`password`, `token`, `secret`, `apiKey`, `session`, `cookie`, `csrf`,
+`credential`, `authorization`, `privateKey`, the same pattern islands refuse
+in props) fail at class definition with a clear error; keep secrets in
+services or plain fields, or opt out per field with a reason:
+`@State({ allowSensitiveName: 'session CSRF token the page already embeds' })`.
+
 `@State({writable:true})` explicitly allows top-level JSON updates; default state is locked against client writes. `@Locked()` is an equivalent readable state declaration. `@Computed()` supports synchronous getters; `@Computed({async:true})` supports awaited zero-argument methods. `@Action({id?, renderless?})` exposes only registered methods; `renderless: true` acknowledges state without rendering when the client negotiates `renderless-v1` (see the [renderless guide](../../docs/guides/renderless-actions.md)). A single argument may use `@ActionInput(...pipes)`; normal Nest parameter pipes perform transformation and validation. No arbitrary service or class selection is accepted.
 
 Writable state can supply a pure `validate(value)` callback returning `boolean` or `Promise<boolean>`:
