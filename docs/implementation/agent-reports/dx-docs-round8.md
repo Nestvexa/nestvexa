@@ -29,8 +29,7 @@ Packages touched: `@nestvexa/cli` only (changeset `.changeset/cli-make-tenancy.m
   all 27 families; the first column of `docs/reference/directive-matrix.md` links each
   directive to its page.
 - **Evidence.** `pnpm docs:build`: passed for the directive pages
-  (`Checked 292 documents, 78 provenance snippets, ...`; the final run after all
-  changes is listed under "Commands run").
+  (see "Commands run").
 - **Remaining gap.** The pages document behavior from the client source and the
   existing guides; they add no new tests. The ledger's other residuals for this row
   (re-running the phase 4 checkpoint) are outside this change.
@@ -128,4 +127,22 @@ Packages touched: `@nestvexa/cli` only (changeset `.changeset/cli-make-tenancy.m
 
 ## Commands run
 
-(Filled in below.)
+All on Windows 11, after merging main `9df0757` unless noted.
+
+| Command                                                                                                                               | Result                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile`, `pnpm build`                                                                                        | passed                                                                                                                                                                     |
+| `pnpm docs:build`                                                                                                                     | passed: 306 documents, 113 provenance snippets, 3 type-checked blocks                                                                                                      |
+| `pnpm exec vitest run tests/docs-site.test.ts`                                                                                        | 20 passed (before the merge)                                                                                                                                               |
+| `pnpm exec markdownlint-cli2` on every Markdown file touched, and `README.md`                                                         | 0 issues                                                                                                                                                                   |
+| `pnpm exec vitest run tests/cli-tenancy.test.ts`                                                                                      | 4 passed (before and after the merge)                                                                                                                                      |
+| `pnpm exec playwright test -c playwright.local.config.ts mvc.spec.ts` (starter on port 4300)                                          | 6 passed each in Chromium, Firefox and WebKit                                                                                                                              |
+| `pnpm exec eslint packages/cli/src tests/cli-tenancy.test.ts tests/pack-consumers tests/browser/mvc.spec.ts examples/starter-hbs/src` | clean (before the merge)                                                                                                                                                   |
+| `pnpm exec tsc -p tsconfig.tests.json --noEmit`                                                                                       | clean (before the merge)                                                                                                                                                   |
+| PowerShell `NESTVEXA_PACK_PROFILES=pnpm:full pnpm test:pack`                                                                          | passed, including the new Inertia, React-hook and element-helper checks (before the merge)                                                                                 |
+| PowerShell `pnpm test:pack` (all profiles)                                                                                            | pnpm:full and pnpm:minimal passed; npm:full failed with `spawnSync ETIMEDOUT` in `npm install` (the 600 s limit in `scripts/pack.mjs`), before any consumer code ran       |
+| PowerShell `NESTVEXA_PACK_PROFILES=npm:full,...` and `npm:minimal,npm:init,npm:third-party`                                           | the same `npm install` timeout each time; the registry answered `npm ping` in 744 ms, so a cold npm install is simply slower than 600 s on this loaded, low-memory machine |
+
+**Not proven here:** the four npm pack profiles. They install the same tarballs and run the
+same `consumer.ts`/`bindings-check.ts` that passed under pnpm, but their result must come
+from a less loaded machine or CI.
