@@ -28,6 +28,7 @@ import {
   RealtimeChannels,
   State,
   configureNestvexa,
+  downloadLive,
 } from 'nestvexa';
 import {
   MemoryRealtimeBroker,
@@ -36,11 +37,14 @@ import {
   attachRealtimeWebSocket,
 } from '@nestvexa/realtime';
 import { RedisLiveStore, RespConnection } from '@nestvexa/realtime-redis';
+import { redisRealtime } from '@nestvexa/realtime-redis/realtime';
 import {
-  RedisPresenceStore,
-  RedisRealtimeBroker,
-} from '@nestvexa/realtime-redis/realtime';
-import { guestFromCookie, issueGuest, presenceId } from './identity.js';
+  guestFromCookie,
+  issueGuest,
+  presenceId,
+  tenantOf,
+  tenantPattern,
+} from './identity.js';
 import type { Guest } from './identity.js';
 
 /*
@@ -84,6 +88,9 @@ function secret(name: string): string {
 const realtimeSecret = secret('REALTIME_SECRET');
 const identitySecret = secret('IDENTITY_SECRET');
 export const boardChannel = 'board:public';
+/** Private feed of one tenant: only that tenant's guests may subscribe. */
+export const tenantChannel = (tenant: string): string =>
+  `tenant:${tenant}:feed`;
 
 interface GuestRequest extends IncomingMessage {
   nvGuest?: Guest;
@@ -128,12 +135,22 @@ export class SharedTotal {
     return this.#incr('charges');
   }
   async charges(): Promise<number> {
-    if (!this.#redis) return this.#counts.get('charges') ?? 0;
-    const value = await this.#redis.command('GET', `${prefix}charges`);
+    return this.#get('charges');
+  }
+  /** Announcements made in one tenant (never readable by another). */
+  async notices(tenant: string): Promise<number> {
+    return this.#get(`notices:${tenant}`);
+  }
+  async announce(tenant: string): Promise<number> {
+    return this.#incr(`notices:${tenant}`);
+  }
+  async #get(name: string): Promise<number> {
+    if (!this.#redis) return this.#counts.get(name) ?? 0;
+    const value = await this.#redis.command('GET', `${prefix}${name}`);
     return typeof value === 'string' ? Number(value) : 0;
   }
   readonly #counts = new Map<string, number>();
-  async #incr(name: 'total' | 'charges'): Promise<number> {
+  async #incr(name: string): Promise<number> {
     if (!this.#redis) {
       if (name === 'total') return ++this.#local;
       const next = (this.#counts.get(name) ?? 0) + 1;
@@ -203,8 +220,54 @@ export class ReplicaBoard {
    * One export per identity at a time across replicas (a Redis lease held
    * for the action's duration). EXPORT_DELAY_MS stands in for real work.
    */
+  /**
+   * A single-use attachment. With RedisLiveStore the download record is
+   * shared, so the URL (also inside a replayed response) works on any
+   * replica, exactly once.
+   */
+  @Action({ idempotent: true }) receipt(): void {
+    downloadLive(this, {
+      filename: 'receipt-' + replica + '.txt',
+      contentType: 'text/plain; charset=utf-8',
+      body: 'Receipt rendered by replica ' + replica,
+    });
+  }
   @Action({ concurrency: 'identity' }) async exportAll(): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, exportDelay));
+  }
+}
+
+/**
+ * A tenant-private feed: its channel and data are scoped to the guest's
+ * tenant, so announcements in one tenant never reach another tenant's
+ * browsers on any replica.
+ */
+@LiveComponent({ name: 'tenant-feed', view: 'tenant-feed' })
+export class TenantFeed {
+  constructor(
+    @Inject(SharedTotal) private readonly shared: SharedTotal,
+    @Inject(RealtimeService) private readonly realtime: RealtimeService,
+    @Inject(REQUEST) private readonly request: unknown,
+  ) {}
+  @State() sent = 0;
+  @RealtimeChannels() channels(): string[] {
+    return [tenantChannel(guestOf(this.request).tenant)];
+  }
+  @Computed() get tenant(): string {
+    return guestOf(this.request).tenant;
+  }
+  @Computed({ async: true }) async notices(): Promise<number> {
+    return this.shared.notices(guestOf(this.request).tenant);
+  }
+  @Action() async announce(): Promise<void> {
+    const guest = guestOf(this.request);
+    this.sent++;
+    await this.shared.announce(guest.tenant);
+    await this.realtime.publish(
+      tenantChannel(guest.tenant),
+      { by: replica },
+      { identity: { binding: guest.binding } },
+    );
   }
 }
 
@@ -224,6 +287,7 @@ class Pages {
   async home(
     @Req() request: GuestRequest,
     @Res({ passthrough: true }) response: object,
+    @Query('tenant') tenant?: string,
   ) {
     // Issue the signed guest cookie on first visit; never trust an unsigned
     // one. The platform adapter sets the header on Express and Fastify alike.
@@ -231,7 +295,14 @@ class Pages {
     const existing = guestFromCookie(identitySecret, header);
     if (existing) request.nvGuest = existing;
     else {
-      const issued = issueGuest(identitySecret);
+      // A first visit may choose its tenant (`/?tenant=acme`); it is signed
+      // into the cookie and cannot change afterwards.
+      const issued = issueGuest(
+        identitySecret,
+        typeof tenant === 'string' && tenantPattern.test(tenant)
+          ? tenant
+          : 'public',
+      );
       request.nvGuest = issued.guest;
       this.host.httpAdapter.setHeader(response, 'Set-Cookie', issued.cookie);
     }
@@ -239,6 +310,7 @@ class Pages {
       title: 'Distributed Live board',
       replica,
       widget: await this.live.mount(ReplicaBoard, request),
+      feed: await this.live.mount(TenantFeed, request),
     };
   }
   /** Readiness plus local connection counts (for leak checks in tests). */
@@ -257,23 +329,34 @@ class Pages {
   /**
    * Acceptance-only (ACCEPTANCE_LOAD_TOOLS=1, otherwise 404): publish `count`
    * (1-500) padded board events numbered from `offset` from this replica,
-   * for the slow-subscriber scenario. Each payload is about 15 KB, under the
-   * 16 KiB event limit.
+   * for the slow-subscriber scenario and the load smoke. Payloads are padded
+   * to `bytes` (0-15000, default 15000), under the 16 KiB event limit.
    */
   @Post('api/load/broadcast')
   @Header('Cache-Control', 'no-store')
   async broadcast(
     @Query('count') count?: string,
     @Query('offset') offset?: string,
+    @Query('bytes') bytes?: string,
   ) {
     if (!loadTools) throw new NotFoundException();
     const total = Math.min(Math.max(Math.trunc(Number(count)) || 1, 1), 500);
     const first = Math.min(Math.max(Math.trunc(Number(offset)) || 0, 0), 1e6);
-    const pad = 'x'.repeat(15_000);
+    const size =
+      bytes === undefined
+        ? 15_000
+        : Math.min(Math.max(Math.trunc(Number(bytes)) || 0, 0), 15_000);
+    const pad = 'x'.repeat(size);
     for (let index = 0; index < total; index++) {
-      await this.realtime.publish(boardChannel, { load: first + index, pad });
-      // One event per event-loop turn, as events arrive from a broker socket:
-      // a same-turn burst above 256 KiB would exceed every local transport bound.
+      // `at` lets the load smoke measure delivery latency (same host clock).
+      await this.realtime.publish(boardChannel, {
+        load: first + index,
+        at: Date.now(),
+        pad,
+      });
+      // Yield between publishes: one 500-event request (7.5 MB) in a single
+      // turn would exceed maxQueuedBytes (4 MiB) of this replica's own
+      // subscribers, which receive local publishes synchronously.
       await new Promise((resolve) => setImmediate(resolve));
     }
     return { published: total, replica };
@@ -293,26 +376,24 @@ const root = fileURLToPath(new URL('../views', import.meta.url));
     RealtimeModule.forRoot({
       secrets: [realtimeSecret],
       origin,
-      broker: redis
-        ? new RedisRealtimeBroker({ ...redis, prefix: `${prefix}rt:` })
-        : new MemoryRealtimeBroker(),
-      // Presence across replicas; a crashed replica's viewers lapse by TTL.
+      // One Redis configuration: broker plus shared presence (on by default;
+      // a crashed replica's viewers lapse by TTL).
       ...(redis
-        ? {
-            presence: {
-              store: new RedisPresenceStore({
-                ...redis,
-                prefix: `${prefix}presence:`,
-              }),
-              ttlMs: Number(env['PRESENCE_TTL_MS'] ?? 30_000),
-            },
-          }
-        : {}),
+        ? redisRealtime({
+            ...redis,
+            prefix: `${prefix}rt:`,
+            presence: { ttlMs: Number(env['PRESENCE_TTL_MS'] ?? 30_000) },
+          })
+        : { broker: new MemoryRealtimeBroker() }),
       resolveIdentity: (request) => ({ binding: guestOf(request).binding }),
       resolveUpgradeIdentity: (request) => ({
         binding: guestOf(request).binding,
       }),
-      authorizeChannel: (_identity, channel) => channel === boardChannel,
+      authorizeChannel: (identity, channel) => {
+        if (channel === boardChannel) return true;
+        const tenant = tenantOf(identity.binding);
+        return tenant !== undefined && channel === tenantChannel(tenant);
+      },
       describePresence: (identity) => ({
         id: presenceId(identitySecret, identity.binding),
       }),
@@ -323,7 +404,7 @@ const root = fileURLToPath(new URL('../views', import.meta.url));
         browser: {
           realtime: { endpoint: '/_nestvexa/realtime', transport },
         },
-        components: [ReplicaBoard],
+        components: [ReplicaBoard, TenantFeed],
         imports: [SharedModule],
         inject: [RealtimeService],
         useFactory: (realtime: RealtimeService) => ({
@@ -342,10 +423,17 @@ const root = fileURLToPath(new URL('../views', import.meta.url));
             return { binding: guest.binding, csrfToken: guest.csrf };
           },
           authorize: (_identity, component, action) =>
-            component === 'replica-board' &&
-            ['$mount', '$sync', 'increment', 'pay', 'exportAll'].includes(
-              action,
-            ),
+            (component === 'replica-board' &&
+              [
+                '$mount',
+                '$sync',
+                'increment',
+                'pay',
+                'receipt',
+                'exportAll',
+              ].includes(action)) ||
+            (component === 'tenant-feed' &&
+              ['$mount', '$sync', 'announce'].includes(action)),
         }),
       },
     ),

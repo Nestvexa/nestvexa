@@ -21,7 +21,10 @@ import type {
   RealtimeModuleOptions,
   RealtimeTransportName,
 } from '../packages/realtime/dist/index.js';
-import { RedisPresenceStore } from '../packages/realtime-redis/dist/realtime.js';
+import {
+  RedisPresenceStore,
+  redisRealtime,
+} from '../packages/realtime-redis/dist/realtime.js';
 import { respDouble } from './support/resp-double.js';
 // Fails the test on any server-side unhandled promise rejection (QA-073).
 import './support/no-unhandled-rejections.js';
@@ -225,6 +228,71 @@ describe('presence across replicas', () => {
     socket.ws.close();
     stream.close();
   }, 20_000);
+
+  it('shares presence by default when Redis is configured through redisRealtime()', async () => {
+    const double = await respDouble();
+    cleanup.push(() => double.close());
+    // One Redis configuration per replica; presence comes with it.
+    const a = await replica('express', {
+      ...redisRealtime({ port: double.port, prefix: 'rr:' }),
+    });
+    const b = await replica('fastify', {
+      ...redisRealtime({ port: double.port, prefix: 'rr:' }),
+    });
+    const alice = { binding: users['alice'] ?? '' };
+    const bob = { binding: users['bob'] ?? '' };
+    const onA = await sse(
+      `${a.base}/_nestvexa/realtime/sse?t=${(await a.service.sign(alice, ['tenant-a:room'])) ?? ''}`,
+      'alice',
+    );
+    const onB = await sse(
+      `${b.base}/_nestvexa/realtime/sse?t=${(await b.service.sign(bob, ['tenant-a:room'])) ?? ''}`,
+      'bob',
+    );
+    await until(() => onA.read().includes('event: ready'));
+    await until(() => onB.read().includes('event: ready'));
+    await until(
+      async () =>
+        (await a.service.presence(alice, 'tenant-a:room')).total === 2,
+    );
+    expect(ids(await b.service.presence(bob, 'tenant-a:room'))).toEqual([
+      'u-alice',
+      'u-bob',
+    ]);
+    // Presence keys live under <prefix>presence:, beside the broker's channels.
+    expect(
+      [...double.values.keys()].some((key) => key.startsWith('rr:presence:')),
+    ).toBe(true);
+    // The same configuration carries events across replicas.
+    await a.service.publish('tenant-a:room', { n: 1 });
+    await until(() => onB.read().includes('"n":1'));
+    expect(onB.read()).toContain('"n":1');
+    onA.close();
+    onB.close();
+  }, 20_000);
+
+  it('keeps presence per replica only when redisRealtime() opts out, and validates its prefix', async () => {
+    const double = await respDouble();
+    cleanup.push(() => double.close());
+    const options = redisRealtime({
+      port: double.port,
+      prefix: 'solo:',
+      presence: false,
+    });
+    expect(options.presence).toBeUndefined();
+    expect(options.broker).toBeInstanceOf(RespRealtimeBroker);
+    const withTtl = redisRealtime({
+      port: double.port,
+      presence: { ttlMs: 9000 },
+    });
+    expect(withTtl.presence?.ttlMs).toBe(9000);
+    expect(withTtl.presence?.store).toBeInstanceOf(RedisPresenceStore);
+    await withTtl.broker.close();
+    await withTtl.presence?.store.close();
+    await options.broker.close();
+    for (const prefix of ['Bad Prefix', 'x'.repeat(56), 'a/b'])
+      expect(() => redisRealtime({ prefix })).toThrow(/prefix/);
+  });
 
   it('updates promptly on disconnect and removes entries on graceful shutdown', async () => {
     const shared = new MemoryPresenceStore();
