@@ -19,7 +19,6 @@ import type {
 import { RedisActionIdempotencyStore } from '../packages/realtime-redis/dist/actions.js';
 import { RespConnection } from '../packages/realtime-redis/dist/index.js';
 import { respDouble } from './support/resp-double.js';
-import type { RespDouble } from './support/resp-double.js';
 
 const cleanup: (() => Promise<void> | void)[] = [];
 afterEach(async () => {
