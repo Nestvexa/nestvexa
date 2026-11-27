@@ -52,19 +52,21 @@ No raw cookies, tokens or private DTOs should be logged. The packages send no te
 
 ## Slow clients and server timeouts
 
-Nestvexa does not set Node HTTP server timeouts; the host owns them, together
-with edge rate limits and proxy timeouts. Stalled upload sessions are bounded
-and tested (`tests/uploads-http.test.ts`), but no test drives slow-header or
-slow-body (slowloris) clients at the Live, actions or Inertia routes. Node's
-defaults are `headersTimeout` 60 s, `requestTimeout` 300 s and
-`keepAliveTimeout` 5 s. Tighten them for your traffic before `listen()`; the
-same Node server sits behind the Express and Fastify adapters. Keep
-`requestTimeout` above the time your slowest legitimate client needs to send
-one upload chunk (it bounds receiving the request, not streaming the response):
+`configureNestvexa(app)` bounds slow clients (slowloris, trickled request heads
+and bodies) on the Node server behind the Express and Fastify adapters. A
+request head must arrive within `headersTimeoutMs` (default 30 s) and its body
+within `requestTimeoutMs` (default 300 s); otherwise the client gets `408` and
+the connection is closed. Without this bound Node checks its own timeouts only
+every 30 s, and Fastify turns `requestTimeout` off. Keep `requestTimeoutMs`
+above the time your slowest legitimate client needs to send one upload (it
+bounds receiving the request, not streaming the response). Apps that do not
+call `configureNestvexa` call `boundHttpServer` from `@nestvexa/core` before
+`listen()`:
 
 ```ts check
 import { Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { boundHttpServer } from '@nestvexa/core';
 import type { Server } from 'node:http';
 
 @Module({})
@@ -72,11 +74,15 @@ class AppModule {}
 
 const app = await NestFactory.create(AppModule);
 const server: Server = app.getHttpServer();
-server.headersTimeout = 10_000;
-server.requestTimeout = 30_000;
+boundHttpServer(server, { headersTimeoutMs: 10_000, requestTimeoutMs: 60_000 });
 server.keepAliveTimeout = 5_000;
 await app.listen(3000);
 ```
+
+Node does not cap the number of open connections; cap connections per client
+and rate-limit at the edge. `tests/slow-clients.test.ts` drives slowloris,
+slow-header and slow-body sockets at the Live, actions and Inertia routes on
+both adapters. See [slow clients](guide.md#slow-clients).
 
 A reverse proxy in front (see [reverse proxy](../deployment/reverse-proxy.md))
 should buffer request headers and enforce its own client timeouts as well.

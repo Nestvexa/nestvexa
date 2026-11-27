@@ -41,22 +41,40 @@ health endpoints and metrics. Configure the breaker with
 `circuitBreaker: { failureThreshold, cooldownMs }`, or turn it off with
 `circuitBreaker: false`.
 
-| Service     | Option owner                                                              | Timeout (default)                                                                        | Breaker default  | While open                                                                                 |
-| ----------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------ |
-| Redis       | `RespConnection`, `RedisLiveStore`, `RedisJobQueue`, `RedisPresenceStore` | `commandTimeoutMs` 5000 per command; the connection attempt is bounded by the same value | 5 failures, 1 s  | `CircuitOpenError`; the Live store maps it to the retryable `503 STORE_UNAVAILABLE`        |
-| S3 storage  | `S3Storage`                                                               | `requestTimeoutMs` 30000 of inactivity                                                   | 5 failures, 10 s | `502 STORAGE_FAILED`, with no request sent and the unsent upload stream closed             |
-| clamd       | `ClamdScanner`                                                            | `timeoutMs` 30000 per scan                                                               | 5 failures, 10 s | verdict `{ status: 'error', reason: 'unavailable' }`. The upload still fails closed.       |
-| AI provider | `AiAssistant`                                                             | `timeoutMs` 20000 per turn; `toolTimeoutMs` 10000                                        | 5 failures, 10 s | the turn fails at once (`turn.failed`, detail `UNAVAILABLE`), without calling the provider |
-| Mail        | `Mailer` / `MailModule`                                                   | `sendTimeoutMs` 30000 per send (new)                                                     | 5 failures, 10 s | `MailError('TRANSPORT_FAILED')`; the `onDelivery` event reports `CIRCUIT_OPEN`             |
+| Service       | Option owner                                                              | Timeout (default)                                                                        | Breaker default  | While open                                                                                                                             |
+| ------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Redis         | `RespConnection`, `RedisLiveStore`, `RedisJobQueue`, `RedisPresenceStore` | `commandTimeoutMs` 5000 per command; the connection attempt is bounded by the same value | 5 failures, 1 s  | `CircuitOpenError`; the Live store maps it to the retryable `503 STORE_UNAVAILABLE`                                                    |
+| Redis pub/sub | `RespRealtimeBroker` (`RedisRealtimeBroker`)                              | `commandTimeoutMs` 5000 per PUBLISH/PING reply and per connection attempt                | 5 failures, 1 s  | `CircuitOpenError` from `publish`, `ping` and a new `subscribe`; the hub refuses the realtime connection with `503 BROKER_UNAVAILABLE` |
+| S3 storage    | `S3Storage`                                                               | `requestTimeoutMs` 30000 of inactivity                                                   | 5 failures, 10 s | `502 STORAGE_FAILED`, with no request sent and the unsent upload stream closed                                                         |
+| clamd         | `ClamdScanner`                                                            | `timeoutMs` 30000 per scan                                                               | 5 failures, 10 s | verdict `{ status: 'error', reason: 'unavailable' }`. The upload still fails closed.                                                   |
+| AI provider   | `AiAssistant`                                                             | `timeoutMs` 20000 per turn; `toolTimeoutMs` 10000                                        | 5 failures, 10 s | the turn fails at once (`turn.failed`, detail `UNAVAILABLE`), without calling the provider                                             |
+| Mail          | `Mailer` / `MailModule`                                                   | `sendTimeoutMs` 30000 per send (new)                                                     | 5 failures, 10 s | `MailError('TRANSPORT_FAILED')`; the `onDelivery` event reports `CIRCUIT_OPEN`                                                         |
 
 ### Notes per service
 
 - **Redis.** Each `RespConnection` has its own breaker. A store or queue uses
   two connections (commands and transactions), so each one finds an outage
   separately. The cooldown is short, 1 second, because Redis restarts
-  quickly. The Redis pub/sub broker (`RespRealtimeBroker` in
-  `@nestvexa/realtime`) keeps its existing resubscribe backoff. Publishes
-  made while Redis is down fail, as before.
+  quickly.
+- **Redis pub/sub.** `RespRealtimeBroker` (in `@nestvexa/realtime`, also
+  exported as `RedisRealtimeBroker`) has one breaker for its publisher and
+  subscriber connections, since both reach the same server.
+  - _Fail fast._ Connection failures, reply timeouts and dropped connections
+    count; a `-ERR` reply does not. While the circuit is open, `publish` and
+    `ping` reject with `CircuitOpenError` without connecting, and so does a
+    `subscribe` that needs a new subscriber connection. A `subscribe` on a
+    live subscriber connection still works. The hub turns a failed
+    subscription into `503 BROKER_UNAVAILABLE` for every connection waiting
+    on it, then forgets it, so the next connection retries.
+  - _Recovery._ The subscriber reconnects with bounded backoff (100 ms
+    doubling to 5 s). While the circuit is open it waits for the cooldown
+    instead of connecting, then its reconnect is the half-open probe: success
+    closes the circuit and restores every channel subscription, failure
+    reopens it. A publish after the cooldown can also be the probe.
+  - Events published while a replica is disconnected are lost, as Redis
+    pub/sub is fire-and-forget; browsers refresh after they reconnect.
+    `broker.subscribed` is false while a subscriber reconnect is pending,
+    which readiness checks can report.
 - **S3.** Presigning never touches the network, so the breaker does not apply
   to it.
 - **clamd.** An open circuit never marks a file as clean. Purposes with
@@ -105,4 +123,8 @@ on demand. For each one it checks four things:
 Timeouts are checked with servers that accept connections and never answer.
 The breaker code is one file, `circuit-breaker.ts`, copied into each optional
 package so that they stay free of dependencies. The test also checks that the
-four copies are byte-identical.
+five copies (`realtime`, `realtime-redis`, `uploads`, `ai`, `mail`) are
+byte-identical. `NESTVEXA_REDIS_PORT=… NESTVEXA_REDIS_CONTAINER=… pnpm
+test:services` also stops and starts a real Redis container and checks that
+the pub/sub broker fails fast while it is stopped and recovers after it
+starts.

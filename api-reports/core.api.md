@@ -9,6 +9,9 @@
 Typings: `./dist/index.d.ts`
 
 ```ts
+// boundHttpServer
+declare function boundHttpServer(server: Server, options?: HttpServerBounds): NormalizedHttpServerBounds;
+
 // buildPath
 declare function buildPath(template: string, params?: Readonly<Record<string, unknown>>, query?: Readonly<Record<string, string | number | boolean | undefined>>): string;
 
@@ -178,6 +181,12 @@ declare function formatEarlyHint(hint: EarlyHint): string;
 
 // generateRouteModule
 declare function generateRouteModule(routes: readonly RouteDefinition[]): string;
+
+// HttpServerBounds
+interface HttpServerBounds {
+    readonly headersTimeoutMs?: number;
+    readonly requestTimeoutMs?: number;
+}
 
 // isSemanticVersion
 declare function isSemanticVersion(value: unknown): value is string;
@@ -444,6 +453,12 @@ interface NestvexaRequestContext {
     readonly public: PublicRequestContext;
 }
 
+// NormalizedHttpServerBounds
+interface NormalizedHttpServerBounds {
+    readonly headersTimeoutMs: number;
+    readonly requestTimeoutMs: number;
+}
+
 // NormalizedNestvexaOptions
 interface NormalizedNestvexaOptions {
     readonly views: {
@@ -463,6 +478,9 @@ interface NormalizedNestvexaOptions {
         readonly requireAuthorizedActions: boolean;
     };
 }
+
+// normalizeHttpServerBounds
+declare function normalizeHttpServerBounds(options?: HttpServerBounds): NormalizedHttpServerBounds;
 
 // normalizeOptions
 declare function normalizeOptions(input?: unknown): NormalizedNestvexaOptions;

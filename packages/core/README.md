@@ -292,6 +292,17 @@ principal id or roles. [tests/kernel-transports.test.ts](../../tests/kernel-tran
 proves one user and tenant across MVC, Live, Inertia, server actions, uploads and
 realtime on Express and Fastify.
 
+## Slow-client bounds
+
+`boundHttpServer(server, { headersTimeoutMs?, requestTimeoutMs? })` enforces
+per-connection time bounds on a Node HTTP/1.1 server: the request head within
+`headersTimeoutMs` (default 30000, 1000-600000), and the body within
+`requestTimeoutMs` (default 300000, 1000-3600000). A late client gets `408`
+and is disconnected. Upgraded connections and responses that are already
+streaming are not affected. `configureNestvexa` applies it by default; call it
+yourself before `listen()` in apps without the umbrella. See
+[slow clients](../../docs/security/guide.md#slow-clients).
+
 ## Security
 
 Core describes and evaluates policies; it does not install HTTP security on its

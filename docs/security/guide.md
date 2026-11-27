@@ -151,6 +151,46 @@ The Live client and Alpine CSP build run under `script-src 'self'` without
 `{{nvScripts nonce=cspNonce}}` for nonce policies. Nestvexa sets no CSP header
 for you. See [CSP and security headers](../deployment/csp-and-headers.md).
 
+## Slow clients
+
+A slow client (slowloris, a trickled request head or body) holds a socket
+without sending a complete request. Node checks its own `headersTimeout` and
+`requestTimeout` only every 30 seconds, and Fastify turns `requestTimeout`
+off (0), so a trickled body on Fastify is never cut off by default.
+`configureNestvexa(app)` therefore bounds the host's Node HTTP server on
+Express and Fastify with its own per-connection timers:
+
+| Option             | Default   | Bound                                                                                    |
+| ------------------ | --------- | ---------------------------------------------------------------------------------------- |
+| `headersTimeoutMs` | 30000 ms  | From connection (or the end of the previous response) until the request head is complete |
+| `requestTimeoutMs` | 300000 ms | From the request head until the body is fully received                                   |
+
+```ts
+await configureNestvexa(app, {
+  http: { headersTimeoutMs: 10_000, requestTimeoutMs: 60_000 },
+});
+```
+
+A client that misses a bound gets `408 Request Timeout` and its connection is
+closed. No route handler runs, because the body was never complete. Responses
+already being sent (SSE, streams) and upgraded WebSocket connections are not
+cut off: the bound applies only while the request is being received. Apps
+that do not call `configureNestvexa` (for example Inertia-only hosts) call
+`boundHttpServer(app.getHttpServer(), options)` from `@nestvexa/core` before
+`listen()`. `http: false` leaves the server untouched, for example behind a
+reverse proxy that already enforces client timeouts (nginx
+`client_header_timeout` and `client_body_timeout`). Upload routes keep their
+own inactivity timeout (`idleTimeoutMs`, default 30 s) inside the request
+bound, so raise `requestTimeoutMs` if users upload very large files over slow
+links. Node does not cap the number of open connections; limit connections
+per client at the proxy or load balancer.
+
+`tests/slow-clients.test.ts` checks these bounds over raw sockets against the
+Live action and `$sync` routes, server actions and an Inertia route on Express
+and Fastify. It checks the 408, that no handler runs, that 150 slowloris
+sockets do not delay other clients, and that the server holds no connection
+afterwards.
+
 ## Logging and incident response
 
 - Nestvexa sends no telemetry; every observability hook is opt-in. See the

@@ -7,6 +7,11 @@ export {
   type RespBrokerOptions,
 } from './broker.js';
 export {
+  CircuitOpenError,
+  type CircuitBreakerOptions,
+  type CircuitState,
+} from './circuit-breaker.js';
+export {
   RealtimeHub,
   RealtimeRejection,
   type HubHooks,

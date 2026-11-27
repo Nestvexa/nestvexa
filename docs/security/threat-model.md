@@ -93,22 +93,29 @@ operators; dependency maintainers.
   server parsers and trust boundaries, and `tests/property-client-runtime.test.ts`
   fuzzes the browser runtime in real browsers (directive grammar, fragment
   safety, morph invariants, hostile replies, mounts). The React, Vue and Svelte
-  adapters, island hydration and the Alpine bridge have no property or fuzz
-  suite. Mutation testing (`pnpm test:mutation`) reports a score but does not
+  SSR page props and `data-page` hydration payloads, islands props, signatures
+  and Chromium hydration, and the Alpine `$live` bridge have their own suites
+  (`tests/property-frontend-adapters.test.ts`, `tests/property-islands.test.ts`,
+  `tests/property-alpine.test.ts`). The framework adapters' browser clients are
+  fuzzed only through the payload they read, not by booting each framework per
+  run. Mutation testing (`pnpm test:mutation`) reports a score but does not
   gate.
 - **Volume and slow clients.** `pnpm load` checks correctness and heap growth
   for starter-hbs, live-counter and the realtime hub in a single process; load
-  across replicas is not measured. Stalled uploads are tested; slow-header and
-  slow-body (slowloris) clients against the Live, actions and Inertia routes are
-  not. Node's `headersTimeout`, `requestTimeout` and keep-alive limits, and edge
-  rate limits, are host-owned
+  across replicas is not measured. `configureNestvexa` bounds slow clients on
+  Express and Fastify (`http.headersTimeoutMs`, default 30 s;
+  `http.requestTimeoutMs`, default 300 s; `408` and disconnect), tested with
+  slowloris, slow-header and slow-body sockets against the Live, actions and
+  Inertia routes (`tests/slow-clients.test.ts`). Node does not cap open
+  connections; connection caps and edge rate limits are host-owned
   ([hardening](hardening.md#slow-clients-and-server-timeouts)).
 - **Executed outside unit tests.** `pnpm test:services` has run against real
   Redis 7, SeaweedFS (S3 API) and ClamAV, including a two-replica browser run
   ([services evidence](../implementation/services-evidence-2026-11-05.json)).
   Real AWS S3 has not been exercised.
 - **Not done.** Independent security review (an owner action), a manual
-  screen-reader pass, and fuzzing of the adapters named above.
+  screen-reader pass, and booting the framework adapters' browser clients
+  inside the fuzz runs.
 
 See [hardening](hardening.md), [ASVS traceability](asvs-traceability.md), the
 [security design review](security-design-review.md) and the

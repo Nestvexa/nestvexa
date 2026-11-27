@@ -18,6 +18,7 @@ import { Readable } from 'node:stream';
 import { createHash } from 'node:crypto';
 import { afterEach, describe, expect, it } from 'vitest';
 import * as redisBreaker from '../packages/realtime-redis/dist/circuit-breaker.js';
+import * as realtimeBreaker from '../packages/realtime/dist/circuit-breaker.js';
 import * as uploadsBreaker from '../packages/uploads/dist/circuit-breaker.js';
 import * as aiBreaker from '../packages/ai/dist/circuit-breaker.js';
 import * as mailBreaker from '../packages/mail/dist/circuit-breaker.js';
@@ -26,6 +27,11 @@ import {
   RedisLiveStore,
   RespConnection,
 } from '../packages/realtime-redis/dist/index.js';
+import {
+  CircuitOpenError as RealtimeCircuitOpenError,
+  RespRealtimeBroker,
+} from '../packages/realtime/dist/index.js';
+import type { RealtimeEvent } from '../packages/realtime/dist/index.js';
 import { ClamdScanner, S3Storage } from '../packages/uploads/dist/index.js';
 import { AiAssistant, MemoryAuditSink } from '../packages/ai/dist/index.js';
 import type { ChatEvent, ChatProvider } from '../packages/ai/dist/index.js';
@@ -62,13 +68,14 @@ describe('package-local breaker copies', () => {
         'utf8',
       );
     const reference = await read('realtime-redis');
-    for (const name of ['uploads', 'ai', 'mail'])
+    for (const name of ['realtime', 'uploads', 'ai', 'mail'])
       expect(await read(name), name).toBe(reference);
   });
 });
 
 describe.each([
   ['realtime-redis', redisBreaker],
+  ['realtime', realtimeBreaker],
   ['uploads', uploadsBreaker],
   ['ai', aiBreaker],
   ['mail', mailBreaker],
@@ -333,6 +340,232 @@ describe('Redis (RespConnection)', () => {
       );
     expect(connection.circuit).toBe('closed');
     expect(down.accepted()).toBe(8);
+  });
+});
+
+/**
+ * A switchable front for the RESP double: while `down`, every connection is
+ * reset at once, and switching down also drops the live ones (a Redis stop).
+ */
+async function redisProxy(target: number) {
+  let down = false;
+  const live = new Set<Socket>();
+  const proxy = await tcpServer((socket) => {
+    if (down) {
+      socket.destroy();
+      return;
+    }
+    const upstream = connect(target, '127.0.0.1');
+    live.add(socket);
+    socket.on('close', () => {
+      live.delete(socket);
+      upstream.destroy();
+    });
+    upstream.on('error', () => socket.destroy());
+    upstream.on('close', () => socket.destroy());
+    socket.pipe(upstream).pipe(socket);
+  });
+  return {
+    port: proxy.port,
+    accepted: proxy.accepted,
+    stop() {
+      down = true;
+      for (const socket of live) socket.destroy();
+    },
+    start() {
+      down = false;
+    },
+  };
+}
+
+describe('Redis pub/sub broker (RespRealtimeBroker)', () => {
+  const until = async (check: () => boolean, ms = 5_000) => {
+    const end = Date.now() + ms;
+    while (!check() && Date.now() < end)
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(check()).toBe(true);
+  };
+
+  it('fails publishes fast while Redis is down and recovers through one probe', async () => {
+    const redis = await respDouble();
+    cleanups.push(() => redis.close());
+    const proxy = await redisProxy(redis.port);
+    const broker = new RespRealtimeBroker({
+      port: proxy.port,
+      commandTimeoutMs: 500,
+      circuitBreaker: { failureThreshold: 3, cooldownMs: 300 },
+    });
+    cleanups.push(() => broker.close());
+    await broker.publish('board:1', { n: 0 });
+    await broker.ping();
+    expect(broker.circuit).toBe('closed');
+    proxy.stop();
+    for (let attempt = 0; attempt < 3; attempt++)
+      await expect(broker.publish('board:1', { n: 1 })).rejects.toThrow(
+        /Realtime broker connection closed/,
+      );
+    expect(broker.circuit).toBe('open');
+    const before = proxy.accepted();
+    const started = performance.now();
+    const refusal: unknown = await broker
+      .publish('board:1', { n: 2 })
+      .catch((error: unknown) => error);
+    expect(refusal).toBeInstanceOf(RealtimeCircuitOpenError);
+    expect(refusal).toMatchObject({ service: 'Redis realtime broker' });
+    await expect(broker.ping()).rejects.toBeInstanceOf(
+      RealtimeCircuitOpenError,
+    );
+    expect(performance.now() - started).toBeLessThan(50);
+    // Nothing reached the server while the circuit was open.
+    expect(proxy.accepted()).toBe(before);
+    proxy.start();
+    await new Promise((resolve) => setTimeout(resolve, 320));
+    expect(broker.circuit).toBe('half-open');
+    await expect(broker.publish('board:1', { n: 3 })).resolves.toMatchObject({
+      channel: 'board:1',
+    });
+    expect(broker.circuit).toBe('closed');
+  });
+
+  it('reopens for a full cooldown when the half-open probe fails', async () => {
+    const redis = await respDouble();
+    cleanups.push(() => redis.close());
+    const proxy = await redisProxy(redis.port);
+    proxy.stop();
+    const broker = new RespRealtimeBroker({
+      port: proxy.port,
+      circuitBreaker: { failureThreshold: 1, cooldownMs: 200 },
+    });
+    cleanups.push(() => broker.close());
+    await expect(broker.ping()).rejects.toThrow();
+    expect(broker.circuit).toBe('open');
+    await new Promise((resolve) => setTimeout(resolve, 220));
+    const before = proxy.accepted();
+    await expect(broker.ping()).rejects.toThrow(/connection closed/);
+    // Exactly one probe connected, and the circuit is open again.
+    expect(proxy.accepted()).toBe(before + 1);
+    expect(broker.circuit).toBe('open');
+  });
+
+  it('bounds a Redis that accepts and never answers with commandTimeoutMs', async () => {
+    const silent = await tcpServer((socket) => socket.resume());
+    const broker = new RespRealtimeBroker({
+      port: silent.port,
+      commandTimeoutMs: 100,
+      circuitBreaker: { failureThreshold: 2, cooldownMs: 10_000 },
+    });
+    cleanups.push(() => broker.close());
+    const started = performance.now();
+    await expect(broker.publish('board:1', 1)).rejects.toThrow(/timed out/);
+    await expect(broker.ping()).rejects.toThrow(/timed out/);
+    expect(performance.now() - started).toBeLessThan(2_000);
+    await expect(broker.publish('board:1', 1)).rejects.toBeInstanceOf(
+      RealtimeCircuitOpenError,
+    );
+  });
+
+  it('bounds a connection attempt that never completes', async () => {
+    // An unroutable address: the OS either refuses at once or never answers.
+    // Either way the attempt ends within commandTimeoutMs, not after the OS
+    // connect timeout (about 21 s on Windows, minutes on Linux).
+    const broker = new RespRealtimeBroker({
+      host: '10.255.255.1',
+      port: 6379,
+      commandTimeoutMs: 150,
+      circuitBreaker: { failureThreshold: 1, cooldownMs: 10_000 },
+    });
+    cleanups.push(() => broker.close());
+    const started = performance.now();
+    await expect(broker.ping()).rejects.toThrow();
+    expect(performance.now() - started).toBeLessThan(3_000);
+    expect(broker.circuit).toBe('open');
+  });
+
+  it('error replies never open the circuit', async () => {
+    const redis = await respDouble({ password: 'secret-password' });
+    cleanups.push(() => redis.close());
+    // No password: Redis answers every command with -NOAUTH.
+    const broker = new RespRealtimeBroker({
+      port: redis.port,
+      circuitBreaker: { failureThreshold: 1 },
+    });
+    cleanups.push(() => broker.close());
+    for (let attempt = 0; attempt < 3; attempt++)
+      await expect(broker.publish('board:1', 1)).rejects.toThrow(
+        'Realtime broker rejected publish',
+      );
+    await expect(broker.ping()).rejects.toThrow(/NOAUTH/);
+    expect(broker.circuit).toBe('closed');
+  });
+
+  it('fails a new subscription fast while open, and the subscriber reconnect closes the circuit', async () => {
+    const redis = await respDouble();
+    cleanups.push(() => redis.close());
+    const proxy = await redisProxy(redis.port);
+    const broker = new RespRealtimeBroker({
+      port: proxy.port,
+      commandTimeoutMs: 500,
+      circuitBreaker: { failureThreshold: 2, cooldownMs: 300 },
+    });
+    cleanups.push(() => broker.close());
+    // A second replica publishes straight to Redis.
+    const other = new RespRealtimeBroker({ port: redis.port });
+    cleanups.push(() => other.close());
+    const received: RealtimeEvent[] = [];
+    await broker.subscribe('board:1', (event) => received.push(event));
+    expect(broker.subscribed).toBe(true);
+    await other.publish('board:1', { n: 1 });
+    await until(() => received.length === 1);
+
+    proxy.stop();
+    await until(() => !broker.subscribed);
+    for (let attempt = 0; attempt < 2; attempt++)
+      await expect(broker.publish('board:1', 2)).rejects.toThrow();
+    expect(broker.circuit).toBe('open');
+    const before = proxy.accepted();
+    // A channel that needs a new subscriber connection fails fast.
+    const fast: unknown = await broker
+      .subscribe('board:2', () => undefined)
+      .catch((error: unknown) => error);
+    expect(fast).toBeInstanceOf(RealtimeCircuitOpenError);
+    // Subscriber reconnects wait for the cooldown instead of connecting.
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(proxy.accepted()).toBe(before);
+
+    proxy.start();
+    // After the cooldown the resubscribe is the probe: it closes the circuit
+    // and restores the channel without any publish.
+    await until(() => broker.subscribed && broker.circuit === 'closed');
+    let delivered = false;
+    for (let attempt = 0; attempt < 50 && !delivered; attempt++) {
+      await other.publish('board:1', { n: 3 });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      delivered = received.some(
+        (event) => Reflect.get(Object(event.data), 'n') === 3,
+      );
+    }
+    expect(delivered).toBe(true);
+    await expect(broker.publish('board:1', 4)).resolves.toBeDefined();
+  });
+
+  it('can be disabled, and rejects invalid timeouts', async () => {
+    const down = await tcpServer((socket) => socket.destroy());
+    const broker = new RespRealtimeBroker({
+      port: down.port,
+      circuitBreaker: false,
+    });
+    cleanups.push(() => broker.close());
+    for (let attempt = 0; attempt < 6; attempt++)
+      await expect(broker.publish('board:1', 1)).rejects.toThrow();
+    expect(broker.circuit).toBe('closed');
+    expect(down.accepted()).toBe(6);
+    for (const commandTimeoutMs of [9, 120_001, 1.5, Number.NaN])
+      expect(() => new RespRealtimeBroker({ commandTimeoutMs })).toThrow(
+        'Invalid realtime broker commandTimeoutMs',
+      );
+    expect(
+      () => new RespRealtimeBroker({ circuitBreaker: { cooldownMs: 1 } }),
+    ).toThrow(/Invalid circuit breaker/);
   });
 });
 

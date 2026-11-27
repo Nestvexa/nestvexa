@@ -503,14 +503,86 @@ describe('release paths carry no stubs or skipped tests', () => {
     ).toEqual([]);
   }, 180_000);
 
-  it('has no skipped, focused or todo vitest tests and no focused browser tests', async () => {
+  it('has no skipped, focused or todo vitest tests', async () => {
     const unit = await walk('tests', /\.test\.ts$/);
-    const browser = await walk('tests', /\.spec\.ts$/);
     expect(
       await offending(unit, /\b(?:it|test|describe)\.(?:skip|only|todo)\s*\(/),
     ).toEqual([]);
-    expect(
-      await offending(browser, /\b(?:test|describe)\.(?:only|fixme)\s*\(/),
-    ).toEqual([]);
   }, 180_000);
+
+  // QA-080: `pnpm release:check` requires zero skipped Playwright tests, so a
+  // skip conditioned on `browserName` fails the release just like an
+  // unconditional one. Browser-only tests belong in a
+  // `*.chromium.spec.ts` file, which the Firefox and WebKit projects ignore.
+  // Shared suites (the non-spec `tests/browser/*.ts` helpers) are scanned as
+  // well, because the specs that import them run their tests.
+  const browserSkip =
+    /\b(?:test(?:\.describe)?|describe|testInfo|info\(\))\.(?:only|skip|fixme)\s*\(/;
+
+  it('recognises every Playwright skip, fixme and focus form', () => {
+    // Written with `#` for `.` so this file passes the vitest skip scan.
+    const dotted = (line: string) => line.replaceAll('#', '.');
+    for (const line of [
+      "test#skip(browserName !== 'chromium', 'CDP only');",
+      'test#skip();',
+      "test#fixme(true, 'flaky');",
+      "test#describe#skip('group', () => {});",
+      "test#describe#fixme('group', () => {});",
+      "test#describe#only('group', () => {});",
+      "test#only('one', async () => {});",
+      "testInfo#skip(isMobile, 'desktop only');",
+      "test.info()#skip(true, 'later');",
+      'test.info()#fixme();',
+      "describe#skip('legacy', () => {});",
+    ].map(dotted))
+      expect(line, line).toMatch(browserSkip);
+    for (const line of [
+      "test('skips nothing', async () => {});",
+      "test.describe('group', () => {});",
+      "test.describe.configure({ mode: 'serial' });",
+      "await page.keyboard.press('Tab'); // skip link",
+      'test.slow(); // a timeout multiplier, not a skip',
+    ].map(dotted))
+      expect(line, line).not.toMatch(browserSkip);
+  });
+
+  it('has no skipped, fixme or focused Playwright tests, conditional or not', async () => {
+    const browser = [
+      ...(await walk('tests', /\.spec\.ts$/)),
+      ...(await walk('tests/browser', /\.ts$/)).filter(
+        (file) => !file.endsWith('.spec.ts'),
+      ),
+    ];
+    expect(browser.length).toBeGreaterThan(50);
+    expect(await offending(browser, browserSkip)).toEqual([]);
+  }, 180_000);
+
+  it('runs *.chromium.spec.ts files in the Chromium project only', async () => {
+    const config = await readFile(
+      join(repository, 'playwright.config.ts'),
+      'utf8',
+    );
+    const ignore = 'testIgnore: /\\.chromium\\.spec\\.ts$/';
+    // Each project block runs from its `name:` to the next project or the
+    // end of the projects array.
+    const block = (project: string) => {
+      const start = config.indexOf(`name: '${project}'`);
+      expect(start, project).toBeGreaterThan(0);
+      const next = config.indexOf("name: '", start + 1);
+      const end = config.indexOf('webServer:', start);
+      return config.slice(start, next > 0 && next < end ? next : end);
+    };
+    for (const project of ['firefox', 'webkit'])
+      expect(block(project), project).toContain(ignore);
+    expect(block('chromium')).not.toContain('testIgnore');
+    const chromiumOnly = (await walk('tests/browser', /\.spec\.ts$/)).filter(
+      (file) => file.endsWith('.chromium.spec.ts'),
+    );
+    expect(chromiumOnly).toEqual(
+      expect.arrayContaining([
+        'tests/browser/lifecycle-heap.chromium.spec.ts',
+        'tests/browser/display-forced-colors.chromium.spec.ts',
+      ]),
+    );
+  });
 });

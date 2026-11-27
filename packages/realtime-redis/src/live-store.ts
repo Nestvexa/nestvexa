@@ -992,6 +992,19 @@ export class RedisLiveStore implements LiveStateStore, LiveActionCoordination {
       (await run('GET', lease)) === owner ? [['DEL', lease]] : null,
     );
   }
+  /** Breaker state of the command connection, for health endpoints. */
+  get circuit(): 'closed' | 'open' | 'half-open' {
+    return this.#commands.circuit;
+  }
+  /**
+   * Round-trip a PING on the command connection, for readiness checks.
+   * Rejects with the retryable `503 STORE_UNAVAILABLE` error while Redis is
+   * unreachable, times out or the circuit is open (the cause says which).
+   */
+  async ping(): Promise<void> {
+    const reply = await this.#command('PING');
+    if (reply !== 'PONG') unavailable(new Error('Unexpected Redis PING reply'));
+  }
   /** Close connections; shared state stays in Redis for the other replicas. */
   async close(): Promise<void> {
     await Promise.all([this.#commands.close(), this.#transactions.close()]);

@@ -122,6 +122,10 @@ Delivery semantics:
 - **At most once.** Redis pub/sub is fire-and-forget. Events published while a
   replica is disconnected from Redis are lost for that replica's subscribers.
   The broker reconnects with bounded backoff and restores its subscriptions.
+  While Redis is down its circuit breaker opens: publishes and new
+  subscriptions fail at once with `CircuitOpenError` (a realtime connection
+  gets `503 BROKER_UNAVAILABLE`), and the first reconnect after the cooldown
+  closes it again ([resilience guide](../guides/resilience.md)).
   Browsers refresh authoritative state after they reconnect.
 - **Invalidation only.** A pushed event makes each subscribed component
   re-render through its own authorized `$sync` route on the replica holding
@@ -144,6 +148,40 @@ Presence across replicas needs `presence: { store: new RedisPresenceStore(redis)
 a crashed replica's viewers lapse within the presence TTL (default 30 s).
 Publish and subscribe rate limits are per replica. Transport selection is per
 page (`auto` negotiates WebSocket → SSE → polling), not per component.
+
+## Health probes
+
+Give each replica a liveness and a readiness probe. `examples/distributed-live`
+has both:
+
+- `GET /healthz` (liveness) returns 200 while the process serves requests. It
+  checks no dependency, so a Redis outage never restarts every replica.
+- `GET /readyz` (readiness) returns 200 only while `RedisLiveStore.ping()`
+  and `RedisRealtimeBroker.ping()` answer and `broker.subscribed` is true
+  (the subscriber connection is live). Otherwise it returns 503 with the
+  failing check, so the load balancer stops sending new requests to the
+  replica. Bound each check (the example uses 1 s): while a circuit breaker
+  is open, `ping()` fails at once with `CircuitOpenError`. Readiness recovers
+  on its own once Redis is back and the broker has resubscribed.
+
+```yaml
+# Kubernetes container probes
+livenessProbe:
+  httpGet: { path: /healthz, port: 3220 }
+  periodSeconds: 10
+readinessProbe:
+  httpGet: { path: /readyz, port: 3220 }
+  periodSeconds: 5
+  failureThreshold: 2
+```
+
+`tests/distributed-health.test.ts` checks, on Express and Fastify, that
+`/readyz` turns 503 while Redis is stopped, that `/healthz` stays 200, and
+that `/readyz` returns to 200 after Redis starts again. With
+`NESTVEXA_REDIS_CONTAINER`, `pnpm test:services` repeats this against a real
+Redis container. The example does not report drain: during shutdown Nest
+closes the server after `beforeApplicationShutdown`, so add a drain delay
+there if your load balancer needs readiness to fail before connections close.
 
 ## Cache invalidation across replicas
 
@@ -168,6 +206,8 @@ component refresh does not exist yet (ledger row REAL-010). See the
 - [ ] `RedisRealtimeBroker` (and optionally `RedisPresenceStore`) with a
       unique `prefix`, Redis on a private network, password from the
       environment.
+- [ ] Separate liveness (`/healthz`) and readiness (`/readyz`, checking the
+      Live store and broker) probes; see [Health probes](#health-probes).
 - [ ] `S3Storage` (or another shared `UploadStorage`) for finalized uploads.
       Each replica keeps its own local temporary `directory`.
 - [ ] `RedisJobQueue` for jobs that must survive restarts; idempotent handlers.

@@ -17,6 +17,7 @@ export { assertLiveComponentName } from '@nestvexa/live'; // see its report
 export { assertViewAliases } from '@nestvexa/views'; // see its report
 export { assetHelpers } from '@nestvexa/views'; // see its report
 export { BigIntSynthesizer } from '@nestvexa/live'; // see its report
+export { boundHttpServer } from '@nestvexa/core'; // see its report
 export { buildPath } from '@nestvexa/core'; // see its report
 export { checkWritablePaths } from '@nestvexa/live'; // see its report
 export { ChildReference } from '@nestvexa/live'; // see its report
@@ -33,6 +34,7 @@ declare function configureNestvexa(app: INestApplication, options?: ConfigureNes
 // ConfigureNestvexaOptions
 interface ConfigureNestvexaOptions {
     readonly errorPages?: NestvexaErrorPageOptions;
+    readonly http?: HttpServerBounds | false;
 }
 
 export { consumeLiveFlash } from '@nestvexa/live'; // see its report
@@ -86,6 +88,7 @@ export { grantPermissions } from '@nestvexa/views'; // see its report
 export { HbsEngine } from '@nestvexa/engine-hbs'; // see its report
 export { helperArguments } from '@nestvexa/views'; // see its report
 export { HelperArguments } from '@nestvexa/views'; // see its report
+export { HttpServerBounds } from '@nestvexa/core'; // see its report
 export { invokeViewHelper } from '@nestvexa/views'; // see its report
 export { isLiveActionCoordination } from '@nestvexa/live'; // see its report
 export { isLiveStateStore } from '@nestvexa/live'; // see its report
@@ -249,7 +252,9 @@ declare class NestvexaViewContextInterceptor implements NestInterceptor {
     intercept(context: ExecutionContext, next: CallHandler): Observable<unknown>;
 }
 
+export { NormalizedHttpServerBounds } from '@nestvexa/core'; // see its report
 export { NormalizedNestvexaOptions } from '@nestvexa/core'; // see its report
+export { normalizeHttpServerBounds } from '@nestvexa/core'; // see its report
 export { normalizeOptions } from '@nestvexa/core'; // see its report
 export { normalizeQualifiedViewId } from '@nestvexa/views'; // see its report
 export { normalizeViewId } from '@nestvexa/views'; // see its report

@@ -76,6 +76,16 @@ Notes:
 - **Health check.** Nestvexa does not register a health route. The check
   above calls a route you define, like the examples' `@Get('api/health')`. It
   uses Node's built-in `fetch`, so the slim image needs no `curl`.
+- **Liveness and readiness.** Keep the two apart when an orchestrator
+  restarts containers or a load balancer routes by health. Liveness
+  (`/healthz`) checks only that the process answers: if it checked Redis, an
+  outage would restart every replica at once, and a restart cannot fix Redis.
+  Readiness (`/readyz`) checks the shared dependencies (the Live store and
+  the realtime broker) and returns 503 while one is down, so traffic moves to
+  healthy replicas until it recovers. `examples/distributed-live` implements
+  both, using `RedisLiveStore.ping()`, `RedisRealtimeBroker.ping()` and
+  `subscribed`; see [multi-replica deployment](multi-replica-redis.md#health-probes).
+  A Docker `HEALTHCHECK` is a liveness check; point it at `/healthz`.
 - **Views.** Copy the directory your `views.root` resolves to. The examples
   resolve views relative to the compiled file (`new URL('../views',
 import.meta.url)`), so they are not under `src/`. Turn on

@@ -58,6 +58,7 @@ load balancer restart (development only).
 | `HTTP_ADAPTER`                       | `express` (default) or `fastify`                                   |
 | `PRESENCE_TTL_MS`                    | Presence entry lifetime with Redis (default 30000)                 |
 | `EXPORT_DELAY_MS`                    | Duration of the identity-scoped `exportAll` action (default 1500)  |
+| `READINESS_TIMEOUT_MS`               | Bound on each `/readyz` dependency check (default 1000)            |
 
 ## What it demonstrates
 
@@ -72,6 +73,19 @@ load balancer restart (development only).
 - The same app on Express and Fastify replicas; `/api/health` reports the
   adapter, the transports offered and this replica's open connections.
 - Per-identity publish rate limits (`publish(..., { identity })`).
+- Separate liveness and readiness probes. `GET /healthz` (liveness) answers
+  200 while the process serves requests and checks no dependency.
+  `GET /readyz` (readiness) answers 200 only while the shared Live store
+  (`RedisLiveStore.ping()`) and the realtime broker
+  (`RedisRealtimeBroker.ping()`, plus `subscribed` for its channel
+  subscriptions) answer, and 503 with the failing check otherwise:
+  `{"status":"unready","checks":{"store":"unavailable","broker":"unavailable"}}`.
+  Each check is bounded by `READINESS_TIMEOUT_MS` and fails at once while a
+  circuit breaker is open. Readiness turns 200 again on its own when Redis is
+  back. Standalone replicas report `"memory"` for both checks.
+  `tests/distributed-health.test.ts` proves this on Express and Fastify
+  (Redis stopped, then started on the same port), and `pnpm test:services`
+  repeats it against a real Redis container.
 - Cross-replica action coordination with `RedisLiveStore`: `pay` is
   `@Action({ idempotent: true })`, so a retry with the same request ID on any
   replica replays the first response (its side effect, counted at

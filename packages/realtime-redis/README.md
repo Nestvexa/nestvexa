@@ -168,6 +168,13 @@ and Fastify behind one Redis.
 | `encryptionKeys`                   | none             | AES-256-GCM keys (32 bytes); first encrypts, all decrypt; plaintext rejected  |
 | `commandTimeoutMs`                 | 5000             | A command without a reply destroys the connection and fails pending commands  |
 
+For health endpoints, `store.circuit` reports the command connection's
+breaker state and `await store.ping()` round-trips a `PING`. `ping()` rejects
+with the retryable `503 STORE_UNAVAILABLE` error while Redis is unreachable or
+the circuit is open. `RedisRealtimeBroker` has the same `circuit` and `ping()`,
+plus `subscribed`. `examples/distributed-live` uses them for its `/readyz`
+probe ([health probes](../../docs/deployment/multi-replica-redis.md#health-probes)).
+
 ## Semantics
 
 Same contract as `MemoryLiveStore` (see `LiveStateStore` in `@nestvexa/live`):

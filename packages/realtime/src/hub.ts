@@ -192,12 +192,17 @@ class RateWindow {
  * Owns live subscriptions. One broker subscription per channel is shared by all
  * local connections and released with the last one.
  */
+/** One broker subscription shared by every local connection on a channel. */
+interface ChannelEntry {
+  readonly connections: Set<Connection>;
+  /** Settles once the broker subscription exists (or failed). */
+  ready: Promise<void>;
+  release?: () => void;
+}
+
 export class RealtimeHub {
   readonly #connections = new Set<Connection>();
-  readonly #channels = new Map<
-    string,
-    { readonly connections: Set<Connection>; release?: () => void }
-  >();
+  readonly #channels = new Map<string, ChannelEntry>();
   #closing = false;
   readonly #subscribes: RateWindow;
   readonly #publishes: RateWindow;
@@ -414,17 +419,39 @@ export class RealtimeHub {
   async #attach(channel: string, connection: Connection): Promise<void> {
     let entry = this.#channels.get(channel);
     if (!entry) {
-      entry = { connections: new Set() };
-      this.#channels.set(channel, entry);
-      const target = entry;
-      target.release = await this.broker.subscribe(channel, (event) => {
-        // Sized once per event, shared by every local subscriber.
-        const bytes = eventBytes(event);
-        for (const subscriber of [...target.connections])
-          this.#enqueue(subscriber, event, bytes);
-      });
+      const target: ChannelEntry = {
+        connections: new Set(),
+        ready: Promise.resolve(),
+      };
+      this.#channels.set(channel, target);
+      target.ready = this.broker
+        .subscribe(channel, (event) => {
+          // Sized once per event, shared by every local subscriber.
+          const bytes = eventBytes(event);
+          for (const subscriber of [...target.connections])
+            this.#enqueue(subscriber, event, bytes);
+        })
+        .then(
+          (release) => {
+            // Every connection closed while the broker was subscribing.
+            if (this.#channels.get(channel) === target)
+              target.release = release;
+            else release();
+          },
+          (error: unknown) => {
+            // Forget the failed subscription so the next connection retries
+            // it instead of joining a channel that never receives events.
+            if (this.#channels.get(channel) === target)
+              this.#channels.delete(channel);
+            throw error;
+          },
+        );
+      entry = target;
     }
     entry.connections.add(connection);
+    // Concurrent connections to the same channel wait for (and share the
+    // failure of) the one subscription in flight.
+    await entry.ready;
   }
   /**
    * Queue an event for one connection. The bound is on what is still queued

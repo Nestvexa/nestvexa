@@ -16,7 +16,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { setTimeout as delay } from 'node:timers/promises';
-import { RespRealtimeBroker } from '../packages/realtime/dist/index.js';
+import { performance } from 'node:perf_hooks';
+import {
+  CircuitOpenError,
+  RespRealtimeBroker,
+} from '../packages/realtime/dist/index.js';
 import {
   RedisLiveStore,
   RespConnection,
@@ -143,6 +147,172 @@ process.stdin.resume();`,
       await publisher.close();
     } finally {
       child.stdin.end();
+      child.kill();
+    }
+  });
+
+/** `docker stop|start <container>`, bounded for a loaded Docker Desktop host. */
+const docker = (action, container) => {
+  const result = spawnSync('docker', [action, container], {
+    encoding: 'utf8',
+    timeout: 300_000,
+  });
+  if (result.status !== 0)
+    throw new Error(
+      `docker ${action} failed: ` + (result.error?.message ?? result.stderr),
+    );
+};
+/** Wait until a real Redis answers PING again after `docker start`. */
+const redisBack = async (port) => {
+  const ready = new RespConnection({ port, commandTimeoutMs: 2000 });
+  const deadline = Date.now() + 120_000;
+  try {
+    while ((await ready.command('PING').catch(() => '')) !== 'PONG') {
+      if (Date.now() > deadline) throw new Error('Redis did not come back');
+      await delay(500);
+    }
+  } finally {
+    await ready.close();
+  }
+};
+
+// QA-018: the pub/sub broker's circuit breaker against a real Redis that is
+// stopped (not restarted) and started again.
+if (env.NESTVEXA_REDIS_PORT && env.NESTVEXA_REDIS_CONTAINER)
+  await check('redis-broker-breaker', async (step) => {
+    const port = Number(env.NESTVEXA_REDIS_PORT);
+    const container = env.NESTVEXA_REDIS_CONTAINER;
+    const prefix = 'nvbreaker' + randomBytes(4).toString('hex') + ':';
+    const subscriber = new RespRealtimeBroker({
+      port,
+      prefix,
+      commandTimeoutMs: 1000,
+      circuitBreaker: { failureThreshold: 3, cooldownMs: 1000 },
+    });
+    const publisher = new RespRealtimeBroker({ port, prefix });
+    const received = [];
+    try {
+      await subscriber.subscribe('board:1', (event) =>
+        received.push(event.data),
+      );
+      await publisher.publish('board:1', { n: 0 });
+      await waitFor(() => received.length === 1, 'delivery before the stop');
+      docker('stop', container);
+      try {
+        await waitFor(() => !subscriber.subscribed, 'subscriber disconnect');
+        for (let attempt = 0; attempt < 3; attempt++)
+          await subscriber.publish('board:1', { n: attempt }).then(
+            () => {
+              throw new Error('publish succeeded while Redis was stopped');
+            },
+            (error) => {
+              if (error instanceof CircuitOpenError) throw error;
+            },
+          );
+        if (subscriber.circuit !== 'open')
+          throw new Error(`circuit is ${subscriber.circuit}, expected open`);
+        const started = performance.now();
+        for (const attempt of [
+          () => subscriber.publish('board:1', 1),
+          () => subscriber.ping(),
+          () => subscriber.subscribe('board:2', () => undefined),
+        ]) {
+          const error = await attempt().then(
+            () => undefined,
+            (caught) => caught,
+          );
+          if (!(error instanceof CircuitOpenError))
+            throw new Error('expected CircuitOpenError while open');
+        }
+        const elapsed = performance.now() - started;
+        if (elapsed > 100)
+          throw new Error(`fail-fast took ${Math.round(elapsed)} ms`);
+        step(
+          'publish, ping and a new subscribe failed fast with CircuitOpenError while Redis was stopped',
+        );
+      } finally {
+        docker('start', container);
+      }
+      await redisBack(port);
+      // The subscriber reconnect after the cooldown is the probe: it closes
+      // the circuit and restores the channel without any publish.
+      await waitFor(
+        () => subscriber.subscribed && subscriber.circuit === 'closed',
+        'subscriber reconnect closing the circuit',
+        30_000,
+      );
+      let delivered = false;
+      const end = Date.now() + 20_000;
+      for (let n = 100; Date.now() < end && !delivered; n++) {
+        await publisher.publish('board:1', { n }).catch(() => undefined);
+        await delay(200);
+        delivered = received.some((data) => (data?.n ?? 0) >= 100);
+      }
+      if (!delivered) throw new Error('No delivery after Redis started');
+      await subscriber.publish('board:1', { n: -1 });
+      await subscriber.ping();
+      step(
+        'after Redis started, the resubscribe probe closed the circuit, delivery resumed and publish/ping succeed',
+      );
+    } finally {
+      await subscriber.close();
+      await publisher.close();
+    }
+  });
+
+// QA-020: examples/distributed-live readiness against a real Redis that is
+// stopped and started (liveness must stay up throughout).
+if (env.NESTVEXA_REDIS_PORT && env.NESTVEXA_REDIS_CONTAINER)
+  await check('distributed-readiness', async (step) => {
+    const port = Number(env.NESTVEXA_REDIS_PORT);
+    const container = env.NESTVEXA_REDIS_CONTAINER;
+    const appPort = Number(env.NESTVEXA_READINESS_PORT ?? 3290);
+    const base = `http://127.0.0.1:${appPort}`;
+    const child = spawn(process.execPath, ['dist/main.js'], {
+      cwd: new URL('../examples/distributed-live/', import.meta.url),
+      env: {
+        ...env,
+        NODE_OPTIONS: '',
+        NODE_ENV: 'production',
+        PORT: String(appPort),
+        REDIS_PORT: String(port),
+        REDIS_PREFIX: 'nvready' + randomBytes(4).toString('hex') + ':',
+        REALTIME_SECRET: randomBytes(32).toString('base64url'),
+        IDENTITY_SECRET: randomBytes(32).toString('base64url'),
+      },
+      stdio: ['ignore', 'inherit', 'inherit'],
+    });
+    const status = (path) =>
+      fetch(base + path).then(
+        (response) => response.status,
+        () => 0,
+      );
+    const becomes = async (code, ms = 60_000) => {
+      const end = Date.now() + ms;
+      while (Date.now() < end) {
+        if ((await status('/readyz')) === code) return;
+        await delay(250);
+      }
+      throw new Error(`/readyz did not return ${code}`);
+    };
+    try {
+      await becomes(200, 120_000);
+      await fetch(base + '/');
+      await becomes(200);
+      step('replica ready: /readyz 200 with Redis up');
+      docker('stop', container);
+      try {
+        await becomes(503);
+        if ((await status('/healthz')) !== 200)
+          throw new Error('/healthz failed while Redis was stopped');
+        step('/readyz 503 and /healthz 200 while Redis was stopped');
+      } finally {
+        docker('start', container);
+      }
+      await redisBack(port);
+      await becomes(200);
+      step('/readyz recovered to 200 after Redis started');
+    } finally {
       child.kill();
     }
   });

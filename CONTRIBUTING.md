@@ -60,6 +60,11 @@ For browser tests run `pnpm exec playwright install chromium firefox webkit` and
   [ledger](docs/implementation/feature-ledger.md) row Done, or document a feature as
   shipped, without implementation, test, documentation, security and integration
   evidence. Known gaps are written down, not hidden.
+- **Browser-only tests.** The release gate requires zero skipped Playwright tests, so
+  never use `test.skip(...)`, `test.fixme(...)` or `test.describe.skip(...)`, even
+  conditionally on `browserName`. Put a test that needs a Chromium-only API in a
+  `*.chromium.spec.ts` file: the Firefox and WebKit projects ignore that suffix.
+  `tests/release-gate.test.ts` rejects every skip form in `tests/browser/`.
 - **Scope.** The [master specification](NESTVEXA_MASTER_IMPLEMENTATION_PROMPT.md) and
   [status](docs/implementation/STATUS.md) define the required scope. Later phases
   remain required work, not community-delivery substitutes.

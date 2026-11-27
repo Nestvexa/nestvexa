@@ -29,6 +29,15 @@ On a host where a reverse proxy runs on the same machine, binding `127.0.0.1`
 is correct. Bind `0.0.0.0` only when something outside the host must reach the
 port, as in a container. See [Docker](docker.md).
 
+## Health probes
+
+A supervisor that only restarts crashed processes needs no health route. When
+a load balancer or orchestrator probes the app, expose liveness and readiness
+separately: liveness (`/healthz`) must not depend on Redis or other shared
+services, and readiness (`/readyz`) checks them and returns 503 while they are
+down. See [Health probes](multi-replica-redis.md#health-probes) and
+`examples/distributed-live`.
+
 ## Graceful shutdown
 
 Call `app.enableShutdownHooks()` before `listen()`, as every example does.
