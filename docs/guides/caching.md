@@ -111,9 +111,15 @@ passes the same suite as the memory and Redis stores
 5. Stale-while-revalidate only for `public` and `tenant` audiences.
 6. Wire `onEvent` to metrics and `instrumentation` to tracing; watch `refused`,
    `bypass` and `discarded` counts.
-7. Several replicas: use `onInvalidate` to publish the tags (for example
-   `tagChannel(tag)` on the realtime broker) and invalidate on every replica.
-   Stampede protection is per process.
+7. Several replicas: use `RedisCacheStore` from
+   `@nestvexa/realtime-redis/cache`. Entries, tags and invalidation are
+   shared (an invalidation on one replica is visible on all of them at
+   once), a computation that overlaps another replica's invalidation is not
+   stored, and a short Redis lock makes stampede protection cross-process
+   (`new Cache({ store, lock: { ttlMs, waitMs } })`; `lock: false` keeps it
+   per process). Use `onInvalidate` to publish `tagChannel(tag)` on the
+   realtime broker so Live components on other replicas refresh. See the
+   [Redis adapter](../../packages/realtime-redis/README.md#shared-cache).
 
 HTTP caching is separate: pages that contain personal content or Live
 components must send `Cache-Control: private, no-store` (the example does).

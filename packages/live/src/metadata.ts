@@ -74,7 +74,22 @@ export interface StateOptions {
    * client updates and never overrides restored snapshot state.
    */
   readonly default?: JsonValue | (() => unknown);
+  /**
+   * Explicit opt-out of the secret-like name guard, with the reason the value
+   * is safe to publish (for example `'per-session CSRF token the browser
+   * already holds'`). Field names such as `password`, `apiKey` or
+   * `sessionToken` are refused without it, because `@State` is public page
+   * data that reaches the browser. The reason is documentation only.
+   */
+  readonly allowSensitiveName?: string;
 }
+/**
+ * Field names that look like credentials. Same pattern as the islands props
+ * guard (`SENSITIVE_KEY` in `@nestvexa/islands`), so both public-data
+ * channels refuse the same names.
+ */
+const sensitiveStateName =
+  /password|passwd|^pass$|secret|token|api[-_]?key|credential|session|cookie|authorization|csrf|private[-_]?key/i;
 /** Scope of the exclusive lock an action takes while it runs. */
 export type ActionConcurrency = 'component' | 'identity';
 export interface ActionOptions {
@@ -355,8 +370,24 @@ export function State(options: StateOptions = {}): PropertyDecorator {
       initial = cloned;
     }
   }
+  const allowSensitive = options.allowSensitiveName;
+  if (
+    allowSensitive !== undefined &&
+    (typeof allowSensitive !== 'string' ||
+      allowSensitive.trim().length < 3 ||
+      allowSensitive.length > 500)
+  )
+    throw new Error(
+      'State allowSensitiveName must be a reason of 3-500 characters',
+    );
   return (target, key) => {
     const name = property(key);
+    if (allowSensitive === undefined && sensitiveStateName.test(name))
+      throw new Error(
+        `@State field ${target.constructor.name}.${name} looks like a secret: Live state is public page data sent to the browser. ` +
+          'Keep credentials in services or plain (non-@State) fields, rename the field, ' +
+          "or opt out with @State({ allowSensitiveName: '<why this value is safe to publish>' })",
+      );
     const prior: Map<string, StateOptions> | undefined = Reflect.getMetadata(
       STATES,
       target,

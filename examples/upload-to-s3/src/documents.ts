@@ -96,7 +96,9 @@ export class Documents {
   files = '';
   @State() items: PublicDocument[] = [];
   @State() message = '';
-  @State() csrf = '';
+  // The session CSRF token is already embedded in the page for this identity.
+  @State({ allowSensitiveName: 'session CSRF token the page already embeds' })
+  csrf = '';
   constructor(
     @Inject(REQUEST) private readonly request: object,
     @Inject(UploadsService) private readonly uploads: UploadsService,

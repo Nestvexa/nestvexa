@@ -204,6 +204,31 @@ logical operation. A replay returns the stored result with
 (`IDEMPOTENCY_IN_PROGRESS`); reusing a key with different input gets `409`
 (`IDEMPOTENCY_MISMATCH`). Failed calls release the key.
 
+The default `MemoryIdempotencyStore` is per process: after a restart or on
+another replica a retry would run the handler again. With several replicas,
+or whenever a retry after a deploy must replay, use the shared store:
+
+```ts
+import { RedisActionIdempotencyStore } from '@nestvexa/realtime-redis/actions';
+
+ActionsModule.register({
+  ...options,
+  idempotency: {
+    store: new RedisActionIdempotencyStore({
+      host: 'redis',
+      prefix: 'app:idem:',
+    }),
+  },
+});
+```
+
+It claims keys atomically (`SET NX PX`) with a lease that is renewed while
+the handler runs, stores the outcome only while the claim is still owned,
+and fails closed: a Redis error answers `500` without running the handler,
+and an outcome that cannot be stored keeps the claim (retries get `409`)
+until its lease lapses. Details and limits:
+[`@nestvexa/realtime-redis`](../../packages/realtime-redis/README.md#server-action-idempotency).
+
 `concurrency: 'serial'` runs one call at a time per tenant, subject and group
 (bounded queue). Deadlines (`timeoutMs`) abort `@ActionSignal()` and return
 `504 TIMEOUT`; pass the signal to I/O so work actually stops. Nothing is wrapped

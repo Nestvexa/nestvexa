@@ -6,6 +6,11 @@ export interface CacheEntry<T> {
   readonly tags: readonly string[];
 }
 type Awaitable<T> = T | Promise<T>;
+/** A held cross-process computation lock (see `CacheStore.lock`). */
+export interface CacheLock {
+  /** Release the lock if this holder still owns it; never throws on loss. */
+  release(): Awaitable<void>;
+}
 /**
  * Pluggable store. Methods may be synchronous (memory) or asynchronous (a
  * network store); `Cache` awaits every call. Implementations must drop
@@ -14,11 +19,31 @@ type Awaitable<T> = T | Promise<T>;
  */
 export interface CacheStore {
   get<T>(key: string): Awaitable<CacheEntry<T> | undefined>;
-  set<T>(key: string, entry: CacheEntry<T>): Awaitable<void>;
+  /**
+   * Store an entry. `marker` is the `tagMarker` result taken before the value
+   * was computed: a shared store discards the write (returning `false`) when
+   * one of the entry's tags was invalidated since, on any instance.
+   */
+  set<T>(
+    key: string,
+    entry: CacheEntry<T>,
+    marker?: string,
+  ): Awaitable<void | boolean>;
   delete(key: string): Awaitable<void>;
   /** Delete every entry carrying one of the tags; returns the number removed. */
   invalidateTags(tags: readonly string[]): Awaitable<number>;
   clear(): Awaitable<void>;
+  /**
+   * Optional cross-instance invalidation marker: an opaque value describing
+   * the invalidation state of `tags`, passed back to `set`.
+   */
+  tagMarker?(tags: readonly string[]): Awaitable<string>;
+  /**
+   * Optional cross-process stampede lock: a short lease on computing `key`,
+   * or `null` while another process holds it. `Cache` then waits for that
+   * process's value instead of computing the key again.
+   */
+  lock?(key: string, ttlMs: number): Awaitable<CacheLock | null>;
 }
 /** Structural check: an object implementing every `CacheStore` method. */
 export function isCacheStore(value: unknown): value is CacheStore {
