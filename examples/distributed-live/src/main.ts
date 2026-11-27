@@ -38,7 +38,10 @@ import {
   attachRealtimeWebSocket,
 } from '@nestvexa/realtime';
 import { RedisLiveStore, RespConnection } from '@nestvexa/realtime-redis';
-import { redisRealtime } from '@nestvexa/realtime-redis/realtime';
+import {
+  RedisRealtimeBroker,
+  redisRealtime,
+} from '@nestvexa/realtime-redis/realtime';
 import {
   guestFromCookie,
   issueGuest,
