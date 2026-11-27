@@ -118,38 +118,38 @@ ledger lags the code, so counts understate working features.
 
 ## By package
 
-| Package                                                            | Role                                                             | Status          | Notable gaps                                 |
-| ------------------------------------------------------------------ | ---------------------------------------------------------------- | --------------- | -------------------------------------------- |
-| [nestvexa](../packages/nestvexa/README.md)                         | Default distribution and `nestvexa` bin                          | Shipped (alpha) | No SRI/CDN for served assets (CORE-045)      |
-| [@nestvexa/core](../packages/core/README.md)                       | Config, module, registries, plugins                              | Shipped (alpha) | Extension API alpha, no stability promise    |
-| [@nestvexa/views](../packages/views/README.md)                     | Engine contracts, `SafeHtml`, helpers                            | Shipped (alpha) | Engine capabilities differ (streaming)       |
-| [@nestvexa/engine-hbs](../packages/engine-hbs/README.md)           | Handlebars adapter                                               | Shipped (alpha) | No streaming                                 |
-| [@nestvexa/engine-ejs](../packages/engine-ejs/README.md)           | EJS adapter                                                      | Shipped (alpha) | No streaming or precompilation               |
-| [@nestvexa/engine-pug](../packages/engine-pug/README.md)           | Pug adapter                                                      | Shipped (alpha) | No streaming, precompilation or partials map |
-| [@nestvexa/engine-nunjucks](../packages/engine-nunjucks/README.md) | Nunjucks adapter                                                 | Shipped (alpha) | No streaming or precompiled loaders          |
-| [@nestvexa/live](../packages/live/README.md)                       | Live server runtime                                              | Partial         | PROT-012, PROT-018, LIVE-007                 |
-| [@nestvexa/client](../packages/client/README.md)                   | Browser runtime                                                  | Partial         | DIR-016/017, BROW-008/010                    |
-| [@nestvexa/alpine](../packages/alpine/README.md)                   | Alpine bridge                                                    | Partial         | Alpine 3.17.x only (BROW-005/014)            |
-| [@nestvexa/forms](../packages/forms/README.md)                     | Validation adapters, hardening                                   | Partial         | FORM-012                                     |
-| [@nestvexa/uploads](../packages/uploads/README.md)                 | Uploads, storage, downloads                                      | Shipped (alpha) | Process-local pending tokens                 |
-| [@nestvexa/inertia](../packages/inertia/README.md)                 | Inertia v3 server adapter                                        | Partial         | One tested Inertia version (3.10)            |
-| [@nestvexa/vite](../packages/vite/README.md)                       | Vite manifest, dev, SSR                                          | Shipped (alpha) | Fastify static serving untested              |
-| [@nestvexa/react](../packages/react/README.md)                     | React boot/SSR helpers                                           | Partial         | Hooks via actions codegen (SPA-003)          |
-| [@nestvexa/vue](../packages/vue/README.md)                         | Vue boot/SSR helpers                                             | Partial         | Composables via actions codegen (SPA-003)    |
-| [@nestvexa/svelte](../packages/svelte/README.md)                   | Svelte 5 boot/SSR helpers                                        | Partial         | Stores via actions codegen (SPA-003)         |
-| [@nestvexa/islands](../packages/islands/README.md)                 | Framework islands                                                | Shipped (alpha) | Closed props schema subset                   |
-| [@nestvexa/actions](../packages/actions/README.md)                 | Universal server actions                                         | Shipped (alpha) | No result streaming; process-local stores    |
-| [@nestvexa/realtime](../packages/realtime/README.md)               | Realtime invalidation, broker, presence, jobs                    | Partial         | REAL-004/006/009, DATA-010                   |
-| [@nestvexa/realtime-redis](../packages/realtime-redis/README.md)   | Redis Live state store and realtime broker for multiple replicas | Shipped (alpha) | Single primary only (DATA-004), LIVE-007     |
-| [@nestvexa/cache](../packages/cache/README.md)                     | Privacy-scoped cache                                             | Partial         | DATA-006/007                                 |
-| [@nestvexa/observability](../packages/observability/README.md)     | Spans, metrics, logs, devtools                                   | Partial         | DX-033/035                                   |
-| [@nestvexa/i18n](../packages/i18n/README.md)                       | Locales, catalogs, RTL                                           | Shipped (alpha) | ICU subset; explicit hydration               |
-| [@nestvexa/ui](../packages/ui/README.md)                           | Accessible primitives                                            | Partial         | EXT-017/020                                  |
-| [@nestvexa/ai](../packages/ai/README.md)                           | Streaming AI chat                                                | Shipped (alpha) | Provider adapters are host-supplied          |
-| [@nestvexa/flags](../packages/flags/README.md)                     | Feature flags                                                    | Shipped (alpha) | —                                            |
-| [@nestvexa/mail](../packages/mail/README.md)                       | Email templates, transports, notifications                       | Shipped (alpha) | No attachments                               |
-| [@nestvexa/offline](../packages/offline/README.md)                 | Drafts, snapshots                                                | Partial         | EXT-014                                      |
-| [@nestvexa/cli](../packages/cli/README.md)                         | `nestvexa` CLI                                                   | Partial         | DX-016                                       |
+| Package                                                            | Role                                                             | Status          | Notable gaps                                                    |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------- | --------------- | --------------------------------------------------------------- |
+| [nestvexa](../packages/nestvexa/README.md)                         | Default distribution and `nestvexa` bin                          | Shipped (alpha) | No SRI/CDN for served assets (CORE-045)                         |
+| [@nestvexa/core](../packages/core/README.md)                       | Config, module, registries, plugins                              | Shipped (alpha) | Extension API alpha, no stability promise                       |
+| [@nestvexa/views](../packages/views/README.md)                     | Engine contracts, `SafeHtml`, helpers                            | Shipped (alpha) | Engine capabilities differ (streaming)                          |
+| [@nestvexa/engine-hbs](../packages/engine-hbs/README.md)           | Handlebars adapter                                               | Shipped (alpha) | No streaming                                                    |
+| [@nestvexa/engine-ejs](../packages/engine-ejs/README.md)           | EJS adapter                                                      | Shipped (alpha) | No streaming or precompilation                                  |
+| [@nestvexa/engine-pug](../packages/engine-pug/README.md)           | Pug adapter                                                      | Shipped (alpha) | No streaming, precompilation or partials map                    |
+| [@nestvexa/engine-nunjucks](../packages/engine-nunjucks/README.md) | Nunjucks adapter                                                 | Shipped (alpha) | No streaming or precompiled loaders                             |
+| [@nestvexa/live](../packages/live/README.md)                       | Live server runtime                                              | Partial         | PROT-012, PROT-018, LIVE-007                                    |
+| [@nestvexa/client](../packages/client/README.md)                   | Browser runtime                                                  | Partial         | DIR-016/017, BROW-008/010                                       |
+| [@nestvexa/alpine](../packages/alpine/README.md)                   | Alpine bridge                                                    | Partial         | Alpine 3.17.x only (BROW-005/014)                               |
+| [@nestvexa/forms](../packages/forms/README.md)                     | Validation adapters, hardening                                   | Partial         | FORM-012                                                        |
+| [@nestvexa/uploads](../packages/uploads/README.md)                 | Uploads, storage, downloads                                      | Shipped (alpha) | Process-local pending tokens                                    |
+| [@nestvexa/inertia](../packages/inertia/README.md)                 | Inertia v3 server adapter                                        | Partial         | One tested Inertia version (3.10)                               |
+| [@nestvexa/vite](../packages/vite/README.md)                       | Vite manifest, dev, SSR                                          | Shipped (alpha) | Fastify static serving untested                                 |
+| [@nestvexa/react](../packages/react/README.md)                     | React boot/SSR helpers                                           | Partial         | Hooks via actions codegen (SPA-003)                             |
+| [@nestvexa/vue](../packages/vue/README.md)                         | Vue boot/SSR helpers                                             | Partial         | Composables via actions codegen (SPA-003)                       |
+| [@nestvexa/svelte](../packages/svelte/README.md)                   | Svelte 5 boot/SSR helpers                                        | Partial         | Stores via actions codegen (SPA-003)                            |
+| [@nestvexa/islands](../packages/islands/README.md)                 | Framework islands                                                | Shipped (alpha) | Closed props schema subset                                      |
+| [@nestvexa/actions](../packages/actions/README.md)                 | Universal server actions                                         | Shipped (alpha) | No result streaming; process-local rate limits and serial locks |
+| [@nestvexa/realtime](../packages/realtime/README.md)               | Realtime invalidation, broker, presence, jobs                    | Partial         | REAL-004/006/009, DATA-010                                      |
+| [@nestvexa/realtime-redis](../packages/realtime-redis/README.md)   | Redis Live state store and realtime broker for multiple replicas | Shipped (alpha) | Single primary only (DATA-004), LIVE-007                        |
+| [@nestvexa/cache](../packages/cache/README.md)                     | Privacy-scoped cache                                             | Partial         | DATA-006/007                                                    |
+| [@nestvexa/observability](../packages/observability/README.md)     | Spans, metrics, logs, devtools                                   | Partial         | DX-033/035                                                      |
+| [@nestvexa/i18n](../packages/i18n/README.md)                       | Locales, catalogs, RTL                                           | Shipped (alpha) | ICU subset; explicit hydration                                  |
+| [@nestvexa/ui](../packages/ui/README.md)                           | Accessible primitives                                            | Partial         | EXT-017/020                                                     |
+| [@nestvexa/ai](../packages/ai/README.md)                           | Streaming AI chat                                                | Shipped (alpha) | Provider adapters are host-supplied                             |
+| [@nestvexa/flags](../packages/flags/README.md)                     | Feature flags                                                    | Shipped (alpha) | —                                                               |
+| [@nestvexa/mail](../packages/mail/README.md)                       | Email templates, transports, notifications                       | Shipped (alpha) | No attachments                                                  |
+| [@nestvexa/offline](../packages/offline/README.md)                 | Drafts, snapshots                                                | Partial         | EXT-014                                                         |
+| [@nestvexa/cli](../packages/cli/README.md)                         | `nestvexa` CLI                                                   | Partial         | DX-016                                                          |
 
 The package-level status is a summary judgement over the ledger rows named; each
 package README lists its own production caveats.

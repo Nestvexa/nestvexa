@@ -468,9 +468,10 @@ are implemented and covered by HTTP, codegen and browser tests.
 - Global guards run before admission (Nest evaluates global guards first).
 - Fastify rejects some malformed bodies (for example `__proto__` keys) in its own
   parser with a plain 400 before routing.
-- The memory idempotency store, rate limiter and serial locks are process-local;
-  multi-instance deployments need shared implementations of the same contracts
-  (no Redis adapter ships for them yet). `jobRunnerQueue` runs accepted work in
+- The memory idempotency store, rate limiter and serial locks are process-local.
+  For several instances, use `RedisActionIdempotencyStore` from
+  `@nestvexa/realtime-redis/actions` for idempotency; the rate limiter and
+  serial locks have no shared implementation yet. `jobRunnerQueue` runs accepted work in
   the accepting process; a durable queue is host-supplied.
 - Results are a single JSON envelope or a job ticket; there is no incremental
   streaming of an action's return value (progress streams through the job

@@ -74,10 +74,11 @@ operators; dependency maintainers.
   Redis connection. The default stores (`MemoryLiveStore`, `MemoryJobQueue`) are
   process memory: single process or sticky sessions, and a restart loses state
   (fail closed).
-- **Still process-local.** Server-action idempotency records, rate limits and
-  serial locks (`MemoryIdempotencyStore`) and pending upload tokens have no
-  shared implementation, so a retried action can run twice after a restart or
-  on another replica, and an upload must finish on the replica that started it.
+- **Still process-local.** Server-action rate limits and serial locks and
+  pending upload tokens have no shared implementation, so an upload must finish
+  on the replica that started it. Idempotency records can be shared through
+  `RedisActionIdempotencyStore` (fail-closed leased claims; a retry on another
+  replica or after a restart replays instead of running twice).
   A download URL is served only by the replica that issued it. Cross-replica Live
   idempotent replay is tested only against the in-process Redis test double.
 - Revision checks prevent replay against the same snapshot; they are not

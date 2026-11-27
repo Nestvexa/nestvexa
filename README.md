@@ -514,10 +514,11 @@ import `dist`.
   Sentinel discovery, no tested failover, no Redis Cluster. Cross-replica Live
   idempotent replay is tested only against an in-process Redis test double, and a
   download URL is served only by the replica that issued it.
-- **Process-local stores.** Server-action idempotency, rate limits and serial
-  locks, and pending upload tokens, have only in-memory implementations, so a
-  retried action can run twice after a restart or on another replica. No shared
-  Redis store ships for `@nestvexa/cache`. Action results do not stream
+- **Process-local stores.** Server-action rate limits and serial locks, and
+  pending upload tokens, have only in-memory implementations, so an upload must
+  finish on the replica that started it. Action idempotency
+  (`RedisActionIdempotencyStore`) and the cache (`RedisCacheStore`) have shared
+  Redis stores in `@nestvexa/realtime-redis`. Action results do not stream
   (progress goes through jobs).
 - **Browser runtime.** No teleports or portals (declined for 1.0); shadow DOM,
   iframes and multi-range selections are not supported by morphing. Alpine 3.17.x
