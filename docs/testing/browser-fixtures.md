@@ -7,6 +7,16 @@ no retries or exclusions are added. Playwright's full three-engine suite has its
 own separate two-worker configuration. These settings are execution choices,
 not proof that every hardware/browser combination is supported.
 
+`pnpm release:check` requires a Playwright report with zero skipped tests. A
+test that needs a Chromium-only API (DevTools protocol heap metrics, forced
+colors emulation) lives in a `*.chromium.spec.ts` file, which the Firefox and
+WebKit projects ignore through `testIgnore`; examples are
+`tests/browser/lifecycle-heap.chromium.spec.ts` and
+`tests/browser/display-forced-colors.chromium.spec.ts`. Conditional
+`test.skip(...)`, `test.fixme(...)`, `test.describe.skip(...)` and
+`testInfo.skip(...)` calls are rejected by `tests/release-gate.test.ts`, which
+scans every spec and shared suite under `tests/browser/`.
+
 The isolated Node compatibility runner allows five minutes per command because
 the aggregate runs with bounded concurrency. Individual Vitest test/hook limits
 remain 15/30 seconds. A suite timeout, failure or unhandled error still fails the
