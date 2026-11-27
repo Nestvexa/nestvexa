@@ -57,7 +57,9 @@ const csrf = 'devtools-browser-csrf-0123456789012345678';
 @LiveComponent({ name: 'cart', view: 'cart' })
 class Cart {
   @State() items = 0;
-  @State() sessionToken = 'browser-secret-session-token';
+  // A secret-like name on purpose: the browser panel must redact it.
+  @State({ allowSensitiveName: 'devtools redaction fixture' })
+  sessionToken = 'browser-secret-session-token';
   @State() errors: Record<string, string> = {};
   @Action() add(): void {
     this.items++;

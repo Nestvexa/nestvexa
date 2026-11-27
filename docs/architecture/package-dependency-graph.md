@@ -96,6 +96,8 @@ flowchart TD
   islands -.-> frameworks["react / vue / svelte (optional)"]
   vite -.-> vitepkg["vite (optional)"]
   realtime -.-> ws["ws (optional)"]
+  realtime-redis -.-> actions
+  realtime-redis -.-> cache
   realtime-redis -.-> live
   realtime-redis -.-> realtime
   forms -.-> validators["zod / class-validator (optional)"]
@@ -157,7 +159,7 @@ flowchart TD
 | [@nestvexa/offline](../../packages/offline/README.md)                 | —                                                                                                                     | —                                | —                                                                                                                             | false         |
 | [@nestvexa/react](../../packages/react/README.md)                     | `@nestvexa/vite`                                                                                                      | —                                | `@inertiajs/core` (optional), `@inertiajs/react`, `react`, `react-dom`                                                        | false         |
 | [@nestvexa/realtime](../../packages/realtime/README.md)               | —                                                                                                                     | —                                | `@nestjs/common`, `@nestjs/core`, `reflect-metadata`, `rxjs`, `ws` (optional)                                                 | false         |
-| [@nestvexa/realtime-redis](../../packages/realtime-redis/README.md)   | —                                                                                                                     | —                                | `@nestvexa/live`, `@nestvexa/realtime` (optional)                                                                             | false         |
+| [@nestvexa/realtime-redis](../../packages/realtime-redis/README.md)   | —                                                                                                                     | —                                | `@nestvexa/actions`, `@nestvexa/cache`, `@nestvexa/live`, `@nestvexa/realtime` (all optional)                                 | false         |
 | [@nestvexa/svelte](../../packages/svelte/README.md)                   | `@nestvexa/vite`                                                                                                      | —                                | `@inertiajs/core` (optional), `@inertiajs/svelte`, `svelte`                                                                   | false         |
 | [@nestvexa/ui](../../packages/ui/README.md)                           | `@nestvexa/views`                                                                                                     | —                                | —                                                                                                                             | `["*.css"]`   |
 | [@nestvexa/uploads](../../packages/uploads/README.md)                 | —                                                                                                                     | `busboy@1.6.0`                   | `@nestjs/common`, `reflect-metadata`, `rxjs`                                                                                  | false         |

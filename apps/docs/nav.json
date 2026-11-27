@@ -29,6 +29,12 @@
     },
     { "title": "Guides", "include": "docs/guides/*.md" },
     {
+      "title": "Recipes",
+      "pages": ["docs/recipes/README.md"],
+      "include": "docs/recipes/*.md"
+    },
+    { "title": "Troubleshooting", "pages": ["docs/troubleshooting/README.md"] },
+    {
       "title": "Reference",
       "pages": ["docs/reference/cli.md", "docs/reference/directives.md"],
       "links": [

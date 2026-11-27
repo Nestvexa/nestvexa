@@ -1,7 +1,7 @@
 {
   "name": "@nestvexa/realtime-redis",
   "version": "0.1.0-alpha.0",
-  "description": "Optional Redis adapters for multi-replica Nestvexa: shared Live state store and cross-instance realtime pub/sub over RESP, with no client library",
+  "description": "Optional Redis adapters for multi-replica Nestvexa: shared Live state store, server-action idempotency store, shared cache store and cross-instance realtime pub/sub over RESP, with no client library",
   "license": "MIT",
   "author": "Nestvexa contributors",
   "maintainers": [
@@ -38,6 +38,16 @@
       "types": "./dist/realtime.d.ts",
       "import": "./dist/realtime.js",
       "default": "./dist/realtime.js"
+    },
+    "./actions": {
+      "types": "./dist/actions.d.ts",
+      "import": "./dist/actions.js",
+      "default": "./dist/actions.js"
+    },
+    "./cache": {
+      "types": "./dist/cache.d.ts",
+      "import": "./dist/cache.js",
+      "default": "./dist/cache.js"
     }
   },
   "types": "./dist/index.d.ts",
@@ -48,19 +58,32 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run --root ../.. tests/live-store-contract tests/live-shared-action-policy",
+    "test": "vitest run --root ../.. tests/live-store-contract tests/live-shared-action-policy tests/actions-idempotency-store tests/cache-redis-store",
     "lint": "eslint src"
   },
   "peerDependencies": {
+    "@nestvexa/actions": "workspace:*",
+    "@nestvexa/cache": "workspace:*",
     "@nestvexa/live": "workspace:*",
     "@nestvexa/realtime": "workspace:*"
   },
   "peerDependenciesMeta": {
+    "@nestvexa/actions": {
+      "optional": true
+    },
+    "@nestvexa/cache": {
+      "optional": true
+    },
     "@nestvexa/realtime": {
+      "optional": true
+    },
+    "@nestvexa/live": {
       "optional": true
     }
   },
   "devDependencies": {
+    "@nestvexa/actions": "workspace:*",
+    "@nestvexa/cache": "workspace:*",
     "@nestvexa/live": "workspace:*",
     "@nestvexa/realtime": "workspace:*"
   }

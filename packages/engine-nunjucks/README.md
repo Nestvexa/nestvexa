@@ -95,6 +95,22 @@ Autoescaping is always enabled and cannot be disabled through adapter options. `
 
 Never render templates from browser input (`renderString` with user text is code execution). Templates, filters and helpers are trusted code. Models accept finite JSON values, `undefined` and `SafeHtml` only; prototype keys, accessors, class instances, functions, symbols, cycles and oversized structures are rejected without invoking getters.
 
+## Performance
+
+Production (`cache: true`) caches compiled templates in the environment's
+per-loader cache; development rereads templates per render. Precompiled
+loaders are not wired. Templates are size-bounded (`maxTemplateBytes`, 1 MiB) and render
+as complete strings (no streaming). Only Handlebars is benchmarked
+([benchmarks](../../docs/testing/benchmarks.md)).
+
+## Compatibility
+
+Node `>=22` (package `engines`; CI runs 22 and 24), ESM only (`require(esm)`
+for CommonJS hosts). Pinned Nunjucks 3.2.4 and `@nestvexa/views`; no peers.
+Tested as the MVC and Live renderer on Express and Fastify
+(`tests/engine-live.test.ts`); `registerViewEngine` mounts it next to the umbrella
+HBS engine (`tests/umbrella-view-engines.test.ts`, `tests/cli-fastify.test.ts`).
+
 ## Namespaces and themes
 
 `namespaces` (name -> directory) and `themes` (name -> override directory) options resolve `admin::users/index` views and per-render `RenderOptions.theme` overrides for the view, its layout and its includes, with the same containment rules as the root. See the [template engine guide](../../docs/guides/template-engines.md#namespaces-and-themes) for the include rules specific to Nunjucks. Covered by `tests/views-composition.test.ts`.

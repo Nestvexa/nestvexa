@@ -58,6 +58,34 @@ See the [template engine guide](../../docs/guides/template-engines.md#namespaces
 
 `SafeHtml.trusted(markup)` is an explicit escape bypass for application-generated HTML. It does **not** sanitize HTML or make browser text safe. Use ordinary strings for user text. This is a TypeScript application trust boundary, not a sandbox against trusted plugins.
 
+## Security
+
+- View IDs and template references are validated (no absolute paths, `..`,
+  backslashes, `:` or NUL) and resolved by real path inside the root
+  ([tests/property-view-paths.test.ts](../../tests/property-view-paths.test.ts)).
+- `copyViewModel` copies plain data without invoking accessors and rejects
+  prototype keys, functions and cycles; only `SafeHtml` bypasses escaping.
+- `SafeHtml` does not sanitize and permission helpers fail closed. Error pages
+  use a fixed `{ status, title, message? }` model; the page with stacks and
+  template lines renders only when the host passes `development: true`.
+- Engines, helpers and composers are trusted application code.
+
+## Performance
+
+Templates are size-bounded (`maxTemplateBytes`, default 1 MiB) and view models
+structurally bounded (`copyViewModel`: 10,000 nodes, depth 32). Compiled
+template caching belongs to each engine adapter and follows `views.cache`;
+`pnpm bench` shows that leaving it off costs most of the HBS page throughput
+([benchmarks](../../docs/testing/benchmarks.md)). No engine streams.
+
+## Compatibility
+
+Node `>=22` (package `engines`), ESM only, no peers or runtime dependencies.
+The four first-party engine adapters and the
+[custom engine example](../../examples/custom-engine/README.md) implement the
+contract. The structural error filter and route reader are tested with Nest
+12.2.0 on Express and Fastify (`tests/views-error-pages.test.ts`).
+
 ## Examples
 
 [starter-hbs](../../examples/starter-hbs/README.md), [starter-ejs](../../examples/starter-ejs/README.md) and the [custom engine example](../../examples/custom-engine/README.md).

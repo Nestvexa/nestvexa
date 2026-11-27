@@ -6,7 +6,7 @@ and component revision; no storage of private per-user HTML by default; tag
 invalidation; per-key single-flight stampede protection; stale-while-revalidate
 for non-personal entries only; telemetry events and spans; and refusal of values
 that carry Live snapshots, CSRF tokens or signed island props. Optional; not part
-of the default `nestvexa` install. No runtime dependencies.
+of the default `nestvexa` install. No third-party runtime dependencies.
 
 ## Install
 
@@ -184,6 +184,7 @@ package imports the other (`tests/live-dependencies.test.ts`).
 | `cacheKey({ scope, namespace, vary })`                                   | Deterministic key; tenant/private scopes hash tenant and binding                    |
 | `cacheableJson(value)`, `CacheRefusedError`                              | JSON serialization with the signed-material refusal                                 |
 | `MemoryCacheStore(maxEntries = 1000, now?)`                              | Bounded LRU store with a tag index (single process)                                 |
+| `CacheConfig.lock`, `CacheLockOptions`, `CacheLock`                      | Cross-process single flight with stores that implement `lock`                       |
 | `CacheStore`, `isCacheStore`                                             | Store interface; methods may be synchronous or asynchronous                         |
 | `tagChannel(tag)`                                                        | Realtime channel name for a data tag                                                |
 
@@ -215,13 +216,31 @@ Exceptions thrown by either hook are ignored.
   value without storing (`store-error`); `invalidate` failures propagate.
 - `ttlMs` and `staleWhileRevalidateMs` are bounded to 24 hours; SWR is refused
   for private scopes.
-- `MemoryCacheStore` is per process; multiple replicas need a shared store and
-  cross-replica invalidation (`onInvalidate` → realtime → `invalidate` on each
-  replica). Stampede protection is per process: N replicas compute a key at
-  most N times concurrently.
+- `MemoryCacheStore` is per process, and so is its stampede protection: N
+  replicas compute a key at most N times concurrently. `RedisCacheStore`
+  (`@nestvexa/realtime-redis/cache`) shares entries, tags and invalidation
+  across replicas and implements the optional `tagMarker` (a computation that
+  overlaps another replica's invalidation is discarded) and `lock` (one
+  computation per key across processes; the others wait up to
+  `lock.waitMs`, default 3000 ms, then compute) store methods.
+  `new Cache({ lock: false })` keeps single flight per process.
 
 See the [caching and stores guide](../../docs/guides/caching.md) and the
 runnable [data-cache example](../../examples/data-cache/README.md). MIT licensed.
+
+## Performance
+
+A hit skips the computation entirely, concurrent misses for the same key share
+one computation (single flight, per process), and stale-while-revalidate serves
+non-personal entries while one refresh runs. `MemoryCacheStore` is a bounded LRU
+(default 1,000 entries) with a tag index. Hit and miss timings are reported
+through `onEvent` and `instrumentation`; no cache benchmark is recorded.
+
+## Compatibility
+
+Node `^22.13.0 || ^24.0.0`, ESM only. No peers and no Nest dependency; its only
+dependency is `@nestvexa/views` (for `SafeHtml`). `CacheStore` accepts
+synchronous or asynchronous stores; only the memory store ships.
 
 ## Status and limits
 
@@ -235,8 +254,9 @@ Status: **Implemented** for the library API above (tests:
   not cache automatically, there is no `{{#cache}}` block helper (Handlebars
   helpers are synchronous), and Live component HTML can never be cached (by
   design).
-- No shared (Redis) `CacheStore` ships; the interface accepts asynchronous
-  stores.
+- The shared Redis store ships in `@nestvexa/realtime-redis/cache`
+  (`tests/cache-redis-store.test.ts`); the interface accepts any asynchronous
+  store.
 - Dependency tracking is explicit tags only.
 
 ## Testing

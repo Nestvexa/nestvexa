@@ -175,6 +175,39 @@ channel authorization stays in the realtime module. Channels run independently a
 report `delivered`, `skipped` or `failed` (with a closed code) per channel, so a
 mail outage does not drop the realtime update.
 
+## Security
+
+The package renders and validates; it never opens connections or holds
+credentials. Header injection is refused (subject folding, control characters
+rejected in headers and display names), addresses are checked strictly, sizes
+and recipient counts are bounded, and errors and `onDelivery` events name
+fields and codes, never values or addresses (`tests/mail-security.test.ts`).
+Test and console transports refuse `NODE_ENV=production` by default. TLS,
+authentication and provider credentials belong to the host's transport.
+
+## Performance
+
+Every send is bounded by `sendTimeoutMs` (default 30 s) and a circuit breaker
+fails fast while the transport is down. Size limits are checked before the
+HTML-to-text conversion, which is a single linear scan. Sending is in the
+request unless you call `Mailer.send` from a job; mail throughput is not
+benchmarked.
+
+## Compatibility
+
+- Node `^22.13.0 || ^24.0.0`, ESM only (CommonJS `require` is untested).
+- Peers `@nestjs/common` ^12 (tested with 12.2.0), `reflect-metadata`, `rxjs`.
+- Any renderer with `render(view, model, options)`; the tests use the HBS
+  engine. nodemailer 10.3.1 is tested against a real SMTP server
+  (`tests/mail-smtp.test.ts`).
+
+## Examples
+
+[auth-passport](../../examples/auth-passport/README.md) (verification and reset
+mail through `MailModule`) and [showcase](../../examples/showcase/README.md)
+(notifications through `NotificationBridge`, captured by the memory transport
+on `/app/outbox`).
+
 ## Status and limits
 
 Status: **Shipped (alpha)**. Template rendering, message validation, the
@@ -193,7 +226,6 @@ module, all listed transports and the notification bridge work and are tested
   `tests/mail-smtp.test.ts`). `nestMailerTransport` is still tested only
   against a structural `sendMail` stand-in, not a real `@nestjs-modules/mailer`
   `MailerService`. No TLS or SMTP authentication path is tested.
-- No runnable example application uses this package yet.
 
 ## Testing
 

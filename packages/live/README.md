@@ -84,6 +84,13 @@ Kernel identity and features (round 5, opt-in): `kernelIdentity` (any `{ identit
 
 Rate limit: `maxRequestsPerMinute` (default 60) per identity binding counts mounts, actions, `$sync` and stream authorizations; a rejected request gets `429 { statusCode, code: 'RATE_LIMIT' }` with `Retry-After` (seconds until the identity's window resets) before any state is read or component code runs.
 
+`@State` fields are public page data. Field names that look like credentials
+(`password`, `token`, `secret`, `apiKey`, `session`, `cookie`, `csrf`,
+`credential`, `authorization`, `privateKey`, the same pattern islands refuse
+in props) fail at class definition with a clear error; keep secrets in
+services or plain fields, or opt out per field with a reason:
+`@State({ allowSensitiveName: 'session CSRF token the page already embeds' })`.
+
 `@State({writable:true})` explicitly allows top-level JSON updates; default state is locked against client writes. `@Locked()` is an equivalent readable state declaration. `@Computed()` supports synchronous getters; `@Computed({async:true})` supports awaited zero-argument methods. `@Action({id?, renderless?})` exposes only registered methods; `renderless: true` acknowledges state without rendering when the client negotiates `renderless-v1` (see the [renderless guide](../../docs/guides/renderless-actions.md)). A single argument may use `@ActionInput(...pipes)`; normal Nest parameter pipes perform transformation and validation. No arbitrary service or class selection is accepted.
 
 Writable state can supply a pure `validate(value)` callback returning `boolean` or `Promise<boolean>`:
@@ -127,6 +134,19 @@ Read [protocol](../../docs/guides/live-protocol.md) for the 64 KiB/depth/node li
 `endpoint` defaults to `/_nestvexa/live`. Set `basePath` to a host global prefix such as `/app`; generated route paths stay relative to Nest's prefix while mount URLs include it. Express/Fastify prefix flows have integration tests; host routing/versioning variants still require broader acceptance. Responses use `Cache-Control: no-store`; host mount routes must also set that header. Initial/update HTML is limited to 1 MiB. State type checks preserve top-level kinds; use pure state validators for domain constraints and action DTOs for action input validation. The experimental protocol may require reload/migration between alpha versions.
 
 See the [security policy](../../SECURITY.md) and [implementation status](../../docs/implementation/STATUS.md).
+
+## Compatibility
+
+- Node `^22.13.0 || ^24.0.0` (CI: Linux and Windows, Node 22 and 24), ESM only;
+  CommonJS hosts load it through `require(esm)`.
+- Peers `@nestjs/common` and `@nestjs/core` ^12 (tested with 12.2.0),
+  `reflect-metadata` ^0.2.2, `rxjs` ^7.8.2; legacy decorators
+  (`experimentalDecorators`, `emitDecoratorMetadata`) are required.
+- Express and Fastify (`tests/live.test.ts`, `tests/umbrella-live.test.ts`);
+  views through HBS, EJS, Pug or Nunjucks (`tests/engine-live.test.ts`).
+- The browser half is `@nestvexa/client` from the same release; mismatched
+  protocol majors are refused with `426` / `PROTOCOL`.
+- Shared state across replicas: `RedisLiveStore` (Redis 7, single primary).
 
 ## Examples
 

@@ -82,6 +82,18 @@ Fastify integration uses a public reply decorator; it rejects an existing `reply
 
 Templates are trusted code; interpolation escapes, triple braces do not. The MVC and asset modules install no action endpoint or automatic CSRF middleware. Request filenames never become arbitrary filesystem paths; maps, declarations and package metadata are outside the asset catalog. Content-hash URLs identify cache versions and never authorize anything; integrity protection comes from the `integrity` manifest metadata (`browser: { integrity: true }` adds integrity-checked boot and modulepreload tags). Preserve third-party license comments in the served Alpine build. See [security hardening](../../docs/security/hardening.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
 
+## Compatibility
+
+- Node `^22.13.0 || ^24.0.0`, ESM only; CommonJS Nest apps load it through
+  `require(esm)` (Node 22.12+), as `tests/cli.test.ts` does on a fresh
+  CommonJS Nest app.
+- Peers `@nestjs/common` and `@nestjs/core` ^12 (tested with 12.2.0),
+  `reflect-metadata`, `rxjs`; Express or Fastify, both tested
+  ([express-host](../../examples/express-host/README.md),
+  [fastify-host](../../examples/fastify-host/README.md)).
+- Browsers: Chromium, Firefox and WebKit through Playwright; the bundled
+  Alpine is `@alpinejs/csp` 3.17.5, and a host Alpine must be 3.17.x.
+
 ## Examples
 
 [starter-hbs](../../examples/starter-hbs/README.md) (MVC), [views-tour](../../examples/views-tour/README.md) (namespaces, themes, permission helpers, error pages, `nv:cloak`, `nv:class` and a lazy Live component), [starter-live](../../examples/starter-live/README.md) (integrated Live), [starter-ejs](../../examples/starter-ejs/README.md) (EJS adapter), and the [express-host](../../examples/express-host/README.md) and [fastify-host](../../examples/fastify-host/README.md) adapters. Start with the [getting started guide](../../docs/getting-started/README.md).
@@ -92,7 +104,7 @@ Status: **Shipped (alpha)**. MVC rendering, extra view engines on Express and Fa
 
 - No compression or CDN publishing for served assets; Subresource Integrity covers the boot and modulepreload tags and, through an import map, the dynamically imported client chunks (`browser: { integrity: true }`, CORE-045, ADR 0036). Vite builds are the job of the optional `@nestvexa/vite`.
 - The `nestvexa` bin wrapper has no dedicated test; the CLI it delegates to is tested in `@nestvexa/cli`.
-- Hosts that already run their own Alpine need manual browser startup, and URI-versioned Live routes may need a separate browser `basePath`.
+- The default boot adopts a host Alpine 3.17.x it finds on `window.Alpine` (`adoptLiveAlpine`); other Alpine versions are rejected. URI-versioned Live routes may need a separate browser `basePath`.
 - Identity, sessions, CSP and authorization stay host-owned; the umbrella installs none of them.
 - Themes are selected per render (`engine.render(..., { theme })`); `@Render` has no theme channel and Live component views render without a theme. Namespaced `@Render` names on Express go through the umbrella's `view` class, so Express `view cache` keys them by name like any other view.
 

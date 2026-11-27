@@ -356,6 +356,41 @@ are read for excerpts; every value is HTML-escaped; responses are `no-store` wit
 `default-src 'none'`. `nestvexa doctor --production` fails when `DevErrorFilter`
 or `DevtoolsModule` is registered in a file without a `NODE_ENV` guard.
 
+## Security
+
+Logs, span attributes and devtools data are redacted (passwords, tokens,
+cookies, sessions, CSRF, snapshots, bindings, API keys); Live never passes
+identities, tokens, snapshots or HTML to the inspector. The devtools panel and
+`DevErrorFilter` refuse to construct in production, the panel requires the
+host's `authorize(request)` on every resource, and both pages are escaped and
+served with `default-src 'none'` ([Devtools safety](#devtools-safety)). Do not
+register them without a `NODE_ENV` guard; `nestvexa doctor --production`
+checks this.
+
+## Performance
+
+Render budgets and `queryBudget()` are development aids that return the inner
+instrumentation unchanged in production. `MemoryInstrumentation` keeps a
+bounded buffer (default 500 records); production telemetry goes through the
+OpenTelemetry bridge. The overhead of the instrumentation itself is not
+benchmarked.
+
+## Compatibility
+
+- Node `^22.13.0 || ^24.0.0`, ESM only. Peers `@nestjs/common` and
+  `@nestjs/core` ^12 (tested with 12.2.0).
+- The devtools panel is tested on Express and Fastify
+  (`tests/kernel-integration.test.ts`); the development error filter on Express.
+- The OpenTelemetry bridge takes a `Tracer` structurally; the tests use a
+  structural tracer, not a specific `@opentelemetry/api` release.
+- Only the TypeORM `queryBudget` wiring is tested.
+
+## Examples
+
+[admin-i18n](../../examples/admin-i18n/README.md) wires trace context, and
+[hybrid-dashboard](../../examples/hybrid-dashboard/README.md) records action spans
+through `MemoryInstrumentation`. No example mounts `DevtoolsModule`.
+
 ## Status and limits
 
 Status: **Partial**. Live and cross-package spans, the OpenTelemetry bridge,

@@ -72,15 +72,26 @@ cleanup waits for queued writes. The regression test is part of that change on
 
 ## Release blockers
 
-| Blocker                                                                                                                    | Owner                   |
-| -------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| Independent security review recorded in `security-review.json` with an `independent: true` reviewer                        | Owner only              |
-| First release through `release.yml`, with its provenance attestation and SBOM verified after publication                   | Owner and release role  |
-| Complete release matrix (`release-matrix.json`) recorded for the release candidate                                         | Release role            |
-| ASVS 5.0 applicability assessment for every chapter (the current mapping is partial; missing entries are not inapplicable) | Security role, reviewed |
-| No fuzzing of the browser runtime, morph invariants or framework adapters; no mutation testing                             | Security role           |
-| Real Redis, S3 and ClamAV runs are outside this review (protocol fakes only)                                               | Services role           |
-| Durable business idempotency is host-owned: Live revisions and action idempotency keys are not exactly-once effects        | Host, documented        |
+Refreshed against `main` on 2026-11-27 (a documentation update to this
+internal review, not a new review round). Still internal: nothing below has
+been checked by an independent reviewer.
+
+| Blocker                                                                                                                                                                                                                                            | Owner                   |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| Independent security review recorded in `security-review.json` with an `independent: true` reviewer                                                                                                                                                | Owner only              |
+| First release through `release.yml`, with its provenance attestation and SBOM verified after publication                                                                                                                                           | Owner and release role  |
+| Complete release matrix (`release-matrix.json`) recorded for the release candidate                                                                                                                                                                 | Release role            |
+| Requirement-level ASVS 5.0 mapping: every chapter has an internal applicability assessment, but the requirement mapping is partial ([ASVS traceability](asvs-traceability.md))                                                                     | Security role, reviewed |
+| No property or fuzz suite for the React, Vue and Svelte adapters, island hydration or the Alpine bridge. The browser runtime and morph invariants are fuzzed (`tests/property-client-runtime.test.ts`); the mutation score is reported, not gating | Security role           |
+| Server-action rate limits and serial locks and pending upload tokens are process-local (idempotency records can be shared through `RedisActionIdempotencyStore`)                                                                                   | Actions and uploads     |
+| No slow-header or slow-body (slowloris) test for the Live, actions and Inertia routes; Node server timeouts are host-owned ([hardening](hardening.md#slow-clients-and-server-timeouts))                                                            | Security role, host     |
+| Durable business idempotency is host-owned: Live revisions and action idempotency keys are not exactly-once effects                                                                                                                                | Host, documented        |
+
+No longer blockers: real Redis 7, SeaweedFS (S3 API) and ClamAV runs, including
+a two-replica browser run, passed in `pnpm test:services`
+([services evidence](../implementation/services-evidence-2026-11-05.json)) and
+`.github/workflows/services.yml` runs the suite on every push and pull request.
+Real AWS S3 has not been exercised.
 
 These are unmet gates, not demonstrated exploits. A concrete exploit, if found,
 gets its own finding with a reproduction and a regression test.
