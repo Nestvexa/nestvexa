@@ -319,3 +319,18 @@ tests/browser/devtools-tracing.spec.ts tests/browser/runtime-resilience.spec.ts`
   - README example list and `playwright.config.ts` (append-only);
   - `tests/client-transport-lifecycle.test.ts` (one assertion);
   - `tests/browser/runtime-resilience.spec.ts` (one appended test).
+
+## After merging main `9df0757`
+
+I resolved the conflicts in `package.json` by taking main's test groups and
+adding this branch's test files back to them. I resolved `pnpm-lock.yaml` by
+taking main's copy and re-running `pnpm install`. After the merge, all of
+these pass:
+
+- the package build;
+- `pnpm lint`, including markdownlint (0 issues);
+- `pnpm exec tsc -p tsconfig.tests.json --noEmit`;
+- `pnpm docs:build` (291 documents, 3 type-checked blocks);
+- `pnpm api:check`;
+- `pnpm size:check` (Live core 40,033 / 45,056; every island within budget);
+- the new Vitest files and `tests/devtools-inspector.test.ts` (43/43).
