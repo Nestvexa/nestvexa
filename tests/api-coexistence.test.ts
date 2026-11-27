@@ -12,7 +12,8 @@ import type { ItemsClient } from '../examples/api-coexistence/src/client.js';
 // side answers exactly as it would alone, and neither side's guards apply to
 // the other's routes. The built example runs as its own process (its
 // GraphQL/microservice/WebSocket packages are devDependencies of the example
-// only). Ports stay inside 3886-3895.
+// only). Ports stay inside 3886-3895 (NESTVEXA_COEXISTENCE_PORT moves the
+// block, for hosts where another suite owns those ports).
 
 const root = fileURLToPath(
   new URL('../examples/api-coexistence/', import.meta.url),
@@ -157,9 +158,60 @@ async function liveRefresh(origin: string): Promise<{
   };
 }
 
+const base = Number(process.env['NESTVEXA_COEXISTENCE_PORT'] ?? 3886);
+/** A realtime WebSocket subscriber with the page's session cookie. */
+function subscribe(
+  url: string,
+  origin: string,
+  cookie: string,
+  token: string,
+): Promise<{ next: () => Promise<unknown>; close: () => void }> {
+  return new Promise((resolve, reject) => {
+    const socket = new WebSocket(url, { origin, headers: { cookie } });
+    const messages: unknown[] = [];
+    const waiting: ((message: unknown) => void)[] = [];
+    const timer = setTimeout(() => {
+      socket.terminate();
+      reject(new Error('realtime WebSocket did not become ready'));
+    }, 8000);
+    socket.once('open', () => socket.send(JSON.stringify({ tokens: [token] })));
+    socket.on('message', (data: Buffer) => {
+      const message: unknown = JSON.parse(data.toString('utf8'));
+      if (Reflect.get(Object(message), 'type') === 'ready') {
+        clearTimeout(timer);
+        resolve({
+          next: () =>
+            new Promise((done) => {
+              const queued = messages.shift();
+              if (queued !== undefined) done(queued);
+              else waiting.push(done);
+            }),
+          close: () => socket.close(),
+        });
+        return;
+      }
+      const waiter = waiting.shift();
+      if (waiter) waiter(message);
+      else messages.push(message);
+    });
+    socket.once('close', (code: number, reason: Buffer) => {
+      clearTimeout(timer);
+      reject(new Error(`closed ${code} ${reason.toString('utf8')}`));
+    });
+    socket.once('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+  });
+}
+
 describe.each([
-  { label: 'gateway on the shared HTTP port', port: 3886, gateway: 'shared' },
-  { label: 'gateway on its own port', port: 3890, gateway: 3892 },
+  {
+    label: 'gateway on the shared HTTP port',
+    port: base,
+    gateway: 'shared',
+  },
+  { label: 'gateway on its own port', port: base + 4, gateway: base + 6 },
 ] as const)('API coexistence ($label)', ({ port, gateway }) => {
   let fixture: Fixture;
   beforeAll(async () => {
@@ -298,31 +350,57 @@ describe.each([
     expect(sse.status).toBeLessThan(500);
   });
 
-  it(
-    gateway === 'shared'
-      ? 'documents that a shared-port WsAdapter owns every upgrade on that server'
-      : 'runs the Nestvexa realtime WebSocket transport beside a gateway on its own port',
-    async () => {
-      const { origin } = fixture;
-      const outcome = await upgradeOutcome(
-        `ws://127.0.0.1:${port}/_nestvexa/realtime/ws`,
-        origin,
-        { tokens: ['not-a-token'] },
-      );
-      if (gateway === 'shared')
-        // Nest's WsAdapter destroys upgrades for paths it does not own, so
-        // Nestvexa does not attach its WebSocket transport here (SSE/polling).
-        expect(outcome).toBe('upgrade failed');
-      // Nestvexa's handler accepted the upgrade and rejected the bad token.
-      else expect(outcome).toMatch(/^close 4003 /);
-      // A wrong Origin is refused by Nestvexa, not passed to the gateway.
-      if (gateway !== 'shared')
-        expect(
-          await upgradeOutcome(
-            `ws://127.0.0.1:${port}/_nestvexa/realtime/ws`,
-            'http://evil.invalid',
-          ),
-        ).toBe('upgrade failed');
-    },
-  );
+  it('runs the Nestvexa realtime WebSocket transport beside the Nest gateway', async () => {
+    const { origin } = fixture;
+    const url = `ws://127.0.0.1:${port}/_nestvexa/realtime/ws`;
+    // Nestvexa's handler accepted the upgrade and rejected the bad token.
+    expect(
+      await upgradeOutcome(url, origin, { tokens: ['not-a-token'] }),
+    ).toMatch(/^close 4003 /);
+    // A wrong Origin is refused by Nestvexa, not passed to the gateway.
+    expect(await upgradeOutcome(url, 'http://evil.invalid')).toBe(
+      'upgrade failed',
+    );
+    // A page subscription receives an event published by a REST write.
+    const page = await fetch(`${origin}/`);
+    const html = await page.text();
+    const cookie = page.headers.get('set-cookie')?.split(';')[0] ?? '';
+    const token = /data-nv-realtime="([^"]+)"/.exec(html)?.[1] ?? '';
+    expect(token).not.toBe('');
+    const subscriber = await subscribe(url, origin, cookie, token);
+    const added = await fetch(`${origin}/api/items`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': API_KEY },
+      body: JSON.stringify({ name: 'Realtime item' }),
+    });
+    expect(added.status).toBe(201);
+    const count = ((await (await fetch(`${origin}/api/items`)).json()) as [])
+      .length;
+    expect(await subscriber.next()).toMatchObject({
+      type: 'invalidate',
+      channel: 'items',
+      data: { count },
+    });
+    // The gateway still answers on the same server meanwhile.
+    expect(
+      await exchange(fixture.gatewayUrl, { event: 'items', data: null }),
+    ).toMatchObject({ event: 'items' });
+    subscriber.close();
+    // Without the page session, the upgrade has no identity.
+    expect(await upgradeOutcome(url, origin, { tokens: [token] })).toMatch(
+      /^close 4003 /,
+    );
+  });
+
+  it('leaves upgrades for other paths to the gateway server, which refuses unknown ones', async () => {
+    // On the shared port the WsAdapter still destroys paths no gateway owns;
+    // on its own port the gateway server refuses them itself.
+    const server = gateway === 'shared' ? port : gateway;
+    expect(
+      await upgradeOutcome(
+        `ws://127.0.0.1:${server}/ws/unknown`,
+        fixture.origin,
+      ),
+    ).toBe('upgrade failed');
+  });
 });

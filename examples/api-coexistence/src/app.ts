@@ -26,17 +26,23 @@ import type { MicroserviceOptions } from '@nestjs/microservices';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { WsAdapter } from '@nestjs/platform-ws';
 import { SubscribeMessage, WebSocketGateway } from '@nestjs/websockets';
-import { RealtimeModule, attachRealtimeWebSocket } from '@nestvexa/realtime';
+import {
+  RealtimeModule,
+  RealtimeService,
+  attachRealtimeWebSocket,
+} from '@nestvexa/realtime';
 import session from 'express-session';
 import {
   Action,
   LiveComponent,
   LiveRuntime,
   NestvexaModule,
+  RealtimeChannels,
   State,
   configureNestvexa,
 } from 'nestvexa';
 import { randomBytes } from 'node:crypto';
+import { ServerResponse } from 'node:http';
 import type { IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { API_KEY } from './contract.js';
@@ -99,18 +105,29 @@ class GqlApiKeyGuard implements CanActivate {
   }
 }
 
+/** Public realtime channel invalidated whenever an item is added. */
+const itemsChannel = 'items';
+
 @Controller('api')
 class ItemsController {
-  constructor(@Inject(ItemsService) private readonly items: ItemsService) {}
+  constructor(
+    @Inject(ItemsService) private readonly items: ItemsService,
+    @Inject(RealtimeService) private readonly realtime: RealtimeService,
+  ) {}
   @Get('items') list() {
     return this.items.list();
   }
   @Post('items')
   @UseGuards(ApiKeyGuard)
-  add(@Body() body: unknown) {
-    return this.items.add(
+  async add(@Body() body: unknown) {
+    const item = this.items.add(
       body && typeof body === 'object' ? Reflect.get(body, 'name') : undefined,
     );
+    // Live components subscribed to the channel refresh themselves.
+    await this.realtime.publish(itemsChannel, {
+      count: this.items.list().length,
+    });
+    return item;
   }
   @Get('health') health() {
     return { status: 'ok' };
@@ -166,6 +183,9 @@ class Inventory {
   @Action() refresh(): void {
     this.count = this.items.list().length;
   }
+  @RealtimeChannels() channels(): string[] {
+    return [itemsChannel];
+  }
 }
 
 @Controller()
@@ -186,6 +206,31 @@ class PageController {
 @Module({ providers: [ItemsService], exports: [ItemsService] })
 class ItemsModule {}
 
+/**
+ * The guest binding of an upgrade request. Session middleware does not run
+ * for upgrades, so the host runs it here on the raw request; a request
+ * without an established session has no identity.
+ */
+function upgradeGuest(
+  sessions: ReturnType<typeof session>,
+  request: IncomingMessage,
+): Promise<{ binding: string }> {
+  return new Promise((resolve, reject) => {
+    const response = new ServerResponse(request);
+    sessions(request as never, response as never, (error?: unknown) => {
+      if (error) {
+        reject(error instanceof Error ? error : new Error('session'));
+        return;
+      }
+      try {
+        resolve({ binding: guest(request).binding });
+      } catch (rejection) {
+        reject(rejection instanceof Error ? rejection : new Error('guest'));
+      }
+    });
+  });
+}
+
 function guest(request: object): { binding: string; csrfToken: string } {
   const value = request as Partial<SessionRequest>;
   if (!value.session?.csrf || !value.sessionID)
@@ -202,9 +247,9 @@ export interface CoexistenceOptions {
   /**
    * Port of the Nest WebSocket gateway: `'shared'` (default) attaches it to
    * the HTTP server; a number gives it its own server. Nest's `WsAdapter`
-   * destroys every upgrade on its server whose path it does not own, so the
-   * Nestvexa realtime WebSocket transport is attached only when the gateway
-   * has its own port. On a shared port Live realtime uses SSE or polling.
+   * destroys every upgrade on its server whose path no gateway owns; the
+   * Nestvexa realtime WebSocket transport claims its own path first, so it
+   * runs beside the gateway in both cases.
    */
   readonly gateway?: 'shared' | number;
 }
@@ -217,6 +262,14 @@ export async function createCoexistenceApp(
   const views = fileURLToPath(new URL('../views', import.meta.url));
   const gateway = options.gateway ?? 'shared';
   const gatewayOptions = { path: '/ws/items' };
+  // Local demonstration only: production requires a persistent session store
+  // and a deployment secret. Sessions are the host's middleware, not Nestvexa's.
+  const sessions = session({
+    secret: randomBytes(48).toString('base64url'),
+    resave: false,
+    saveUninitialized: false,
+    cookie: { httpOnly: true, sameSite: 'strict', secure: false },
+  });
   /** Nest WebSocket gateway (platform-ws). */
   @WebSocketGateway(gateway === 'shared' ? 0 : gateway, gatewayOptions)
   class ItemsGateway {
@@ -239,20 +292,26 @@ export async function createCoexistenceApp(
         secrets: [randomBytes(48).toString('base64url')],
         origin,
         resolveIdentity: (request) => ({ binding: guest(request).binding }),
-        resolveUpgradeIdentity: () => ({ binding: 'upgrade-guest' }),
-        authorizeChannel: () => false,
+        resolveUpgradeIdentity: (request) => upgradeGuest(sessions, request),
+        // Only the public items channel, for guests with a session.
+        authorizeChannel: (identity, channel) =>
+          channel === itemsChannel &&
+          identity.binding.startsWith('guest-session:'),
       }),
       NestvexaModule.forRoot(
         { views: { root: views, layout: 'layout' }, live: { enabled: true } },
         {
+          browser: { realtime: { endpoint: '/_nestvexa/realtime' } },
           components: [Inventory],
           imports: [ItemsModule],
-          useFactory: () => ({
+          inject: [RealtimeService],
+          useFactory: (realtime: RealtimeService) => ({
             origin,
+            realtime,
             resolveIdentity: guest,
             authorize: (_identity, component, action) =>
               component === 'inventory' &&
-              ['$mount', 'refresh'].includes(action),
+              ['$mount', '$sync', 'refresh'].includes(action),
           }),
         },
       ),
@@ -270,20 +329,12 @@ export async function createCoexistenceApp(
     transport: Transport.TCP,
     options: { host: '127.0.0.1', port: options.microservicePort },
   });
-  // Local demonstration only: production requires a persistent session store
-  // and a deployment secret. Sessions are the host's middleware, not Nestvexa's.
-  app.use(
-    session({
-      secret: randomBytes(48).toString('base64url'),
-      resave: false,
-      saveUninitialized: false,
-      cookie: { httpOnly: true, sameSite: 'strict', secure: false },
-    }),
-  );
+  app.use(sessions);
   await configureNestvexa(app);
   app.enableShutdownHooks();
   await app.startAllMicroservices();
   await app.listen(options.port, '127.0.0.1');
-  if (gateway !== 'shared') await attachRealtimeWebSocket(app);
+  // Beside the gateway on either port: the transport claims only its path.
+  await attachRealtimeWebSocket(app);
   return app;
 }
