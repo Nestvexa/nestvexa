@@ -29,6 +29,16 @@ export {
   type RealtimeTransportName,
 } from './module.js';
 export {
+  MemoryNotificationStore,
+  RealtimeNotifications,
+  type NotificationEvent,
+  type NotificationInput,
+  type NotificationStore,
+  type NotificationsSnapshot,
+  type RealtimeNotification,
+  type RealtimeNotificationsOptions,
+} from './notifications.js';
+export {
   MemoryPresenceStore,
   type PresenceEntry,
   type PresenceStore,
