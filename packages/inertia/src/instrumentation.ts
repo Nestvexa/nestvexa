@@ -17,6 +17,34 @@ export interface InertiaInstrumentation {
   };
 }
 
+/**
+ * Development inspector hook (for example `DevtoolsInspector` from
+ * @nestvexa/observability, which redacts sensitive keys and bounds sizes).
+ * It receives each page response's resolved props, the same data the
+ * browser receives; pass it only in development.
+ */
+export interface InertiaInspector {
+  page(input: InertiaInspectedPage): void;
+}
+export interface InertiaInspectedPage {
+  readonly component: string;
+  readonly kind: 'document' | 'json';
+  readonly status: number;
+  readonly props: Readonly<Record<string, unknown>>;
+  /** Requested prop names of a partial reload (`only`), absent on full visits. */
+  readonly partial?: readonly string[];
+  readonly deferred?: Readonly<Record<string, readonly string[]>>;
+  readonly shared?: readonly string[];
+}
+
+export function isInspector(value: unknown): value is InertiaInspector {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof Reflect.get(value, 'page') === 'function'
+  );
+}
+
 export function isInstrumentation(
   value: unknown,
 ): value is InertiaInstrumentation {

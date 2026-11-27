@@ -734,6 +734,7 @@ export class InertiaService {
     const { page, app } = await this.buildPage(request, result, defaultApp);
     const json = JSON.stringify(page);
     if (status === 200) this.#rememberUrl(request, page.url);
+    this.#inspect(request, page, status);
     if (this.requestInfo(request).inertia)
       return {
         status,
@@ -759,6 +760,30 @@ export class InertiaService {
       },
       body,
     };
+  }
+
+  /** Development inspector hook; it never changes or breaks the response. */
+  #inspect(request: object, page: InertiaPageObject, status: number): void {
+    const inspector = this.#options.inspector;
+    if (!inspector) return;
+    try {
+      const info = this.requestInfo(request);
+      const partial =
+        info.partialComponent === page.component ? info.only : undefined;
+      inspector.page({
+        component: page.component,
+        kind: info.inertia ? 'json' : 'document',
+        status,
+        props: page.props,
+        ...(partial === undefined ? {} : { partial }),
+        ...(page.deferredProps === undefined
+          ? {}
+          : { deferred: page.deferredProps }),
+        ...(page.sharedProps === undefined ? {} : { shared: page.sharedProps }),
+      });
+    } catch {
+      // Development telemetry is best effort.
+    }
   }
 
   async #document(

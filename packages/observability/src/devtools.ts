@@ -1,11 +1,15 @@
 import {
+  BadRequestException,
+  Body,
   Controller,
   ForbiddenException,
   Get,
   Header,
+  HttpCode,
   Inject,
   Module,
   NotFoundException,
+  Post,
   Query,
   Req,
 } from '@nestjs/common';
@@ -20,9 +24,16 @@ import type {
   MetricSummary,
   SpanRecord,
 } from './instrumentation.js';
+import { DEVTOOLS_CLIENT_BATCH_LIMIT } from './inspector.js';
 import type {
   DevtoolsInspector,
+  InspectedCacheEvent,
+  InspectedCacheSummary,
+  InspectedClientTiming,
   InspectedComponent,
+  InspectedMorphSummary,
+  InspectedNetworkSummary,
+  InspectedPage,
   InspectedRender,
 } from './inspector.js';
 
@@ -153,6 +164,19 @@ export interface DevtoolsSnapshot {
     readonly count: number;
   }[];
   readonly kernel: DevtoolsKernelSnapshot;
+  /** Cache hit/miss per namespace and recent events (inspector `cacheEvent`). */
+  readonly cache: {
+    readonly summary: readonly InspectedCacheSummary[];
+    readonly events: readonly InspectedCacheEvent[];
+  };
+  /** Recent Inertia page responses with redacted props (inspector `page`). */
+  readonly pages: readonly InspectedPage[];
+  /** Browser timings sent by `devtoolsReporter` to `<path>/client`. */
+  readonly browser: {
+    readonly morphs: readonly InspectedMorphSummary[];
+    readonly network: readonly InspectedNetworkSummary[];
+    readonly timings: readonly InspectedClientTiming[];
+  };
 }
 
 const spanLimit = 200;
@@ -270,6 +294,16 @@ export function devtoolsSnapshot(
     assets: group((record) => record.name === 'nestvexa.asset.serve'),
     renderers: [...counts].map(([renderer, count]) => ({ renderer, count })),
     kernel: kernelSnapshot(kernel),
+    cache: {
+      summary: inspector?.cacheSummary ?? [],
+      events: (inspector?.cacheEvents ?? []).slice(0, groupLimit),
+    },
+    pages: (inspector?.pages ?? []).slice(0, groupLimit),
+    browser: {
+      morphs: inspector?.morphs ?? [],
+      network: inspector?.network ?? [],
+      timings: (inspector?.clientTimings ?? []).slice(0, groupLimit),
+    },
   };
 }
 
@@ -574,9 +608,107 @@ export function renderDevtools(
     ),
     'No kernel diagnostics recorded.',
   );
+  const browserNote =
+    'No browser timings (pass devtoolsReporter().onDiagnostic to createLiveClient).';
+  const morphs = table(
+    'morphs',
+    'Browser morph timing',
+    'DOM morph time per component in the browser (milliseconds)',
+    ['Component', 'Morphs', 'p50', 'Max'],
+    snapshot.browser.morphs.map(
+      (item) =>
+        `<tr><th scope="row"><code>${escape(item.component)}</code></th><td>${item.morphs}</td><td>${ms(item.p50)}</td><td>${ms(item.max)}</td></tr>`,
+    ),
+    browserNote,
+  );
+  const network = table(
+    'network',
+    'Network batches',
+    'Live requests per component with their sizes, measured in the browser',
+    [
+      'Component',
+      'Requests',
+      'Failed',
+      'Request bytes',
+      'Response bytes',
+      'Average',
+      'Max',
+    ],
+    snapshot.browser.network.map(
+      (item) =>
+        `<tr><th scope="row"><code>${escape(item.component)}</code></th><td>${item.requests}</td><td>${item.failed}</td><td>${item.requestBytes}</td><td>${item.responseBytes}</td><td>${ms(item.averageMs)}</td><td>${ms(item.maxMs)}</td></tr>`,
+    ),
+    browserNote,
+  );
+  const timings = table(
+    'browser',
+    'Recent browser timings',
+    'Queue, request and morph phases reported by the browser, newest first',
+    [
+      'Received',
+      'Phase',
+      'Component',
+      'Outcome',
+      'Duration',
+      'Request bytes',
+      'Response bytes',
+      'Trace',
+    ],
+    snapshot.browser.timings.map(
+      (item) =>
+        `<tr class="${item.outcome === 'failed' ? 'nv-error' : ''}"><td>${time(item.at)}</td><td>${escape(item.phase)}</td><td><code>${escape(item.component ?? '')}</code></td><td>${escape(item.outcome)}</td><td>${ms(item.milliseconds)}</td><td>${item.requestBytes ?? ''}</td><td>${item.responseBytes ?? ''}</td><td>${item.traceId === undefined ? '' : `<code>${escape(item.traceId)}</code>`}</td></tr>`,
+    ),
+    browserNote,
+  );
+  const cache = table(
+    'cache',
+    'Cache',
+    'Cache lookups per namespace (pass inspector.cacheEvent as the Cache onEvent hook)',
+    [
+      'Namespace',
+      'Hits',
+      'Misses',
+      'Stale',
+      'Coalesced',
+      'Bypassed',
+      'Errors',
+      'Hit ratio',
+    ],
+    snapshot.cache.summary.map(
+      (item) =>
+        `<tr><th scope="row"><code>${escape(item.namespace)}</code></th><td>${item.hits}</td><td>${item.misses}</td><td>${item.stale}</td><td>${item.coalesced}</td><td>${item.bypassed}</td><td>${item.errors}</td><td>${Math.round(item.hitRatio * 100)}%</td></tr>`,
+    ),
+    'No cache events recorded.',
+  );
+  const cacheEvents = table(
+    'cache-events',
+    'Recent cache events',
+    'Cache events with their namespace, tags and timing, newest first',
+    ['Time', 'Event', 'Namespace', 'Scope', 'Tags', 'Duration', 'Request'],
+    snapshot.cache.events.map(
+      (item) =>
+        `<tr class="${item.type.endsWith('-error') ? 'nv-error' : ''}"><td>${time(item.at)}</td><td>${escape(item.type)}</td><td><code>${escape(item.namespace ?? '')}</code></td><td>${escape(item.scope ?? '')}</td><td>${escape(item.tags.join(', '))}</td><td>${item.durationMs === undefined ? '' : ms(item.durationMs)}</td><td>${item.requestId === undefined ? '' : `<code>${escape(item.requestId.slice(0, 13))}</code>`}</td></tr>`,
+    ),
+    'No cache events recorded.',
+  );
+  const pages = `<section id="pages"><h2 id="pages-title">Inertia pages</h2>${
+    snapshot.pages.length
+      ? `<ol class="nv-renders">${snapshot.pages
+          .map(
+            (page) =>
+              `<li><h3><code>${escape(page.component)}</code> <small>${page.kind === 'json' ? 'Inertia visit (JSON)' : 'full document'}, status ${page.status}</small></h3><p>Props ${escape(page.propNames.join(', ') || 'none')} (${page.propsBytes} bytes)${page.partial === undefined ? '' : `; partial reload of ${escape(page.partial.join(', ') || 'nothing')}`}${page.deferred.length ? `; deferred ${escape(page.deferred.join(', '))}` : ''}${page.shared.length ? `; shared ${escape(page.shared.join(', '))}` : ''}, at ${time(page.at)}${page.requestId === undefined ? '' : `, request <code>${escape(page.requestId.slice(0, 13))}</code>`}.</p><details><summary>Page props (redacted)</summary><pre>${escape(JSON.stringify(page.props, null, 2) ?? 'null')}</pre></details></li>`,
+          )
+          .join('')}</ol>`
+      : '<p>No Inertia pages recorded (pass the inspector as the Inertia inspector option).</p>'
+  }</section>`;
   const sections: readonly [string, string][] = [
     ['components', 'Components'],
     ['renders', 'Renders'],
+    ['morphs', 'Morphs'],
+    ['network', 'Network'],
+    ['browser', 'Browser'],
+    ['cache', 'Cache'],
+    ['pages', 'Pages'],
     ['actions', 'Actions'],
     ['errors', 'Errors'],
     ['requests', 'Requests'],
@@ -599,7 +731,7 @@ export function renderDevtools(
     .map(([id, label]) => `<li><a href="#${id}">${label}</a></li>`)
     .join(
       '',
-    )}</ul></nav></header><main>${components}${renders}${actions}${errors}${requests}${hooks}${realtime}${jobs}${renderers}${summary}${recent}${features}${policies}${capabilities}${diagnostics}</main></body></html>`;
+    )}</ul></nav></header><main>${components}${renders}${morphs}${network}${timings}${cache}${cacheEvents}${pages}${actions}${errors}${requests}${hooks}${realtime}${jobs}${renderers}${summary}${recent}${features}${policies}${capabilities}${diagnostics}</main></body></html>`;
 }
 
 /** The panel stylesheet (served from the panel path so the CSP needs no inline styles). */
@@ -615,6 +747,31 @@ code,pre{font-family:ui-monospace,monospace;font-size:12px}pre{white-space:pre-w
 .nv-error{color:var(--nv-error)}.nv-renders{padding-inline-start:1.25rem}.nv-renders>li{margin-bottom:.75rem}
 @media (forced-colors:active){.nv-error{color:Mark}}
 `;
+
+function requestHeader(request: object, name: string): string | undefined {
+  const headers: unknown = Reflect.get(request, 'headers');
+  if (headers === null || typeof headers !== 'object') return undefined;
+  const value: unknown = Reflect.get(headers, name);
+  return typeof value === 'string' ? value : undefined;
+}
+/** A browser report must be same-origin JSON carrying the devtools header. */
+function sameOriginReport(request: object): boolean {
+  if (requestHeader(request, 'x-nestvexa-devtools') !== '1') return false;
+  const type = requestHeader(request, 'content-type')
+    ?.split(';', 1)[0]
+    ?.trim()
+    .toLowerCase();
+  if (type !== 'application/json') return false;
+  const site = requestHeader(request, 'sec-fetch-site');
+  if (site !== undefined && site !== 'same-origin') return false;
+  const origin = requestHeader(request, 'origin');
+  if (origin === undefined) return true;
+  try {
+    return new URL(origin).host === requestHeader(request, 'host');
+  } catch {
+    return false;
+  }
+}
 
 /** Static settings checked at registration, before any factory runs. */
 function devtoolsSettings(options: {
@@ -707,6 +864,33 @@ function devtoolsController(path: string, explicit: boolean) {
     async data(@Req() request: object): Promise<DevtoolsSnapshot> {
       await this.#check(request);
       return this.#snapshot();
+    }
+    /**
+     * Browser timings from `devtoolsReporter`. Besides the host `authorize`
+     * check, a report must be same-origin JSON with the
+     * `x-nestvexa-devtools: 1` header (a cross-site page cannot send that
+     * without a CORS preflight), and every field is validated and bounded.
+     */
+    @Post('client')
+    @HttpCode(204)
+    @Header('Cache-Control', 'no-store')
+    async client(@Req() request: object, @Body() body: unknown): Promise<void> {
+      await this.#check(request);
+      const inspector = this.devtools.inspector;
+      if (!inspector) throw new NotFoundException();
+      if (!sameOriginReport(request)) throw new ForbiddenException();
+      const timings: unknown =
+        typeof body === 'object' &&
+        body !== null &&
+        Object.hasOwn(body, 'timings')
+          ? Reflect.get(body, 'timings')
+          : undefined;
+      if (
+        !Array.isArray(timings) ||
+        timings.length > DEVTOOLS_CLIENT_BATCH_LIMIT
+      )
+        throw new BadRequestException();
+      inspector.clientReport(timings);
     }
     @Get('spans.json')
     @Header('Cache-Control', 'no-store')

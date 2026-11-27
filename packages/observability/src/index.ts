@@ -10,9 +10,20 @@ export {
 } from './request.js';
 export { traceGuard } from './guard.js';
 export {
+  DEVTOOLS_CLIENT_BATCH_LIMIT,
   DevtoolsInspector,
   type DevtoolsInspectorOptions,
+  type InspectedCacheEvent,
+  type InspectedCacheEventInput,
+  type InspectedCacheEventType,
+  type InspectedCacheSummary,
+  type InspectedClientTiming,
+  type InspectedClientTimingInput,
   type InspectedComponent,
+  type InspectedMorphSummary,
+  type InspectedNetworkSummary,
+  type InspectedPage,
+  type InspectedPageInput,
   type InspectedRender,
   type InspectedRenderInput,
 } from './inspector.js';

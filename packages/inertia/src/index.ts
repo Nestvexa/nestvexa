@@ -139,6 +139,8 @@ export type {
   ResolvedOptions,
 } from './options.js';
 export type {
+  InertiaInspectedPage,
+  InertiaInspector,
   InertiaInstrumentation,
   InertiaSpanAttributes,
 } from './instrumentation.js';

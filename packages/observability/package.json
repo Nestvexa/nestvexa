@@ -33,6 +33,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./devtools-client": {
+      "types": "./dist/devtools-client.d.ts",
+      "import": "./dist/devtools-client.js",
+      "default": "./dist/devtools-client.js"
     }
   },
   "types": "./dist/index.d.ts",
