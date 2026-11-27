@@ -114,7 +114,7 @@ class HomeController {
       },
     }),
   ],
-  controllers: [HomeController],
+  controllers: [HomeController, ContactController],
 })
 class AppModule {}
 
