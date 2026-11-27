@@ -245,8 +245,16 @@ validation issues and the session's `XSRF-TOKEN` as the CSRF token
 (`defineTypedActionsSuite` in `tests/browser/inertia-feature-tour.ts`). `pnpm
 test:pack` generates the React, Vue, Svelte and Live bindings from the packed
 `@nestvexa/actions` tarball, type-checks them against the packed declarations
-and runs the hook, composable and store against a packed `ActionsModule`
-(`tests/pack-consumers/consumer.ts`).
+and calls the packed `ActionsModule` through each of them: the React hook's
+`run` (rendered once with `renderToString`, since Node has no DOM, then invoked
+and settled through its `onSuccess` callback), the Vue composable, the Svelte
+store and the Live element helper (bound to a minimal Node `EventTarget`
+button, clicked, and checked for `aria-busy`, `data-nv-action-state`, the
+`nv:action` event and unbinding). The same packed app is an Inertia app: the
+check reads the CSRF token from an `X-Inertia` page visit before calling the
+action (`tests/pack-consumers/consumer.ts`, `bindings-check.ts`). React
+re-rendering from the hook's store subscription is covered by the browser
+suites above, not by the packed Node check.
 
 ## CLI
 
