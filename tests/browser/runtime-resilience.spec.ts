@@ -129,6 +129,48 @@ test('independent components apply their own replies in any arrival order', asyn
   await expect(cells.nth(1).locator('.cell-alpine')).toHaveText('1');
 });
 
+test('a reply captured for one component is rejected when replayed to another', async ({
+  page,
+}) => {
+  const errors = await openLab(page, '/many?count=2');
+  await errorCodes(page);
+  const cells = page.locator('.cell');
+  const root = (index: number) =>
+    cells.nth(index).locator('xpath=ancestor::*[@data-nv-component][1]');
+  // Capture the authentic reply to the first cell's request.
+  let captured: string | undefined;
+  await page.route(live('lab-cell', 'hit'), async (route) => {
+    const response = await route.fetch();
+    captured ??= await response.text();
+    await route.fulfill({ response });
+  });
+  await cells.nth(0).locator('.cell-hit').click();
+  await expect(cells.nth(0).locator('.cell-hits')).toHaveText('1');
+  expect(captured).toContain('"revision"');
+  // A proxy now answers the second cell's request with the first cell's
+  // stale reply (same component class, another instance and request).
+  await page.unroute(live('lab-cell', 'hit'));
+  await page.route(live('lab-cell', 'hit'), (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: captured ?? '',
+    }),
+  );
+  await cells.nth(1).locator('.cell-hit').click();
+  await expect.poll(() => reportedCodes(page)).toEqual(['RESPONSE']);
+  // Neither cell takes the foreign state; the second suspends instead.
+  await expect(cells.nth(1).locator('.cell-hits')).toHaveText('0');
+  await expect(cells.nth(0).locator('.cell-hits')).toHaveText('1');
+  await expect(root(1)).toHaveAttribute('data-nv-suspended', '');
+  await expect(root(0)).not.toHaveAttribute('data-nv-suspended', '');
+  // The first cell is untouched and keeps working against the real server.
+  await page.unroute(live('lab-cell', 'hit'));
+  await cells.nth(0).locator('.cell-hit').click();
+  await expect(cells.nth(0).locator('.cell-hits')).toHaveText('2');
+  expect(errors).toEqual([]);
+});
+
 test('a late reply for a component removed by navigation is discarded', async ({
   page,
 }) => {

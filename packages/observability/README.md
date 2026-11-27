@@ -58,8 +58,9 @@ Failed spans carry `status` and, for protocol rejections, the closed
 
 Public state, identity bindings, CSRF/snapshot tokens, HTML and exception messages
 are never attached. Outcomes are `ok`/`error` (OpenTelemetry status OK/ERROR).
-A throwing instrumentation hook never breaks a request. Browser timings remain
-available through the client `onDiagnostic` option.
+A throwing instrumentation hook never breaks a request. Browser timings come
+from the client `onDiagnostic` option; `devtoolsReporter` sends them to the
+development panel (see below).
 
 ### Other packages (structural hooks)
 
@@ -172,12 +173,20 @@ unless `keepTraceState: true`. `MemoryInstrumentation` records the inbound
 `formatTraceparent`, `readTraceContext`, `currentTraceContext` and
 `runWithTraceContext` are exported for custom transports and jobs.
 
-The browser side is **server-side only by design**: `@nestvexa/client` does
-not generate `traceparent` (the 48 KiB client budget is reserved for the
-runtime). A browser OpenTelemetry SDK with fetch/XHR instrumentation sends it
-on same-origin requests, and this middleware accepts it. Remote parents are
-untrusted: use `trust` or a sampler that does not blindly honor a client's
-sampled flag.
+**From the browser**: `createLiveClient({ tracing: true })` sends a fresh
+sampled version-00 `traceparent` with every Live request (retries reuse it),
+so the server's Live spans join the browser's trace. To continue a trace of a
+browser OpenTelemetry SDK instead, pass a function that returns its header
+(`tracing: () => header`); malformed values are not sent. The client then
+reports the trace id in its diagnostics, which the panel lists next to the
+server spans. A browser SDK with fetch instrumentation works too, since this
+middleware accepts any well-formed header.
+
+A `traceparent` is untrusted correlation data: it never authenticates,
+authorizes or bypasses CSRF (tests/devtools-browser-report.test.ts sends a
+valid one with a forged CSRF token and gets 403), it is never echoed, and
+malformed or all-zero values start a new trace. Use `trust` or a sampler that
+does not blindly honor a client's sampled flag.
 
 ## API
 
@@ -189,7 +198,8 @@ sampled flag.
 | `redact(value)` / `createLogger(sink?)`                                                             | Redacted JSON-lines logging (passwords, tokens, cookies, sessions, CSRF, snapshots, bindings, API keys)                         |
 | `DevtoolsModule.register({ instrumentation, inspector?, authorize, path?, environment?, kernel? })` | Development panel, `data.json` and `spans.json` at `/_nestvexa/devtools`                                                        |
 | `DevtoolsModule.registerAsync({ path?, environment?, imports?, inject?, useFactory })`              | The same with injected recorders and kernel registries                                                                          |
-| `DevtoolsInspector(options?)`                                                                       | Live `inspector` hook: component catalog and redacted public state of recent renders                                            |
+| `DevtoolsInspector(options?)`                                                                       | Live `inspector` hook: component catalog and redacted public state of recent renders; `cacheEvent`, `page` and `clientReport`   |
+| `devtoolsReporter({ endpoint?, flushMs?, fetch? })` (`@nestvexa/observability/devtools-client`)     | Browser half: pass `reporter.onDiagnostic` to `createLiveClient` to send morph timing and network sizes to the panel            |
 | `devtoolsSnapshot(instrumentation, inspector?)` / `DEVTOOLS_SCHEMA`                                 | The versioned `data.json` contract (`nestvexa-devtools/1`, [ADR 0034](../../docs/adr/0034-devtools-browser-extension-scope.md)) |
 | `requestTracingMiddleware(instrumentation?, { trustRequestId?, responseHeader? })`                  | Request ids (`X-Request-Id`, `currentRequestId()`) and `nestvexa.request` spans                                                 |
 | `traceGuard(guard, instrumentation, name?)`                                                         | Wrap a host guard as `nestvexa.guard` spans                                                                                     |
@@ -213,6 +223,22 @@ export const inspector = development ? new DevtoolsInspector() : undefined;
 // main.ts: app.use(requestTracingMiddleware(devtools));
 ```
 
+Browser timings, cache events and Inertia props (all optional):
+
+```ts
+// Browser bundle, development only (no Node imports):
+import { devtoolsReporter } from '@nestvexa/observability/devtools-client';
+const reporter = devtoolsReporter(); // POSTs to /_nestvexa/devtools/client
+createLiveClient({ tracing: true, onDiagnostic: reporter.onDiagnostic });
+
+// Server: @nestvexa/cache and @nestvexa/inertia hooks (structural).
+const cache = new Cache({ onEvent: (event) => inspector?.cacheEvent(event) });
+InertiaModule.forRoot({ ...(inspector ? { inspector } : {}) });
+```
+
+[examples/devtools-tracing](../../examples/devtools-tracing) wires all of it
+with the OpenTelemetry SDK.
+
 `/_nestvexa/devtools` then shows:
 
 - **Registered components**: name, view, actions, state fields (writable
@@ -229,12 +255,24 @@ export const inspector = development ? new DevtoolsInspector() : undefined;
   subscriptions, connections, publishes and deliveries; **background jobs**;
   **renderer** counts (Live, Inertia document/JSON, SSR); span timings and
   recent spans.
+- **Browser morph timing** per component (count, p50, max) and **network
+  batches**: Live requests per component with failures, request and response
+  bytes and average/max duration, plus the recent browser timings with their
+  trace ids. They arrive from `devtoolsReporter` at `POST <path>/client`.
+- **Cache**: hits, misses, stale, coalesced, bypassed and errors per
+  namespace with the hit ratio, and recent events (type, namespace, scope
+  kind, tags, duration, request id). Keys, bindings, tenants and values never
+  reach the inspector.
+- **Inertia pages**: each page response's component, kind (document or JSON
+  visit), status, prop names and size, partial reload props, deferred and
+  shared prop names, and the props with sensitive keys redacted (at most 8 KiB).
 
 The same data is served as `data.json` with `schema: "nestvexa-devtools/1"`,
 the stable contract recorded in [ADR 0034](../../docs/adr/0034-devtools-browser-extension-scope.md) (which also records the
-browser extension as out of scope for v1). Not shown: browser-side morph
-timing and network batching (use the browser's developer tools and the client
-`onDiagnostic` option), cache hit/miss and prop resolution (no hook yet).
+browser extension as out of scope for v1). `data.json` adds `browser`
+(`morphs`, `network`, `timings`), `cache` (`summary`, `events`) and `pages`
+under the same schema. Not shown: nested child re-renders, a live
+subscription gauge and MVC-only renderer counts.
 
 **Kernel section** (`kernel` option, structural): pass the `@nestvexa/core`
 `DiagnosticsRegistry`, `SecurityPolicyRegistry` and `FeatureCapabilityRegistry`
@@ -274,7 +312,11 @@ page is server-rendered, runs no script, escapes every value and is served
 `no-store` with `Content-Security-Policy: default-src 'none'; style-src 'self'; img-src data:;
 base-uri 'none'; form-action 'none'; frame-ancestors 'none'`. Live never passes
 identities, tokens, snapshots or HTML to the inspector, and sensitive state
-keys are redacted.
+and Inertia prop keys are redacted. The browser report endpoint
+(`POST <path>/client`) also requires the host check, answers 404 without an
+inspector or in production, and accepts only same-origin JSON with the
+`x-nestvexa-devtools: 1` header (a cross-site page cannot send it without a
+CORS preflight) and at most 50 timings, each reduced to its closed fields.
 
 ## Development error page
 
@@ -321,12 +363,14 @@ trace context, request ids, render budgets, redacted logging, the devtools panel
 and the development error page work and are tested; the panel still lacks named
 DX-033 views.
 
-- The panel does not show browser-side morph timing or network batches (use the
-  client `onDiagnostic` option and browser developer tools), cache hit/miss,
-  prop resolution, nested child renders, a live subscription gauge or MVC-only
-  renderer counts (DX-033).
-- `@nestvexa/client` does not send `traceparent`; client-side spans need a
-  browser OpenTelemetry SDK (DX-035, by design).
+- The panel does not show nested child renders, a live subscription gauge or
+  MVC-only renderer counts (DX-033). Browser timings need `devtoolsReporter`
+  in the page bundle; they are samples of Live requests only (not every
+  fetch on the page).
+- `tracing: true` makes the browser the trace root but records no browser
+  span; for browser-side spans (for example a morph span), use a browser
+  OpenTelemetry SDK and pass its header through `tracing: () => header`
+  (DX-035).
 - A devtools browser extension is out of scope for v1
   ([ADR 0034](../../docs/adr/0034-devtools-browser-extension-scope.md)).
 - Render budgets do not detect island bundle sizes at runtime. N+1 detection

@@ -277,6 +277,13 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 180000,
     },
+    // Devtools panel with browser timings, cache events and browser trace context.
+    {
+      command: 'pnpm --filter @nestvexa/example-devtools-tracing start',
+      url: 'http://127.0.0.1:4340/api/health',
+      env: { PORT: '4340' },
+      reuseExistingServer: false,
+    },
     // Browser runtime lab: navigation, Alpine $live, reorder, reconnection, leaks.
     {
       command: 'pnpm --filter @nestvexa/example-browser-lab start',
