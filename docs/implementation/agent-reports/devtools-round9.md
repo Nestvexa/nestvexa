@@ -279,8 +279,21 @@ example wires `queryBudget`.
 
 - `pnpm exec playwright test -c playwright.local.config.ts
 tests/browser/devtools-tracing.spec.ts tests/browser/runtime-resilience.spec.ts`
-  (browser-lab on 4342, the example on 4340): Chromium 12/12, plus Firefox
-  and WebKit (see the final message).
+  (browser-lab on 4342, the example on 4340):
+  - Chromium: 12/12.
+  - WebKit: 10/12. The 2 failures were older no-JS fallback tests that
+    timed out under machine load; both pass when rerun alone.
+  - Firefox: 9/12. One failure was a context teardown timeout in this spec,
+    with Juggler pipe errors; two were older resilience tests that timed out
+    under load. All 3 pass when rerun alone.
+  - Every new test passed in all three browsers.
+- `tests/observability-tracing.test.ts` (unchanged code): 21/22. "traces
+  server actions" passes but takes about 57 s on this loaded machine, so it
+  exceeds the 15 s default timeout.
+- Regression files run and passing: `tests/devtools-inspector.test.ts`,
+  `tests/islands-vite.test.ts`, `tests/islands-bundle.test.ts`,
+  `tests/client-transport-source.test.ts` and
+  `tests/inertia-share-once.test.ts`.
 - `pnpm size:check` passes; `pnpm api:update` (client, inertia, islands and
   observability reports updated); `pnpm lint`;
   `pnpm exec tsc -p tsconfig.tests.json --noEmit`.
