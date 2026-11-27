@@ -37,11 +37,18 @@ signs, the rest verify during rotation). `authorizeChannel` is your read policy:
       origin: `http://127.0.0.1:${port}`,
       resolveIdentity: (request) => ({ binding: guestBinding(request) }),
       authorizeChannel: (identity, channel) =>
-        channel === publicChannel || reportJobs.authorize(identity, channel),
+        channel === publicChannel ||
+        // Public demo data: every guest may follow these two data tags.
+        channel === liveTagChannel(orderTag) ||
+        channel === liveTagChannel(inventoryTag) ||
+        reportJobs.authorize(identity, channel),
     }),
 ```
 
-The example generates a random secret per process. In production load a stable
+The two `liveTagChannel(...)` channels are the data tags that `@DependsOn`
+components on the starter's `/tags` page subscribe to (see the
+[realtime guide](../guides/realtime.md)); authorize `tag:` channels like any
+other. The example generates a random secret per process. In production load a stable
 secret from your secret store, otherwise tokens break on restart and differ
 between replicas.
 
