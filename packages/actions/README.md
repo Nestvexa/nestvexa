@@ -427,6 +427,28 @@ class filters on the group win; the actions envelope filter is the last resort.
   undo work; services must honor `AbortSignal` and own their transactions.
 - Logs never include inputs; the default logger records 5xx with request id.
 
+## Performance
+
+Admission rejects oversized input before parsing work: declared
+`Content-Length` and body size (64 KiB), JSON depth (32) and node count
+(10,000), output size (1 MiB), a 30 s default deadline and at most 16 queued
+calls per serial key. Rate limiting is on by default (120 per minute per
+tenant and subject). Long work should return a `202` job ticket instead of
+holding the request. A Live no-op action is benchmarked against a plain JSON
+POST ([benchmarks](../../docs/testing/benchmarks.md)); server actions have no
+benchmark of their own.
+
+## Compatibility
+
+- Node `^22.13.0 || ^24.0.0`, ESM only. Peers `@nestjs/common` and
+  `@nestjs/core` ^12 (tested with 12.2.0), `reflect-metadata`, `rxjs`;
+  optional `typescript` ^6 for code generation only.
+- Express and Fastify (`tests/actions-http.test.ts`).
+- The generated client and Live/HBS helper run in Chromium, Firefox and WebKit
+  (`tests/browser/actions.spec.ts`); the React, Vue and Svelte targets are used
+  by `examples/hybrid-dashboard` and `examples/inertia-react`, and the packed
+  bindings are type-checked by `pnpm test:pack`.
+
 ## Project links
 
 See the [security policy](../../SECURITY.md),
@@ -453,7 +475,9 @@ are implemented and covered by HTTP, codegen and browser tests.
 - Results are a single JSON envelope or a job ticket; there is no incremental
   streaming of an action's return value (progress streams through the job
   `stream.channel`).
-- Coexistence with Nest GraphQL or microservice transports is untested.
+- `tests/api-coexistence.test.ts` runs REST, GraphQL, a TCP microservice and a
+  WebSocket gateway next to Live in one application, but not next to server
+  actions.
 - The `ActionInput` name also exists in `@nestvexa/live` with Live semantics;
   import it from the package that owns the class you decorate.
 

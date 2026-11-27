@@ -30,7 +30,7 @@ depend on.
 
 ## Architecture role
 
-```
+```text
 Live component (assistant panel) ── ask/approve/reject/collect ──▶ AiAssistant
         │  nv:stream="assistant"                                       ▲
         ▼                                                              │
@@ -293,6 +293,15 @@ class HttpChatProvider implements ChatProvider {
 
 (The non-null assertion and `parseYourProviderStream` are placeholders for your
 own configuration validation and parser.)
+
+## Performance
+
+Turns stream text (`nv:stream`) rather than buffering a reply. Conversation
+memory is bounded in process: a sliding window of `maxMessages`, at most
+`maxConversationsPerIdentity` per identity and `maxIdentities` overall (oldest
+evicted), 16,000 characters of assistant text per turn and the timeouts above.
+A circuit breaker stops calling a failing provider. Provider latency and token
+cost are the host's; nothing here is benchmarked.
 
 ## Compatibility and links
 

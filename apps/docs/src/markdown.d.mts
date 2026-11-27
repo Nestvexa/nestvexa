@@ -9,11 +9,19 @@ export interface Snippet {
   readonly code: string | undefined;
 }
 
+/** A fenced code block: its info string, text and provenance source, if any. */
+export interface CodeBlock {
+  readonly info: string;
+  readonly code: string;
+  readonly provenance: string | undefined;
+}
+
 export interface Analysis {
   readonly headings: readonly Heading[];
   readonly links: readonly { readonly href: string; readonly text: string }[];
   readonly anchors: ReadonlySet<string>;
   readonly snippets: readonly Snippet[];
+  readonly codeBlocks: readonly CodeBlock[];
 }
 
 export function slug(text: string): string;

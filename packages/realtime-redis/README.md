@@ -300,6 +300,35 @@ It would also pull `bullmq` and `ioredis` into the install. Use
 `RedisJobQueue`, or run BullMQ directly (the realtime guide shows how to publish
 its progress to `job:<id>` channels).
 
+## Security
+
+Redis is inside the trust boundary, but records read from it are still
+validated: tampered, foreign-tenant or undecryptable entries fail as `410`, job
+records are re-validated before use, and keys hold SHA-256 hashes of tokens,
+bindings and users, never raw values. `encryptionKeys` encrypts Live state with
+AES-256-GCM, and replay records are sealed by Live with a key the store never
+sees. The password is never logged. Connections are plain TCP (`node:net`,
+no TLS support), so keep Redis on a private network or behind a TLS tunnel,
+and use ACL users and per-tenant key patterns where needed.
+
+## Performance
+
+About eight round trips per Live action and about five per job claim or
+update (see above). Commands time out after `commandTimeoutMs` (5 s) and a
+circuit breaker fails fast during outages. Capacity is bounded per binding
+(`maxEntriesPerBinding`) and per process (`maxInFlight`). Throughput with two
+replicas plus Redis has not been benchmarked
+([benchmarks](../../docs/testing/benchmarks.md)).
+
+## Compatibility
+
+- Node `^22.13.0 || ^24.0.0`, ESM only. Peers `@nestvexa/live` and, for
+  `/realtime`, `@nestvexa/realtime`.
+- Redis 6.2+ over RESP2; tested against Redis 7 standalone. Single primary
+  only: no Sentinel discovery, no tested failover, no Redis Cluster.
+- Replicas on Express and Fastify (four-replica browser suite in
+  `pnpm test:services`).
+
 ## Status and limits
 
 Status: **Shipped (alpha)**. `RedisLiveStore` passes the shared store contract suite and, with the realtime broker, a real Redis 7 run including the four-replica (Express and Fastify) browser acceptance suite ([services evidence](../../docs/implementation/services-evidence-2026-11-05.json)).

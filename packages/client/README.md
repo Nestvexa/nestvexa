@@ -102,7 +102,7 @@ Render only trusted application templates. The client rejects active document ta
 
 See the [cookie-backed example](../../examples/live-counter/README.md), the [directive lab](../../examples/directive-lab/README.md) and the [protocol](../../docs/guides/live-protocol.md).
 
-TypeScript emits documented declarations; esbuild creates one minified canonical ESM bundle with linked original-source maps. Private per-module JavaScript is used only by implementation tests and is excluded from published files and served assets. The 48 KiB (49,152-byte) gzip budget checked by `pnpm size:check` measures the complete public custom runtime bundle. See [the build decision](../../docs/adr/0015-production-client-bundle.md) and the [budget revision](../../docs/adr/0020-client-budget-revision.md). The estimate excludes Alpine and maps and is not observed HTTP transfer compression. Deployed map exposure remains a host policy.
+TypeScript emits documented declarations; esbuild creates one minified canonical ESM bundle with linked original-source maps. Private per-module JavaScript is used only by implementation tests and is excluded from published files and served assets. `pnpm size:check` gates the entry and each on-demand chunk (see [Performance](#performance)). See [the build decision](../../docs/adr/0015-production-client-bundle.md), the [budget revision](../../docs/adr/0020-client-budget-revision.md) and [feature chunks](../../docs/adr/0036-client-feature-chunks.md). The estimate excludes Alpine and maps and is not observed HTTP transfer compression. Deployed map exposure remains a host policy.
 
 ## Nested components and events
 
@@ -120,17 +120,50 @@ A queued `$sync` folds into a request of the same component that has not started
 
 `nv:navigate` links swap same-origin documents with full-load fallback, scroll restoration on Back and Forward, title/metadata updates, dirty-draft confirmation and explicit hover prefetch that committed Live requests invalidate ([reference](../../docs/reference/nv-navigate.md)); `client.navigate(url)` visits programmatically. `nv:optimistic.toggle|set|increment|decrement` projects display bindings until an action settles and emits `nestvexa:rollback` on failure ([reference](../../docs/reference/nv-optimistic.md)). Responses with `download` trigger a single-use attachment.
 
+## Security
+
+The browser is untrusted: the server re-validates every action, writable path,
+revision and upload. Within that model the client:
+
+- evaluates no expressions and rejects unknown directives and modifiers;
+- rejects active tags, non-HTML namespaces and inline handlers in updates
+  through the `nestvexa` Trusted Types policy (defense in depth, not a
+  sanitizer; `tests/client-security.test.ts`, `tests/client-csp.test.ts`);
+- bounds call inputs (16 KiB, depth 8, 1,000 nodes) and combined mutation
+  requests (64 KiB) before sending;
+- retries only server-declared idempotent actions, and `inspect()` shows
+  names, never values or tokens.
+
+## Performance
+
+`pnpm size:check` (`scripts/size.mjs`, run in CI) gates gzip size per file:
+the `index.js` entry every Live page loads at 44 KiB, the `live-sort.js`,
+`live-stream.js`, `live-upload.js` and `live-realtime.js` chunks at 6, 4.5, 5
+and 3 KiB, and all Live code at 60 KiB ([ADR 0036](../../docs/adr/0036-client-feature-chunks.md)).
+Chunks load only on pages that use the feature, and a queued `$sync` folds
+into a pending request of the same component. `tests/morph-scaling.test.ts`
+gates near-linear morph growth (1,000 vs 5,000 rows); `pnpm bench` records the
+DOM patch time ([benchmarks](../../docs/testing/benchmarks.md)) without a
+millisecond budget.
+
+## Compatibility
+
+- Browsers with fetch, ReadableStream, TextDecoder, AbortController,
+  `crypto.randomUUID` and MutationObserver. Tested in Chromium, Firefox and
+  WebKit through Playwright; no minimum browser versions are defined.
+- No dependencies or peers; the server half is `@nestvexa/live` with protocol
+  capability negotiation ([client transport](../../docs/guides/client-transport.md)).
+- ESM only. Node `>=22` (package `engines`) for tooling and tests.
+
 ## Status and limits
 
 Status: **Partial**. The directives, models, transport, morphing and ownership rules above work and are tested in unit, three-browser matrix and real-server browser suites; the full master directive matrix is not complete.
 
 - HTML-fragment streaming is not supported; `nv:stream` is text only (DIR-016).
-- `nv:sort` supports vertical same-list moves only; touch, grid and cross-list movement are unsupported (DIR-017).
 - No teleport support (portal targets belong in `nv:ignore`); complete external-widget and renderer-specific island teardown acceptance remains open (BROW-010, DIR-019, DIR-020).
 - Manual screen-reader (NVDA/VoiceOver) checks have not been run; layout-shift measurement runs in Chromium only (BROW-008).
 - Restored-draft detection is emulated before mount; a real reload-restoration run is not automated (DIR-008).
 - Distributed fault and long-memory acceptance of the transport remain open; streams and `nv:navigate` GETs are not retried (BROW-006, BROW-020).
-- One canonical bundle; no code splitting (BROW-004).
 
 ## Testing
 
