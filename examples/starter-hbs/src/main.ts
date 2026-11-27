@@ -3,6 +3,7 @@ import { Controller, Get, Module, Render } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestvexaModule, configureNestvexa } from 'nestvexa';
 import { fileURLToPath } from 'node:url';
+import { ContactController } from './contact.js';
 
 @Controller()
 class HomeController {
@@ -37,7 +38,7 @@ class HomeController {
       },
     }),
   ],
-  controllers: [HomeController],
+  controllers: [HomeController, ContactController],
 })
 class AppModule {}
 

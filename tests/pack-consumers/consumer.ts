@@ -623,8 +623,19 @@ class PackActions {
     };
   }
 }
+// The same app is an Inertia app: an Inertia page receives the CSRF token as a
+// prop and calls the action through the generated hooks (bindings-check.ts).
+@Controller()
+class PackedInertiaActionsController {
+  @Get('inertia-actions')
+  @InertiaPage('Packed/Actions')
+  page() {
+    return { csrf, action: 'pack.echo' };
+  }
+}
 @Module({
   imports: [
+    InertiaModule.forRoot({ version: 'packed-actions' }),
     ActionsModule.register({
       groups: [PackActions],
       origin,
@@ -632,6 +643,7 @@ class PackActions {
       authorize: (_identity, action) => action.group === 'pack',
     }),
   ],
+  controllers: [PackedInertiaActionsController],
 })
 class ActionsApp {}
 // One generation from the packed codegen: the typed base client plus React
@@ -713,9 +725,12 @@ try {
     ['bindings/check.js', await actionsApp.getUrl(), csrf, origin],
     { timeout: 60000 },
   );
-  assert.match(run.stdout, /react, vue, svelte and live bindings passed/);
+  assert.match(
+    run.stdout,
+    /inertia page, react, vue, svelte and live bindings passed/,
+  );
   console.log(
-    'Packed actions consumer passed: explicit group route, generated types from the tarball, typed client and type-checked React/Vue/Svelte/Live bindings.',
+    'Packed actions consumer passed: explicit group route, generated types from the tarball, typed client, and React hook, Vue composable, Svelte store and Live element helper calls against the packed ActionsModule, with the CSRF token read from a packed Inertia page visit.',
   );
 } finally {
   await actionsApp.close();

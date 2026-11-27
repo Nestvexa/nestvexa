@@ -63,7 +63,7 @@ class HomeController {
       },
     }),
   ],
-  controllers: [HomeController],
+  controllers: [HomeController, ContactController],
 })
 class AppModule {}
 ```
@@ -101,14 +101,80 @@ braces bypass escaping: use them only for trusted markup such as the layout body
 Escaping is not URL or script-context sanitization; see the
 [template engine guide](../guides/template-engines.md#escaping-and-the-trusted-path).
 
-## 4. Run it
+## 4. Add a form that works without JavaScript
+
+`/contact` in the starter is a plain `<form method="post">`. The server
+validates every field, re-renders the form with **422** and the errors next to
+the fields when something is wrong, and redirects with **303** on success so a
+reload does not resubmit. Browser attributes such as `maxlength` are hints; the
+rules live in `validateContact`, which also refuses repeated or non-text fields
+(`name[]=a&name[]=b`) instead of coercing them:
+
+<!-- snippet: examples/starter-hbs/src/contact.ts -->
+
+```ts
+  @Post()
+  submit(
+    @Body() body: unknown,
+    @Headers('origin') origin: string | undefined,
+    @Headers('host') host: string | undefined,
+    @Res() response: FormResponse,
+  ): void {
+    if (!sameOrigin(origin, host))
+      throw new ForbiddenException('Cross-origin form submission');
+    const result = validateContact(body);
+    if (result.ok) {
+      // A real application stores or sends result.values here.
+      response.redirect(303, '/contact?sent=1');
+      return;
+    }
+    response.status(422);
+    response.render('contact', {
+      title: 'Contact: fix the errors',
+      sent: false,
+      values: result.values,
+      errors: result.errors,
+      invalid: true,
+      limits: contactLimits,
+    });
+  }
+```
+
+The view keeps the submitted values (escaped), marks invalid fields with
+`aria-invalid` and `aria-describedby`, and starts with an error summary
+(`role="alert"`) whose links move to each field:
+
+<!-- snippet: examples/starter-hbs/views/contact.hbs -->
+
+```hbs
+<input
+  id="email"
+  name="email"
+  type="email"
+  autocomplete="email"
+  maxlength="{{limits.email}}"
+  value="{{values.email}}"
+  aria-invalid="{{#if errors.email}}true{{else}}false{{/if}}"
+  aria-describedby="email-error"
+/>
+<span id="email-error">{{errors.email}}</span>
+```
+
+The starter has no session or cookies, so a forged cross-site POST carries no
+credentials; it still refuses a foreign `Origin`. Once your app has sessions, add
+a CSRF token (the [forms guide](../guides/forms.md) covers `@nestvexa/forms`,
+which also adds Live-enhanced validation on top of the same fallback).
+
+## 5. Run it
 
 ```sh
 pnpm install --frozen-lockfile && pnpm build
 pnpm --filter @nestvexa/example-starter-hbs start   # http://127.0.0.1:3100
 ```
 
-`/`, `/about` and the untouched JSON route `/api/health` are covered by the
+`/`, `/about`, the `/contact` form (with JavaScript disabled and enabled, plus
+cross-origin and malformed submissions) and the untouched JSON route
+`/api/health` are covered by the
 [MVC browser spec](../../tests/browser/mvc.spec.ts) and the
 [integration suite](../../tests/integration.test.ts).
 

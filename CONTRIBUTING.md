@@ -43,6 +43,9 @@ For browser tests run `pnpm exec playwright install chromium firefox webkit` and
    `no-changeset` label and re-runs the job.
 6. Run `pnpm format` (or `pnpm exec prettier --write <files>`), `pnpm lint` and the
    tests you touched before pushing.
+   The repository installs no precommit hook on purpose: CI runs the same checks on
+   Ubuntu and Windows ([ADR 0038](docs/adr/0038-no-precommit-hooks.md)). A personal,
+   uncommitted `.git/hooks/pre-commit` is fine if you want one.
 
 ## Standards
 

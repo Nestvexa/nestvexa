@@ -43,6 +43,7 @@ prove it. Proposing a new one is described in [governance](../../GOVERNANCE.md#d
 | [0035](0035-live-layout-isolation-and-transitions.md)         | No Live layout, isolation or transition options                             |
 | [0036](0036-client-feature-chunks.md)                         | On-demand Live client feature chunks, per-chunk budgets and SRI import map  |
 | [0037](0037-server-state-references-and-read-only-refresh.md) | Server state references instead of signed snapshots; read-only refresh      |
+| [0038](0038-no-precommit-hooks.md)                            | No precommit hooks; CI enforces formatting, linting and policy              |
 
 ## Writing an ADR
 

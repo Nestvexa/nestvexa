@@ -1,0 +1,64 @@
+<h1>Contact</h1>
+{{#if sent}}
+<p id="contact-sent" role="status">Thanks, your message was received.</p>
+{{/if}} {{#if invalid}}
+<div id="error-summary" role="alert" aria-labelledby="error-summary-title">
+  <h2 id="error-summary-title">The message was not sent</h2>
+  <ul>
+    {{#if errors.name}}
+    <li><a href="#name">Name: {{errors.name}}</a></li>
+    {{/if}} {{#if errors.email}}
+    <li><a href="#email">Email: {{errors.email}}</a></li>
+    {{/if}} {{#if errors.message}}
+    <li><a href="#message">Message: {{errors.message}}</a></li>
+    {{/if}}
+  </ul>
+</div>
+{{/if}}
+<form method="post" action="/contact" novalidate>
+  <p>
+    <label for="name">Name</label>
+    <input
+      id="name"
+      name="name"
+      autocomplete="name"
+      maxlength="{{limits.name}}"
+      value="{{values.name}}"
+      aria-invalid="{{#if errors.name}}true{{else}}false{{/if}}"
+      aria-describedby="name-error"
+    />
+    <span id="name-error">{{errors.name}}</span>
+  </p>
+  <p>
+    <label for="email">Email</label>
+    <input
+      id="email"
+      name="email"
+      type="email"
+      autocomplete="email"
+      maxlength="{{limits.email}}"
+      value="{{values.email}}"
+      aria-invalid="{{#if errors.email}}true{{else}}false{{/if}}"
+      aria-describedby="email-error"
+    />
+    <span id="email-error">{{errors.email}}</span>
+  </p>
+  <p>
+    <label for="message">Message</label>
+    <textarea
+      id="message"
+      name="message"
+      rows="5"
+      maxlength="{{limits.message}}"
+      aria-invalid="{{#if errors.message}}true{{else}}false{{/if}}"
+      aria-describedby="message-error"
+    >
+{{values.message}}</textarea>
+    <span id="message-error">{{errors.message}}</span>
+  </p>
+  <button type="submit">Send message</button>
+</form>
+<p>
+  This form is a plain HTML POST: it works without JavaScript, the server
+  validates every field, and errors are rendered next to the fields.
+</p>
