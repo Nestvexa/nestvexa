@@ -257,7 +257,11 @@ function fingerprintOf(
     }),
   );
 }
-function seal(key: Buffer, storageKey: string, plaintext: string): string {
+export function seal(
+  key: Buffer,
+  storageKey: string,
+  plaintext: string,
+): string {
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', key, iv);
   // The storage key is authenticated: a record copied to another key fails.
@@ -269,7 +273,7 @@ function seal(key: Buffer, storageKey: string, plaintext: string): string {
   return `r1.${Buffer.concat([iv, cipher.getAuthTag(), body]).toString('base64url')}`;
 }
 /** Plaintext of a sealed record, or undefined when it is malformed or was tampered with. */
-function unseal(
+export function unseal(
   key: Buffer,
   storageKey: string,
   sealed: string,

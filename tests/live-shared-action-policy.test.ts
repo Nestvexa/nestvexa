@@ -15,6 +15,7 @@ import {
   LiveRuntime,
   MemoryLiveStore,
   State,
+  downloadLive,
   isLiveActionCoordination,
 } from '../packages/live/dist/index.js';
 import { RedisLiveStore } from '../packages/realtime-redis/dist/index.js';
@@ -30,7 +31,9 @@ afterEach(async () => {
   for (const step of cleanup.splice(0).reverse()) await step();
 });
 
-const calls = { pay: 0, export: 0 };
+const calls = { pay: 0, export: 0, receipt: 0 };
+/** 1.2 MB: three 512 KiB chunks in the shared store. */
+const receiptBody = 'receipt line\n'.repeat(92_000);
 let hold: Promise<void> | undefined;
 
 @LiveComponent({ name: 'checkout', view: 'checkout' })
@@ -39,6 +42,15 @@ class Checkout {
   @Action({ idempotent: true }) pay(): void {
     calls.pay++;
     this.charges++;
+  }
+  /** An idempotent action with a single-use download attachment. */
+  @Action({ idempotent: true }) receipt(): void {
+    calls.receipt++;
+    downloadLive(this, {
+      filename: 'receipt-2026.txt',
+      contentType: 'text/plain; charset=utf-8',
+      body: receiptBody,
+    });
   }
   @Action({ concurrency: 'identity' }) async exportAll(): Promise<void> {
     calls.export++;
@@ -92,6 +104,7 @@ async function replica(
 async function harness(platforms: readonly [Platform, Platform]) {
   calls.pay = 0;
   calls.export = 0;
+  calls.receipt = 0;
   hold = undefined;
   const server = await respDouble();
   cleanup.push(() => server.close());
@@ -137,7 +150,18 @@ async function harness(platforms: readonly [Platform, Platform]) {
     updates: {},
     input: null,
   });
-  return { server, a, b, mount, send, envelope };
+  const fetchDownload = async (base: string, url: string, user = 'alice') => {
+    const response = await fetch(`${base}${url}`, {
+      headers: { 'x-user': user },
+    });
+    return {
+      status: response.status,
+      type: response.headers.get('content-type'),
+      disposition: response.headers.get('content-disposition'),
+      text: await response.text(),
+    };
+  };
+  return { server, a, b, mount, send, envelope, fetchDownload };
 }
 
 const pairs = [
@@ -333,4 +357,116 @@ describe('Shared idempotent replay and identity locks (two replicas, RESP test d
     await new Promise((resolve) => setTimeout(resolve, 150));
     expect(await store.readReplay(key)).toBeUndefined();
   });
+});
+
+describe('Shared download attachments (two replicas, RESP test double)', () => {
+  for (const pair of pairs)
+    it(`serves a download created on one replica from the other, once (${pair.join(' → ')})`, async () => {
+      const { server, a, b, mount, send, envelope, fetchDownload } =
+        await harness(pair);
+      const snapshot = await mount();
+      const requestId = randomUUID();
+      const first = await send(
+        a.base,
+        'receipt',
+        envelope(snapshot, 0, requestId),
+      );
+      expect(first.status).toBe(201);
+      const attachment = first.body['download'] as {
+        url: string;
+        filename: string;
+      };
+      expect(attachment.url).toMatch(
+        /^\/_nestvexa\/live\/checkout\/_download\/[A-Za-z0-9_-]{43}$/,
+      );
+      // The response is lost; the retry replays on the other replica with
+      // the same URL, and that replica serves the attachment.
+      const retry = await send(
+        b.base,
+        'receipt',
+        envelope(snapshot, 0, requestId),
+      );
+      expect(retry.body).toMatchObject({ replayed: true });
+      expect(retry.body['download']).toEqual(attachment);
+      expect(calls.receipt).toBe(1);
+      // Another identity is refused and does not consume the token.
+      expect((await fetchDownload(b.base, attachment.url, 'bob')).status).toBe(
+        404,
+      );
+      const served = await fetchDownload(b.base, attachment.url);
+      expect(served.status).toBe(200);
+      expect(served.type).toMatch(/^text\/plain/);
+      expect(served.disposition).toContain('receipt-2026.txt');
+      expect(served.text).toBe(receiptBody);
+      // Single use across replicas: neither replica serves it again.
+      expect((await fetchDownload(a.base, attachment.url)).status).toBe(404);
+      expect((await fetchDownload(b.base, attachment.url)).status).toBe(404);
+      // The store holds digests and ciphertext only: no body, name or owner.
+      const stored = [...server.values].map(
+        ([key, value]) =>
+          `${key}=${typeof value === 'string' ? value : [...value].join(',')}`,
+      );
+      const token = attachment.url.split('/').at(-1) ?? '';
+      for (const entry of stored) {
+        expect(entry).not.toContain(token);
+        expect(entry).not.toContain('receipt-2026');
+        expect(entry).not.toContain('receipt line');
+        expect(entry).not.toContain(alice);
+      }
+      // Manifest + three chunks + the replay record.
+      expect(stored.filter((entry) => entry.startsWith('sp:r:'))).toHaveLength(
+        5,
+      );
+    }, 60_000);
+
+  it('refuses tampered download records and two concurrent fetches of one token', async () => {
+    const { server, a, b, mount, send, envelope, fetchDownload } =
+      await harness(['express', 'fastify']);
+    const before = new Set(server.values.keys());
+    const first = await send(
+      a.base,
+      'receipt',
+      envelope(await mount(), 0, randomUUID()),
+    );
+    const url = (first.body['download'] as { url: string }).url;
+    const added = [...server.values.keys()].filter(
+      (key) => !before.has(key) && key.startsWith('sp:r:'),
+    );
+    // Concurrent fetches on both replicas: exactly one is served.
+    const [onA, onB] = await Promise.all([
+      fetchDownload(a.base, url),
+      fetchDownload(b.base, url),
+    ]);
+    expect([onA.status, onB.status].sort()).toEqual([200, 404]);
+    // A second download whose chunk was altered in the store is not served.
+    const second = await send(
+      b.base,
+      'receipt',
+      envelope(await mount(), 0, randomUUID()),
+    );
+    const secondUrl = (second.body['download'] as { url: string }).url;
+    const chunk = [...server.values.keys()].find(
+      (key) =>
+        key.startsWith('sp:r:') &&
+        !added.includes(key) &&
+        !before.has(key) &&
+        String(server.values.get(key)).length > 500_000,
+    );
+    expect(chunk).toBeDefined();
+    const value = String(server.values.get(chunk ?? ''));
+    server.values.set(
+      chunk ?? '',
+      `${value.slice(0, 100)}${value.at(100) === 'A' ? 'B' : 'A'}${value.slice(101)}`,
+    );
+    expect((await fetchDownload(a.base, secondUrl)).status).toBe(404);
+    // Unknown and malformed tokens are 404 on the shared path too.
+    expect(
+      (
+        await fetchDownload(
+          a.base,
+          `/_nestvexa/live/checkout/_download/${'A'.repeat(43)}`,
+        )
+      ).status,
+    ).toBe(404);
+  }, 60_000);
 });

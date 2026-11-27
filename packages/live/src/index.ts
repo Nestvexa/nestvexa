@@ -62,6 +62,7 @@ export {
   type LiveStateDescription,
   type PropMode,
   type ComponentOptions,
+  type LiveRealtimeTransport,
   type StateOptions,
   type ActionOptions,
   type ComputedOptions,
